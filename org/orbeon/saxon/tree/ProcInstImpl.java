@@ -3,6 +3,7 @@ import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.xpath.XPathException;
 import org.w3c.dom.DOMException;
+import org.w3c.dom.ProcessingInstruction;
 
 /**
   * ProcInstImpl is an implementation of ProcInstInfo used by the Propagator to construct
