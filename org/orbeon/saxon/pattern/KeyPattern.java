@@ -3,13 +3,13 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.DocumentInfo;
+import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.Item;
 import net.sf.saxon.trans.KeyManager;
+import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.type.ItemType;
 
 /**
 * A KeyPattern is a pattern of the form key(keyname, keyvalue)

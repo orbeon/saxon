@@ -1,8 +1,7 @@
 package net.sf.saxon.style;
 import net.sf.saxon.expr.Expression;
-import net.sf.saxon.instruct.Instruction;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.tree.AttributeCollection;
+import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.type.ItemType;
 
 import javax.xml.transform.TransformerConfigurationException;
@@ -64,7 +63,7 @@ public class XSLWhen extends StyleElement {
 
     public void validate() throws TransformerConfigurationException {
         if (!(getParentNode() instanceof XSLChoose)) {
-            compileError("xsl:when must be immediately within xsl:choose");
+            compileError("xsl:when must be immediately within xsl:choose", "XT0010");
         }
         test = typeCheck("test", test);
     }

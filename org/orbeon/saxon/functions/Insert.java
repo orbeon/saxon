@@ -2,7 +2,6 @@ package net.sf.saxon.functions;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.value.IntegerValue;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.NumericValue;
 import net.sf.saxon.xpath.XPathException;
@@ -33,12 +32,10 @@ public class Insert extends SystemFunction {
         private SequenceIterator insert;
         private int insertPosition;
         private int position = 0;
-        //private Item nextItem = null;
         private Item current = null;
         private boolean inserting = false;
 
-        public InsertIterator(SequenceIterator base, SequenceIterator insert, int insertPosition)
-        throws XPathException {
+        public InsertIterator(SequenceIterator base, SequenceIterator insert, int insertPosition) {
             this.base = base;
             this.insert = insert;
             this.insertPosition = (insertPosition<1 ? 1 : insertPosition);
@@ -46,7 +43,7 @@ public class Insert extends SystemFunction {
         }
 
         public Item next() throws XPathException {
-            Item nextItem = null;
+            Item nextItem;
             if (inserting) {
                 nextItem = insert.next();
                 if (nextItem == null) {

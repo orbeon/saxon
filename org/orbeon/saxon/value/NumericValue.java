@@ -1,8 +1,8 @@
 package net.sf.saxon.value;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.type.ItemType;
 import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.type.ItemType;
+import net.sf.saxon.type.Type;
+import net.sf.saxon.xpath.XPathException;
 
 /**
  * NumericValue is an abstract superclass for IntegerValue, DecimalValue,
@@ -64,7 +64,7 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
             return true;
         } else if (value instanceof BigIntegerValue) {
             return true;
-        } else if (value instanceof DerivedAtomicValue && NumericValue.isInteger(value.getPrimitiveValue())) {
+        } else if (!value.hasBuiltInType() && NumericValue.isInteger(value.getPrimitiveValue())) {
             return true;
         }
         return false;
@@ -84,12 +84,11 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
     /**
      * Change the sign of the number
      *
-     * @exception XPathException if the conversion is not possible
      * @return a value, of the same type as the original, with its sign
      *     inverted
      */
 
-    public abstract NumericValue negate() throws XPathException;
+    public abstract NumericValue negate();
 
     /**
      * Implement the XPath floor() function
@@ -131,6 +130,13 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
     public abstract NumericValue roundToHalfEven(int scale);
 
     /**
+     * Determine whether the value is negative, zero, or positive
+     * @return -1 if negative, 0 if zero (including negative zero), +1 if positive, NaN if NaN
+     */ 
+
+    public abstract double signum();
+
+    /**
      * Perform a binary arithmetic operation
      *
      * @param operator the binary arithmetic operation to be performed. Uses
@@ -168,8 +174,8 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
     // when comparing with another number of the same type.
 
     public int compareTo(Object other) {
-        if (other instanceof DerivedAtomicValue) {
-            return compareTo(((DerivedAtomicValue)other).getPrimitiveValue());
+        if (other instanceof AtomicValue && !((AtomicValue)other).hasBuiltInType()) {
+            return compareTo(((AtomicValue)other).getPrimitiveValue());
         }
         if (!(other instanceof NumericValue)) {
             throw new ClassCastException("Numeric values are not comparable to " + other.getClass());

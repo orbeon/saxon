@@ -1,11 +1,11 @@
 package net.sf.saxon.xpath;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.expr.Binding;
 import net.sf.saxon.expr.BindingReference;
 import net.sf.saxon.expr.VariableDeclaration;
 import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.value.EmptySequence;
+import net.sf.saxon.value.SequenceType;
+import net.sf.saxon.value.Value;
 
 
 /**
@@ -17,7 +17,6 @@ public final class Variable implements VariableDeclaration, Binding {
 
     private String name;
     private Value value;
-    //private int slotNumber;
 
     /**
     * Private constructor: for use only be the protected factory method make()
@@ -33,16 +32,6 @@ public final class Variable implements VariableDeclaration, Binding {
         Variable v = new Variable();
         v.name = name;
         return v;
-    }
-
-    /**
-     * Get the SequenceType of the variable. Free-standing XPath variables allow values of
-     * any type.
-     * @return the required type: always item()*
-     */
-
-    public SequenceType getRequiredType() {
-        return SequenceType.ANY_SEQUENCE;
     }
 
     /**
@@ -72,7 +61,7 @@ public final class Variable implements VariableDeclaration, Binding {
      */
 
     public void setValue(Object value) throws XPathException {
-        this.value = Value.convertJavaObjectToXPath(value, null);
+        this.value = Value.convertJavaObjectToXPath(value, SequenceType.ANY_SEQUENCE, null);
         if (this.value==null) {
             this.value = EmptySequence.getInstance();
         }

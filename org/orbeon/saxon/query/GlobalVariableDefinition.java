@@ -1,12 +1,15 @@
 package net.sf.saxon.query;
 
 import net.sf.saxon.expr.*;
-import net.sf.saxon.instruct.*;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.instruct.GeneralVariable;
+import net.sf.saxon.instruct.GlobalParam;
+import net.sf.saxon.instruct.GlobalVariable;
+import net.sf.saxon.instruct.SlotManager;
+import net.sf.saxon.om.NamePool;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.om.NamePool;
+import net.sf.saxon.value.SequenceType;
+import net.sf.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -19,7 +22,7 @@ import java.util.List;
 
 public class GlobalVariableDefinition implements VariableDeclaration {
 
-    private List references = new ArrayList();
+    private List references = new ArrayList(10);
     private SequenceType requiredType;
     private Expression value;
     private int nameCode;
@@ -27,42 +30,94 @@ public class GlobalVariableDefinition implements VariableDeclaration {
     private String variableName;
     private int lineNumber;
 
+    /**
+     * Set the required type of the variable
+     * @param type the declared type, from the "as" clause if present
+     */
 
     public void setRequiredType(SequenceType type) {
         requiredType = type;
     }
 
+    /**
+     * Get the required type of the variable
+     * @return the declared type, from the "as" clause if present
+     */
+
+    public SequenceType getRequiredType() {
+        return requiredType;
+    }
+
+    /**
+     * Set the variable name
+     * @param nameCode the variable name, expressed as a NamePool name code
+     */
     public void setNameCode(int nameCode) {
         this.nameCode = nameCode;
     }
 
+    /**
+     * Get the variable name
+     * @return the variable name, expressed as a NamePool name code
+     */
+    public int getNameCode() {
+        return nameCode;
+    }
+    /**
+     * Set the line number where the variable declaration appears in the source
+     * @param lineNumber the line number
+     */
     public void setLineNumber(int lineNumber) {
         this.lineNumber = lineNumber;
     }
 
+    /**
+     * Get the name of the variable
+     * @return the variable name, as a lexical QName
+     */
     public String getVariableName() {
         return variableName;
     }
 
+    /**
+     * Set the variable name
+     * @param variableName the variable name, as a lexical QName
+     */
     public void setVariableName(String variableName) {
         this.variableName = variableName;
     }
 
+    /**
+     * Set the expression used to define the value of the variable
+     * @param val the initializing expression
+     */
     public void setValueExpression(Expression val) {
         this.value = val;
     }
 
+    /**
+     * Indicate whether this global variable is a "parameter" (an external variable, in XQuery terminology)
+     * @param b true if this variable is external
+     */
     public void setIsParameter(boolean b) {
         isParameter = b;
     }
 
+    /**
+     * Register a variable reference that refers to this global variable
+     * @param ref the variable reference
+     */
     public void registerReference(BindingReference ref) {
         references.add(ref);
     }
 
-    public int getNameCode() {
-        return nameCode;
-    }
+    /**
+     * Create a compiled representation of this global variable
+     * @param env the static context for the query module
+     * @param slot the slot number allocated to this variable
+     * @return the compiled representation
+     * @throws XPathException if compile-time errors are found.
+     */
 
     public GeneralVariable compile(StaticQueryContext env, int slot) throws XPathException {
 
@@ -76,11 +131,10 @@ public class GlobalVariableDefinition implements VariableDeclaration {
             ((GlobalVariable)var).setExecutable(env.getExecutable());
         }
         if (value != null) {
-            RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, variableName, 0);
-            Expression value2 = TypeChecker.staticTypeCheck(
+            RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, variableName, 0, null);
+            Expression value2 = TypeChecker.strictTypeCheck(
                                     value.simplify(env).analyze(env, Type.ITEM_TYPE),
                                     requiredType,
-                                    false,
                                     role, env);
             var.setSelectExpression(value2);
             if (value2 instanceof ComputedExpression) {
@@ -107,7 +161,6 @@ public class GlobalVariableDefinition implements VariableDeclaration {
                 // exceptions can happen because references to variables and functions are still unbound
             }
         }
-        //var.setGlobal(true);
         var.setVariableName(variableName);
         var.setSlotNumber(slot);
 

@@ -1,8 +1,9 @@
 package net.sf.saxon.sort;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.value.NumericValue;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.value.NumericValue;
+import net.sf.saxon.value.Value;
 import net.sf.saxon.xpath.XPathException;
+
 import java.util.Comparator;
 
 /**

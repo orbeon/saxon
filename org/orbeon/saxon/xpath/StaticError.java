@@ -1,5 +1,6 @@
 package net.sf.saxon.xpath;
 import javax.xml.transform.SourceLocator;
+import javax.xml.transform.TransformerException;
 
 /**
 * Exception used for static errors in XPath, XSLT, or XQuery
@@ -29,6 +30,14 @@ public class StaticError extends XPathException {
 
     public StaticError makeStatic() {
         return this;
+    }
+
+    public static StaticError makeStaticError(TransformerException err) {
+        if (err instanceof XPathException) {
+            return ((XPathException)err).makeStatic();
+        } else {
+            return new StaticError(err);
+        }
     }
 
 }

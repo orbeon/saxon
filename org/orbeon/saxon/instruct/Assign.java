@@ -19,14 +19,14 @@ import net.sf.saxon.xpath.XPathException;
 public class Assign extends GeneralVariable implements BindingReference {
 
 
-    private GeneralVariable binding;    // link to the variable declaration
+    private Binding binding;    // link to the variable declaration
 
     public Assign() {}
 
     public void setStaticType(SequenceType type, Value constantValue, int properties) {}
 
     public void fixup(Binding binding) {
-        this.binding = (GeneralVariable)binding;
+        this.binding = binding;
     }
 
 //    public void setVariableName(String variableName) {}
@@ -48,10 +48,14 @@ public class Assign extends GeneralVariable implements BindingReference {
         if (value instanceof Closure) {
             value = new SequenceExtent(value.iterate(null));
         }
-        if (binding.isGlobal()) {
-            context.getController().getBindery().assignGlobalVariable((GlobalVariable)binding, value);
+        if (binding instanceof GeneralVariable) {
+            if (((GeneralVariable)binding).isGlobal()) {
+                context.getController().getBindery().assignGlobalVariable((GlobalVariable)binding, value);
+            } else {
+                context.setLocalVariable(((GeneralVariable)binding).getSlotNumber(), value);
+            }
         } else {
-            context.setLocalVariable(binding.getSlotNumber(), value);
+
         }
         return null;
     }

@@ -51,10 +51,10 @@ public final class ValueComparison extends BinaryExpression {
 
         final SequenceType optionalAtomic = SequenceType.OPTIONAL_ATOMIC;
 
-        RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0);
+        RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0, null);
         operand0 = TypeChecker.staticTypeCheck(operand0, optionalAtomic, false, role0, env);
 
-        RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1);
+        RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1, null);
         operand1 = TypeChecker.staticTypeCheck(operand1, optionalAtomic, false, role1, env);
 
         AtomicType t1 = operand0.getItemType().getAtomizedItemType();
@@ -83,13 +83,14 @@ public final class ValueComparison extends BinaryExpression {
                     if (opt0 && opt1) which = "one or both operands are";
                     env.issueWarning(
                             "Comparison of " + t1.toString(env.getNamePool()) + (opt0?"?":"") + " to " + t2.toString(env.getNamePool()) +
-                            (opt1?"?":"") + " will fail unless " + which + " empty");
+                            (opt1?"?":"") + " will fail unless " + which + " empty", this);
                 } catch (Exception err) {}
             } else {
                 StaticError err =
                     new StaticError("Cannot compare " + t1.toString(env.getNamePool()) +
                                               " to " + t2.toString(env.getNamePool()));
                 err.setIsTypeError(true);
+                err.setErrorCode("XP0006");
                 throw err;
             }
         }
@@ -119,14 +120,14 @@ public final class ValueComparison extends BinaryExpression {
             if (isZero(operand1)) {
                 if (operator == Token.FEQ || operator == Token.FLE ) {
                     // rewrite count(x)=0 as empty(x)
-                    FunctionCall fn = SystemFunction.makeSystemFunction("empty", env.getNamePool());
+                    FunctionCall fn = SystemFunction.makeSystemFunction("empty", 1, env.getNamePool());
                     Expression[] args = new Expression[1];
                     args[0] = ((FunctionCall)operand0).argument[0];
                     fn.setArguments(args);
                     return fn;
                 } else if (operator == Token.FNE || operator == Token.FGT) {
                     // rewrite count(x)!=0, count(x)>0 as exists(x)
-                    FunctionCall fn = SystemFunction.makeSystemFunction("exists", env.getNamePool());
+                    FunctionCall fn = SystemFunction.makeSystemFunction("exists", 1, env.getNamePool());
                     Expression[] args = new Expression[1];
                     args[0] = ExpressionTool.unsorted(((FunctionCall)operand0).argument[0], false);
                     fn.setArguments(args);
@@ -146,7 +147,7 @@ public final class ValueComparison extends BinaryExpression {
                 if (operator == Token.FGT) {
                     val++;
                 }
-                FunctionCall fn = SystemFunction.makeSystemFunction("exists", env.getNamePool());
+                FunctionCall fn = SystemFunction.makeSystemFunction("exists", 1, env.getNamePool());
                 Expression[] args = new Expression[1];
                 FilterExpression filter =
                         new FilterExpression(((FunctionCall)operand0).argument[0],
@@ -357,7 +358,7 @@ public final class ValueComparison extends BinaryExpression {
     * @throws net.sf.saxon.xpath.DynamicError if the values are not comparable
     */
 
-    protected static boolean compare(AtomicValue v1, int op, AtomicValue v2,
+    static boolean compare(AtomicValue v1, int op, AtomicValue v2,
                                      AtomicComparer collator)
             throws DynamicError {
         if (v1 instanceof NumericValue && ((NumericValue)v1).isNaN()) {

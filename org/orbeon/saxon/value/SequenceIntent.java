@@ -2,9 +2,9 @@ package net.sf.saxon.value;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.AnyItemType;
+import net.sf.saxon.type.ItemType;
+import net.sf.saxon.xpath.XPathException;
 
 /**
 * A SequenceIntent is sequence value that uses deferred evaluation. It

@@ -1,11 +1,10 @@
 package net.sf.saxon.functions;
-import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.StaticContext;
+import net.sf.saxon.expr.StaticProperty;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.xpath.XPathException;
 
 /**
@@ -31,7 +30,7 @@ public class Root extends SystemFunction {
     */
 
     public int computeSpecialProperties() {
-        int prop = StaticProperty.ORDERED_NODESET;
+        int prop = StaticProperty.ORDERED_NODESET | StaticProperty.NON_CREATIVE;
         if ((getNumberOfArguments() == 0) ||
                 (argument[0].getSpecialProperties() & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0) {
             prop |= StaticProperty.CONTEXT_DOCUMENT_NODESET;
@@ -49,10 +48,6 @@ public class Root extends SystemFunction {
             return null;
         }
         return start.getRoot();
-    }
-
-    public SequenceIterator iterate(XPathContext c) throws XPathException {
-        return super.iterate(c);
     }
 
 }

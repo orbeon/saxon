@@ -1,8 +1,8 @@
 package net.sf.saxon.instruct;
 
 import net.sf.saxon.expr.Expression;
-import net.sf.saxon.trace.InstructionInfo;
 import net.sf.saxon.om.NamespaceResolver;
+import net.sf.saxon.trace.InstructionInfo;
 
 import java.util.HashMap;
 import java.util.Iterator;

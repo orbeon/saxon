@@ -1,17 +1,14 @@
 package net.sf.saxon.functions;
 
-import net.sf.saxon.functions.StandardFunction;
-import net.sf.saxon.functions.SystemFunction;
-import net.sf.saxon.functions.FunctionLibrary;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.StaticError;
 import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.type.ItemType;
+import net.sf.saxon.expr.StaticProperty;
+import net.sf.saxon.om.NamespaceConstant;
 import net.sf.saxon.pattern.NodeKindTest;
+import net.sf.saxon.type.ItemType;
+import net.sf.saxon.type.Type;
+import net.sf.saxon.xpath.StaticError;
+import net.sf.saxon.xpath.XPathException;
 
 import java.util.HashMap;
 
@@ -59,6 +56,9 @@ public class VendorFunctionLibrary implements FunctionLibrary {
         StandardFunction.Entry e;
         e = register("evaluate", Evaluate.class, Evaluate.EVALUATE, 1, 10, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             StandardFunction.arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
+
+        e = register("evaluate-node", Evaluate.class, Evaluate.EVALUATE_NODE, 1, 1, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
+            StandardFunction.arg(e, 0, Type.NODE_TYPE, StaticProperty.EXACTLY_ONE);
 
         e = register("eval", Evaluate.class, Evaluate.EVAL, 1, 10, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             StandardFunction.arg(e, 0, Type.ANY_ATOMIC_TYPE, StaticProperty.EXACTLY_ONE);

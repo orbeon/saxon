@@ -7,31 +7,43 @@ import net.sf.saxon.type.AnyItemType;
 import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
+import net.sf.saxon.value.SequenceExtent;
 import net.sf.saxon.value.UntypedAtomicValue;
+import net.sf.saxon.value.Value;
 import net.sf.saxon.xpath.XPathException;
 
 /**
 * An UntypedAtomicConverter is an expression that converts any untypedAtomic items in
-* a sequence to a specified type, returning all other items unchanged
+* a sequence to a specified type
 */
 
 public final class UntypedAtomicConverter extends UnaryExpression implements MappingFunction {
 
     private AtomicType requiredItemType;
+    private RoleLocator role;
 
     /**
     * Constructor
-    * @param sequence: this must be a sequence of atomic values. This is not checked; a ClassCastException
+    * @param sequence this must be a sequence of atomic values. This is not checked; a ClassCastException
     * will occur if the precondition is not satisfied.
-    * @param requiredItemType: the item type to which untypedAtomic items in the sequence should be converted,
+    * @param requiredItemType the item type to which untypedAtomic items in the sequence should be converted,
     * using the rules for "cast as".
     */
 
-    public UntypedAtomicConverter(Expression sequence, AtomicType requiredItemType) {
+    public UntypedAtomicConverter(Expression sequence, AtomicType requiredItemType, RoleLocator role) {
         super(sequence);
         this.requiredItemType = requiredItemType;
+        this.role = role;
         ExpressionTool.copyLocationInfo(sequence, this);
     }
+
+    /**
+    * Determine the data type of the items returned by the expression
+    */
+
+	public ItemType getItemType() {
+	    return requiredItemType;
+	}
 
     /**
     * Type-check the expression
@@ -39,6 +51,9 @@ public final class UntypedAtomicConverter extends UnaryExpression implements Map
 
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
         operand = operand.analyze(env, contextItemType);
+        if (operand instanceof Value) {
+            return new SequenceExtent(iterate(null)).simplify(env);
+        }
         ItemType type = operand.getItemType();
         if (type instanceof NodeTest) {
             return this;
@@ -52,13 +67,23 @@ public final class UntypedAtomicConverter extends UnaryExpression implements Map
         return operand;
     }
 
+    /**
+     * Determine the special properties of this expression
+     * @return {@link StaticProperty#NON_CREATIVE}.
+     */
+
+    public int computeSpecialProperties() {
+        int p = super.computeSpecialProperties();
+        return p | StaticProperty.NON_CREATIVE;
+    }
+
      /**
     * Iterate over the sequence of values
     */
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
         SequenceIterator base = operand.iterate(context);
-        return new MappingIterator(base, this, null, null);
+        return new MappingIterator(base, this, null, context);
     }
 
     /**
@@ -69,8 +94,16 @@ public final class UntypedAtomicConverter extends UnaryExpression implements Map
         Item item = operand.evaluateItem(context);
         if (item==null) return null;
         if (item instanceof UntypedAtomicValue) {
-            return ((UntypedAtomicValue)item).convert(requiredItemType, context);
+            try {
+                return ((UntypedAtomicValue)item).convert(requiredItemType, context);
+            } catch (XPathException e) {
+                if (e.getLocator() == null) {
+                    e.setLocator(this);
+                }
+                throw e;
+            }
         } else {
+            //testConformance(item, context);
             return item;
         }
     }
@@ -81,11 +114,22 @@ public final class UntypedAtomicConverter extends UnaryExpression implements Map
 
     public Object map(Item item, XPathContext context, Object info) throws XPathException {
         if (item instanceof UntypedAtomicValue) {
-            return ((UntypedAtomicValue)item).convert(requiredItemType, context);
+            return ((UntypedAtomicValue)item).convert(requiredItemType, (XPathContext)info);
         } else {
+            //testConformance(item, (XPathContext)info);
             return item;
         }
     }
+
+//    private void testConformance(Item item, XPathContext context) throws XPathException {
+//        if (!requiredItemType.matchesItem(item)) {
+//            NamePool namePool = context.getController().getNamePool();
+//            String message = "Required type of " + role.getMessage() +
+//                                             " is " + requiredItemType.toString(namePool) +
+//                                             "; supplied value has type " + Type.displayTypeName(item);
+//            typeError(message, "XP0004", context);
+//        }
+//    }
 
     /**
      * Give a string representation of the operator for use in diagnostics

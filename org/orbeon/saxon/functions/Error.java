@@ -3,9 +3,12 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.om.NamespaceConstant;
+import net.sf.saxon.value.QNameValue;
+import net.sf.saxon.value.SequenceExtent;
 import net.sf.saxon.xpath.DynamicError;
 import net.sf.saxon.xpath.StaticError;
+import net.sf.saxon.xpath.XPathException;
 
 /**
 * Implement XPath function fn:error()
@@ -34,18 +37,25 @@ public class Error extends SystemFunction {
     */
 
     public Item evaluateItem(XPathContext context) throws XPathException {
-        Item arg = null;
+        QNameValue qname = null;
         if (argument.length > 0) {
-            arg = argument[0].evaluateItem(context);
+            qname = (QNameValue)argument[0].evaluateItem(context);
         }
-        DynamicError e;
-        if (arg==null) {
-            e = new DynamicError("Error signalled by application call on error()");
+        if (qname == null) {
+            qname = new QNameValue("err", NamespaceConstant.ERR, "FOER0000");
+        }
+        String description = null;
+        if (argument.length > 1) {
+            description = argument[1].evaluateItem(context).getStringValue();
         } else {
-            e = new DynamicError(arg.getStringValue());
+            description = "Error signalled by application call on error()";
         }
-        e.setErrorCode("FOER0000");
+        DynamicError e = new DynamicError(description);
+        e.setErrorCode(qname.getQName());
         e.setXPathContext(context);
+        if (argument.length > 2) {
+            e.setErrorObject(new SequenceExtent(argument[2].iterate(context)));
+        }
         throw e;
     }
 

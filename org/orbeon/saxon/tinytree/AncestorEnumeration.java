@@ -1,8 +1,9 @@
 package net.sf.saxon.tinytree;
-import net.sf.saxon.pattern.NodeTest;
 import net.sf.saxon.om.AxisIteratorImpl;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.pattern.NodeTest;
 
 /**
 * This class enumerates the ancestor:: or ancestor-or-self:: axes,
@@ -11,55 +12,32 @@ import net.sf.saxon.om.SequenceIterator;
 
 final class AncestorEnumeration extends AxisIteratorImpl {
 
-    //private int nextNodeNr;
-    private TinyNodeImpl next;
-    private TinyDocumentImpl document;
     private TinyNodeImpl startNode;
     private NodeTest test;
-    private TinyNodeImpl first = null;
     private boolean includeSelf;
 
-    public AncestorEnumeration(TinyDocumentImpl doc, TinyNodeImpl node,
-                                NodeTest nodeTest, boolean includeSelf) {
-        document = doc;
+    public AncestorEnumeration(TinyNodeImpl node, NodeTest nodeTest, boolean includeSelf) {
         test = nodeTest;
         this.startNode = node;
         this.includeSelf = includeSelf;
-        if (includeSelf && nodeTest.matches(node.getNodeKind(), node.getFingerprint(), node.getTypeAnnotation())) {
-            first = node;
-        }
-
-        // this code is designed to catch the case where the first node
-        // is an attribute or namespace node
-
-        next = (TinyNodeImpl)node.getParent();
-        if (next != null &&
-                !nodeTest.matches(next.getNodeKind(), next.getFingerprint(), next.getTypeAnnotation())) {
-            advance();
-            // TODO: lookahead no longer needed
-        }
+        current = startNode;
     }
 
     public Item next() {
-        if (first==null && next==null) {
-            return null;
-        }
-        position++;
-        if (first!=null) {
-            current = first;
-            first = null;
+        if (position==0 && includeSelf &&
+                test.matches(startNode.getNodeKind(), startNode.getFingerprint(), startNode.getTypeAnnotation())) {
+            current = startNode;
+            position = 1;
             return current;
         } else {
-            current = next;
-            advance();
+            NodeInfo node = ((NodeInfo)current).getParent();
+            while (node != null && !test.matches(node.getNodeKind(), node.getFingerprint(), node.getTypeAnnotation())) {
+                node = node.getParent();
+            }
+            current = node;
+            position++;
             return current;
         }
-    }
-
-    private void advance() {
-        do {
-            next = (TinyNodeImpl)next.getParent();
-        } while (next != null && !test.matches(next.getNodeKind(), next.getFingerprint(), next.getTypeAnnotation()));
     }
 
     /**
@@ -67,13 +45,10 @@ final class AncestorEnumeration extends AxisIteratorImpl {
     */
 
     public SequenceIterator getAnother() {
-        return new AncestorEnumeration(document, startNode, test, includeSelf);
+        return new AncestorEnumeration(startNode, test, includeSelf);
     }
 
-
 }
-
-
 
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");

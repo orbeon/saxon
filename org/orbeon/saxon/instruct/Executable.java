@@ -1,8 +1,9 @@
 package net.sf.saxon.instruct;
 import net.sf.saxon.Configuration;
-import net.sf.saxon.query.StaticQueryContext;
-import net.sf.saxon.functions.FunctionLibrary;
+import net.sf.saxon.om.NamespaceConstant;
 import net.sf.saxon.event.Stripper;
+import net.sf.saxon.functions.FunctionLibrary;
+import net.sf.saxon.query.StaticQueryContext;
 import net.sf.saxon.sort.CodepointCollator;
 import net.sf.saxon.trans.DecimalFormatManager;
 import net.sf.saxon.trans.KeyManager;
@@ -10,9 +11,7 @@ import net.sf.saxon.trans.Mode;
 import net.sf.saxon.trans.RuleManager;
 
 import java.io.Serializable;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Properties;
+import java.util.*;
 
 /**
 * A compiled stylesheet in executable form.
@@ -312,7 +311,7 @@ public class Executable implements Serializable {
 
     public String getDefaultCollationName() {
         if (defaultCollationName==null) {
-            return CodepointCollator.URI;
+            return NamespaceConstant.CodepointCollationURI;
         } else {
             return defaultCollationName;
         }
@@ -366,28 +365,39 @@ public class Executable implements Serializable {
     }
 
     /**
-     * Add an XQuery library module to the configuration
+     * Add an XQuery library module to the configuration. The Executable maintains a table indicating
+     * for each module namespace, the set of modules that have been loaded from that namespace. If a
+     * module import is encountered that specifies no location hint, all the known modules for that
+     * namespace are imported.
      */
 
     public void addQueryLibraryModule(StaticQueryContext module) {
         if (queryLibraryModules==null) {
             queryLibraryModules = new HashMap(5);
         }
-        queryLibraryModules.put(module.getModuleNamespace(), module);
+        String uri = module.getModuleNamespace();
+        List existing = (List)queryLibraryModules.get(uri);
+        if (existing == null) {
+            existing = new ArrayList(5);
+            existing.add(module);
+            queryLibraryModules.put(uri, existing);
+        } else {
+            existing.add(module);
+        }
     }
 
     /**
-     * Locate an XQuery library module in the configuration.
+     * Locate the known XQuery library modules for a given module namespace.
      * @param namespace the module namespace URI
-     * @return the StaticQueryContext representing the module, or
+     * @return a list of items each of which is the StaticQueryContext representing a module, or
      * null if the module namespace is unknown
      */
 
-    public StaticQueryContext getQueryLibraryModule(String namespace) {
+    public List getQueryLibraryModules(String namespace) {
         if (queryLibraryModules == null) {
             return null;
         }
-        return (StaticQueryContext)queryLibraryModules.get(namespace);
+        return (List)queryLibraryModules.get(namespace);
     }
 
 

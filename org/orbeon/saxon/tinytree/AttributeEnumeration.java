@@ -1,10 +1,10 @@
 package net.sf.saxon.tinytree;
+import net.sf.saxon.om.AxisIteratorImpl;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.AxisIteratorImpl;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.pattern.NodeTest;
 import net.sf.saxon.pattern.NameTest;
+import net.sf.saxon.pattern.NodeTest;
+import net.sf.saxon.type.Type;
 import net.sf.saxon.value.UntypedAtomicValue;
 
 /**
@@ -13,7 +13,7 @@ import net.sf.saxon.value.UntypedAtomicValue;
 
 final class AttributeEnumeration extends AxisIteratorImpl {
 
-    private TinyDocumentImpl doc;
+    private TinyTree tree;
     private int element;
     private NodeTest nodeTest;
     private int index;
@@ -22,21 +22,17 @@ final class AttributeEnumeration extends AxisIteratorImpl {
     * Constructor. Note: this constructor will only be called if the relevant node
     * is an element and if it has one or more attributes. Otherwise an EmptyEnumeration
     * will be constructed instead.
-    * @param doc: the containing document
-    * @param element: the element whose attributes are required
+    * @param tree: the containing TinyTree
+    * @param element: the node number of the element whose attributes are required
     * @param nodeTest: condition to be applied to the names of the attributes selected
     */
 
-    protected AttributeEnumeration(TinyDocumentImpl doc, int element, NodeTest nodeTest) {
+    AttributeEnumeration(TinyTree tree, int element, NodeTest nodeTest) {
 
         this.nodeTest = nodeTest;
-        this.doc = doc;
+        this.tree = tree;
         this.element = element;
-        index = doc.alpha[element];
-    }
-
-    public final void setIsAtomizing(boolean atomizing) {
-        super.setIsAtomizing(atomizing);
+        index = tree.alpha[element];
     }
 
     /**
@@ -45,24 +41,24 @@ final class AttributeEnumeration extends AxisIteratorImpl {
 
     public Item next() {
         while (true) {
-            if (index >= doc.numberOfAttributes || doc.attParent[index] != element) {
+            if (index >= tree.numberOfAttributes || tree.attParent[index] != element) {
                 index = Integer.MAX_VALUE;
                 return null;
             }
-            int typeCode = doc.getAttributeAnnotation(index);
-            if (nodeTest.matches(Type.ATTRIBUTE, doc.attCode[index], typeCode)) {
+            int typeCode = tree.getAttributeAnnotation(index);
+            if (nodeTest.matches(Type.ATTRIBUTE, tree.attCode[index], typeCode)) {
                 position++;
-                int node = index++;
+                int nodeNr = index++;
                 if (nodeTest instanceof NameTest) {
                     // there can only be one match, so abandon the search after this node
                     index = Integer.MAX_VALUE;
                 }
                 if (isAtomizing() && typeCode==-1) {
                     // optimization: avoid creating the Node object if not needed
-                    current = new UntypedAtomicValue(doc.attValue[node]);
+                    current = new UntypedAtomicValue(tree.attValue[nodeNr]);
                     return current;
                 } else {
-                    current = doc.getAttributeNode(node);
+                    current = tree.getAttributeNode(nodeNr);
                     return current;
                 }
             }
@@ -75,7 +71,7 @@ final class AttributeEnumeration extends AxisIteratorImpl {
     */
 
     public SequenceIterator getAnother() {
-        return new AttributeEnumeration(doc, element, nodeTest);
+        return new AttributeEnumeration(tree, element, nodeTest);
     }
 
 }

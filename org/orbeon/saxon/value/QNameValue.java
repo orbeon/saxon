@@ -11,6 +11,8 @@ import net.sf.saxon.type.Type;
 import net.sf.saxon.xpath.DynamicError;
 import net.sf.saxon.xpath.XPathException;
 
+import javax.xml.namespace.QName;
+
 
 /**
  * A QName value. This implements the so-called "triples proposal", in which the prefix is retained as
@@ -41,7 +43,7 @@ public class QNameValue extends AtomicValue {
     }
 
     /**
-     * Constructor
+     * Constructor. This constructor validates that the local part is a valid NCName.
      * @param prefix The prefix part of the QName (not used in comparisons). Use null or "" to represent the
      * default prefix.
      * @param uri The namespace part of the QName. Use null or "" to represent the null namespace.
@@ -60,6 +62,17 @@ public class QNameValue extends AtomicValue {
     }
 
     /**
+     * Construct a QNameValue from a JAXP QName. This does no validation of the components of
+     * the supplied QName.
+     */
+
+    public QNameValue(QName qname) {
+        this.prefix = qname.getPrefix();
+        this.uri = qname.getNamespaceURI();
+        this.localPart = qname.getLocalPart();
+    }
+
+    /**
      * Get the string value as a String. Returns the QName as a lexical QName, retaining the original
      * prefix if available.
      */
@@ -70,6 +83,14 @@ public class QNameValue extends AtomicValue {
         } else {
             return prefix + ':' + localPart;
         }
+    }
+
+    /**
+     * Get the value as a JAXP QName
+     */
+
+    public QName getQName() {
+        return new QName(uri, localPart, prefix);
     }
 
     /**
@@ -110,7 +131,12 @@ public class QNameValue extends AtomicValue {
 
     public AtomicValue getComponent(int part) {
         if (part == Component.LOCALNAME) {
-            return new StringValue(localPart);
+            try {
+                return new RestrictedStringValue(localPart, StandardNames.XS_NCNAME);
+            } catch (XPathException e) {
+                throw new IllegalStateException("Local part of QName is not a valid NCName");
+                // TODO: revalidation should be unnecessary
+            }
         } else if (part == Component.NAMESPACE) {
             return new StringValue(uri);
         } else {
@@ -178,6 +204,8 @@ public class QNameValue extends AtomicValue {
     public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
         if (target.isAssignableFrom(QNameValue.class)) {
             return this;
+        } else if (target.isAssignableFrom(QName.class)) {
+            return getQName();
         } else {
             Object o = super.convertToJava(target, config, context);
             if (o == null) {
@@ -190,7 +218,7 @@ public class QNameValue extends AtomicValue {
 
     /**
      * The toString() method returns the name in the form QName("uri", "local")
-     * @return the name in Clark notation: {uri}local
+     * @return the name in in the form QName("uri", "local")
      */
 
     public String toString() {

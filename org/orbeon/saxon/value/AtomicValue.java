@@ -1,13 +1,13 @@
 package net.sf.saxon.value;
 import net.sf.saxon.Configuration;
+import net.sf.saxon.Err;
+import net.sf.saxon.expr.ExpressionTool;
+import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.SingletonIterator;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.type.AtomicType;
+import net.sf.saxon.om.*;
+import net.sf.saxon.type.*;
+import net.sf.saxon.xpath.StaticError;
 import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
@@ -19,6 +19,15 @@ import java.io.PrintStream;
  */
 
 public abstract class AtomicValue extends Value implements Item {
+
+    /**
+     * Test whether the type of this atomic value is a built-in type.
+     * Default implementation returns true.
+     */
+
+    public boolean hasBuiltInType() {
+        return true;
+    }
 
     /**
      * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
@@ -79,12 +88,12 @@ public abstract class AtomicValue extends Value implements Item {
      */
 
     public final AtomicValue convert(AtomicType targetType, XPathContext context) throws XPathException {
-        if (targetType.isBuiltIn()) {
+        if (targetType instanceof BuiltInAtomicType) {
             return convert(targetType.getFingerprint(), context);
         } else {
             String lexicalValue = getStringValue();
             AtomicValue v = convert(targetType.getPrimitiveType(), context);
-            return DerivedAtomicValue.makeValue(v, lexicalValue, targetType, true);
+            return targetType.makeDerivedValue(v, lexicalValue, true);
         }
     }
 
@@ -135,7 +144,7 @@ public abstract class AtomicValue extends Value implements Item {
      * @return the typed value of the expression (which is this value)
      */
 
-    public final SequenceIterator getTypedValue(Configuration config) {
+    public final SequenceIterator getTypedValue() {
         return SingletonIterator.makeIterator(this);
     }
 
@@ -177,9 +186,47 @@ public abstract class AtomicValue extends Value implements Item {
     }
 
     /**
+     * Check statically that the results of the expression are capable of constructing the content
+     * of a given schema type.
+     *
+     * @param parentType The schema type
+     * @param env        the static context
+     * @param whole      true if this atomic value accounts for the entire content of the containing node
+     * @throws net.sf.saxon.xpath.XPathException
+     *          if the expression doesn't match the required content type
+     */
+
+    public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException {
+        if (whole) {
+            SimpleType stype = null;
+            if (parentType instanceof SimpleType) {
+                stype = (SimpleType)parentType;
+            } else if (parentType instanceof ComplexType && ((ComplexType)parentType).isSimpleContent()) {
+                stype = ((ComplexType)parentType).getSimpleContentType();
+            }
+            if (stype != null && !stype.isNamespaceSensitive()) {
+                            // Can't validate namespace-sensitive content statically
+                stype.validateContent(getStringValue(), null);
+                return;
+            }
+        }
+        if (parentType instanceof ComplexType &&
+                !((ComplexType)parentType).isSimpleContent() &&
+                !((ComplexType)parentType).isMixedContent() &&
+                !Navigator.isWhite(getStringValue())) {
+            StaticError err = new StaticError("Complex type " + parentType.getDescription() +
+                    " does not allow text content " +
+                    Err.wrap(getStringValue()));
+            err.setIsTypeError(true);
+            throw err;
+        }
+    }
+
+    /**
      * Get string value. In general toString() for an atomic value displays the value as it would be
      * written in XPath: that is, as a literal if available, or as a call on a constructor function
      * otherwise.
+     *
      */
 
     public String toString() {
@@ -210,12 +257,6 @@ public abstract class AtomicValue extends Value implements Item {
         }
         Item[] array = {this};
         return new SequenceExtent(array).convertToJava(target, config, context);
-//        if (target.isAssignableFrom(List.class)) {
-//            List list = new ArrayList();
-//            list.add(this);
-//            return list;
-//        };
-//        return null;
     }
 }
 

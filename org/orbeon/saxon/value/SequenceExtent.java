@@ -1,17 +1,12 @@
 package net.sf.saxon.value;
-import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.ArrayIterator;
-import net.sf.saxon.om.ReverseArrayIterator;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.AnyItemType;
-import net.sf.saxon.type.Type;
+import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.NodeKindTest;
+import net.sf.saxon.type.AnyItemType;
+import net.sf.saxon.type.ItemType;
+import net.sf.saxon.type.Type;
+import net.sf.saxon.xpath.XPathException;
 
 import java.util.List;
 
@@ -107,6 +102,21 @@ public final class SequenceExtent extends SequenceValue {
 
     public SequenceExtent materialize() throws XPathException {
         return this;
+    }
+
+    /**
+     * Simplify this SequenceExtent
+     */
+
+    public Value simplify() {
+        int n = getLength();
+        if (n == 0) {
+            return EmptySequence.getInstance();
+        } else if (n == 1) {
+            return Value.asValue(itemAt(0));
+        } else {
+            return this;
+        }
     }
 
     /**

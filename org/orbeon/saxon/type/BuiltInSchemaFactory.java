@@ -1,5 +1,4 @@
 package net.sf.saxon.type;
-import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.NamespaceConstant;
 import net.sf.saxon.style.StandardNames;
 
@@ -17,166 +16,143 @@ public abstract class BuiltInSchemaFactory implements Serializable {
     * Define the type hierarchy
     */
 
-    private static HashMap lookup = new HashMap();
+    private static HashMap lookup = new HashMap(100);
+
+    private BuiltInSchemaFactory() {
+    }
 
     static {
 
         final String XS = NamespaceConstant.SCHEMA;
         final String XDT = NamespaceConstant.XDT;
 
-        SimpleType anySimpleType =
-                makeSimpleType(XS, "anySimpleType", null, StandardNames.XS_ANY_SIMPLE_TYPE);
-        try {
-            anySimpleType.setBaseType(AnyType.getInstance());
-        } catch (SchemaException err) {
-            throw new AssertionError(err);
-        }
+        AnySimpleType anySimpleType = AnySimpleType.getInstance();
+        lookup.put(new Integer(StandardNames.XS_ANY_SIMPLE_TYPE), anySimpleType);
 
-        SimpleType anyAtomicType =
-                makeSimpleType(XDT, "anyAtomicType", anySimpleType, Type.ATOMIC);
-        SimpleType numeric =
-                makeSimpleType(XDT, "numeric", anyAtomicType, Type.NUMBER);
-        SimpleType string =
-                makeSimpleType(XS, "string", anyAtomicType, Type.STRING);
-        SimpleType xsboolean =
-                makeSimpleType(XS, "boolean", anyAtomicType, Type.BOOLEAN);
-        SimpleType duration =
-                makeSimpleType(XS, "duration", anyAtomicType, Type.DURATION);
-        SimpleType dateTime =
-                makeSimpleType(XS, "dateTime", anyAtomicType, Type.DATE_TIME);
-        SimpleType date =
-                makeSimpleType(XS, "date", anyAtomicType, Type.DATE);
-        SimpleType time =
-                makeSimpleType(XS, "time", anyAtomicType, Type.TIME);
-        SimpleType gYearMonth =
-                makeSimpleType(XS, "gYearMonth", anyAtomicType, Type.G_YEAR_MONTH);
-        SimpleType gMonth =
-                makeSimpleType(XS, "gMonth", anyAtomicType, Type.G_MONTH);
-        SimpleType gMonthDay =
-                makeSimpleType(XS, "gMonthDay", anyAtomicType, Type.G_MONTH_DAY);
-        SimpleType gYear =
-                makeSimpleType(XS, "gYear", anyAtomicType, Type.G_YEAR);
-        SimpleType gDay =
-                makeSimpleType(XS, "gDay", anyAtomicType, Type.G_DAY);
-        SimpleType hexBinary =
-                makeSimpleType(XS, "hexBinary", anyAtomicType, Type.HEX_BINARY);
-        SimpleType base64Binary =
-                makeSimpleType(XS, "base64Binary", anyAtomicType, Type.BASE64_BINARY);
-        SimpleType anyURI =
-                makeSimpleType(XS, "anyURI", anyAtomicType, Type.ANY_URI);
-        SimpleType qName =
-                makeSimpleType(XS, "QName", anyAtomicType, Type.QNAME);
-        SimpleType notation =
-                makeSimpleType(XS, "NOTATION", anyAtomicType, Type.NOTATION);
+        BuiltInAtomicType anyAtomicType =
+                makeAtomicType(XDT, "anyAtomicType", anySimpleType);
+        BuiltInAtomicType numeric =
+                makeAtomicType(XDT, "numeric", anyAtomicType);
+        BuiltInAtomicType string =
+                makeAtomicType(XS, "string", anyAtomicType);
+        BuiltInAtomicType xsboolean =
+                makeAtomicType(XS, "boolean", anyAtomicType);
+        BuiltInAtomicType duration =
+                makeAtomicType(XS, "duration", anyAtomicType);
+        BuiltInAtomicType dateTime =
+                makeAtomicType(XS, "dateTime", anyAtomicType);
+        BuiltInAtomicType date =
+                makeAtomicType(XS, "date", anyAtomicType);
+        BuiltInAtomicType time =
+                makeAtomicType(XS, "time", anyAtomicType);
+        BuiltInAtomicType gYearMonth =
+                makeAtomicType(XS, "gYearMonth", anyAtomicType);
+        BuiltInAtomicType gMonth =
+                makeAtomicType(XS, "gMonth", anyAtomicType);
+        BuiltInAtomicType gMonthDay =
+                makeAtomicType(XS, "gMonthDay", anyAtomicType);
+        BuiltInAtomicType gYear =
+                makeAtomicType(XS, "gYear", anyAtomicType);
+        BuiltInAtomicType gDay =
+                makeAtomicType(XS, "gDay", anyAtomicType);
+        BuiltInAtomicType hexBinary =
+                makeAtomicType(XS, "hexBinary", anyAtomicType);
+        BuiltInAtomicType base64Binary =
+                makeAtomicType(XS, "base64Binary", anyAtomicType);
+        BuiltInAtomicType anyURI =
+                makeAtomicType(XS, "anyURI", anyAtomicType);
+        BuiltInAtomicType qName =
+                makeAtomicType(XS, "QName", anyAtomicType);
+        BuiltInAtomicType notation =
+                makeAtomicType(XS, "NOTATION", anyAtomicType);
 
-        SimpleType untypedAtomic =
-                makeSimpleType(XDT, "untypedAtomic", anyAtomicType, Type.UNTYPED_ATOMIC);
+        BuiltInAtomicType untypedAtomic =
+                makeAtomicType(XDT, "untypedAtomic", anyAtomicType);
 
         //SimpleType javaObject =
         //        makeSimpleType(NamespaceConstant.JAVA_TYPE, "java.lang.Object", anyAtomicType, Type.OBJECT);
 
-        SimpleType decimal =
-                makeSimpleType(XS, "decimal", numeric, Type.DECIMAL);
-        SimpleType xsfloat =
-                makeSimpleType(XS, "float", numeric, Type.FLOAT);
-        SimpleType xsdouble =
-                makeSimpleType(XS, "double", numeric, Type.DOUBLE);
+        BuiltInAtomicType decimal =
+                makeAtomicType(XS, "decimal", numeric);
+        BuiltInAtomicType xsfloat =
+                makeAtomicType(XS, "float", numeric);
+        BuiltInAtomicType xsdouble =
+                makeAtomicType(XS, "double", numeric);
 
-        SimpleType xsinteger =
-                makeSimpleType(XS, "integer", decimal, Type.INTEGER);
+        BuiltInAtomicType xsinteger =
+                makeAtomicType(XS, "integer", decimal);
 
-        SimpleType nonPositiveInteger =
-                makeSimpleType(XS, "nonPositiveInteger", xsinteger, Type.NON_POSITIVE_INTEGER);
-        SimpleType negativeInteger =
-                makeSimpleType(XS, "negativeInteger", nonPositiveInteger, Type.NEGATIVE_INTEGER);
-        SimpleType xslong =
-                makeSimpleType(XS, "long", xsinteger, Type.LONG);
-        SimpleType xsint =
-                makeSimpleType(XS, "int", xslong, Type.INT);
-        SimpleType xsshort =
-                makeSimpleType(XS, "short", xsint, Type.SHORT);
-        SimpleType xsbyte =
-                makeSimpleType(XS, "byte", xsshort, Type.BYTE);
-        SimpleType nonNegativeInteger =
-                makeSimpleType(XS, "nonNegativeInteger", xsinteger, Type.NON_NEGATIVE_INTEGER);
-        SimpleType positiveInteger =
-                makeSimpleType(XS, "positiveInteger", nonNegativeInteger, Type.POSITIVE_INTEGER);
-        SimpleType unsignedLong =
-                makeSimpleType(XS, "unsignedLong", nonNegativeInteger, Type.UNSIGNED_LONG);
-        SimpleType unsignedInt =
-                makeSimpleType(XS, "unsignedInt", unsignedLong, Type.UNSIGNED_INT);
-        SimpleType unsignedShort =
-                makeSimpleType(XS, "unsignedShort", unsignedInt, Type.UNSIGNED_SHORT);
-        SimpleType unsignedByte =
-                makeSimpleType(XS, "unsignedByte", unsignedShort, Type.UNSIGNED_BYTE);
+        BuiltInAtomicType nonPositiveInteger =
+                makeAtomicType(XS, "nonPositiveInteger", xsinteger);
+        BuiltInAtomicType negativeInteger =
+                makeAtomicType(XS, "negativeInteger", nonPositiveInteger);
+        BuiltInAtomicType xslong =
+                makeAtomicType(XS, "long", xsinteger);
+        BuiltInAtomicType xsint =
+                makeAtomicType(XS, "int", xslong);
+        BuiltInAtomicType xsshort =
+                makeAtomicType(XS, "short", xsint);
+        BuiltInAtomicType xsbyte =
+                makeAtomicType(XS, "byte", xsshort);
+        BuiltInAtomicType nonNegativeInteger =
+                makeAtomicType(XS, "nonNegativeInteger", xsinteger);
+        BuiltInAtomicType positiveInteger =
+                makeAtomicType(XS, "positiveInteger", nonNegativeInteger);
+        BuiltInAtomicType unsignedLong =
+                makeAtomicType(XS, "unsignedLong", nonNegativeInteger);
+        BuiltInAtomicType unsignedInt =
+                makeAtomicType(XS, "unsignedInt", unsignedLong);
+        BuiltInAtomicType unsignedShort =
+                makeAtomicType(XS, "unsignedShort", unsignedInt);
+        BuiltInAtomicType unsignedByte =
+                makeAtomicType(XS, "unsignedByte", unsignedShort);
 
-        SimpleType ymd =
-                makeSimpleType(XDT, "yearMonthDuration", duration, Type.YEAR_MONTH_DURATION);
-        SimpleType dtd =
-                makeSimpleType(XDT, "dayTimeDuration", duration, Type.DAY_TIME_DURATION);
+        BuiltInAtomicType ymd =
+                makeAtomicType(XDT, "yearMonthDuration", duration);
+        BuiltInAtomicType dtd =
+                makeAtomicType(XDT, "dayTimeDuration", duration);
 
-        SimpleType normalizedString =
-                makeSimpleType(XS, "normalizedString", string, Type.NORMALIZED_STRING);
-        SimpleType token =
-                makeSimpleType(XS, "token", normalizedString, Type.TOKEN);
-        SimpleType language =
-                makeSimpleType(XS, "language", token, Type.LANGUAGE);
-        SimpleType name =
-                makeSimpleType(XS, "Name", token, Type.NAME);
-        SimpleType nmtoken =
-                makeSimpleType(XS, "NMTOKEN", token, Type.NMTOKEN);
-        SimpleType ncname =
-                makeSimpleType(XS, "NCName", name, Type.NCNAME);
-        SimpleType id =
-                makeSimpleType(XS, "ID", ncname, Type.ID);
-        SimpleType idref =
-                makeSimpleType(XS, "IDREF", ncname, Type.IDREF);
-        SimpleType entity =
-                makeSimpleType(XS, "ENTITY", ncname, Type.ENTITY);
+        BuiltInAtomicType normalizedString =
+                makeAtomicType(XS, "normalizedString", string);
+        BuiltInAtomicType token =
+                makeAtomicType(XS, "token", normalizedString);
+        BuiltInAtomicType language =
+                makeAtomicType(XS, "language", token);
+        BuiltInAtomicType name =
+                makeAtomicType(XS, "Name", token);
+        BuiltInAtomicType nmtoken =
+                makeAtomicType(XS, "NMTOKEN", token);
+        BuiltInAtomicType ncname =
+                makeAtomicType(XS, "NCName", name);
+        BuiltInAtomicType id =
+                makeAtomicType(XS, "ID", ncname);
+        BuiltInAtomicType idref =
+                makeAtomicType(XS, "IDREF", ncname);
+        BuiltInAtomicType entity =
+                makeAtomicType(XS, "ENTITY", ncname);
 
-        makeListType(XS, "NMTOKENS", nmtoken);
-        makeListType(XS, "IDREFS", nmtoken);
-        makeListType(XS, "ENTITIES", nmtoken);
+        makeListType(XS, "NMTOKENS");
+        makeListType(XS, "IDREFS");
+        makeListType(XS, "ENTITIES");
 
         lookup.put(new Integer(StandardNames.XS_ANY_TYPE), AnyType.getInstance());
         lookup.put(new Integer(StandardNames.XDT_UNTYPED), Untyped.getInstance());
     }
 
-    private static SimpleType makeSimpleType(String namespace,
+    private static BuiltInAtomicType makeAtomicType(String namespace,
                                              String lname,
-                                             SimpleType baseType,
-                                             int code) {
-        try {
-            AtomicType t = new AtomicType();
-            t.setIsBuiltIn(true);
-            t.setBaseType(baseType);
-            t.setDerivationMethodName("restriction");
-            t.setFingerprint(StandardNames.getFingerprint(namespace, lname));
-            t.setLocalName(lname);
-            t.setNamePool(NamePool.getDefaultNamePool());
-            lookup.put(new Integer(t.getFingerprint()), t);
-            return t;
-        } catch (SchemaException err) {
-            throw new AssertionError("No exception should be thrown here. " + err.getMessage());
-        }
+                                             SimpleType baseType) {
+        BuiltInAtomicType t = new BuiltInAtomicType(StandardNames.getFingerprint(namespace, lname));
+        t.setBaseTypeFingerprint(baseType.getFingerprint());
+        lookup.put(new Integer(t.getFingerprint()), t);
+        return t;
     }
 
-    private static SimpleType makeListType(String namespace,
-                                           String lname,
-                                           SimpleType itemType) {
-        try {
-
-            ListType t = new ListType(NamePool.getDefaultNamePool());
-            t.setItemType(itemType);
-            t.setBaseType(getSchemaType(StandardNames.XS_ANY_SIMPLE_TYPE));
-            t.setDerivationMethodName("list");
-            t.setFingerprint(StandardNames.getFingerprint(namespace, lname));
-            t.setLocalName(lname);
-            lookup.put(new Integer(t.getFingerprint()), t);
-            return t;
-        } catch (SchemaException err) {
-            throw new AssertionError("No exception should be thrown here. " + err.getMessage());
-        }
+    private static BuiltInListType makeListType(String namespace,
+                                           String lname) {
+        BuiltInListType t = new BuiltInListType(StandardNames.getFingerprint(namespace, lname));
+        lookup.put(new Integer(t.getFingerprint()), t);
+        return t;
     }
 
     public static SchemaType getSchemaType(int fingerprint) {

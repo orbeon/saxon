@@ -5,17 +5,17 @@ import net.sf.saxon.expr.TypeChecker;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.instruct.GeneralVariable;
-import net.sf.saxon.instruct.TailCall;
 import net.sf.saxon.instruct.InstructionDetails;
+import net.sf.saxon.instruct.TailCall;
+import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.Name;
 import net.sf.saxon.om.Navigator;
 import net.sf.saxon.style.XSLGeneralVariable;
-import net.sf.saxon.tree.AttributeCollection;
+import net.sf.saxon.trace.InstructionInfo;
+import net.sf.saxon.trace.Location;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.value.Value;
 import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.trace.InstructionInfo;
-import net.sf.saxon.trace.Location;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -84,7 +84,7 @@ public class SQLColumn extends XSLGeneralVariable {
         select = typeCheck("select", select);
         try {
             RoleLocator role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "sql:column/select", 0);
+                new RoleLocator(RoleLocator.INSTRUCTION, "sql:column/select", 0, null);
             select = TypeChecker.staticTypeCheck(select,
                         SequenceType.SINGLE_ATOMIC,
                         false, role, getStaticContext());

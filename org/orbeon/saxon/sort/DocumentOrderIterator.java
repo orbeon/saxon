@@ -1,7 +1,7 @@
 package net.sf.saxon.sort;
-import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.value.SequenceExtent;
 import net.sf.saxon.xpath.XPathException;
 
@@ -28,9 +28,11 @@ public final class DocumentOrderIterator implements SequenceIterator, Sortable {
         this.comparer = comparer;
 
         sequence = new SequenceExtent(base);
-        // System.err.println("sort into document order: sequence length = " + sequence.getLength());
+        //System.err.println("sort into document order: sequence length = " + sequence.getLength());
         if (sequence.getLength()>1) {
-            QuickSort.sort(this, 0, sequence.getLength()-1);
+            //QuickSort.sort(this, 0, sequence.getLength()-1);
+            GenericSorter.quickSort(0, sequence.getLength(), this);
+            //GenericSorter.mergeSort(0, sequence.getLength(), this);
         }
         iterator = sequence.iterate(null);
     }

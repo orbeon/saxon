@@ -1,10 +1,8 @@
 package net.sf.saxon.tree;
-import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.type.Type;
-
-import org.w3c.dom.Text;
 import net.sf.saxon.xpath.XPathException;
+import org.w3c.dom.Text;
 
 /**
   * A node in the XML parse tree representing character content<P>
@@ -42,8 +40,8 @@ final class TextImpl extends NodeImpl implements Text {
     * Copy this node to a given outputter
     */
 
-    public void copy(Receiver out, int whichNamespaces) throws XPathException {
-        out.characters(content, 0, 0);
+    public void copy(Receiver out, int whichNamespaces, boolean copyAnnotations, int locationId) throws XPathException {
+        out.characters(content, locationId, 0);
     }
 
     /**

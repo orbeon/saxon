@@ -2,8 +2,8 @@ package net.sf.saxon.pattern;
 
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.AnyItemType;
+import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 
 /**

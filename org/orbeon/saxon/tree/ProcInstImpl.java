@@ -1,10 +1,9 @@
 package net.sf.saxon.tree;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.type.Type;
-
-import org.w3c.dom.ProcessingInstruction;
-import org.w3c.dom.DOMException;
 import net.sf.saxon.xpath.XPathException;
+import org.w3c.dom.DOMException;
+import org.w3c.dom.ProcessingInstruction;
 
 /**
   * ProcInstImpl is an implementation of ProcInstInfo used by the Propagator to construct
@@ -70,8 +69,8 @@ class ProcInstImpl extends NodeImpl implements ProcessingInstruction {
     * Copy this node to a given outputter
     */
 
-    public void copy(Receiver out, int whichNamespaces) throws XPathException {
-        out.processingInstruction(getLocalPart(), content, 0, 0);
+    public void copy(Receiver out, int whichNamespaces, boolean copyAnnotations, int locationId) throws XPathException {
+        out.processingInstruction(getLocalPart(), content, locationId, 0);
     }
 
     // DOM methods

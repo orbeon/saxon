@@ -1,10 +1,10 @@
 package net.sf.saxon.sort;
-import net.sf.saxon.value.DerivedAtomicValue;
+import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.StringValue;
 import net.sf.saxon.value.UntypedAtomicValue;
 
-import java.util.Comparator;
 import java.text.Collator;
+import java.util.Comparator;
 
 /**
  * A Comparator used for comparing atomic values of arbitrary item types. It encapsulates
@@ -45,11 +45,11 @@ public class AtomicComparer implements Comparator, java.io.Serializable {
 
         // System.err.println("Comparing " + a.getClass() + "(" + a + ") with " + b.getClass() + "(" + b + ") using " + collator);
 
-        if (a instanceof DerivedAtomicValue) {
-            a = ((DerivedAtomicValue)a).getPrimitiveValue();
+        if (a instanceof AtomicValue && !((AtomicValue)a).hasBuiltInType()) {
+            a = ((AtomicValue)a).getPrimitiveValue();
         }
-        if (b instanceof DerivedAtomicValue) {
-            b = ((DerivedAtomicValue)b).getPrimitiveValue();
+        if (b instanceof AtomicValue && !((AtomicValue)b).hasBuiltInType()) {
+            b = ((AtomicValue)b).getPrimitiveValue();
         }
 
         if (a instanceof UntypedAtomicValue) {
@@ -80,11 +80,11 @@ public class AtomicComparer implements Comparator, java.io.Serializable {
     public boolean comparesEqual(Object a, Object b) {
         // System.err.println("Comparing " + a.getClass() + ": " + a + " with " + b.getClass() + ": " + b);
 
-        if (a instanceof DerivedAtomicValue) {
-            a = ((DerivedAtomicValue)a).getPrimitiveValue();
+        if (a instanceof AtomicValue && !((AtomicValue)a).hasBuiltInType()) {
+            a = ((AtomicValue)a).getPrimitiveValue();
         }
-        if (b instanceof DerivedAtomicValue) {
-            b = ((DerivedAtomicValue)b).getPrimitiveValue();
+        if (b instanceof AtomicValue && !((AtomicValue)b).hasBuiltInType()) {
+            b = ((AtomicValue)b).getPrimitiveValue();
         }
 
         if (a instanceof UntypedAtomicValue) {
@@ -108,8 +108,8 @@ public class AtomicComparer implements Comparator, java.io.Serializable {
 
     public Object getComparisonKey(Object a) {
 
-        if (a instanceof DerivedAtomicValue) {
-            a = ((DerivedAtomicValue)a).getPrimitiveValue();
+        if (a instanceof AtomicValue && !((AtomicValue)a).hasBuiltInType()) {
+            a = ((AtomicValue)a).getPrimitiveValue();
         }
 
         if (a instanceof StringValue) {

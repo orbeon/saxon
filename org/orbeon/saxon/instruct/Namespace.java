@@ -1,22 +1,19 @@
 package net.sf.saxon.instruct;
 import net.sf.saxon.Controller;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.event.ReceiverOptions;
 import net.sf.saxon.event.SequenceReceiver;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.XMLChar;
 import net.sf.saxon.pattern.NodeKindTest;
+import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 
-import java.util.List;
-import java.util.Iterator;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Iterator;
 
 /**
 * An xsl:namespace element in the stylesheet. (XSLT 2.0)
@@ -38,6 +35,11 @@ public class Namespace extends SimpleNodeConstructor {
         return StandardNames.XSL_NAMESPACE;
     }
 
+    public Expression simplify(StaticContext env) throws XPathException {
+        name = name.simplify(env);
+        return super.simplify(env);
+    }
+
     public ItemType getItemType() {
         return NodeKindTest.NAMESPACE;
     }
@@ -55,15 +57,12 @@ public class Namespace extends SimpleNodeConstructor {
 
     public Iterator iterateSubExpressions() {
         ArrayList list = new ArrayList(6);
-        if (children != null) {
-            list.addAll(Arrays.asList(children));
-        }
         if (select != null) {
             list.add(select);
         }
-        if (separator != null && !(separator instanceof StringValue)) {
-            list.add(separator);
-        }
+//        if (separator != null && !(separator instanceof StringValue)) {
+//            list.add(separator);
+//        }
         list.add(name);
         return list.iterator();
     }

@@ -1,7 +1,9 @@
 package net.sf.saxon.xpath;
 
-import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.om.NamespaceConstant;
+import net.sf.saxon.value.Value;
 
+import javax.xml.namespace.QName;
 import javax.xml.transform.SourceLocator;
 import javax.xml.transform.TransformerException;
 
@@ -15,7 +17,8 @@ import javax.xml.transform.TransformerException;
 public abstract class XPathException extends TransformerException {
 
     private boolean isTypeError;
-    String errorCode;
+    QName errorCode;
+    Value errorObject;
     private boolean hasBeenReported = false;
 
     public XPathException(String message) {
@@ -45,14 +48,6 @@ public abstract class XPathException extends TransformerException {
     public StaticError makeStatic() {
         return new StaticError(this);
     }
-    
-    public static DynamicError wrap(TransformerException err) {
-        if (err instanceof DynamicError) {
-            return (DynamicError)err;
-        } else {
-            return new DynamicError(err);
-        }
-    }
 
     public void setIsTypeError(boolean is) {
         isTypeError = is;
@@ -63,13 +58,25 @@ public abstract class XPathException extends TransformerException {
     }
 
     public void setErrorCode(String code) {
+        this.errorCode = new QName(NamespaceConstant.ERR, code, "err");
+    }
+
+    public void setErrorCode(QName code) {
         this.errorCode = code;
     }
 
-    public String getErrorCode() {
+    public QName getErrorCode() {
         return errorCode;
     }
 
+    public void setErrorObject(Value value) {
+        errorObject = value;
+    }
+
+    public Value getErrorObject() {
+        return errorObject;
+    }
+    
     public void setHasBeenReported() {
         hasBeenReported = true;
     }

@@ -2,25 +2,25 @@ package net.sf.saxon.functions;
 import net.sf.saxon.Controller;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
+import net.sf.saxon.expr.Token;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.Name;
-import net.sf.saxon.om.QNameException;
 import net.sf.saxon.om.NamespaceResolver;
+import net.sf.saxon.om.QNameException;
 import net.sf.saxon.style.ExpressionContext;
 import net.sf.saxon.trans.DecimalFormatManager;
-import net.sf.saxon.value.NumericValue;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.value.*;
 import net.sf.saxon.xpath.DynamicError;
 import net.sf.saxon.xpath.StaticError;
+import net.sf.saxon.xpath.XPathException;
 
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
 import java.util.List;
-import java.io.Serializable;
-import java.math.BigInteger;
 
 /**
 * XSLT 2.0 implementation of format-number() function - removes the dependence on the JDK.
@@ -151,9 +151,7 @@ public class FormatNumber2 extends SystemFunction implements XSLTFunction {
     * We can't evaluate early because we don't have access to the DecimalFormatManager.
     */
 
-    // TODO: we could evaluate early when there are two arguments
-
-    public Expression preEvaluate(StaticContext env) {
+    public Expression preEvaluate(StaticContext env) throws XPathException {
         return this;
     }
 
@@ -162,12 +160,16 @@ public class FormatNumber2 extends SystemFunction implements XSLTFunction {
     */
 
     public String evaluateAsString(XPathContext context) throws XPathException {
+
         int numArgs = argument.length;
         Controller ctrl = context.getController();
 
         DecimalFormatSymbols dfs = decimalFormatSymbols;
 
         AtomicValue av0 = (AtomicValue)argument[0].evaluateItem(context);
+        if (av0 == null) {
+            av0 = DoubleValue.NaN;
+        };
         NumericValue number = (NumericValue)av0.getPrimitiveValue();
 
         if (dfs == null) {
@@ -207,7 +209,7 @@ public class FormatNumber2 extends SystemFunction implements XSLTFunction {
             String format = argument[1].evaluateItem(context).getStringValue();
             pics = getSubPictures(format, dfs);
         }
-        return formatNumber(number.getDoubleValue(), pics, dfs).toString();
+        return formatNumber(number, pics, dfs).toString();
     }
 
     /**
@@ -222,13 +224,15 @@ public class FormatNumber2 extends SystemFunction implements XSLTFunction {
     * Format a number, given the two subpictures and the decimal format symbols
     */
 
-    private CharSequence formatNumber(double n,
+    private CharSequence formatNumber(NumericValue number,
                                       SubPicture[] subPictures,
                                       DecimalFormatSymbols dfs) {
 
+        NumericValue absN = number;
         SubPicture pic;
         String minusSign = "";
-        if (n < 0) {
+        if (number.signum() < 0) {
+            absN = number.negate();
             if (subPictures[1]==null) {
                 pic = subPictures[0];
                 minusSign = "" + dfs.getMinusSign();
@@ -239,7 +243,7 @@ public class FormatNumber2 extends SystemFunction implements XSLTFunction {
             pic = subPictures[0];
         }
 
-        return pic.format(Math.abs(n), dfs, minusSign);
+        return pic.format(absN, dfs, minusSign);
     }
 
     private void grumble(String s) throws XPathException {
@@ -275,8 +279,16 @@ public class FormatNumber2 extends SystemFunction implements XSLTFunction {
             List wholePartPositions = null;
             List fractionalPartPositions = null;
 
-            // TODO: check sub-pic contains at least one digit or zero-digit sign
-            // System.err.println("Creating sub-picture " + pic);
+            boolean foundDigit = false;
+            for (int i=0; i<pic.length(); i++) {
+                if (pic.charAt(i) == digitSign || pic.charAt(i) == zeroDigit) {
+                    foundDigit = true;
+                    break;
+                }
+            }
+            if (!foundDigit) {
+                grumble("subpicture contains no digit or zero-digit sign");
+            }
 
             int phase = 0;
                 // phase = 0: passive characters at start
@@ -451,32 +463,174 @@ public class FormatNumber2 extends SystemFunction implements XSLTFunction {
         * @param value the absolute value of the number to be formatted
         */
 
-        public CharSequence format(double value, DecimalFormatSymbols dfs, String minusSign) {
+        public CharSequence format(NumericValue value, DecimalFormatSymbols dfs, String minusSign) {
 
             // System.err.println("Formatting " + value);
 
-            if (Double.isNaN(value)) {
+            if (value.isNaN()) {
                 return prefix + dfs.getNaN() + suffix;
             }
 
-            if (Double.isInfinite(value)) {
+            if (value instanceof DoubleValue && Double.isInfinite(value.getDoubleValue())) {
                 return prefix + minusSign + dfs.getInfinity() + suffix;
             }
 
-            if (isPercent) {
-                value = 100 * value;
-            } else if (isPerMille) {
-                value = 1000 * value;
+            if (value instanceof FloatValue && Double.isInfinite(value.getDoubleValue())) {
+                return prefix + minusSign + dfs.getInfinity() + suffix;
             }
 
-            // following (commented-out) lines work, but are slow. We may need to use this approach
-            // for very large or small numbers, however.
+            int multiplier = 1;
+            if (isPercent) {
+                multiplier = 100;
+            } else if (isPerMille) {
+                multiplier = 1000;
+            }
 
-            // BigDecimal dec = new BigDecimal(value).setScale(maxFractionPartSize, BigDecimal.ROUND_HALF_EVEN);
-            // StringBuffer sb = new StringBuffer(dec.toString());
+            if (multiplier != 1) {
+                try {
+                    value = value.arithmetic(Token.MULT, new IntegerValue(multiplier), null);
+                } catch (XPathException e) {
+                    value = new DoubleValue(value.getDoubleValue() * multiplier);
+                }
+            }
 
             StringBuffer sb = new StringBuffer(20);
 
+
+            if (value instanceof DoubleValue || value instanceof FloatValue) {
+                formatDouble(value.getDoubleValue(), sb);
+
+            } else if (value instanceof IntegerValue || value instanceof BigIntegerValue) {
+                formatInteger(value, sb);
+
+            } else if (value instanceof DecimalValue) {
+                formatDecimal((DecimalValue)value, sb);
+
+            }
+
+            // System.err.println("Justified number: " + sb.toString());
+
+            // Map the digits and decimal point to use the selected characters
+
+                 // TODO: allow chars outside the BMP to be used as special chars or as digit symbols
+
+            int point = sb.indexOf(".");
+            if (point == -1) {
+                point = sb.length();
+            } else {
+                if (dfs.getDecimalSeparator() != '.') {
+                    sb.setCharAt(point, dfs.getDecimalSeparator());
+                }
+
+                // If there is no fractional part, delete the decimal point
+                if (maxFractionPartSize == 0) {
+                    sb.deleteCharAt(point);
+                }
+            }
+
+            // Map the digits
+
+            if (dfs.getZeroDigit() != '0') {
+                char newZero = dfs.getZeroDigit();
+                for (int i=0; i<sb.length(); i++) {
+                    char c = sb.charAt(i);
+                    if (c>='0' && c<='9') {
+                        sb.setCharAt(i, (char)(c-'0'+newZero));
+                    }
+                }
+            }
+
+            // Add the whole-part grouping separators
+
+            if (wholePartGroupingPositions != null) {
+                if (wholePartGroupingPositions.length == 1) {
+                    // grouping separators are at regular positions
+                    int g = wholePartGroupingPositions[0];
+                    int p = point - g;
+                    while (p > 0) {
+                        sb.insert(p, dfs.getGroupingSeparator());
+                        p -= g;
+                    }
+                } else {
+                    // grouping separators are at irregular positions
+                    for (int i=0; i<wholePartGroupingPositions.length; i++) {
+                        int p = point - wholePartGroupingPositions[i];
+                        if (p > 0) {
+                            sb.insert(p, dfs.getGroupingSeparator());
+                        }
+                    }
+                }
+            }
+
+            // Add the fractional-part grouping separators
+
+            if (fractionalPartGroupingPositions != null) {
+                    // grouping separators are at irregular positions.
+                for (int i=0; i<fractionalPartGroupingPositions.length; i++) {
+                    int p = point + 1 + fractionalPartGroupingPositions[i] + i;
+                    if (p < sb.length()-1) {
+                        sb.insert(p, dfs.getGroupingSeparator());
+                    } else {
+                        break;
+                    }
+                }
+            }
+
+            // System.err.println("Grouped number: " + sb.toString());
+
+            sb.insert(0, prefix);
+            sb.insert(0, minusSign);
+            sb.append(suffix);
+
+            return sb;
+        }
+
+        private void formatDecimal(DecimalValue value, StringBuffer sb) {
+            BigDecimal dval = value.getValue();
+            dval = dval.setScale(maxFractionPartSize, BigDecimal.ROUND_HALF_EVEN);
+            sb.append(dval);
+
+            int point = sb.indexOf(".");
+            int intDigits;
+            if (point >= 0) {
+                int zz = maxFractionPartSize - minFractionPartSize;
+                while (zz>0) {
+                    if (sb.charAt(sb.length()-1) == '0') {
+                        sb.setLength(sb.length()-1);
+                        zz--;
+                    } else {
+                        break;
+                    }
+                }
+                intDigits = point;
+                if (sb.charAt(sb.length()-1) == '.') {
+                    sb.setLength(sb.length()-1);
+                }
+            } else {
+                intDigits = sb.length();
+            }
+            for (int i=0; i<(minWholePartSize - intDigits); i++) {
+                sb.insert(0, '0');
+            }
+        }
+
+        private void formatInteger(NumericValue value, StringBuffer sb) {
+            sb.append(value.toString());
+            for (int i=0; i < minWholePartSize - sb.length(); i++) {
+                sb.insert(0, '0');
+            }
+            sb.append('.');
+            for (int i=0; i<minFractionPartSize; i++) {
+                sb.append('0');
+            }
+        }
+
+        /**
+         * Format a number supplied as a double
+         * @param value the double value
+         * @param sb StringBuffer to contain the formatted value
+         */
+        private void formatDouble(double value, StringBuffer sb) {
             // Convert to a scaled integer, by multiplying by 10^d where d is the maximum fraction size
 
             double d = value;
@@ -484,8 +638,6 @@ public class FormatNumber2 extends SystemFunction implements XSLTFunction {
                 d *= Math.pow(10, maxFractionPartSize);
             }
             int point;
-
-
             if (Math.abs(d) > Long.MAX_VALUE) {
                 // If this exceeds the size of a long, construct a BigInteger
                 long bits = Double.doubleToLongBits(value);
@@ -494,34 +646,19 @@ public class FormatNumber2 extends SystemFunction implements XSLTFunction {
                 long mantissa = bits & 0x000fffffffffffffL | 0x0010000000000000L;
                 BigInteger big = BigInteger.valueOf(mantissa);
                 big = big.multiply(BigInteger.valueOf(2).pow(exponent));
-                // TODO: round the value to about 18 significant digits.
+                
                 if (negative) {
                     sb.append('-');
                 }
                 sb.append(big.toString());
                 // add a decimal point, it will be removed later if not needed
-                point = sb.length();
                 sb.append('.');
+
+                // there is no fractional part
 
                 // TODO: Java DecimalFormat gives nicer results for large
                 // values, e.g. 1e19 comes out as 10,000,000,000,000,000,000
                 // whereas we are producing 10,000,018,432,000,000,000.
-
-//                int power = 0;
-//                while (Math.abs(d) > Long.MAX_VALUE) {
-//                    // there must be an easier way than this...
-//                    d = d / 10;
-//                    power++;
-//                }
-//                // this is likely to have accumulated rounding errors, so do it again
-//                d = value * Math.pow(10, -power);
-//                sb.append((long)d);
-//                for (int i=0; i<power; i++) {
-//                    sb.append('0');
-//                }
-//                // add a decimal point, it will be removed later...
-//                point = sb.length();
-//                sb.append('.');
 
             } else {
                 long ld = (long)d;
@@ -538,11 +675,7 @@ public class FormatNumber2 extends SystemFunction implements XSLTFunction {
                     }
                 }
 
-                // TODO. We currently use the built-in Java integer-to-string conversion. We could do
-                // it ourselves, which would enable addition of leading zeros and mapping to the selected
-                // Unicode digits to be done on-the-fly rather than by post-processing.
-
-                String sd = "" + ld;
+                String sd = "" + ld;    // use Java integer-to-string conversion
                 int wholeSize = sd.length() - maxFractionPartSize;
                 if (wholeSize > 0) {
                     sb.append(sd.substring(0, wholeSize));
@@ -582,83 +715,11 @@ public class FormatNumber2 extends SystemFunction implements XSLTFunction {
                         break;
                     }
                 }
-            }
 
-            // System.err.println("Justified number: " + sb.toString());
-
-            // Map the digits and decimal point to use the selected characters
-
-                        // TODO: can a mapped digit be a surrogate pair? Perhaps we should
-                        // call the translate() function. Java DecimalFormatSymbols doesn't allow
-                        // it - it must be a Java char.
-
-            if (dfs.getDecimalSeparator() != '.') {
-                sb.setCharAt(point, dfs.getDecimalSeparator());
-            }
-
-            // If there is no fractional part, delete the decimal point
-
-            if (maxFractionPartSize == 0) {
-                sb.deleteCharAt(point);
-            }
-
-            if (dfs.getZeroDigit() != '0') {
-                char newZero = dfs.getZeroDigit();
-                for (int i=0; i<sb.length(); i++) {
-                    char c = sb.charAt(i);
-                    if (c>='0' && c<='9') {
-                        sb.setCharAt(i, (char)(c-'0'+newZero));
-                    }
+                if (sb.charAt(sb.length()-1) == '.') {
+                     sb.deleteCharAt(sb.length()-1);
                 }
             }
-
-            // System.err.println("Mapped number: " + sb.toString());
-
-            // Add the whole-part grouping separators
-
-            if (wholePartGroupingPositions != null) {
-                if (wholePartGroupingPositions.length == 1) {
-                    // grouping separators are at regular positions
-                    int g = wholePartGroupingPositions[0];
-                    int p = point - g;
-                    while (p > 0) {
-                        sb.insert(p, dfs.getGroupingSeparator());
-                        p -= g;
-                    }
-                } else {
-                    // grouping separators are at irregular positions
-                    for (int i=0; i<wholePartGroupingPositions.length; i++) {
-                        int p = point - wholePartGroupingPositions[i];
-                        if (p > 0) {
-                            sb.insert(p, dfs.getGroupingSeparator());
-                        }
-                    }
-                }
-            }
-
-
-
-            // Add the fractional-part grouping separators
-
-            if (fractionalPartGroupingPositions != null) {
-                    // grouping separators are at irregular positions.
-                for (int i=0; i<fractionalPartGroupingPositions.length; i++) {
-                    int p = point + 1 + fractionalPartGroupingPositions[i] + i;
-                    if (p < sb.length()-1) {
-                        sb.insert(p, dfs.getGroupingSeparator());
-                    }
-                }
-            }
-
-            // System.err.println("Grouped number: " + sb.toString());
-
-            //sb.insert(0, prefix + minusSign);
-                    // spec has changed
-            sb.insert(0, prefix);
-            sb.insert(0, minusSign);
-            sb.append(suffix);
-
-            return sb;
         }
     }
 

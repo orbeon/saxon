@@ -1,21 +1,13 @@
 package net.sf.saxon.tree;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.NamespaceException;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.Navigator;
-import net.sf.saxon.type.Type;
+import net.sf.saxon.event.LocationCopier;
 import net.sf.saxon.event.Receiver;
+import net.sf.saxon.om.*;
+import net.sf.saxon.type.Type;
+import net.sf.saxon.xpath.XPathException;
+import org.w3c.dom.*;
 
 import java.util.ArrayList;
 import java.util.List;
-import org.w3c.dom.Node;
-import org.w3c.dom.Element;
-import org.w3c.dom.Attr;
-import org.w3c.dom.NamedNodeMap;
-import org.w3c.dom.DOMException;
-import net.sf.saxon.xpath.XPathException;
 
 /**
   * A node in the XML parse tree representing an XML element.<P>
@@ -258,19 +250,6 @@ public class ElementWithAttributes extends ElementImpl
     }
 
     /**
-     * Find the value of a given attribute of this node. <BR>
-     * This method is defined on all nodes to meet XSL requirements, but for nodes
-     * other than elements it will always return null.
-     * @param uri the namespace uri of an attribute
-     * @param localName the local name of an attribute
-     * @return the value of the attribute, if it exists, otherwise null
-     */
-
-//    public String getAttributeValue( String uri, String localName ) {
-//        return attributeList.getValue(uri, localName);
-//    }
-
-    /**
     * Get the value of a given attribute of this node
     * @param fingerprint The fingerprint of the attribute name
     * @return the attribute value if it exists or null if not
@@ -300,8 +279,14 @@ public class ElementWithAttributes extends ElementImpl
     * namespaces only (those not declared on the parent element)
     */
 
-    public void copy(Receiver out, int whichNamespaces) throws XPathException {
-        out.startElement(getNameCode(), -1, 0, 0);
+    public void copy(Receiver out, int whichNamespaces, boolean copyAnnotations, int locationId) throws XPathException {
+
+        int typeCode = (copyAnnotations ? getTypeAnnotation() : -1);
+        if (locationId == 0 && out instanceof LocationCopier) {
+            out.setSystemId(getSystemId());
+            ((LocationCopier)out).setLineNumber(getLineNumber());
+        }
+        out.startElement(getNameCode(), typeCode, locationId, 0);
 
         // output the namespaces
 
@@ -316,12 +301,14 @@ public class ElementWithAttributes extends ElementImpl
                                attributeList.getValue(i), 0, 0);
         }
 
+        out.startContent();
+
         // output the children
 
         int childNamespaces = (whichNamespaces==NO_NAMESPACES ? NO_NAMESPACES : LOCAL_NAMESPACES);
         NodeImpl next = (NodeImpl)getFirstChild();
         while (next!=null) {
-            next.copy(out, childNamespaces);
+            next.copy(out, childNamespaces, copyAnnotations, locationId);
             next = (NodeImpl)next.getNextSibling();
         }
 

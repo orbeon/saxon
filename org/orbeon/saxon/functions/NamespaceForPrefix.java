@@ -4,13 +4,12 @@ import net.sf.saxon.om.Axis;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.pattern.AnyNodeTest;
 import net.sf.saxon.value.StringValue;
 import net.sf.saxon.xpath.XPathException;
 
 
 /**
-* This class supports fuction get-namespace-uri-for-prefix()
+* This class supports the function namespace-uri-for-prefix()
 */
 
 public class NamespaceForPrefix extends SystemFunction {

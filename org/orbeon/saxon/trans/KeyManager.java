@@ -3,7 +3,10 @@ import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.instruct.SlotManager;
 import net.sf.saxon.om.*;
-import net.sf.saxon.pattern.*;
+import net.sf.saxon.pattern.ContentTypeTest;
+import net.sf.saxon.pattern.NodeTestPattern;
+import net.sf.saxon.pattern.Pattern;
+import net.sf.saxon.pattern.UnionPattern;
 import net.sf.saxon.sort.LocalOrderComparer;
 import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.type.BuiltInSchemaFactory;
@@ -90,7 +93,7 @@ public class KeyManager implements Serializable {
         Pattern att = new UnionPattern(idrefAtt, idrefsAtt);
         Pattern elem = new UnionPattern(idrefElem, idrefsElem);
         Pattern all = new UnionPattern(att, elem);
-        Expression use = new Atomizer(new ContextItemExpression());
+        Expression use = new Atomizer(new ContextItemExpression(), config);
         KeyDefinition key = new KeyDefinition(all, use, null, null);
         try {
             setKeyDefinition(StandardNames.XS_IDREFS, key);

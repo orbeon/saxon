@@ -1,6 +1,6 @@
 package net.sf.saxon.om;
-import net.sf.saxon.event.Stripper;
 import net.sf.saxon.Configuration;
+import net.sf.saxon.event.Stripper;
 
 /**
   * A StrippedDocument represents a view of a real Document in which selected
@@ -47,7 +47,7 @@ public class StrippedDocument extends StrippedNode implements DocumentInfo {
      */
 
     public Configuration getConfiguration() {
-        return ((DocumentInfo)node).getConfiguration();
+        return node.getConfiguration();
     }
 
 	/**

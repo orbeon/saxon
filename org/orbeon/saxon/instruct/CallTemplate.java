@@ -1,6 +1,5 @@
 package net.sf.saxon.instruct;
 import net.sf.saxon.Controller;
-import net.sf.saxon.ParameterSet;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.om.Name;
 import net.sf.saxon.om.NamePool;
@@ -9,6 +8,7 @@ import net.sf.saxon.om.QNameException;
 import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.trace.InstructionInfo;
 import net.sf.saxon.type.ItemType;
+import net.sf.saxon.xpath.DynamicError;
 import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
@@ -123,6 +123,14 @@ public class CallTemplate extends Instruction {
         return this;
     }
 
+    /**
+     * Determine whether this instruction creates new nodes.
+     * This implementation currently returns true unconditionally.
+     */
+
+    public final boolean createsNewNodes() {
+        return true;
+    }
 
     /**
      * Get all the XPath expressions associated with this instruction
@@ -169,14 +177,17 @@ public class CallTemplate extends Instruction {
         c2.setLocalParameters(assembleParams(context, actualParams));
         c2.setTunnelParameters(assembleTunnelParams(context, tunnelParams));
 
-        TailCall tc;
-        //if (controller.isTracing()) {
-        //    tc = t.traceExpand(c2);
-        //} else {
-            tc = t.expand(c2);
-        //}
-        while (tc != null) {
-            tc = tc.processLeavingTail(c2);
+        try {
+            TailCall tc = t.expand(c2);
+            while (tc != null) {
+                tc = tc.processLeavingTail(c2);
+            }
+        } catch (StackOverflowError e) {
+            DynamicError err = new DynamicError(
+                    "Too many nested xsl:call-template calls. The stylesheet is probably looping.");
+            err.setLocator(this);
+            err.setXPathContext(context);
+            throw err;
         }
     }
 

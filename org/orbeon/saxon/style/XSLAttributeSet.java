@@ -1,12 +1,7 @@
 package net.sf.saxon.style;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.*;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamespaceException;
-import net.sf.saxon.trace.Location;
-import net.sf.saxon.tree.AttributeCollection;
+import net.sf.saxon.om.*;
 import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
@@ -85,7 +80,7 @@ public class XSLAttributeSet extends StyleElement implements StylesheetProcedure
         try {
             setObjectNameCode(makeNameCode(nameAtt.trim()));
         } catch (NamespaceException err) {
-            compileError(err.getMessage());
+            compileError(err.getMessage(), "XT0280");
         } catch (XPathException err) {
             compileError(err.getMessage());
         }
@@ -107,14 +102,14 @@ public class XSLAttributeSet extends StyleElement implements StylesheetProcedure
                 break;
             }
             if (!(child instanceof XSLAttribute)) {
-                compileError("Only xsl:attribute is allowed within xsl:attribute-set");
+                compileError("Only xsl:attribute is allowed within xsl:attribute-set", "XT0010");
             }
         }
 
         if (useAtt!=null) {
             // identify any attribute sets that this one refers to
 
-            attributeSetElements = new ArrayList();
+            attributeSetElements = new ArrayList(5);
             useAttributeSets = getAttributeSets(useAtt, attributeSetElements);
 
             // check for circularity
@@ -134,7 +129,7 @@ public class XSLAttributeSet extends StyleElement implements StylesheetProcedure
 
     public void checkCircularity(XSLAttributeSet origin) throws TransformerConfigurationException {
         if (this==origin) {
-            compileError("The definition of the attribute set is circular");
+            compileError("The definition of the attribute set is circular", "XT0720");
         } else {
             if (!validated) {
                 // if this attribute set isn't validated yet, we don't check it.
@@ -160,8 +155,7 @@ public class XSLAttributeSet extends StyleElement implements StylesheetProcedure
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {
         if (referenceCount > 0 ) {
-            Expression body = new Block();
-            compileChildren(exec, (Block)body, true);
+            Expression body = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
 
             if (getConfiguration().getTraceListener() != null) {
                 TraceWrapper trace = new TraceInstruction(body, this);

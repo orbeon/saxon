@@ -1,13 +1,11 @@
 package net.sf.saxon.tree;
+import net.sf.saxon.event.Receiver;
+import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.type.Type;
-
-import net.sf.saxon.event.Receiver;
-
+import net.sf.saxon.xpath.XPathException;
 import org.w3c.dom.Attr;
 import org.w3c.dom.Node;
-
-import net.sf.saxon.xpath.XPathException;
 
 
 /**
@@ -132,13 +130,10 @@ final class AttributeImpl extends NodeImpl implements Attr {
     * Copy this node to a given outputter
     */
 
-    public void copy(Receiver out, int whichNamespaces) throws XPathException {
+    public void copy(Receiver out, int whichNamespaces, boolean copyAnnotations, int locationId) throws XPathException {
 		int nameCode = getNameCode();
-    	//if ((nameCode>>20 & 0xff) != 0) {	// non-null prefix
-    		// check there is no conflict of namespaces
-		//	nameCode = out.checkAttributePrefix(nameCode);
-		//}
-        out.attribute(nameCode, -1, getStringValue(), 0, 0);
+    	int typeCode = (copyAnnotations ? getTypeAnnotation() : -1);
+        out.attribute(nameCode, typeCode, getStringValue(), locationId, 0);
     }
 
 }

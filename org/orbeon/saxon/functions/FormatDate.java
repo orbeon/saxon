@@ -5,11 +5,11 @@ import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.instruct.NumberInstruction;
 import net.sf.saxon.number.Numberer;
 import net.sf.saxon.om.Item;
-import net.sf.saxon.value.*;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.value.*;
 import net.sf.saxon.xpath.DynamicError;
 import net.sf.saxon.xpath.StaticError;
+import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerException;
 import java.util.Calendar;
@@ -137,7 +137,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
                 context.getController().getErrorListener().warning(
                         new DynamicError("Unrecognized date/time component [" + specifier + "] (ignored)"));
             } catch (TransformerException e) {
-                throw DynamicError.wrap(e);
+                throw DynamicError.makeDynamicError(e);
             }
             return "";
         }
@@ -360,7 +360,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
                                 new DynamicError("Invalid width specifier '" + widths +
                                 "' in formatDate/Time picture (ignored)"));
                     } catch (TransformerException e) {
-                        throw DynamicError.wrap(e);
+                        throw DynamicError.makeDynamicError(e);
                     }
                     min = 1;
                     max = 50;

@@ -2,9 +2,13 @@ package net.sf.saxon.expr;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.type.AtomicType;
+import net.sf.saxon.type.BuiltInAtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.value.*;
+import net.sf.saxon.value.AtomicValue;
+import net.sf.saxon.value.BooleanValue;
+import net.sf.saxon.value.SequenceType;
+import net.sf.saxon.value.Value;
 import net.sf.saxon.xpath.XPathException;
 
 /**
@@ -47,7 +51,7 @@ public final class CastableExpression extends UnaryExpression {
                                  (allowEmpty ? StaticProperty.ALLOWS_ZERO_OR_ONE
                                              : StaticProperty.EXACTLY_ONE));
 
-        RoleLocator role = new RoleLocator(RoleLocator.TYPE_OP, "castable as", 0);
+        RoleLocator role = new RoleLocator(RoleLocator.TYPE_OP, "castable as", 0, null);
         operand = TypeChecker.staticTypeCheck(operand, atomicType, false, role, env);
 
         if (operand instanceof AtomicValue) {
@@ -79,6 +83,16 @@ public final class CastableExpression extends UnaryExpression {
     }
 
     /**
+     * Determine the special properties of this expression
+     * @return {@link StaticProperty#NON_CREATIVE}.
+     */
+
+    public int computeSpecialProperties() {
+        int p = super.computeSpecialProperties();
+        return p | StaticProperty.NON_CREATIVE;
+    }
+
+    /**
     * Evaluate the expression
     */
 
@@ -92,11 +106,16 @@ public final class CastableExpression extends UnaryExpression {
             if (value == null) {
                 return allowEmpty;
             }
-            AtomicValue prim =
+            if (targetType instanceof BuiltInAtomicType) {
+                value.convert(targetType, context);
+                return true;
+            } else {
+                AtomicValue prim =
                     value.convert(targetType.getBuiltInBaseType().getFingerprint(), context);
-            DerivedAtomicValue val =
-                    DerivedAtomicValue.makeValue(prim, prim.getStringValue(), targetType, false);
-            return val != null;
+                AtomicValue val =
+                    targetType.makeDerivedValue(prim, prim.getStringValue(), false);
+                return val != null;
+            }
         } catch (XPathException err) {
             return false;
         }

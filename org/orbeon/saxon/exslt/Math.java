@@ -1,14 +1,13 @@
 package net.sf.saxon.exslt;
-import net.sf.saxon.expr.*;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.value.SequenceValue;
-import net.sf.saxon.value.SequenceExtent;
-import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.value.EmptySequence;
+import net.sf.saxon.value.SequenceExtent;
+import net.sf.saxon.value.SequenceValue;
+import net.sf.saxon.value.Value;
 import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 

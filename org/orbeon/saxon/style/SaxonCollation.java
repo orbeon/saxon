@@ -3,7 +3,7 @@ import net.sf.saxon.Configuration;
 import net.sf.saxon.Loader;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.tree.AttributeCollection;
+import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.xpath.DynamicError;
 import net.sf.saxon.xpath.XPathException;
 

@@ -3,7 +3,6 @@ import net.sf.saxon.om.Axis;
 import net.sf.saxon.om.AxisIterator;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.type.SchemaType;
 
 /**
   * A DocumentNodeTest implements the test document-node(element(~,~))

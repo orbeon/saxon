@@ -1,6 +1,7 @@
 package net.sf.saxon.tree;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.pattern.NodeTest;
+
 import java.util.ArrayList;
 
 final class NamespaceEnumeration extends TreeEnumeration {

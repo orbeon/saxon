@@ -1,7 +1,6 @@
 package net.sf.saxon.trace;
 
 import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.Version;
 
 /**
  * A Simple trace listener for XQuery that writes messages (by default) to System.err

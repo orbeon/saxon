@@ -1,7 +1,7 @@
 package net.sf.saxon.functions;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.ExpressionTool;
+import net.sf.saxon.expr.StaticContext;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.value.BooleanValue;
 import net.sf.saxon.xpath.XPathException;
@@ -10,8 +10,8 @@ import net.sf.saxon.xpath.XPathException;
 
 public class Existence extends SystemFunction {
 
-    public final static int EXISTS = 0;
-    public final static int EMPTY = 1;
+    public static final int EXISTS = 0;
+    public static final int EMPTY = 1;
 
     /**
      * Static analysis: prevent sorting of the argument

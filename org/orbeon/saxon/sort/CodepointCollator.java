@@ -1,6 +1,6 @@
 package net.sf.saxon.sort;
-import java.util.Comparator;
 import java.io.Serializable;
+import java.util.Comparator;
 
 
 /**
@@ -14,8 +14,6 @@ import java.io.Serializable;
 // getCollationKey(), and the CollationKey() object does not have a public constructor.
 
 public class CodepointCollator implements Comparator, Serializable {
-
-    public static String URI = "http://www.w3.org/2004/07/xpath-functions/collation/codepoint";
 
     private static CodepointCollator theInstance = new CodepointCollator();
 

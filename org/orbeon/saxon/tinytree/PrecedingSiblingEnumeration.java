@@ -12,14 +12,13 @@ import net.sf.saxon.pattern.NodeTest;
 
 final class PrecedingSiblingEnumeration extends AxisIteratorImpl {
 
-    private TinyDocumentImpl document;
+    private TinyTree document;
     private TinyNodeImpl startNode;
     private int nextNodeNr;
     private NodeTest test;
     private TinyNodeImpl parentNode;
 
-    protected PrecedingSiblingEnumeration(TinyDocumentImpl doc, TinyNodeImpl node,
-                              NodeTest nodeTest) {
+    PrecedingSiblingEnumeration(TinyTree doc, TinyNodeImpl node, NodeTest nodeTest) {
         document = doc;
         document.ensurePriorIndex();
         test = nodeTest;
@@ -29,9 +28,9 @@ final class PrecedingSiblingEnumeration extends AxisIteratorImpl {
     }
 
     public Item next() {
-        if (nextNodeNr < 0) {
-            return null;
-        }
+//        if (nextNodeNr < 0) {
+//            return null;
+//        }
         while (true) {
             nextNodeNr = document.prior[nextNodeNr];
             if (nextNodeNr < 0) {

@@ -2,7 +2,6 @@ package net.sf.saxon.tree;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.xpath.XPathException;
-
 import org.w3c.dom.Comment;
 
 /**
@@ -40,8 +39,8 @@ final class CommentImpl extends NodeImpl implements Comment {
     * Copy this node to a given outputter
     */
 
-    public void copy(Receiver out, int whichNamespaces) throws XPathException {
-        out.comment(comment, 0, 0);
+    public void copy(Receiver out, int whichNamespaces, boolean copyAnnotations, int locationId) throws XPathException {
+        out.comment(comment, locationId, 0);
     }
 
 }

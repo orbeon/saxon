@@ -1,6 +1,6 @@
 package net.sf.saxon.trace;
-import net.sf.saxon.om.Item;
 import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.om.Item;
 
 import java.util.EventListener;
 

@@ -1,14 +1,12 @@
 package net.sf.saxon;
 import net.sf.saxon.event.ContentHandlerProxy;
-import net.sf.saxon.xpath.XPathException;
+import org.xml.sax.*;
+import org.xml.sax.ext.LexicalHandler;
 
 import javax.xml.parsers.SAXParserFactory;
-import javax.xml.transform.*;
-import javax.xml.transform.sax.*;
-
-import org.xml.sax.*;
-import org.xml.sax.ext.*;
-
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.sax.SAXSource;
 import java.io.IOException;
 
 
@@ -385,7 +383,7 @@ public class Filter implements XMLFilter {
         source.setInputSource(input);
         source.setXMLReader(parser);
         ContentHandlerProxy result = new ContentHandlerProxy();
-        result.setConfiguration(controller.getConfiguration());
+        result.setPipelineConfiguration(controller.makePipelineConfiguration());
         result.setUnderlyingContentHandler(contentHandler);
         if (lexicalHandler!=null) {
             result.setLexicalHandler(lexicalHandler);

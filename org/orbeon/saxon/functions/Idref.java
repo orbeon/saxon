@@ -1,12 +1,6 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.Controller;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.MappingFunction;
-import net.sf.saxon.expr.MappingIterator;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.expr.*;
 import net.sf.saxon.om.DocumentInfo;
 import net.sf.saxon.om.EmptyIterator;
 import net.sf.saxon.om.Item;
@@ -50,7 +44,7 @@ public class Idref extends SystemFunction implements MappingFunction {
     */
 
     public int computeSpecialProperties() {
-        int prop = StaticProperty.ORDERED_NODESET;
+        int prop = StaticProperty.ORDERED_NODESET | StaticProperty.NON_CREATIVE;
         if ((getNumberOfArguments() == 1) ||
                 (argument[1].getSpecialProperties() & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0) {
             prop |= StaticProperty.CONTEXT_DOCUMENT_NODESET;

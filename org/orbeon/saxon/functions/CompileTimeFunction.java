@@ -1,7 +1,7 @@
 package net.sf.saxon.functions;
-import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.xpath.XPathException;
@@ -35,7 +35,7 @@ public abstract class CompileTimeFunction extends SystemFunction {
     * Iterate over the results of the function
     */
 
-    public final SequenceIterator iterate(XPathContext c) throws XPathException {
+    public final SequenceIterator iterate(XPathContext c) {
         throw new IllegalStateException("Function " + getName(c) + " should have been resolved at compile-time");
     }
 

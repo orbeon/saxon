@@ -81,7 +81,7 @@ public class HTMLIndenter extends ProxyReceiver {
         } else {
             try {
                 indentSpaces = Integer.parseInt(s);
-            } catch (Exception err) {
+            } catch (NumberFormatException err) {
                 indentSpaces = 3;
             }
         }

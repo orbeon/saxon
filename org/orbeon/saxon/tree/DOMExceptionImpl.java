@@ -1,5 +1,5 @@
 package net.sf.saxon.tree;
-import org.w3c.dom.*;
+import org.w3c.dom.DOMException;
 
 /**
  *  DOM operations only raise exceptions in "exceptional" circumstances,

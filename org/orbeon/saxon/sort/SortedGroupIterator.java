@@ -1,13 +1,13 @@
 package net.sf.saxon.sort;
 
+import net.sf.saxon.expr.LastPositionFinder;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.expr.XPathContextMajor;
-import net.sf.saxon.expr.LastPositionFinder;
-import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.om.Item;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.value.AtomicValue;
+import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.trace.InstructionInfoProvider;
+import net.sf.saxon.value.AtomicValue;
+import net.sf.saxon.xpath.XPathException;
 
 /**
  * A SortedGroupIterator is a modified SortedIterator. It sorts a sequence of groups,

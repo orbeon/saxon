@@ -111,7 +111,7 @@ public class SQLInsert extends ExtensionInstruction {
          */
 
         public int getImplementationMethod() {
-            return EVALUATE_METHOD;
+            return Expression.EVALUATE_METHOD;
         }
 
         public String getExpressionType() {

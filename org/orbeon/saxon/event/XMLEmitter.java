@@ -56,7 +56,7 @@ public class XMLEmitter extends Emitter
 
         specialInAtt = new boolean[128];
         for (int i=0; i<=15; i++) specialInAtt[i] = true; // allowed in XML 1.1 as character references
-        for (int i=0; i<=127; i++) specialInAtt[i] = false;
+        for (int i=16; i<=127; i++) specialInAtt[i] = false;
         specialInAtt[(char)0] = true;
             // used to switch escaping on and off for mapped characters
         specialInAtt['\r'] = true;
@@ -67,13 +67,6 @@ public class XMLEmitter extends Emitter
         specialInAtt['&'] = true;
         specialInAtt['\"'] = true;
     }
-
-    /**
-    * Set Document Locator. Provided merely to satisfy the interface.
-    */
-
-    public void setDocumentLocator(LocationProvider locator) {}
-
 
     /**
      * Start of the event stream. Nothing is done at this stage: the opening of the output
@@ -131,6 +124,7 @@ public class XMLEmitter extends Emitter
             String byteOrderMark = outputProperties.getProperty(SaxonOutputKeys.BYTE_ORDER_MARK);
 
             if ("yes".equals(byteOrderMark)) {
+                // TODO: default for UTF-16 is "yes"
                 writer.write('\uFEFF');
             }
 
@@ -457,7 +451,7 @@ public class XMLEmitter extends Emitter
                                 new TransformerException("disable-output-escaping is ignored for characters " +
                                                          "not available in the chosen encoding"));
                         } catch (TransformerException e) {
-                            throw XPathException.wrap(e);
+                            throw DynamicError.makeDynamicError(e);
                         }
                         warningIssued = true;
                     }

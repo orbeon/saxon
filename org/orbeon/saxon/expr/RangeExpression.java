@@ -38,11 +38,11 @@ public class RangeExpression extends BinaryExpression {
         operand0 = operand0.analyze(env, contextItemType);
         operand1 = operand1.analyze(env, contextItemType);
 
-        RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, "to", 0);
+        RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, "to", 0, null);
         operand0 = TypeChecker.staticTypeCheck(
                 operand0, SequenceType.OPTIONAL_INTEGER, false, role0, env);
 
-        RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, "to", 1);
+        RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, "to", 1, null);
         operand1 = TypeChecker.staticTypeCheck(
                 operand1, SequenceType.OPTIONAL_INTEGER, false, role1, env);
         return super.simplify(env);

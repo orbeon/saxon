@@ -3,11 +3,11 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.*;
-import net.sf.saxon.style.ExpressionContext;
 import net.sf.saxon.style.StyleNodeFactory;
+import net.sf.saxon.style.XSLTStaticContext;
 import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.xpath.StaticError;
+import net.sf.saxon.xpath.XPathException;
 
 /**
 * This class supports the XSLT element-available and function-available functions.
@@ -45,7 +45,7 @@ public class Available extends SystemFunction implements XSLTFunction {
         boolean b = false;
         switch(operation) {
             case ELEMENT_AVAILABLE:
-                b = ((ExpressionContext)env).isElementAvailable(qname);
+                b = ((XSLTStaticContext)env).isElementAvailable(qname);
                 break;
             case FUNCTION_AVAILABLE:
                 long arity = -1;

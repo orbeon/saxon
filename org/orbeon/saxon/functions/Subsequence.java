@@ -1,14 +1,12 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.expr.PositionIterator;
-import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.expr.TailExpression;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.value.IntegerValue;
-import net.sf.saxon.value.NumericValue;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.type.ItemType;
+import net.sf.saxon.value.AtomicValue;
+import net.sf.saxon.value.NumericValue;
+import net.sf.saxon.xpath.XPathException;
 
 /**
 * Implements the XPath 2.0 subsequence()  function
@@ -20,9 +18,6 @@ public class Subsequence extends SystemFunction {
     // Ideally, we would simply convert this at compile time to a filter expression.
     // Unfortunately, this is not always possible, because a filter expression changes
     // the focus for evaluating the filter expression, while this function does not.
-
-    //public final static int ITEM_AT = 0;
-    public final static int SUBSEQUENCE = 1;
 
     /**
     * Determine the data type of the items in the sequence

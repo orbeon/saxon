@@ -10,8 +10,9 @@ import net.sf.saxon.trace.InstructionInfoProvider;
 import net.sf.saxon.trace.Location;
 import net.sf.saxon.type.AnyItemType;
 import net.sf.saxon.type.ItemType;
-import net.sf.saxon.value.ObjectValue;
+import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.SequenceType;
+import net.sf.saxon.value.SequenceValue;
 import net.sf.saxon.value.Value;
 import net.sf.saxon.xpath.XPathException;
 
@@ -53,18 +54,26 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
                             StaticContext env) throws XPathException {
         function = compiledFunction;
         confirmed = true;
+    }
+
+    /**
+    * Check the function call against the declared function signature
+    */
+
+    public void checkFunctionCall(UserFunction compiledFunction,
+                            StaticContext env) throws XPathException {
         int n = compiledFunction.getNumberOfArguments();
-        SequenceType[] requiredTypes = compiledFunction.getArgumentTypes();
         for (int i=0; i<n; i++) {
-            final String fname = compiledFunction.getFunctionDisplayName(env.getNamePool());
-            RoleLocator role = new RoleLocator(RoleLocator.FUNCTION, fname, i);
+            RoleLocator role = new RoleLocator(
+                    RoleLocator.FUNCTION, new Integer(compiledFunction.getFunctionNameCode()), i, env.getNamePool());
             argument[i] = TypeChecker.staticTypeCheck(
                                 argument[i],
-                                requiredTypes[i],
+                                compiledFunction.getArgumentType(i),
                                 false,
                                 role, env);
         }
     }
+
 
     /**
      * Get the function that is being called by this function call
@@ -155,6 +164,14 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
         return true;
     }
 
+    // TODO: attempt to establish whether the function is capable of creating new nodes. This
+    // enables non-creative functions to be moved out of loops. The problem is how to achieve this
+    // without looping in the case of recursive functions. A simple solution might be to go only
+    // one level deep: if the body of a function is known (without analysing function calls) to be
+    // non-creative, then all calls on that function can be marked as non-creative. Note also that
+    // a function is creative if one of its arguments is creative and the result of the function
+    // depends on the identity of that argument.
+    
     /**
     * Call the function, returning the value as an item. This method will be used
     * only when the cardinality is zero or one. If the function is tail recursive,
@@ -190,7 +207,19 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
 
         Value[] actualArgs = new Value[numArgs];
         for (int i=0; i<numArgs; i++) {
-            actualArgs[i] = ExpressionTool.lazyEvaluate(argument[i], c);
+            if (argument[i] instanceof Value) {
+                actualArgs[i] = (Value)argument[i];
+            } else {
+                // Decide what form of lazy evaluation to use based on the number of references to the argument
+                int refs = function.getParameterDefinitions()[i].getReferenceCount();
+                if (refs == 0) {
+                    // the argument is never referenced, so don't evaluate it
+                    actualArgs[i] = EmptySequence.getInstance();
+                } else {
+                    boolean keep = (refs > 1);
+                    actualArgs[i] = ExpressionTool.lazyEvaluate(argument[i], c, keep);
+                }
+            }
         }
 
         if (tailRecursive) {
@@ -215,7 +244,7 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
         c2.openStackFrame(suppliedArguments.length);
         for (int i=0; i<suppliedArguments.length; i++) {
             c2.setLocalVariable(i, suppliedArguments[i]);
-            convertedArgs[i] = ExpressionTool.lazyEvaluate(argument[i], c2);
+            convertedArgs[i] = ExpressionTool.lazyEvaluate(argument[i], c2, true);
         }
         XPathContextMajor c3 = c2.newCleanContext();
         c3.setOrigin(this);
@@ -252,7 +281,7 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
     * with these arguments, avoiding the creation of an additional stack frame.
     */
 
-    public class FunctionCallPackage extends ObjectValue {
+    public class FunctionCallPackage extends SequenceValue {
 
         private UserFunction function;
         private Value[] actualArgs;
@@ -262,7 +291,6 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
             this.function = function;
             this.actualArgs = actualArgs;
             this.evaluationContext = c;
-            setValue(this);
         }
 
         public Value call() throws XPathException {
@@ -283,6 +311,32 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
                     out.append(fvit, locationId);
                 }
             }
+        }
+
+        /**
+         * Determine the data type of the items in the expression, if possible
+         *
+         * @return AnyItemType (not known)
+         */
+
+        public ItemType getItemType() {
+            return function.getResultType().getPrimaryType();
+        }
+
+        /**
+         * Determine the cardinality
+         */
+
+        public int getCardinality() {
+            return function.getResultType().getCardinality();
+        }
+
+        /**
+         * Return an Iterator to iterate over the values of a sequence.
+         */
+
+        public SequenceIterator iterate(XPathContext context) throws XPathException {
+            return call().iterate(context);
         }
     }
 

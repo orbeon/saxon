@@ -897,16 +897,18 @@ public final class Tokenizer {
         return (int)(getLineAndColumn(currentTokenStartOffset)&0x7fffffff);
     }
 
-    /**
-     * Get the line and column number of the current token,
-     * as a long value with the line number in the top half
-     * and the column number in the lower half
-     * @return the line and column number, packed together
-     */
-
-    public long getLineAndColumn() {
-        return ((long)getLineNumber()) << 32 | ((long)getColumnNumber());
-    }
+// --Commented out by Inspection START (16/12/04 14:40):
+//    /**
+//     * Get the line and column number of the current token,
+//     * as a long value with the line number in the top half
+//     * and the column number in the lower half
+//     * @return the line and column number, packed together
+//     */
+//
+//    public long getLineAndColumn() {
+//        return ((long)getLineNumber()) << 32 | ((long)getColumnNumber());
+//    }
+// --Commented out by Inspection STOP (16/12/04 14:40)
 
 
     /**

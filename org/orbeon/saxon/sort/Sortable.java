@@ -1,5 +1,5 @@
 package net.sf.saxon.sort;
-import net.sf.saxon.xpath.XPathException;
+
 
 
 /**

@@ -16,20 +16,27 @@ public class ReceiverOptions {
     * Flag to disable output escaping
     */
 
-    public final static int DISABLE_ESCAPING = 1;
+    public static final int DISABLE_ESCAPING = 1;
 
     /**
     * Flag indicating that the value contains no special characters
     * that need to be escaped
     */
 
-    public final static int NO_SPECIAL_CHARS = 4;
+    public static final int NO_SPECIAL_CHARS = 4;
 
+    /**
+     * Flag indicating that an attribute value was added by the schema processor
+     * because a default value was specified
+     */
+
+    public static final int DEFAULTED_ATTRIBUTE = 8;
+    
     /**
     * Flag indicating that duplicate values should be rejected
     */
 
-    public final static int REJECT_DUPLICATES = 32;
+    public static final int REJECT_DUPLICATES = 32;
 
     /**
      * Flag indicating that the namespace (of an element or attribute name)
@@ -37,14 +44,14 @@ public class ReceiverOptions {
      * fixup process.
      */
 
-    public final static int NAMESPACE_OK = 64;
+    public static final int NAMESPACE_OK = 64;
 
     /**
      * Flag passed on startElement indicating that the element does not inherit
      * the namespaces of its ancestors.
      */
 
-    public final static int DISINHERIT_NAMESPACES = 128;
+    public static final int DISINHERIT_NAMESPACES = 128;
 
     /**
      * Flag used when an attribute value or text node contains null characters
@@ -52,7 +59,7 @@ public class ReceiverOptions {
      * are to be output without escaping
      */
 
-    public final static int USE_NULL_MARKERS = 256;
+    public static final int USE_NULL_MARKERS = 256;
 
     /**
      * Flag indicating that an element or attribute annotated as an xs:QName or
@@ -60,19 +67,19 @@ public class ReceiverOptions {
      * prefix is in scope
      */
 
-    public final static int NEEDS_PREFIX_CHECK = 512;
+    public static final int NEEDS_PREFIX_CHECK = 512;
 
     /**
      * Flag indicating that an attribute is an ID attribute, described as such in a DTD
      */
 
-    public final static int DTD_ID_ATTRIBUTE = 1024;
+    public static final int DTD_ID_ATTRIBUTE = 1024;
 
     /**
      * Flag indicating that an attribute is an IDREF or IDREFS attribute, described as such in a DTD
      */
 
-    public final static int DTD_IDREFS_ATTRIBUTE = 2048;
+    public static final int DTD_IDREFS_ATTRIBUTE = 2048;
 
 }
 
@@ -85,12 +92,9 @@ public class ReceiverOptions {
 // WITHOUT WARRANTY OF ANY KIND, either express or implied.
 // See the License for the specific language governing rights and limitations under the License.
 //
-// The Original Code is: all this file, other than fragments copied from the SAX distribution
-// made available by David Megginson, and the line marked PB-SYNC.
+// The Original Code is: all this file,C.
 //
 // The Initial Developer of the Original Code is Michael H. Kay.
 //
-// The line marked PB-SYNC is by Peter Bryant (pbryant@bigfoot.com). All Rights Reserved.
-//
-// Contributor(s): Michael Kay, Peter Bryant, David Megginson
+// Contributor(s):
 //

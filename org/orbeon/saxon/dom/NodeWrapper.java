@@ -116,6 +116,14 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     }
 
     /**
+     * Get the configuration
+     */
+
+    public Configuration getConfiguration() {
+        return docWrapper.getConfiguration();
+    }
+
+    /**
      * Get the name pool for this node
      * @return the NamePool
      */
@@ -137,7 +145,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     * Get the typed value of the item
     */
 
-    public SequenceIterator getTypedValue(Configuration config) {
+    public SequenceIterator getTypedValue() {
         return SingletonIterator.makeIterator(new UntypedAtomicValue(getStringValue()));
     }
 
@@ -231,7 +239,12 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 
     public int compareOrder(NodeInfo other) {
         // TODO: use the DOM Level-3 compareDocumentPosition() method if available
-        return Navigator.compareOrder(this, (SiblingCountingNode)other);
+        if (other instanceof SiblingCountingNode) {
+            return Navigator.compareOrder(this, (SiblingCountingNode)other);
+        } else {
+            // it's presumably a NamespaceNode
+            return -other.compareOrder(this);
+        }
     }
 
     /**

@@ -1,7 +1,7 @@
 package net.sf.saxon.functions;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.ExpressionTool;
+import net.sf.saxon.expr.StaticContext;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.value.BooleanValue;
 import net.sf.saxon.xpath.XPathException;

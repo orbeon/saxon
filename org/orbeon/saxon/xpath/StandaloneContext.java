@@ -8,15 +8,26 @@ import net.sf.saxon.instruct.SlotManager;
 import net.sf.saxon.om.*;
 import net.sf.saxon.sort.CodepointCollator;
 import net.sf.saxon.sort.CollationFactory;
+import net.sf.saxon.value.QNameValue;
 
+import javax.xml.namespace.NamespaceContext;
+import javax.xml.namespace.QName;
+import javax.xml.transform.SourceLocator;
+import javax.xml.xpath.XPathFunctionResolver;
+import javax.xml.xpath.XPathVariableResolver;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 
 /**
-* A StandaloneContext provides a context for parsing an expression or pattern appearing
-* in a context other than a stylesheet.
+* A StandaloneContext provides a context for parsing an XPath expression
+* in a context other than a stylesheet. In particular, it is used to support
+* the JAXP 1.3 XPath API. This API does not actually expose the StaticContext
+* object directly; rather, the static context (namespaces, variables, and functions)
+ * is manipulated through the XPath object, implemented in Saxon by the {@link XPathEvaluator}
 */
+
+// TODO: this class, or those parts that are actually needed, could be merged into the XPathEvaluator
 
 public class StandaloneContext implements StaticContext, NamespaceResolver {
 
@@ -30,7 +41,11 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
     private Configuration config;
     private LocationMap locationMap = new LocationMap();
     private FunctionLibrary functionLibrary;
+    private XPathFunctionLibrary xpathFunctionLibrary;
     private String defaultFunctionNamespace = NamespaceConstant.FN;
+
+    private NamespaceContext namespaceContext;
+    private XPathVariableResolver variableResolver;
 
 	/**
 	* Create a StandaloneContext using the default Configuration and NamePool
@@ -57,6 +72,8 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
         lib.addFunctionLibrary(getConfiguration().getVendorFunctionLibrary());
         lib.addFunctionLibrary(new ConstructorFunctionLibrary(getConfiguration()));
         if (config.isAllowExternalFunctions()) {
+            xpathFunctionLibrary = new XPathFunctionLibrary();
+            lib.addFunctionLibrary(xpathFunctionLibrary);
             lib.addFunctionLibrary(new JavaExtensionLibrary(getConfiguration()));
         }
         functionLibrary = lib;
@@ -94,7 +111,10 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
     }
 
 	/**
-	* Declare a namespace whose prefix can be used in expressions
+	* Declare a namespace whose prefix can be used in expressions. Namespaces may either be
+     * pre-declared (the traditional Saxon interface), or they may be resolved on demand
+     * using a supplied NamespaceContext. When a prefix has to be resolved, the parser looks
+     * first in the pre-declared namespaces, then in the supplied NamespaceContext object.
 	* @param prefix The namespace prefix. Must not be null. Must not be the empty string
 	* ("") - unqualified names in an XPath expression always refer to the null namespace.
 	* @param uri The namespace URI. Must not be null.
@@ -111,8 +131,26 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
 		namePool.allocateNamespaceCode(prefix, uri);
 	}
 
+    /**
+     * Supply the NamespaceContext used to resolve namespaces. This is used only for a namespace
+     * that has not been explicitly declared using {@link #declareNamespace}.
+     */
+
+    public void setNamespaceContext(NamespaceContext context) {
+        this.namespaceContext = context;
+    }
+
+    /**
+     * Get the NamespaceContext that was set using {@link #setNamespaceContext}
+     */
+
+    public NamespaceContext getNamespaceContext() {
+        return namespaceContext;
+    }
+
 	/**
-	* Clear all the declared namespaces, except for the standard ones (xml, xslt, saxon, xdt)
+	* Clear all the declared namespaces, except for the standard ones (xml, xslt, saxon, xdt).
+     * This doesn't clear the namespace context set using {@link #setNamespaceContext}
 	*/
 
 	public void clearNamespaces() {
@@ -187,8 +225,15 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
     }
 
     /**
-    * Declare a variable. A variable must be declared before an expression referring
-    * to it is compiled.
+    * Declare a variable. A variable may be declared before an expression referring
+    * to it is compiled. Alternatively, a JAXP XPathVariableResolver may be supplied
+     * to perform the resolution. A variable that has been explicitly declared is
+     * used in preference.
+     * @param qname Lexical QName identifying the variable. The namespace prefix, if
+     * any, must have been declared before this method is called, or must be resolvable
+     * using the namespace context.
+     * @param initialValue The initial value of the variable. A Java object that can
+     * be converted to an XPath value.
     */
 
     public Variable declareVariable(String qname, Object initialValue) throws XPathException {
@@ -214,6 +259,39 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
     }
 
     /**
+     * Set an XPathVariableResolver. This is used to resolve variable references
+     * if no variable has been explicitly declared.
+     * @param resolver A JAXP 1.3 XPathVariableResolver
+     */
+
+    public void setXPathVariableResolver(XPathVariableResolver resolver) {
+        this.variableResolver = resolver;
+    }
+
+    /**
+     * Get the XPathVariableResolver
+     */
+
+    public XPathVariableResolver getXPathVariableResolver() {
+        return variableResolver;
+    }
+
+    public void setXPathFunctionResolver(XPathFunctionResolver xPathFunctionResolver) {
+        if (xpathFunctionLibrary != null) {
+            xpathFunctionLibrary.setXPathFunctionResolver(xPathFunctionResolver);
+        }
+        // otherwise, external functions are disabled for security reasons
+    }
+
+    public XPathFunctionResolver getXPathFunctionResolver() {
+        if (xpathFunctionLibrary != null) {
+            return xpathFunctionLibrary.getXPathFunctionResolver();
+        } else {
+            return null;
+        }
+    }
+
+    /**
     * Get the NamePool used for compiling expressions
     */
 
@@ -226,9 +304,9 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
     * output warning conditions. The default implementation writes the message to System.err. To
     * change the destination of messages, create a subclass of StandaloneContext that overrides
     * this method.
-    */
+    */                                                         
 
-    public void issueWarning(String s) {
+    public void issueWarning(String s, SourceLocator locator) {
         System.err.println(s);
     }
 
@@ -297,7 +375,12 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
         if (prefix.equals("") && !useDefault) {
             return "";
         } else {
-    	    return (String)namespaces.get(prefix);
+    	    String uri = (String)namespaces.get(prefix);
+            if (uri == null) {
+                return namespaceContext.getNamespaceURI(prefix);
+            } else {
+                return uri;
+            }
         }
     }
 
@@ -325,19 +408,32 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
     }
 
     /**
-    * Bind a variable used in an XPath Expression to the XSLVariable element in which it is declared.
-    * This method is provided for use by the XPath parser, and it should not be called by the user of
-    * the API, or overridden, unless variables are to be declared using a mechanism other than the
-    * declareVariable method of this class.
-    */
+     * Bind a variable used in an XPath Expression to the XSLVariable element in which it is declared.
+     * This method is provided for use by the XPath parser, and it should not be called by the user of
+     * the API, or overridden, unless variables are to be declared using a mechanism other than the
+     * declareVariable method of this class.
+     * <p>
+     * If the variable has been explicitly declared using {@link #declareVariable(String, Object)},
+     * that value is used; otherwise if a variable resolved has been supplied using
+     * {@link #setXPathVariableResolver(javax.xml.xpath.XPathVariableResolver)} then that is used.
+     * @throws StaticError If no variable with the given name is found, or if the value supplied
+     * for the variable cannot be converted to an XPath value.
+     */
 
     public VariableDeclaration bindVariable(int fingerprint) throws StaticError {
         Variable var = (Variable)variables.get(new Integer(fingerprint));
-        if (var==null) {
-            throw new StaticError("Undeclared variable in a standalone expression");
-        } else {
+        if (var!=null) {
             return var;
         }
+        // bindVariable is called at compile time, but the JAXP variable resolver
+        // is designed to be called at run time. So we need to create a variable now,
+        // which will call the variableResolver when called upon to return the run-time value
+        if (variableResolver != null) {
+            QName qname = new QNameValue(namePool, fingerprint).getQName();
+            return new JAXPVariable(qname, variableResolver);
+        }
+        throw new StaticError("Undeclared variable in a standalone expression");
+
     }
 
     /**
@@ -381,7 +477,7 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
         if (defaultCollationName != null) {
             return defaultCollationName;
         } else {
-            return CodepointCollator.URI;
+            return NamespaceConstant.CodepointCollationURI;
         }
     }
 

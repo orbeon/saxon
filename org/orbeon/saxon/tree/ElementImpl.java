@@ -1,18 +1,13 @@
 package net.sf.saxon.tree;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.NamespaceException;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.type.Type;
+import net.sf.saxon.event.LocationCopier;
 import net.sf.saxon.event.Receiver;
-import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.om.*;
+import net.sf.saxon.type.Type;
+import net.sf.saxon.xpath.XPathException;
+import org.w3c.dom.DOMException;
+import org.w3c.dom.Element;
 
 import java.util.List;
-import org.w3c.dom.Element;
-import org.w3c.dom.DOMException;
-
-import net.sf.saxon.xpath.XPathException;
 
 /**
   * ElementImpl implements an element with no attributes or namespace declarations.<P>
@@ -28,7 +23,7 @@ import net.sf.saxon.xpath.XPathException;
 public class ElementImpl extends ParentNodeImpl
     implements Element {
 
-    private static AttributeCollection emptyAtts = new AttributeCollection((NamePool)null);
+    private static AttributeCollection emptyAtts = new AttributeCollection(null);
 
     protected int nameCode;
     protected DocumentImpl root;
@@ -107,17 +102,7 @@ public class ElementImpl extends ParentNodeImpl
     */
 
     public String getBaseURI() {
-        String xmlBase = getAttributeValue(StandardNames.XML_BASE);
-        if (xmlBase!=null) {
-            return xmlBase;
-        }
-        String startSystemId = getSystemId();
-        String parentSystemId = parent.getSystemId();
-        if (startSystemId.equals(parentSystemId)) {
-            return parent.getBaseURI();
-        } else {
-            return startSystemId;
-        }
+        return Navigator.getBaseURI(this);
     }
 
     /**
@@ -127,7 +112,6 @@ public class ElementImpl extends ParentNodeImpl
     public void setLineNumber(int line) {
         ((DocumentImpl)getDocumentRoot()).setLineNumber(sequence, line);
     }
-
 
     /**
     * Get the line number of the node within its source document entity
@@ -152,7 +136,7 @@ public class ElementImpl extends ParentNodeImpl
     */
 
     public String generateId() {
-        return getDocumentRoot().generateId() + "e" + sequence;
+        return getDocumentRoot().generateId() + 'e' + sequence;
     }
 
     /**
@@ -231,7 +215,7 @@ public class ElementImpl extends ParentNodeImpl
 
         if (includeAncestors) {
             if (!(parent instanceof DocumentInfo)) {
-                ((ElementImpl)parent).outputNamespaceNodes(out, true);
+                parent.outputNamespaceNodes(out, true);
             }
         }
     }
@@ -289,8 +273,14 @@ public class ElementImpl extends ParentNodeImpl
     * namespaces only (those not declared on the parent element)
     */
 
-    public void copy(Receiver out, int whichNamespaces) throws XPathException {
-        out.startElement(getNameCode(), -1, 0, 0);
+    public void copy(Receiver out, int whichNamespaces, boolean copyAnnotations, int locationId) throws XPathException {
+
+        int typeCode = (copyAnnotations ? getTypeAnnotation() : -1);
+        if (locationId == 0 && out instanceof LocationCopier) {
+            out.setSystemId(getSystemId());
+            ((LocationCopier)out).setLineNumber(getLineNumber());
+        }
+        out.startElement(getNameCode(), typeCode, locationId, 0);
 
         // output the namespaces
 
@@ -303,7 +293,7 @@ public class ElementImpl extends ParentNodeImpl
         int childNamespaces = (whichNamespaces==NO_NAMESPACES ? NO_NAMESPACES : LOCAL_NAMESPACES);
         NodeImpl next = (NodeImpl)getFirstChild();
         while (next!=null) {
-            next.copy(out, childNamespaces);
+            next.copy(out, childNamespaces, copyAnnotations, locationId);
             next = (NodeImpl)next.getNextSibling();
         }
 

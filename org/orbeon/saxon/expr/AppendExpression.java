@@ -2,6 +2,7 @@ package net.sf.saxon.expr;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.type.ItemType;
+import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.EmptySequence;
@@ -98,6 +99,19 @@ public final class AppendExpression extends BinaryExpression {
     }
 
     /**
+     * Check that any elements and attributes constructed or returned by this expression are acceptable
+     * in the content model of a given complex type. It's always OK to say yes, since the check will be
+     * repeated at run-time. The process of checking element and attribute constructors against the content
+     * model of a complex type also registers the type of content expected of those constructors, so the
+     * static validation can continue recursively.
+     */
+
+    public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException {
+        operand0.checkPermittedContents(parentType, env, false);
+        operand1.checkPermittedContents(parentType, env, false);
+    }
+
+    /**
     * An AppendExpression is classified as an atomic sequence if both operands are atomic values or
     * atomic sequences
     */
@@ -109,6 +123,40 @@ public final class AppendExpression extends BinaryExpression {
     private boolean isAtomic(Expression exp) {
         return (exp instanceof AtomicValue) ||
                 (exp instanceof SequenceExtent);
+    }
+
+    /**
+     * Determine the special properties of this expression
+     * @return {@link StaticProperty#NON_CREATIVE}.
+     */
+
+    public int computeSpecialProperties() {
+        int p = super.computeSpecialProperties() &~ StaticProperty.NON_CREATIVE;
+        if ((operand0.getSpecialProperties() & operand1.getSpecialProperties() & StaticProperty.NON_CREATIVE) != 0) {
+            p |= StaticProperty.NON_CREATIVE;
+        }
+        return p;
+    }
+
+    /**
+     * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
+     * This method indicates which of these methods is provided. This implementation provides both iterate() and
+     * process() methods natively.
+     */
+
+    public int getImplementationMethod() {
+        return ITERATE_METHOD | PROCESS_METHOD;
+    }
+
+    /**
+     * Process the instruction, without returning any tail calls
+     * @param context The dynamic context, giving access to the current node,
+     *                the current variables, etc.
+     */
+
+    public void process(XPathContext context) throws XPathException {
+        operand0.process(context);
+        operand1.process(context);
     }
 
     /**

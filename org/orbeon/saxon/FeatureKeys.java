@@ -15,7 +15,7 @@ public class FeatureKeys {
 	* ALLOW_EXTERNAL_FUNCTIONS must be a Boolean; it determines whether calls to external functions are allowed
 	*/
 
-	public final static String ALLOW_EXTERNAL_FUNCTIONS =
+	public static final String ALLOW_EXTERNAL_FUNCTIONS =
 	        "http://saxon.sf.net/feature/allow-external-functions";
 
 	/**
@@ -23,28 +23,28 @@ public class FeatureKeys {
      * functions is traced
 	*/
 
-	public final static String TRACE_EXTERNAL_FUNCTIONS =
+	public static final String TRACE_EXTERNAL_FUNCTIONS =
 	        "http://saxon.sf.net/feature/trace-external-functions";
 
 	/**
 	* TIMING must be an Boolean; it determines whether basic timing information is output to System.err
 	*/
 
-	public final static String TIMING =
+	public static final String TIMING =
 	        "http://saxon.sf.net/feature/timing";
 
 	/**
 	* TREE_MODEL must be an Integer: Builder.STANDARD_TREE or Builder.TINY_TREE
 	*/
 
-	public final static String TREE_MODEL =
+	public static final String TREE_MODEL =
 	        "http://saxon.sf.net/feature/treeModel";
 
 	/**
 	* TRACE_LISTENER must be a class that implements net.sf.saxon.trace.TraceListener
 	*/
 
-	public final static String TRACE_LISTENER =
+	public static final String TRACE_LISTENER =
 	        "http://saxon.sf.net/feature/traceListener";
 
 	/**
@@ -52,7 +52,7 @@ public class FeatureKeys {
      * source document
 	*/
 
-	public final static String LINE_NUMBERING =
+	public static final String LINE_NUMBERING =
 	        "http://saxon.sf.net/feature/linenumbering";
 
 	/**
@@ -60,42 +60,42 @@ public class FeatureKeys {
 	* Controller.RECOVER_WITH_WARNINGS, or Controller.DO_NOT_RECOVER
 	*/
 
-	public final static String RECOVERY_POLICY =
+	public static final String RECOVERY_POLICY =
 	        "http://saxon.sf.net/feature/recoveryPolicy";
 
 	/**
 	* MESSAGE_EMITTER_CLASS must be the class name of an Emitter
 	*/
 
-	public final static String MESSAGE_EMITTER_CLASS =
+	public static final String MESSAGE_EMITTER_CLASS =
 	        "http://saxon.sf.net/feature/messageEmitterClass";
 
     /**
     * SOURCE_PARSER_CLASS must be the full class name of an XMLReader
     */
 
-    public final static String SOURCE_PARSER_CLASS =
+    public static final String SOURCE_PARSER_CLASS =
             "http://saxon.sf.net/feature/sourceParserClass";
 
     /**
     * STYLE_PARSER_CLASS must be an XMLReader
     */
 
-    public final static String STYLE_PARSER_CLASS =
+    public static final String STYLE_PARSER_CLASS =
             "http://saxon.sf.net/feature/styleParserClass";
 
     /**
     * NAME_POOL must be an instance of net.sf.saxon.om.NamePool
     */
 
-    public final static String NAME_POOL =
+    public static final String NAME_POOL =
             "http://saxon.sf.net/feature/namePool";
 
     /**
     * OUTPUT_URI_RESOLVER must be an instance of net.sf.saxon.OutputURIResolver
     */
 
-    public final static String OUTPUT_URI_RESOLVER =
+    public static final String OUTPUT_URI_RESOLVER =
             "http://saxon.sf.net/feature/outputURIResolver";
 
 	/**
@@ -103,7 +103,7 @@ public class FeatureKeys {
 	* parsed with DTD-validation enabled.
 	*/
 
-	public final static String DTD_VALIDATION =
+	public static final String DTD_VALIDATION =
 	        "http://saxon.sf.net/feature/validation";
 
 	/**
@@ -111,7 +111,7 @@ public class FeatureKeys {
 	* parsed with schema-validation enabled.
 	*/
 
-	public final static String SCHEMA_VALIDATION =
+	public static final String SCHEMA_VALIDATION =
 	        "http://saxon.sf.net/feature/schema-validation";
 
     /**
@@ -120,10 +120,21 @@ public class FeatureKeys {
     * are treated as warnings.
     */
 
-    public final static String VALIDATION_WARNINGS =
+    public static final String VALIDATION_WARNINGS =
             "http://saxon.sf.net/feature/validation-warnings";
 
 
+    /**
+    * VERSION_WARNING must be a Boolean. This determines whether a warning should be output when
+     * running an XSLT 2.0 processor against an XSLT 1.0 stylesheet. The XSLT specification requires
+     * this to be done by default.
+    */
+
+    public static final String VERSION_WARNING =
+            "http://saxon.sf.net/feature/version-warning";
+
+    private FeatureKeys() {
+    }
 }
 
 //
@@ -135,12 +146,9 @@ public class FeatureKeys {
 // WITHOUT WARRANTY OF ANY KIND, either express or implied.
 // See the License for the specific language governing rights and limitations under the License.
 //
-// The Original Code is: all this file, other than fragments copied from the SAX distribution
-// made available by David Megginson, and the line marked PB-SYNC.
+// The Original Code is: all this file
 //
 // The Initial Developer of the Original Code is Michael H. Kay.
 //
-// The line marked PB-SYNC is by Peter Bryant (pbryant@bigfoot.com). All Rights Reserved.
-//
-// Contributor(s): Michael Kay, Peter Bryant, David Megginson
+// Contributor(s):
 //

@@ -2,11 +2,10 @@ package net.sf.saxon.charcode;
 
 import net.sf.saxon.om.XMLChar;
 
-import java.nio.charset.CharsetEncoder;
-import java.nio.charset.Charset;
-import java.nio.charset.CharacterCodingException;
-import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetEncoder;
 
 /**
 * This class establishes properties of a character set that is

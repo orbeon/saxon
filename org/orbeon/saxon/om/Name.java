@@ -11,6 +11,11 @@ import net.sf.saxon.Err;
 
 public abstract class Name {
 
+    /**
+     * This class is never instantiated
+     */
+
+    private Name() { }
 
     /**
      * Validate whether a given string constitutes a valid QName, as defined in XML Namespaces.
@@ -20,7 +25,7 @@ public abstract class Name {
      * @return true if the name is a lexically-valid QName
      */
 
-    public final static boolean isQName(String name) {
+    public static final boolean isQName(String name) {
         int colon = name.indexOf(':');
         if (colon<0) return XMLChar.isValidNCName(name);
         if (colon==0 || colon==name.length()-1) return false;
@@ -37,7 +42,7 @@ public abstract class Name {
 	 *     string if there is no prefix
 	 */
 
-	public final static String getPrefix(String qname) {
+    public static final String getPrefix(String qname) {
 		int colon = qname.indexOf(':');
 		if (colon<0) {
 			return "";
@@ -55,13 +60,14 @@ public abstract class Name {
 	 *      item is a zero-length string if there is no prefix.
 	 */
 
-	public final static String[] getQNameParts(CharSequence qname) throws QNameException {
+    public static final String[] getQNameParts(CharSequence qname) throws QNameException {
 	    String[] parts = new String[2];
         int colon = -1;
         int len = qname.length();
         for (int i=0; i<len; i++) {
             if (qname.charAt(i)==':') {
                 colon = i;
+                break;
             }
         }
         if (colon<0) {

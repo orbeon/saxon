@@ -1,23 +1,26 @@
 package net.sf.saxon.style;
-import net.sf.saxon.PreparedStylesheet;
 import net.sf.saxon.Configuration;
-import net.sf.saxon.trace.Location;
-import net.sf.saxon.type.SchemaType;
+import net.sf.saxon.PreparedStylesheet;
+import net.sf.saxon.expr.AppendExpression;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.instruct.*;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.om.Validation;
-import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.expr.Token;
+import net.sf.saxon.instruct.AttributeSet;
+import net.sf.saxon.instruct.Executable;
+import net.sf.saxon.instruct.FixedAttribute;
+import net.sf.saxon.instruct.FixedElement;
+import net.sf.saxon.om.*;
+import net.sf.saxon.trace.Location;
 import net.sf.saxon.tree.DocumentImpl;
 import net.sf.saxon.tree.TreeBuilder;
+import net.sf.saxon.type.SchemaType;
+import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.StringValue;
+import net.sf.saxon.xpath.StaticError;
+import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
-
-import net.sf.saxon.xpath.XPathException;
 
 
 /**
@@ -39,6 +42,7 @@ public class LiteralResultElement extends StyleElement {
     private SchemaType schemaType = null;
     private int validation = Validation.STRIP;
     private boolean inheritNamespaces = true;
+    private static final int[] INT_0 = new int[0];
 
     /**
     * Determine whether this type of element is allowed to contain a template-body
@@ -80,6 +84,8 @@ public class LiteralResultElement extends StyleElement {
 
                     if (fp == StandardNames.XSL_USE_ATTRIBUTE_SETS) {
                         // deal with this later
+                    } else if (fp == StandardNames.XSL_DEFAULT_COLLATION) {
+                    	// already dealt with
                     } else if (fp == StandardNames.XSL_EXTENSION_ELEMENT_PREFIXES) {
                     	// already dealt with
                     } else if (fp == StandardNames.XSL_EXCLUDE_RESULT_PREFIXES) {
@@ -90,6 +96,8 @@ public class LiteralResultElement extends StyleElement {
                         // already dealt with
                     } else if (fp == StandardNames.XSL_TYPE) {
                         // deal with this later
+                    } else if (fp == StandardNames.XSL_USE_WHEN) {
+                        // already dealt with
                     } else if (fp == StandardNames.XSL_VALIDATION) {
                         // deal with this later
                     } else if (fp == StandardNames.XSL_INHERIT_NAMESPACES) {
@@ -99,10 +107,10 @@ public class LiteralResultElement extends StyleElement {
                         } else if (inheritAtt.equals("no")) {
                             inheritNamespaces = false;
                         } else {
-                            compileError("The xsl:inherit-namespaces attribute has permitted values (yes, no)");
+                            compileError("The xsl:inherit-namespaces attribute has permitted values (yes, no)", "XT0020");
                         }
                     } else {
-                        compileError("Unknown XSL attribute " + namePool.getDisplayName(anameCode));
+                        compileError("Unknown XSL attribute " + namePool.getDisplayName(anameCode), "XT0010");
                     }
                 } else {
                     attributeNames[numberOfAttributes] = anameCode;
@@ -170,7 +178,7 @@ public class LiteralResultElement extends StyleElement {
             // but this class gets used for unknown elements found at the top level
 
             if (elementURICode == 0) {
-                compileError("Top level elements must have a non-null namespace URI");
+                compileError("Top level elements must have a non-null namespace URI", "XT0010");
             }
         } else {
 
@@ -208,7 +216,7 @@ public class LiteralResultElement extends StyleElement {
             }
 
             if (optimizeNS) {
-            	namespaceCodes = new int[0];
+            	namespaceCodes = INT_0;
             } else {
                 namespaceCodes = getNamespaceCodes();
 	        }
@@ -233,7 +241,6 @@ public class LiteralResultElement extends StyleElement {
 
                 int ercode = sheet.getNamespaceAlias(elementURICode);
                 if ((ercode & 0xffff) != elementURICode) {
-                	elementURICode = (short)(ercode & 0xffff);
                     resultNameCode = namePool.allocate(namePool.getPrefixFromNamespaceCode(ercode),
                                                        namePool.getURIFromNamespaceCode(ercode),
                                                        getLocalPart());
@@ -250,7 +257,7 @@ public class LiteralResultElement extends StyleElement {
             String type = getAttributeValue(StandardNames.XSL_TYPE);
             if (type != null) {
                 if (!getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                    compileError("The xsl:type attribute is available only with a schema-aware XSLT processor");
+                    compileError("The xsl:type attribute is available only with a schema-aware XSLT processor", "XT1660");
                 }
                 schemaType = getSchemaType(type);
             }
@@ -259,11 +266,11 @@ public class LiteralResultElement extends StyleElement {
             if (validate != null) {
                 validation = Validation.getCode(validate);
                 if (validation != Validation.STRIP && !getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                    compileError("To perform validation, a schema-aware XSLT processor is needed");
+                    compileError("To perform validation, a schema-aware XSLT processor is needed", "XT1660");
                 }
                 if (validation == Validation.INVALID) {
                     compileError("Invalid value for xsl:validation. " +
-                                 "Permitted values are (strict, lax, preserve, strip)");
+                                 "Permitted values are (strict, lax, preserve, strip)", "XT0020");
                 }
             } else {
                 validation = getContainingStylesheet().getDefaultValidation();
@@ -373,8 +380,6 @@ public class LiteralResultElement extends StyleElement {
         // top level elements in the stylesheet are ignored
         if (toplevel) return null;
 
-//        int annotation = getTypeAnnotation(schemaType);
-
         FixedElement inst = new FixedElement(
                         resultNameCode,
                         namespaceCodes,
@@ -383,12 +388,10 @@ public class LiteralResultElement extends StyleElement {
                         schemaType,
                         validation);
 
-        Expression[] directChildren = compileChildren(exec, inst, true);
+        Expression firstChild = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
 
-        Instruction[] atts = null;
         if (numberOfAttributes > 0) {
-            atts = new Instruction[attributeNames.length];
-            for (int i=0; i<atts.length; i++) {
+            for (int i=attributeNames.length - 1; i>=0; i--) {
                 FixedAttribute att = new FixedAttribute(
                         attributeNames[i],
                         Validation.STRIP,
@@ -405,14 +408,19 @@ public class LiteralResultElement extends StyleElement {
                 if (attributeChecked[i]) {
                     att.setNoSpecialChars();
                 }
-                atts[i] = att;
+                if (firstChild == null) {
+                    firstChild = att;
+                } else {
+                    firstChild = new AppendExpression(att, Token.COMMA, firstChild);
+                }
             }
-
-            Expression[] allChildren = new Expression[atts.length + directChildren.length];
-            System.arraycopy(atts, 0, allChildren, 0, atts.length);
-            System.arraycopy(directChildren, 0, allChildren, atts.length, directChildren.length);
-            inst.setChildren(allChildren);
         }
+
+        if (firstChild == null) {
+            firstChild = EmptySequence.getInstance();
+        }
+        inst.setContent(firstChild);
+
         ExpressionTool.makeParentReferences(inst);
         return inst;
     }
@@ -456,23 +464,24 @@ public class LiteralResultElement extends StyleElement {
 
         String version = getAttributeValue(StandardNames.XSL_VERSION);
         if (version==null) {
-            TransformerConfigurationException err = new TransformerConfigurationException (
-                "Literal Result Element As Stylesheet: xsl:version attribute is missing");
+            StaticError err = new StaticError (
+                "Simplified stylesheet: xsl:version attribute is missing");
+            err.setErrorCode("XT0150");
             err.setLocator(this);
             try {
                 pss.reportError(err);
             } catch(TransformerException err2) {}
-            throw err;
+            throw new TransformerConfigurationException(err);
         }
 
         try {
             TreeBuilder builder = new TreeBuilder();
-            builder.setDocumentLocator(null);
-            builder.setConfiguration(pss.getConfiguration());
+            builder.setPipelineConfiguration(pss.getConfiguration().makePipelineConfiguration());
             builder.setNodeFactory(nodeFactory);
             builder.setSystemId(this.getSystemId());
 
             builder.open();
+            builder.startDocument(0);
 
             int st = StandardNames.XSL_STYLESHEET;
             builder.startElement(st, -1, 0, 0);
@@ -489,9 +498,10 @@ public class LiteralResultElement extends StyleElement {
 
             builder.endElement();
             builder.endElement();
+            builder.endDocument();
             builder.close();
 
-            return (DocumentImpl)builder.getCurrentDocument();
+            return (DocumentImpl)builder.getCurrentRoot();
         } catch (XPathException err) {
             TransformerConfigurationException e = new TransformerConfigurationException(err);
             e.setLocator(this);

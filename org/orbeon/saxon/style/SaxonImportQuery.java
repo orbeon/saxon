@@ -1,22 +1,14 @@
 package net.sf.saxon.style;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.functions.ExecutableFunctionLibrary;
 import net.sf.saxon.expr.Expression;
+import net.sf.saxon.functions.ExecutableFunctionLibrary;
 import net.sf.saxon.instruct.Executable;
+import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.NamePool;
-import net.sf.saxon.query.QueryParser;
 import net.sf.saxon.query.StaticQueryContext;
 import net.sf.saxon.query.XQueryFunction;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.xpath.DynamicError;
 import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.Iterator;
 
 
@@ -119,7 +111,8 @@ public class SaxonImportQuery extends StyleElement {
                 getExecutable(),
                 getBaseURI(),
                 namespaceURI,
-                locationURI
+                locationURI,
+                null
         );
     }
 

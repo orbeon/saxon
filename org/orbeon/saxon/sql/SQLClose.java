@@ -3,11 +3,11 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.SimpleExpression;
 import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.instruct.Executable;
+import net.sf.saxon.instruct.ExtensionInstruction;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.value.ObjectValue;
 import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.instruct.ExtensionInstruction;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.sql.Connection;
@@ -53,7 +53,7 @@ public class SQLClose extends ExtensionInstruction {
          */
 
         public int getImplementationMethod() {
-            return EVALUATE_METHOD;
+            return Expression.EVALUATE_METHOD;
         }
 
         public String getExpressionType() {

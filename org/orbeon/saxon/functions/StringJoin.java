@@ -1,13 +1,13 @@
 package net.sf.saxon.functions;
+import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.Expression;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.Cardinality;
 import net.sf.saxon.value.StringValue;
 import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.type.ItemType;
 
 /**
 * xf:string-join(string* $sequence, string $separator)
@@ -38,7 +38,7 @@ public class StringJoin extends SystemFunction {
 
     public Item evaluateItem(XPathContext c) throws XPathException {
 
-        // This rather tortous code is designed to ensure that we don't evaluate the
+        // This rather tortuous code is designed to ensure that we don't evaluate the
         // separator argument unless there are at least two items in the sequence.
 
         SequenceIterator iter = argument[0].iterate(c);
@@ -54,7 +54,7 @@ public class StringJoin extends SystemFunction {
             return new StringValue(first);
         }
 
-        StringBuffer sb = new StringBuffer();
+        StringBuffer sb = new StringBuffer(200);
         sb.append(first);
 
         // Type checking ensures that the separator is not an empty sequence

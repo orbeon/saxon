@@ -3,7 +3,7 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.instruct.NextMatch;
-import net.sf.saxon.tree.AttributeCollection;
+import net.sf.saxon.om.AttributeCollection;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -47,7 +47,7 @@ public class XSLNextMatch extends StyleElement {
     }
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {
-        NextMatch inst = new NextMatch();
+        NextMatch inst = new NextMatch(backwardsCompatibleModeIsEnabled());
         inst.setActualParameters(getWithParamInstructions(exec, false),
                                  getWithParamInstructions(exec, true));
         ExpressionTool.makeParentReferences(inst);

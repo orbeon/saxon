@@ -1,16 +1,16 @@
 package net.sf.saxon.value;
 
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.type.ItemType;
+import net.sf.saxon.type.Type;
+import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Implementation of the xs:gYearMonth data type

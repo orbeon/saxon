@@ -126,7 +126,7 @@ public class FilterIterator implements SequenceIterator {
     public static final class NonNumeric extends FilterIterator {
 
         public NonNumeric(SequenceIterator base, Expression filter,
-                            XPathContext context) throws XPathException {
+                            XPathContext context) {
             super(base, filter, context);
         }
 

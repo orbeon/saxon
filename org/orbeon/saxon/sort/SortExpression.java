@@ -1,22 +1,17 @@
 package net.sf.saxon.sort;
-import net.sf.saxon.expr.ComputedExpression;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.NamePool;
+import net.sf.saxon.expr.*;
 import net.sf.saxon.om.EmptyIterator;
+import net.sf.saxon.om.NamePool;
+import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.Cardinality;
 import net.sf.saxon.value.Value;
 import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.type.ItemType;
 
-import java.util.Iterator;
-import java.util.ArrayList;
-import java.util.List;
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 /**
 * Expression equivalent to the imaginary syntax
@@ -101,6 +96,20 @@ public class SortExpression extends ComputedExpression {
     }
 
     /**
+     * Test whether a given expression is one of the sort keys
+     */
+
+    public boolean isSortKey(Expression child) {
+        for (int i=0; i<sortKeys.length; i++) {
+            Expression exp = sortKeys[i].getSortKey();
+            if (exp == child) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
     * Determine the static cardinality
     */
 
@@ -127,6 +136,9 @@ public class SortExpression extends ComputedExpression {
         int props = 0;
         if ((select.getSpecialProperties() & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0) {
             props |= StaticProperty.CONTEXT_DOCUMENT_NODESET;
+        }
+        if ((select.getSpecialProperties() & StaticProperty.NON_CREATIVE) != 0) {
+            props |= StaticProperty.NON_CREATIVE;
         }
         return props;
     }

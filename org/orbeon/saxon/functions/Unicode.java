@@ -1,13 +1,10 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.SingletonIterator;
-import net.sf.saxon.om.XMLChar;
-import net.sf.saxon.value.StringValue;
+import net.sf.saxon.om.*;
 import net.sf.saxon.value.NumericValue;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.value.StringValue;
 import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 
 
 public class Unicode extends SystemFunction {
@@ -33,7 +30,11 @@ public class Unicode extends SystemFunction {
     public SequenceIterator iterate(XPathContext c) throws XPathException {
         switch (operation) {
         case TO_CODEPOINTS:
-            return stringToUnicode(argument[0].evaluateItem(c).getStringValue());
+            Item item = argument[0].evaluateItem(c);
+            if (item==null) {
+                return EmptyIterator.getInstance();
+            }
+            return stringToUnicode(item.getStringValue());
         case FROM_CODEPOINTS:
             return SingletonIterator.makeIterator(evaluateItem(c));
         default:
@@ -64,6 +65,7 @@ public class Unicode extends SystemFunction {
             long next = nextInt.longValue();
             if (next > Integer.MAX_VALUE || !XMLChar.isValid((int)next)) {
                 DynamicError e = new DynamicError("Invalid XML character [decimal " + next + "]");
+                e.setErrorCode("FOCH0001");
                 e.setXPathContext(context);
                 throw e;
             }
@@ -71,12 +73,6 @@ public class Unicode extends SystemFunction {
                 sb.append((char)next);
             }
             else {  // output a surrogate pair
-                //To compute the numeric value of the character corresponding to a surrogate
-                //pair, use this formula (all numbers are hex):
-        	    //(FirstChar - D800) * 400 + (SecondChar - DC00) + 10000
-//                next -= 65536;
-//                sb.append((char)((next / 1024) + 55296));
-//                sb.append((char)((next % 1024) + 56320));
                 sb.append(XMLChar.highSurrogate((int)next));
                 sb.append(XMLChar.lowSurrogate((int)next));
             }

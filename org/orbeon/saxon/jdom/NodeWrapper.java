@@ -1,15 +1,15 @@
 package net.sf.saxon.jdom;
+import net.sf.saxon.Configuration;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.AnyNodeTest;
 import net.sf.saxon.pattern.NodeTest;
+import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.UntypedAtomicValue;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.Configuration;
+import net.sf.saxon.xpath.XPathException;
 import org.jdom.*;
 
-import net.sf.saxon.xpath.XPathException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -103,6 +103,14 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 
 
     /**
+     * Get the configuration
+     */
+
+    public Configuration getConfiguration() {
+        return docWrapper.getConfiguration();
+    }
+
+    /**
      * Get the name pool for this node
      * @return the NamePool
      */
@@ -124,7 +132,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     * Get the typed value of the item
     */
 
-    public SequenceIterator getTypedValue(Configuration config) {
+    public SequenceIterator getTypedValue() {
         return SingletonIterator.makeIterator(new UntypedAtomicValue(getStringValue()));
     }
 

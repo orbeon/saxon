@@ -1,21 +1,22 @@
 package net.sf.saxon;
 import net.sf.saxon.event.CommentStripper;
+import net.sf.saxon.event.PipelineConfiguration;
 import net.sf.saxon.event.Sender;
+import net.sf.saxon.event.StartTagBuffer;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.NamePool;
-import net.sf.saxon.style.LiteralResultElement;
-import net.sf.saxon.style.StyleElement;
-import net.sf.saxon.style.StyleNodeFactory;
-import net.sf.saxon.style.StylesheetStripper;
-import net.sf.saxon.style.XSLStylesheet;
+import net.sf.saxon.style.*;
 import net.sf.saxon.tree.DocumentImpl;
 import net.sf.saxon.tree.TreeBuilder;
+import net.sf.saxon.xpath.XPathException;
 import org.xml.sax.SAXParseException;
 
 import javax.xml.transform.*;
-
-import net.sf.saxon.xpath.XPathException;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Properties;
 
 /**
@@ -139,16 +140,23 @@ public class PreparedStylesheet implements Templates, Serializable {
                                     StyleNodeFactory nodeFactory)
     throws TransformerConfigurationException {
 
-        StylesheetStripper styleStripper = new StylesheetStripper();
-        styleStripper.setStylesheetRules(localNamePool);
-
         TreeBuilder styleBuilder = new TreeBuilder();
-        styleBuilder.setConfiguration(config);
+        PipelineConfiguration pipe = config.makePipelineConfiguration();
+        styleBuilder.setPipelineConfiguration(pipe);
         styleBuilder.setSystemId(styleSource.getSystemId());
         styleBuilder.setNodeFactory(nodeFactory);
         styleBuilder.setLineNumbering(true);
 
-        styleStripper.setUnderlyingReceiver(styleBuilder);
+        StartTagBuffer startTagBuffer = new StartTagBuffer();
+
+        UseWhenFilter useWhenFilter = new UseWhenFilter(startTagBuffer);
+        useWhenFilter.setUnderlyingReceiver(styleBuilder);
+
+        startTagBuffer.setUnderlyingReceiver(useWhenFilter);
+
+        StylesheetStripper styleStripper = new StylesheetStripper();
+        styleStripper.setStylesheetRules(localNamePool);
+        styleStripper.setUnderlyingReceiver(startTagBuffer);
 
         CommentStripper commentStripper = new CommentStripper();
         commentStripper.setUnderlyingReceiver(styleStripper);
@@ -157,14 +165,14 @@ public class PreparedStylesheet implements Templates, Serializable {
 
         DocumentImpl doc;
         try {
-            Sender sender = new Sender(config);
+            Sender sender = new Sender(pipe);
             AugmentedSource aug = AugmentedSource.makeAugmentedSource(styleSource);
             aug.setSchemaValidation(Boolean.FALSE);
             if (aug.getXMLReader() == null) {
                 aug.setXMLReader(config.getStyleParser());
             }
             sender.send(aug, commentStripper);
-            doc = (DocumentImpl)styleBuilder.getCurrentDocument();
+            doc = (DocumentImpl)styleBuilder.getCurrentRoot();
         } catch (XPathException err) {
             Throwable cause = err.getException();
             if (cause != null) {
@@ -205,6 +213,29 @@ public class PreparedStylesheet implements Templates, Serializable {
 
     }
 
+    /**
+     * Load a PreparedStylesheet from a compiled stylesheet stored in a file.
+     * @param config The Configuration. <b>This method changes the NamePool used by this configuration
+     * to be the NamePool that was stored with the compiled stylesheet. The method must therefore not
+     * be used in a multi-threaded environment where the Configuration (and NamePool) are shared between
+     * multiple concurrent transformations.</b>
+     * @param fileName The name of the file containing the compiled stylesheet (which is just the Java serialization
+     * of a PreparedStylesheet object).
+     * @return the PreparedStylesheet, which can be used in JAXP interfaces as the Templates object
+     */
+
+    public static PreparedStylesheet loadCompiledStylesheet(Configuration config, String fileName)
+            throws IOException, ClassNotFoundException {
+        ObjectInputStream ois = new ObjectInputStream(new FileInputStream(fileName));
+        PreparedStylesheet sheet = (PreparedStylesheet)ois.readObject();
+        ois.close();
+        NamePool compiledNamePool = sheet.getTargetNamePool();
+        sheet.setConfiguration(config);
+        sheet.getExecutable().setConfiguration(config);
+        config.setNamePool(compiledNamePool);
+        NamePool.setDefaultNamePool(compiledNamePool);
+        return sheet;
+    }
 
     /**
      * Create a PreparedStylesheet from a supplied DocumentInfo
@@ -239,6 +270,15 @@ public class PreparedStylesheet implements Templates, Serializable {
         }
 
         XSLStylesheet top = (XSLStylesheet)styleDoc.getDocumentElement();
+        if (config.isVersionWarning() && top.getVersion().equals(BigDecimal.valueOf(1))) {
+            try {
+                config.getErrorListener().warning(
+                        new TransformerException("Running an XSLT 1.0 stylesheet with an XSLT 2.0 processor")
+                );
+            } catch (TransformerException e) {
+                throw new TransformerConfigurationException(e);
+            }
+        }
 
         // Preprocess the stylesheet, performing validation and preparing template definitions
 

@@ -38,6 +38,7 @@ public final class CardinalityChecker extends UnaryExpression implements Mapping
         if (requiredCardinality == StaticProperty.ALLOWS_ZERO_OR_MORE) {
             return operand;
         }
+        //int x = operand.getCardinality();
         if (Cardinality.subsumes(requiredCardinality, operand.getCardinality())) {
             return operand;
         }
@@ -72,7 +73,8 @@ public final class CardinalityChecker extends UnaryExpression implements Mapping
         if (item instanceof ObjectValue && ((ObjectValue)item).getObject() == this) {
             // we've hit the stopper object
             if (pos==1) {
-                 typeError("An empty sequence is not allowed as the " + role.getMessage(), context);
+                 typeError("An empty sequence is not allowed as the " +
+                         role.getMessage(), context);
             }
             // don't include the stopper in the result
             return null;

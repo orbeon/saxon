@@ -1,15 +1,15 @@
 package net.sf.saxon.instruct;
+import net.sf.saxon.event.SequenceReceiver;
 import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
 import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.event.SequenceReceiver;
+import net.sf.saxon.type.ItemType;
+import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -76,15 +76,14 @@ public final class Comment extends SimpleNodeConstructor {
             int hh = comment.indexOf("--");
             if (hh < 0) break;
             DynamicError err = new DynamicError("Invalid characters (--) in comment", this);
-            err.setErrorCode("XT0950");
-            // TODO: XQuery error code to be assigned (see also below)
+            err.setErrorCode((isXSLT(context) ? "XT0950" : "XQ0072"));
             err.setXPathContext(context);
             context.getController().recoverableError(err);
             comment = comment.substring(0, hh+1) + ' ' + comment.substring(hh+1);
         }
         if (comment.length()>0 && comment.charAt(comment.length()-1)=='-') {
             DynamicError err = new DynamicError("Invalid character (-) at end of comment", this);
-            err.setErrorCode("XT0950");
+            err.setErrorCode((isXSLT(context) ? "XT0950" : "XQ0072"));
             err.setXPathContext(context);
             context.getController().recoverableError(err);
             comment = comment + ' ';

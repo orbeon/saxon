@@ -1,6 +1,5 @@
 package net.sf.saxon.om;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.xpath.StaticError;
 
 /**
@@ -194,6 +193,13 @@ public final class Axis  {
     };
 
     /**
+     * The class is never instantiated
+     */
+
+    private Axis() {
+    }
+
+    /**
      * Resolve an axis name into a symbolic constant representing the axis
      *
      * @param name
@@ -218,6 +224,68 @@ public final class Axis  {
         // preceding-or-ancestor cannot be used in an XPath expression
         throw new StaticError("Unknown axis name: " + name);
     }
+
+    /**
+     * The following table indicates the combinations of axis and node-kind that always
+     * return an empty result.
+     */
+
+    private static final int DOC = 1<<Type.DOCUMENT;
+    private static final int ELE = 1<<Type.ELEMENT;
+    private static final int ATT = 1<<Type.ATTRIBUTE;
+    private static final int TEX = 1<<Type.TEXT;
+    private static final int PIN = 1<<Type.PROCESSING_INSTRUCTION;
+    private static final int COM = 1<<Type.COMMENT;
+    private static final int NAM = 1<<Type.NAMESPACE;
+
+    private static int[] voidAxisTable = {
+         DOC,                       // ANCESTOR
+         0,                         // ANCESTOR_OR_SELF;
+         DOC|ATT|TEX|PIN|COM|NAM,   // ATTRIBUTE;
+         ATT|TEX|PIN|COM|NAM,       // CHILD;
+         ATT|TEX|PIN|COM|NAM,       // DESCENDANT;
+         0,                         // DESCENDANT_OR_SELF;
+         DOC,                       // FOLLOWING;
+         DOC|ATT|NAM,               // FOLLOWING_SIBLING;
+         DOC|ATT|TEX|PIN|COM|NAM,   // NAMESPACE;
+         DOC,                       // PARENT;
+         DOC,                       // PRECEDING;
+         DOC|ATT|NAM,               // PRECEDING_SIBLING;
+         0,                         // SELF;
+    };
+
+    public static boolean isAlwaysEmpty(int axis, int nodeKind) {
+        return (voidAxisTable[axis] & (1<<nodeKind)) != 0;
+    }
+
+    /**
+     * The following table indicates the kinds of node found on each axis
+     */
+
+    private static int[] nodeKindTable = {
+             DOC|ELE,                       // ANCESTOR
+             DOC|ELE|ATT|TEX|PIN|COM|NAM,   // ANCESTOR_OR_SELF;
+             ATT,                           // ATTRIBUTE;
+             ELE|TEX|PIN|COM,               // CHILD;
+             ELE|TEX|PIN|COM,               // DESCENDANT;
+             DOC|ELE|ATT|TEX|PIN|COM|NAM,   // DESCENDANT_OR_SELF;
+             ELE|TEX|PIN|COM,               // FOLLOWING;
+             ELE|TEX|PIN|COM,               // FOLLOWING_SIBLING;
+             NAM,                           // NAMESPACE;
+             DOC|ELE,                       // PARENT;
+             DOC|ELE|TEX|PIN|COM,           // PRECEDING;
+             ELE|TEX|PIN|COM,               // PRECEDING_SIBLING;
+             DOC|ELE|ATT|TEX|PIN|COM|NAM,   // SELF;
+        };
+
+    /**
+     * Determine whether a given kind of node can be found on a given axis
+     */
+
+    public static boolean containsNodeKind(int axis, int nodeKind) {
+        return (nodeKindTable[axis] & (1<<nodeKind)) != 0;
+    }
+
 
 
 

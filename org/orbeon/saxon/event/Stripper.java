@@ -58,7 +58,7 @@ public class Stripper extends ProxyReceiver {
 
     /**
     * create a Stripper and initialise variables
-    * @param stripperRules: defines which elements have whitespace stripped. If
+    * @param stripperRules defines which elements have whitespace stripped. If
     * null, all whitespace is preserved.
     */
 
@@ -109,7 +109,7 @@ public class Stripper extends ProxyReceiver {
         context = controller.newXPathContext();
 		namePool = controller.getNamePool();
 		xmlSpaceCode = namePool.allocate("xml", NamespaceConstant.XML, "space");
-        element = new Orphan(namePool);
+        element = new Orphan(controller.getConfiguration());
         element.setNodeKind(Type.ELEMENT);
 	}
 
@@ -170,11 +170,10 @@ public class Stripper extends ProxyReceiver {
     * Callback interface for SAX: not for application use
     */
 
-    public void open () throws XPathException
-    {
+    public void open () throws XPathException {
         // System.err.println("Stripper#startDocument()");
         top = 0;
-        stripStack[top]=ALWAYS_PRESERVE;             // {xml:preserve = false, preserve this element = true}
+        stripStack[top] = ALWAYS_PRESERVE;             // {xml:preserve = false, preserve this element = true}
         super.open();
     }
 

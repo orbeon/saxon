@@ -1,13 +1,13 @@
 package net.sf.saxon.functions;
-import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
+import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.om.EmptyIterator;
 import net.sf.saxon.om.Item;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.sort.GroupIterator;
+import net.sf.saxon.xpath.XPathException;
 
 /**
 * Implements the XSLT functions current-group() and current-grouping-key()

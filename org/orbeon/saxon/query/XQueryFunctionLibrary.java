@@ -2,17 +2,17 @@ package net.sf.saxon.query;
 import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.functions.FunctionLibrary;
 import net.sf.saxon.expr.UserFunctionCall;
+import net.sf.saxon.functions.FunctionLibrary;
 import net.sf.saxon.instruct.UserFunction;
 import net.sf.saxon.om.NamePool;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.xpath.StaticError;
+import net.sf.saxon.xpath.XPathException;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.ArrayList;
 
 /**
  * An XQueryFunctionLibrary is a function library containing all the user-defined functions available for use within a
@@ -73,8 +73,10 @@ public class XQueryFunctionLibrary implements FunctionLibrary {
         int arity = function.getNumberOfArguments();
         Long keyObj = functionKey(fp, arity);
         if (functions.get(keyObj) != null) {
-            throw new StaticError("Duplicate definition of function " +
+            StaticError err = new StaticError("Duplicate definition of function " +
                     getNamePool().getDisplayName(fp));
+            err.setErrorCode("XQ0034");
+            throw err;
         }
         functions.put(keyObj, function);
     }
@@ -174,6 +176,7 @@ public class XQueryFunctionLibrary implements FunctionLibrary {
                 ufc.setConfirmed(true);
             } else {
                 ufc.setFunction(fn, fd.getStaticContext());
+                ufc.checkFunctionCall(fn, fd.getStaticContext());
             }
             return ufc;
         } else if (allowForwardsReferences) {
@@ -236,11 +239,16 @@ public class XQueryFunctionLibrary implements FunctionLibrary {
      * This method is for internal use.
      */
 
-    protected void fixupGlobalFunctions(StaticQueryContext env) throws StaticError {
+    protected void fixupGlobalFunctions(StaticQueryContext env) throws XPathException {
         Iterator iter = functions.values().iterator();
         while (iter.hasNext()) {
             XQueryFunction fn = (XQueryFunction)iter.next();
             fn.compile(env);
+        }
+        iter = functions.values().iterator();
+        while (iter.hasNext()) {
+            XQueryFunction fn = (XQueryFunction)iter.next();
+            fn.checkReferences(env);
         }
     }
 

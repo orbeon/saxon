@@ -12,8 +12,8 @@ import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.NumericValue;
 import net.sf.saxon.value.StringValue;
 import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.xpath.StaticError;
+import net.sf.saxon.xpath.XPathException;
 
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;

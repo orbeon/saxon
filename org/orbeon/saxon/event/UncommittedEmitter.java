@@ -16,7 +16,6 @@ import java.util.List;
 public class UncommittedEmitter extends Emitter {
 
     boolean committed = false;
-    boolean initialNewline = false;
     Receiver baseReceiver = null;
     List pending = null;
 
@@ -63,9 +62,11 @@ public class UncommittedEmitter extends Emitter {
     */
 
     public void characters(CharSequence chars, int locationId, int properties) throws XPathException {
-        if (!committed) {
+        if (committed) {
+            baseReceiver.characters(chars, locationId, properties);
+        } else {
             if (pending==null) {
-                pending=new ArrayList();
+                pending = new ArrayList(10);
             }
             PendingNode node = new PendingNode();
             node.kind = Type.TEXT;
@@ -77,8 +78,6 @@ public class UncommittedEmitter extends Emitter {
             if (!Navigator.isWhite(chars)) {
                 switchToXML();
             }
-        } else {
-            baseReceiver.characters(chars, locationId, properties);
         }
     }
 
@@ -87,9 +86,11 @@ public class UncommittedEmitter extends Emitter {
     */
 
     public void processingInstruction(String target, CharSequence data, int locationId, int properties) throws XPathException {
-        if (!committed) {
+        if (committed) {
+            baseReceiver.processingInstruction(target, data, locationId, properties);
+        } else {
             if (pending==null) {
-                pending=new ArrayList();
+                pending = new ArrayList(10);
             }
             PendingNode node = new PendingNode();
             node.kind = Type.PROCESSING_INSTRUCTION;
@@ -98,8 +99,6 @@ public class UncommittedEmitter extends Emitter {
             node.locationId = locationId;
             node.properties = properties;
             pending.add(node);
-        } else {
-            baseReceiver.processingInstruction(target, data, locationId, properties);
         }
     }
 
@@ -108,9 +107,11 @@ public class UncommittedEmitter extends Emitter {
     */
 
     public void comment (CharSequence chars, int locationId, int properties) throws XPathException {
-        if (!committed) {
+        if (committed) {
+            baseReceiver.comment(chars, locationId, properties);
+        } else {
            if (pending==null) {
-                pending=new ArrayList();
+                pending=new ArrayList(10);
             }
             PendingNode node = new PendingNode();
             node.kind = Type.COMMENT;
@@ -119,8 +120,6 @@ public class UncommittedEmitter extends Emitter {
             node.locationId = locationId;
             node.properties = properties;
             pending.add(node);
-        } else {
-            baseReceiver.comment(chars, locationId, properties);
         }
     }
 
@@ -141,6 +140,7 @@ public class UncommittedEmitter extends Emitter {
             if (name.equalsIgnoreCase("html") && uriCode==NamespaceConstant.NULL_CODE) {
                 switchToHTML();
             } else if (name.equals("html") && namePool.getURIFromURICode(uriCode) == NamespaceConstant.XHTML) {
+                // TODO: don't use XHTML in backwards compatibility mode
                 switchToXHTML();
             } else {
                 switchToXML();
@@ -213,7 +213,7 @@ public class UncommittedEmitter extends Emitter {
         if (indent!=null && indent.equals("yes")) {
             XMLIndenter in = new XMLIndenter();
             in.setUnderlyingReceiver(e);
-            in.setConfiguration(config);
+            in.setPipelineConfiguration(pipelineConfig);
             in.setOutputProperties(outputProperties);
             baseReceiver = in;
         }
@@ -221,7 +221,7 @@ public class UncommittedEmitter extends Emitter {
         if (cdata!=null && cdata.length()>0) {
             CDATAFilter filter = new CDATAFilter();
             filter.setUnderlyingReceiver(e);
-            filter.setConfiguration(config);
+            filter.setPipelineConfiguration(pipelineConfig);
             filter.setOutputProperties(outputProperties);
             baseReceiver = filter;
         }
@@ -239,7 +239,7 @@ public class UncommittedEmitter extends Emitter {
         if (indent==null || indent.equals("yes")) {
             XMLIndenter in = new XMLIndenter();
             in.setUnderlyingReceiver(e);
-            in.setConfiguration(config);
+            in.setPipelineConfiguration(pipelineConfig);
             in.setOutputProperties(outputProperties);
             baseReceiver = in;
         }
@@ -258,7 +258,7 @@ public class UncommittedEmitter extends Emitter {
         if (indent==null || indent.equals("yes")) {
             HTMLIndenter in = new HTMLIndenter();
             in.setUnderlyingReceiver(e);
-            in.setConfiguration(config);
+            in.setPipelineConfiguration(pipelineConfig);
             in.setOutputProperties(outputProperties);
             baseReceiver = in;
         }
@@ -276,8 +276,9 @@ public class UncommittedEmitter extends Emitter {
         emitter.setStreamResult(streamResult);
         emitter.characterSet = characterSet;
         emitter.setOutputProperties(outputProperties);
-        emitter.setConfiguration(config);
+        emitter.setPipelineConfiguration(pipelineConfig);
         baseReceiver.open();
+        baseReceiver.startDocument(0);
         if (pending!=null) {
             for (int i = 0; i < pending.size(); i++) {
                 PendingNode node = (PendingNode)pending.get(i);

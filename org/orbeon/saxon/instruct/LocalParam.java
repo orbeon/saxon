@@ -1,14 +1,13 @@
 package net.sf.saxon.instruct;
 
 import net.sf.saxon.expr.*;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.value.Value;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.value.Value;
+import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 
-import java.util.List;
-import java.util.Iterator;
 import java.util.Collections;
+import java.util.Iterator;
 
 /**
  * The compiled form of an xsl:param element in the stylesheet or an

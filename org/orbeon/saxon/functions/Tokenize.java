@@ -1,16 +1,17 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.MappingFunction;
 import net.sf.saxon.expr.StaticContext;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.EmptyIterator;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.type.RegexTranslator;
+import net.sf.saxon.value.AtomicValue;
+import net.sf.saxon.value.StringValue;
+import net.sf.saxon.value.Value;
 import net.sf.saxon.xpath.DynamicError;
 import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.type.RegexTranslator;
+import net.sf.saxon.xpath.XPathException;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -23,7 +24,7 @@ import java.util.regex.PatternSyntaxException;
 * regular expression are not returned.
 */
 
-public class Tokenize extends SystemFunction implements MappingFunction {
+public class Tokenize extends SystemFunction  {
 
     private Pattern regexp;
 
@@ -88,27 +89,6 @@ public class Tokenize extends SystemFunction implements MappingFunction {
 
         }
         return new TokenIterator(input, re);
-    }
-
-    /**
-     * Mapping function to map a sequence of Unicode codepoints to a sequence
-     * of strings
-     */
-
-    public Object map(Item item, XPathContext context, Object info) throws XPathException {
-        long next = ((NumericValue)item).longValue();
-        if (next < 65536) {
-            return new StringValue("" + (char)next);
-        } else {  // output a surrogate pair
-            //To compute the numeric value of the character corresponding to a surrogate
-            //pair, use this formula (all numbers are hex):
-            //(FirstChar - D800) * 400 + (SecondChar - DC00) + 10000
-            next -= 65536;
-            StringBuffer sb = new StringBuffer(2);
-            sb.append((char)((next / 1024) + 55296));
-            sb.append((char)((next % 1024) + 56320));
-            return new StringValue(sb);
-        }
     }
 
 
@@ -179,7 +159,7 @@ public class Tokenize extends SystemFunction implements MappingFunction {
         String[] out = Pattern.compile(args[1]).split(in, 0);
         System.out.println("results");
         for (int i=0; i<out.length; i++) {
-            System.out.println("[" + out[i] + "]");
+            System.out.println('[' + out[i] + ']');
         }
         System.out.println("end results");
     }

@@ -3,10 +3,11 @@ import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.type.ItemType;
+import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.xpath.XPathException;
 
-import java.util.Iterator;
 import java.io.PrintStream;
+import java.util.Iterator;
 
 /**
  * Interface supported by an XPath expression. This includes both compile-time
@@ -15,13 +16,14 @@ import java.io.PrintStream;
 
 public interface Expression {
 
-    public static final int EVALUATE_METHOD = 0;
-    public static final int ITERATE_METHOD = 1;
-    public static final int PROCESS_METHOD = 2;
+    public static final int EVALUATE_METHOD = 1;
+    public static final int ITERATE_METHOD = 2;
+    public static final int PROCESS_METHOD = 4;
 
     /**
      * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
-     * This method indicates which of these methods is prefered.
+     * This method indicates which of these methods is provided directly. The other methods will always be available
+     * indirectly, using an implementation that relies on one of the other methods.
      */
 
     public int getImplementationMethod();
@@ -145,8 +147,6 @@ public interface Expression {
      * @return an iterator containing the sub-expressions of this expression
      */
 
-    //Expression[] getSubExpressions();
-
     Iterator iterateSubExpressions();
 
     /**
@@ -256,6 +256,18 @@ public interface Expression {
      */
 
     public void display(int level, NamePool pool, PrintStream out);
+
+    /**
+     * Check statically that the results of the expression are capable of constructing the content
+     * of a given schema type.
+     * @param parentType The schema type
+     * @param env the static context
+     * @param whole true if this expression is expected to make the whole content of the type, false
+     * if it is expected to make up only a part
+     * @throws XPathException if the expression doesn't match the required content type
+     */
+
+    public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException;
 }
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");

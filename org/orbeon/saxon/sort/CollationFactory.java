@@ -1,9 +1,7 @@
 package net.sf.saxon.sort;
 import net.sf.saxon.Loader;
-import net.sf.saxon.xpath.XPathException;
-
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 
 import java.net.URI;
 import java.net.URISyntaxException;

@@ -1,18 +1,8 @@
 package net.sf.saxon.functions;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.MappingFunction;
-import net.sf.saxon.expr.MappingIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.Navigator;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.expr.*;
+import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.type.Type;
+import net.sf.saxon.xpath.XPathException;
 
 /**
  * Implement the fn:collection() function. The Saxon implementation loads an XML
@@ -36,8 +26,10 @@ public class Collection extends SystemFunction implements MappingFunction {
     private String expressionBaseURI = null;
 
     public void checkArguments(StaticContext env) throws XPathException {
-        super.checkArguments(env);
-        expressionBaseURI = env.getBaseURI();
+        if (expressionBaseURI == null) {
+            super.checkArguments(env);
+            expressionBaseURI = env.getBaseURI();
+        }
     }
 
     /**

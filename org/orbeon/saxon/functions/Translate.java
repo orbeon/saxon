@@ -1,8 +1,8 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
-import net.sf.saxon.value.StringValue;
 import net.sf.saxon.value.AtomicValue;
+import net.sf.saxon.value.StringValue;
 import net.sf.saxon.xpath.XPathException;
 
 
@@ -17,7 +17,7 @@ public class Translate extends SystemFunction {
 
         AtomicValue sv = (AtomicValue)argument[0].evaluateItem(context);
         if (sv==null) {
-            sv = StringValue.EMPTY_STRING;
+            return StringValue.EMPTY_STRING;
         };
         String s1 = sv.getStringValue();
 
@@ -46,7 +46,7 @@ public class Translate extends SystemFunction {
             return slowTranslate(s0, s1, s2);
         }
 
-        StringBuffer sb = new StringBuffer();
+        StringBuffer sb = new StringBuffer(s0.length());
         int s2len = s2.length();
         for (int i=0; i<s0.length(); i++) {
             char c = s0.charAt(i);
@@ -66,7 +66,7 @@ public class Translate extends SystemFunction {
         int[] a0 = StringValue.expand(s0);
         int[] a1 = StringValue.expand(s1);
         int[] a2 = StringValue.expand(s2);
-        StringBuffer sb = new StringBuffer();
+        StringBuffer sb = new StringBuffer(s0.length());
         for (int i=0; i<a0.length; i++) {
             int c = a0[i];
             int j = -1;

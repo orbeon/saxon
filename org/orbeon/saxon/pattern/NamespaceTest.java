@@ -1,7 +1,6 @@
 package net.sf.saxon.pattern;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.type.ItemType;
 
 /**
   * NodeTest is an interface that enables a test of whether a node has a particular
@@ -44,7 +43,7 @@ public final class NamespaceTest extends NodeTest {
      */
 
     public boolean matches(NodeInfo node) {
-        return node.getURI().equals(uri);
+        return node.getNodeKind()==type && node.getURI().equals(uri);
     }
 
     /**

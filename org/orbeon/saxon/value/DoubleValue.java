@@ -329,6 +329,20 @@ public final class DoubleValue extends NumericValue {
     }
 
     /**
+     * Determine whether the value is negative, zero, or positive
+     * @return -1 if negative, 0 if zero (including negative zero), +1 if positive, NaN if NaN
+     */ 
+
+    public double signum() {
+        if (Double.isNaN(value)) {
+            return value;
+        }
+        if (value > 0) return 1;
+        if (value == 0) return 0;
+        return -1;
+    }
+
+    /**
     * Determine whether the value is a whole number, that is, whether it compares
     * equal to some integer
     */

@@ -3,6 +3,7 @@ package net.sf.saxon.xpath;
 import net.sf.saxon.expr.XPathContext;
 
 import javax.xml.transform.SourceLocator;
+import javax.xml.transform.TransformerException;
 
 /**
 * Subclass of XPathException used for dynamic errors
@@ -41,4 +42,11 @@ public class DynamicError extends XPathException {
         return context;
     }
 
+    public static DynamicError makeDynamicError(TransformerException err) {
+        if (err instanceof DynamicError) {
+            return (DynamicError)err;
+        } else {
+            return new DynamicError(err);
+        }
+    }
 }

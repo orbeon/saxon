@@ -7,7 +7,7 @@ package net.sf.saxon.om;
  * underlying data.
  */
 
-public interface VirtualNode {
+public interface VirtualNode extends NodeInfo {
 
     /**
      * Get the real node undelying this virtual node.

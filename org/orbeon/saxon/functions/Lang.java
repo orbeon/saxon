@@ -7,6 +7,7 @@ import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.value.BooleanValue;
+import net.sf.saxon.xpath.DynamicError;
 import net.sf.saxon.xpath.XPathException;
 
 
@@ -25,7 +26,26 @@ public class Lang extends SystemFunction {
     */
 
     public Item evaluateItem(XPathContext c) throws XPathException {
-        boolean b = isLang(argument[0].evaluateItem(c).getStringValue(), c);
+        NodeInfo target;
+        if (argument.length > 1) {
+            target = (NodeInfo)argument[1].evaluateItem(c);
+        } else {
+            Item current = c.getContextItem();
+            if (current==null) {
+                DynamicError err = new DynamicError("The context item is undefined");
+                err.setErrorCode("FONC0001");
+                err.setXPathContext(c);
+                throw err;
+            }
+            if (!(current instanceof NodeInfo)) {
+                DynamicError err = new DynamicError("The context item is not a node");
+                err.setErrorCode("FOTY0011");
+                err.setXPathContext(c);
+                throw err;
+            }
+            target = (NodeInfo)current;
+        }
+        boolean b = isLang(argument[0].evaluateItem(c).getStringValue(), target);
         return BooleanValue.get(b);
     }
 
@@ -40,22 +60,14 @@ public class Lang extends SystemFunction {
     /**
     * Test whether the context node has the given language attribute
     * @param arglang the language being tested
-    * @param context the context, to identify the context node
+    * @param target the target node
     */
 
-    private boolean isLang(String arglang, XPathContext context) {
+    private boolean isLang(String arglang, NodeInfo target) {
 
-        Item current = context.getContextItem();
-        if (current==null) {
-            return false;
-        }
-        if (!(current instanceof NodeInfo)) {
-            return false;
-        }
-
-        NodeInfo node = (NodeInfo)current;
 
         String doclang = null;
+        NodeInfo node = target;
 
         while(node!=null) {
             doclang = node.getAttributeValue(StandardNames.XML_LANG);

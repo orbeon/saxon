@@ -200,15 +200,15 @@ public abstract class StaticProperty {
     public static final int ATTRIBUTE_NS_NODESET = 1<<21;
 
     /**
-     * Expression property: this bit is set in the case of an expression that
-     * may return newly created nodes, or a value that depends on the identity
-     * of newly created nodes (for example generate-id(new-node())). Such expressions
-     * cannot be moved out of loops unless they are used in a context where the
-     * identity of the nodes is known to be immaterial, e.g. if the nodes are
-     * immediately atomized.
+     * Expression property: this bit is set in the case of an expression that will
+     * never return newly created nodes, nor a value that depends on the identity
+     * of newly created nodes (for example generate-id(new-node())). Expressions
+     * that do create new nodes cannot be moved out of loops as this could cause
+     * too few nodes to be created: for example if f() creates a new node, then
+     * count(for $i in 1 to 5 return f()) must be 5.
      */
 
-    public static final int CREATES_NEW_NODES = 1<<22;
+    public static final int NON_CREATIVE = 1<<22;
 
     /**
      * Mask for "special properties": that is, all properties other than cardinality
@@ -222,7 +222,7 @@ public abstract class StaticProperty {
             PEER_NODESET |
             SUBTREE_NODESET |
             ATTRIBUTE_NS_NODESET |
-            CREATES_NEW_NODES;
+            NON_CREATIVE;
 
     // This class is not instantiated
     private StaticProperty() {}

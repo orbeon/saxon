@@ -1,8 +1,7 @@
 package net.sf.saxon.pattern;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.type.ItemType;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.type.Type;
 
 import java.util.Set;
 
@@ -17,8 +16,8 @@ import java.util.Set;
 
 public class SubstitutionGroupTest extends NodeTest {
 
-	private Set group;
-    //private NamePool namePool;
+	private int fingerprint;
+    private Set group;
 
     /**
      * Constructor
@@ -26,9 +25,9 @@ public class SubstitutionGroupTest extends NodeTest {
      * of element names included in the substitution group
      */
 
-	public SubstitutionGroupTest(Set group, NamePool namePool) {
+	public SubstitutionGroupTest(int fingerprint, Set group) {
 		this.group = group;
-        //this.namePool = namePool;
+        this.fingerprint = fingerprint;
 	}
 
    /**
@@ -60,14 +59,6 @@ public class SubstitutionGroupTest extends NodeTest {
     public final double getDefaultPriority() {
     	return 0.0;
     }
-
-	/**
-	* Get the fingerprint required
-	*/
-
-	public int getFingerprint() {
-		return -1;
-	}
 
     /**
     * Determine the types of nodes to which this pattern applies. Used for optimisation.
@@ -106,8 +97,17 @@ public class SubstitutionGroupTest extends NodeTest {
         return group;
     }
 
-    public String toString() {
-        return "element(NAME)";
+    /**
+     * Get the fingerprint of the head of the substitution group
+     * @return the fingerprint of the head of the substitution group
+     */
+
+    public int getHeadFingerprint() {
+        return fingerprint;
+    }
+
+    public String toString(NamePool pool) {
+        return "schema-element(" + pool.getDisplayName(fingerprint) + ')';
     }
 
     /**

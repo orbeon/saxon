@@ -1,14 +1,13 @@
 package net.sf.saxon.style;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.functions.Concat;
-import net.sf.saxon.functions.StringJoin;
 import net.sf.saxon.functions.SystemFunction;
-import net.sf.saxon.om.NamePool;
+import net.sf.saxon.instruct.SimpleContentConstructor;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.Cardinality;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.xpath.StaticError;
+import net.sf.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +34,7 @@ public abstract class AttributeValueTemplate {
                                   int lineNumber,
                                   StaticContext env) throws XPathException {
 
-        List components = new ArrayList();
+        List components = new ArrayList(5);
 
         int i0, i1, i2, i8, i9, len, last;
         last = start;
@@ -49,11 +48,10 @@ public abstract class AttributeValueTemplate {
 
             if ((i0 < 0 || i2 < i0) && (i8 < 0 || i2 < i8)) {   // found end of string
                 addStringComponent(components, avt, last, i2);
-                last = i2;
                 break;
             } else if (i0 >= 0 && i0 != i1 && i8 < i0) {   // found a "{" with no matching "}"
                 StaticError err = new StaticError(
-                        "Unmatched opening curly brace in attribute value template \"" + avt.substring(0,i2) + "\"");
+                        "Unmatched opening curly brace in attribute value template \"" + avt.substring(0,i2) + '\"');
                 err.setErrorCode("XT0350");
                 throw err;
             } else if (i8 >= 0 && (i0 < 0 || i8 < i0)) {             // found a "}"
@@ -79,9 +77,10 @@ public abstract class AttributeValueTemplate {
                 last = parser.getTokenizer().currentTokenStartOffset + 1;
 
                 if (env.isInBackwardsCompatibleMode()) {
-                    components.add(makeFirstItem(exp));
+                    components.add(makeFirstItem(exp, env));
                 } else {
-                    components.add(makeStringJoin(exp, env.getNamePool()));
+                    //components.add(makeStringJoin(exp, env));
+                    components.add(new SimpleContentConstructor(exp, StringValue.SINGLE_SPACE));
                 }
 
             } else {
@@ -103,7 +102,7 @@ public abstract class AttributeValueTemplate {
 
         // otherwise, return an expression that concatenates the components
 
-        Concat fn = (Concat) SystemFunction.makeSystemFunction("concat", env.getNamePool());
+        Concat fn = (Concat) SystemFunction.makeSystemFunction("concat", components.size(), env.getNamePool());
         Expression[] args = new Expression[components.size()];
         components.toArray(args);
         fn.setArguments(args);
@@ -119,34 +118,12 @@ public abstract class AttributeValueTemplate {
     }
 
     /**
-    * Make a string-join expression that concatenates the string-values of items in
-    * a sequence with intervening spaces. This may be simplified later as a result
-    * of type-checking.
-    */
-
-    public static Expression makeStringJoin(Expression exp, NamePool namePool) {
-
-        exp = new Atomizer(exp);
-        exp = new AtomicSequenceConverter(exp, Type.STRING_TYPE);
-
-		StringJoin fn = (StringJoin)SystemFunction.makeSystemFunction("string-join", namePool);
-		Expression[] args = new Expression[2];
-		args[0] = exp;
-		args[1] = new StringValue(" ");
-		fn.setArguments(args);
-        if (exp instanceof ComputedExpression) {
-            fn.setLocationId(((ComputedExpression)exp).getLocationId());
-        }
-		return fn;
-    }
-
-    /**
     * Make an expression that extracts the first item of a sequence, after atomization
     */
 
-    public static Expression makeFirstItem(Expression exp) {
+    public static Expression makeFirstItem(Expression exp, StaticContext env) {
         if (!Type.isSubType(exp.getItemType(), Type.ANY_ATOMIC_TYPE)) {
-            exp = new Atomizer(exp);
+            exp = new Atomizer(exp, env.getConfiguration());
         }
         if (Cardinality.allowsMany(exp.getCardinality())) {
             exp = new FirstItemExpression(exp);

@@ -1,12 +1,10 @@
 package net.sf.saxon.style;
-import net.sf.saxon.instruct.Instruction;
-import net.sf.saxon.instruct.Text;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.value.StringValue;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.xpath.StaticError;
+import net.sf.saxon.instruct.Executable;
+import net.sf.saxon.instruct.ValueOf;
+import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.value.StringValue;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -56,12 +54,12 @@ public class SaxonEntityRef extends StyleElement {
     }
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {
-        Text text = new Text(true);
-        try {
-            text.setSelect(new StringValue('&' + nameAttribute + ';'));
-        } catch (StaticError err) {
-            compileError(err);
-        }
+        ValueOf text = new ValueOf(new StringValue('&' + nameAttribute + ';'), true);
+//        try {
+//            text.setSelect(new StringValue('&' + nameAttribute + ';'));
+//        } catch (StaticError err) {
+//            compileError(err);
+//        }
         ExpressionTool.makeParentReferences(text);
         return text;
     }

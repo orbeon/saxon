@@ -1,7 +1,6 @@
 package net.sf.saxon.instruct;
 import net.sf.saxon.Configuration;
 import net.sf.saxon.Controller;
-import net.sf.saxon.ParameterSet;
 import net.sf.saxon.event.SequenceOutputter;
 import net.sf.saxon.event.SequenceReceiver;
 import net.sf.saxon.expr.*;
@@ -112,7 +111,6 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
     */
 
     protected static XPathException dynamicError(SourceLocator loc, XPathException error, XPathContext context) {
-        //if (error instanceof StyleException) return error;
         if (error instanceof TerminationException) return error;
         if (error.getLocator()==null ||
                 (error.getLocator() instanceof ExpressionLocation &&
@@ -244,9 +242,23 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
      */
 
     public int computeSpecialProperties() {
-        return StaticProperty.CREATES_NEW_NODES;
-        // TODO: we can do better than this!
+        int p = super.computeSpecialProperties();
+        if (createsNewNodes()) {
+            return p;
+        } else {
+            return p | StaticProperty.NON_CREATIVE;
+        }
     }
+
+    /**
+     * Determine whether this instruction creates new nodes.
+     * This implementation returns a default value of false
+     */
+
+    public boolean createsNewNodes() {
+        return false;
+    }
+
 
     /**
      * Handle promotion offers, that is, non-local tree rewrites.
@@ -298,22 +310,20 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
 
     public Item evaluateItem(XPathContext context) throws XPathException {
         int m = getImplementationMethod();
-        switch (m) {
-            case EVALUATE_METHOD:
+        if ((m & EVALUATE_METHOD) != 0) {
                 dynamicError("evaluateItem() is not implemented in the subclass " + this.getClass(), context.getController());
-            case ITERATE_METHOD:
-                return iterate(context).next();
-            case PROCESS_METHOD:
-                Controller controller = context.getController();
-                XPathContext c2 = context.newMinorContext();
-                c2.setOrigin(this);
-                SequenceOutputter seq = new SequenceOutputter();
-                seq.setConfiguration(controller.getConfiguration());
-                seq.setDocumentLocator(getExecutable().getLocationMap());
-                c2.setTemporaryReceiver(seq);
-                process(c2);
-                seq.close();
-                return seq.getFirstItem();
+        } else if ((m & ITERATE_METHOD) != 0) {
+            return iterate(context).next();
+        } else {
+            Controller controller = context.getController();
+            XPathContext c2 = context.newMinorContext();
+            c2.setOrigin(this);
+            SequenceOutputter seq = new SequenceOutputter(1);
+            seq.setPipelineConfiguration(controller.makePipelineConfiguration());
+            c2.setTemporaryReceiver(seq);
+            process(c2);
+            seq.close();
+            return seq.getFirstItem();
         }
         return null;
     }
@@ -334,28 +344,25 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
         int m = getImplementationMethod();
-        switch (m) {
-            case EVALUATE_METHOD:
-                Item item = evaluateItem(context);
-                if (item==null) {
-                    return EmptyIterator.getInstance();
-                } else {
-                    return SingletonIterator.makeIterator(item);
-                }
-            case ITERATE_METHOD:
-                dynamicError("iterate() is not implemented in the subclass " + this.getClass(), context.getController());
-                break;
-            case PROCESS_METHOD:
-                Controller controller = context.getController();
-                XPathContext c2 = context.newMinorContext();
-                c2.setOrigin(this);
-                SequenceOutputter seq = new SequenceOutputter();
-                seq.setConfiguration(controller.getConfiguration());
-                seq.setDocumentLocator(getExecutable().getLocationMap());
-                c2.setTemporaryReceiver(seq);
-                process(c2);
-                seq.close();
-                return seq.getSequence().iterate(context);
+        if ((m & EVALUATE_METHOD) != 0) {
+            Item item = evaluateItem(context);
+            if (item==null) {
+                return EmptyIterator.getInstance();
+            } else {
+                return SingletonIterator.makeIterator(item);
+            }
+        } else if ((m & ITERATE_METHOD) != 0) {
+            dynamicError("iterate() is not implemented in the subclass " + this.getClass(), context.getController());
+        } else {
+            Controller controller = context.getController();
+            XPathContext c2 = context.newMinorContext();
+            c2.setOrigin(this);
+            SequenceOutputter seq = new SequenceOutputter();
+            seq.setPipelineConfiguration(controller.makePipelineConfiguration());
+            c2.setTemporaryReceiver(seq);
+            process(c2);
+            seq.close();
+            return seq.iterate();
         }
         return null;
     }
@@ -438,6 +445,15 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
         }
     }
 
+    /**
+     * Establish whether this is an XSLT instruction or an XQuery instruction
+     * (used to produce appropriate diagnostics)
+     * @param context
+     * @return true for XSLT, false for XQuery
+     */
+    public boolean isXSLT(XPathContext context) {
+        return context.getController().getConfiguration().getHostLanguage() == Configuration.XSLT;
+    }
 }
 
 

@@ -1,10 +1,10 @@
 package net.sf.saxon.style;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.instruct.Instruction;
-import net.sf.saxon.instruct.Namespace;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.tree.AttributeCollection;
+import net.sf.saxon.instruct.Namespace;
+import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.value.StringValue;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -55,7 +55,7 @@ public class XSLNamespace extends XSLStringConstructor {
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {
         Namespace inst = new Namespace(name);
-        compileContent(exec, inst);
+        compileContent(exec, inst, StringValue.SINGLE_SPACE);
         ExpressionTool.makeParentReferences(inst);
         return inst;
     }

@@ -1,12 +1,12 @@
 package net.sf.saxon.functions;
+import net.sf.saxon.Err;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.Err;
+import net.sf.saxon.xpath.XPathException;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -20,8 +20,10 @@ public class UnparsedText extends SystemFunction implements XSLTFunction {
     String expressionBaseURI = null;
 
     public void checkArguments(StaticContext env) throws XPathException {
-        super.checkArguments(env);
-        expressionBaseURI = env.getBaseURI();
+        if (expressionBaseURI == null) {
+            super.checkArguments(env);
+            expressionBaseURI = env.getBaseURI();
+        }
     }
 
 

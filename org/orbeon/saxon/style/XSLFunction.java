@@ -2,12 +2,9 @@ package net.sf.saxon.style;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.*;
-import net.sf.saxon.pattern.NoNodeTest;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.type.ItemType;
+import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.trace.Location;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.ArrayList;
@@ -36,7 +33,7 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
     private UserFunction compiledFunction;
 
     // List of UserFunctionCall objects that reference this XSLFunction
-    List references = new ArrayList();
+    List references = new ArrayList(10);
 
     /**
     * Method called by UserFunctionCall to register the function call for
@@ -58,13 +55,12 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
             if (f==StandardNames.NAME) {
 				nameAtt = atts.getValue(a).trim();
 				if (nameAtt.indexOf(':')<0) {
-					compileError("Function name must have a namespace prefix");
+					compileError("Function name must have a namespace prefix", "XT0740");
 				}
 				try {
 				    setObjectNameCode(makeNameCode(nameAtt.trim()));
-        		    //functionFingerprint = functionNameCode & 0xfffff;
         		} catch (NamespaceException err) {
-        		    compileError(err.getMessage());
+        		    compileError(err.getMessage(), "XT0280");
         		} catch (XPathException err) {
                     compileError(err);
                 }
@@ -77,7 +73,7 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
                 } else if (overrideAtt.equals("no")) {
                     override = false;
                 } else {
-                    compileError("override must be 'yes' or 'no'");
+                    compileError("override must be 'yes' or 'no'", "XT0020");
                 }
             } else if (f==StandardNames.SAXON_MEMO_FUNCTION) {
                 String memoAtt = atts.getValue(a).trim();
@@ -86,7 +82,7 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
                 } else if (memoAtt.equals("no")) {
                     memoFunction = false;
                 } else {
-                    compileError("saxon:memo-function must be 'yes' or 'no'");
+                    compileError("saxon:memo-function must be 'yes' or 'no'", "XT0020");
                 }
         	} else {
         		checkUnknownAttribute(nc);
@@ -157,10 +153,10 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
                     ((XSLFunction)child).getFunctionFingerprint() == getFunctionFingerprint() &&
                     ((XSLFunction)child).getNumberOfArguments() == numberOfArguments &&
                     ((XSLFunction)child).getPrecedence() == getPrecedence()) {
-                compileError("Duplicate function declaration");
+                compileError("Duplicate function declaration", "XT0770");
+                // TODO: this is not an error if there is another function with higher precedence
             }
         }
-        //markTailCalls();
     }
 
 
@@ -190,23 +186,21 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
      */
 
     private void compileAsExpression(Executable exec) throws TransformerConfigurationException {
-        Block body = new Block();
-        compileChildren(exec, body, false);
-//        List executableChildren = new ArrayList();
-//        for (int i=0; i<allChildren.length; i++) {
-//            // Don't include the xsl:param elements
-//            if (!(allChildren[i] instanceof LocalParam)) {
-//                executableChildren.add(allChildren[i]);
-//            }
-//        }
-//        Expression exp = convertToExpression(executableChildren, 0);
-        //exp.display(20, getNamePool());
-        Expression exp = body;
+        //Block body = new Block();
+        //compileChildren(exec, body, false);
+        Expression exp = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), false);
+        if (exp == null) {
+            exp = EmptySequence.getInstance();
+        }
+
+        //Expression exp = body;
 
         UserFunction fn = new UserFunction();
         fn.setBody(exp);
         fn.setFunctionNameCode(getObjectNameCode());
-        fn.setArgumentTypes(getArgumentTypes());
+        setParameterDefinitions(fn);
+        //fn.setParameterDefinitions(getParameterDefinitions());
+        //fn.setArgumentTypes(getArgumentTypes());
         fn.setResultType(getResultType());
         fn.setLineNumber(getLineNumber());
         fn.setSystemId(getSystemId());
@@ -219,7 +213,7 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
             exp2 = exp.simplify(staticContext).analyze(staticContext, null);
             if (resultType != null) {
                 RoleLocator role =
-                        new RoleLocator(RoleLocator.FUNCTION_RESULT, functionName, 0);
+                        new RoleLocator(RoleLocator.FUNCTION_RESULT, functionName, 0, null);
                 exp2 = TypeChecker.staticTypeCheck(exp2, resultType, false, role, getStaticContext());
             }
 
@@ -243,62 +237,6 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
     }
 
     /**
-     * This internal routine is called recursively to process one xsl:variable
-     * instruction and create one let expression. The variable declared in the xsl:variable
-     * becomes the range variable of the let expression, and the rest of the instruction
-     * sequence becomes the action (return) part of the let expression.
-     * @param instructions The list of instructions
-     * @param offset The place in the list where processing is to start
-     * @return the LetExpression that results from the translation
-     */
-
-//    private Expression convertToExpression(List instructions, int offset) {
-//        if (instructions.size() <= offset) {
-//            return EmptySequence.getInstance();
-//        }
-//        Expression start = (Expression)instructions.get(offset);
-//        if (start instanceof TraceInstruction) {
-//            start = ((TraceInstruction)start).getChild();
-//        }
-//
-//        if (start instanceof LocalVariable) {
-//            final LocalVariable ovar = (LocalVariable)start;
-//            LetExpression let = new LetExpression();
-//            RangeVariableDeclaration var = new RangeVariableDeclaration();
-//            var.setRequiredType(ovar.getRequiredType());
-//            var.setNameCode(ovar.getNameCode());
-//            var.setVariableName(ovar.getVariableName());
-//            let.setVariableDeclaration(var);
-//            let.setSequence(ovar.getSelectExpression());
-//            let.setSlotNumber(((LocalVariable)start).getSlotNumber());
-//            let.setAction(convertToExpression(instructions, offset+1));
-//            return let;
-//        } else {
-////            if (start instanceof SequenceInstruction) {
-////                Expression select = ((SequenceInstruction)start).getSelectExpression();
-////                if (select != null) {
-////                    start = select;
-////                }
-////            }
-//            if (offset == instructions.size()-1) {
-//                ExpressionTool.markTailFunctionCalls(start);
-//                return start;
-//            } else {
-//                return new AppendExpression(start, Tokenizer.COMMA, convertToExpression(instructions, offset+1));
-//            }
-//
-////        } else if (start instanceof SequenceInstruction) {
-////            Expression select = ((SequenceInstruction)start).getSelectExpression();
-////            //  what if select is null?
-////            ExpressionTool.markTailFunctionCalls(select);
-////            return select;
-////        } else {
-////            return start;
-//        }
-//    }
-
-
-    /**
     * Fixup all function references.
      * @param compiledFunction the Instruction representing this function in the compiled code
      * @throws TransformerConfigurationException if an error occurs.
@@ -309,7 +247,9 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
         try {
             Iterator iter = references.iterator();
             while (iter.hasNext()) {
-                ((UserFunctionCall)iter.next()).setFunction(compiledFunction, env);
+                UserFunctionCall call = ((UserFunctionCall)iter.next());
+                call.setFunction(compiledFunction, env);
+                call.checkFunctionCall(compiledFunction, env);
             }
         } catch (XPathException err) {
             compileError(err);
@@ -373,22 +313,28 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
     }
 
     /**
-     * Get the required types of the arguments
-     * @return an array of SequenceType objects, representing the required types of
-     * each of the formal arguments
+     * Set the definitions of the parameters in the compiled function, as an array.
      */
 
-    public SequenceType[] getArgumentTypes() {
-        SequenceType[] types = new SequenceType[getNumberOfArguments()];
+    public void setParameterDefinitions(UserFunction fn) {
+        UserFunctionParameter[] params = new UserFunctionParameter[getNumberOfArguments()];
+        fn.setParameterDefinitions(params);
         int count = 0;
         AxisIterator kids = iterateAxis(Axis.CHILD);
         while (true) {
             NodeInfo node = (NodeInfo)kids.next();
             if (node == null) {
-                return types;
+                return;
             }
             if (node instanceof XSLParam) {
-                types[count++] = ((XSLParam)node).getRequiredType();
+                UserFunctionParameter param = new UserFunctionParameter();
+                params[count++] = param;
+                param.setRequiredType(((XSLParam)node).getRequiredType());
+                param.setSlotNumber(((XSLParam)node).getSlotNumber());
+                ((XSLParam)node).fixupBinding(param);
+                List references = ((XSLParam)node).getReferences();
+                int refs = RangeVariableDeclaration.getReferenceCount(references, param);
+                param.setReferenceCount(refs);
             }
         }
     }

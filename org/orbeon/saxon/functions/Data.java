@@ -15,7 +15,7 @@ public class Data extends CompileTimeFunction {
     */
 
      public Expression simplify(StaticContext env) throws XPathException {
-        Atomizer a = new Atomizer(argument[0]);
+        Atomizer a = new Atomizer(argument[0], env.getConfiguration());
         return a.simplify(env);
     }
 

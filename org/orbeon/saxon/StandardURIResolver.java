@@ -1,17 +1,17 @@
 package net.sf.saxon;
+import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 import org.xml.sax.InputSource;
 import org.xml.sax.XMLReader;
 
 import javax.xml.parsers.SAXParserFactory;
 import javax.xml.transform.Source;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-
 import javax.xml.transform.URIResolver;
 import javax.xml.transform.sax.SAXSource;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 
 
@@ -76,34 +76,8 @@ public class StandardURIResolver implements URIResolver {
 
 		URI url;
         try {
-            if (base==null) {
-                url = new URI(relativeURI);
-                // System.err.println("Resolved " + relativeURI + " as " + url.toString());
-            } else {
-                // System.err.println("Resolving " + relativeURI + " against " + base);
-                URI baseURL = new URI(base);
-                // System.err.println("Base URI " + base);
-                url = (relativeURI.length()==0 ?
-                                 baseURL :
-                                 baseURL.resolve(relativeURI)
-                             );
-                // This method incorrectly double-escapes percent signs, for example %20 is escaped
-                // to %2520. The only solution seems to be to remove them by hand..
-                String u = url.toString();
-                int pc = u.indexOf("%25");
-                if (pc >= 0) {
-                    while (pc>=0) {
-                        u = u.substring(0, pc+1) + u.substring(pc+3);
-                        pc = u.indexOf("%25");
-                    }
-                    url = new URI(u);
-                }
-                // System.err.println("Resolved URI " + url);
-            }
-        } catch (IllegalArgumentException err0) {
-            // can be thrown by resolve() when given a bad URI
-            throw new DynamicError("Invalid URI " + Err.wrap(relativeURI) + " - base " + Err.wrap(base), err0);
-        } catch (java.net.URISyntaxException err) {
+            url = makeAbsolute(relativeURI, base);
+        } catch (URISyntaxException err) {
             // System.err.println("Recovering from " + err);
             // last resort: if the base URI is null, or is itself a relative URI, we
             // try to expand it relative to the current working directory
@@ -137,6 +111,43 @@ public class StandardURIResolver implements URIResolver {
         return source;
     }
 
+    /**
+     * Combine the relative URI and base URI
+     */
+
+    public static URI makeAbsolute(String relativeURI, String base) throws DynamicError, URISyntaxException {
+        URI url;
+        try {
+            if (base==null) {
+                url = new URI(relativeURI);
+                // System.err.println("Resolved " + relativeURI + " as " + url.toString());
+            } else {
+                // System.err.println("Resolving " + relativeURI + " against " + base);
+                URI baseURL = new URI(base);
+                // System.err.println("Base URI " + base);
+                url = (relativeURI.length()==0 ?
+                                 baseURL :
+                                 baseURL.resolve(relativeURI)
+                             );
+                // This method incorrectly double-escapes percent signs, for example %20 is escaped
+                // to %2520. The only solution seems to be to remove them by hand..
+                String u = url.toString();
+                int pc = u.indexOf("%25");
+                if (pc >= 0) {
+                    while (pc>=0) {
+                        u = u.substring(0, pc+1) + u.substring(pc+3);
+                        pc = u.indexOf("%25");
+                    }
+                    url = new URI(u);
+                }
+                // System.err.println("Resolved URI " + url);
+            }
+        } catch (IllegalArgumentException err0) {
+            // can be thrown by resolve() when given a bad URI
+            throw new DynamicError("Invalid URI " + Err.wrap(relativeURI) + " - base " + Err.wrap(base), err0);
+        }
+        return url;
+    }
     /**
     * If a system ID can't be parsed as a URL, we'll try to expand it as a relative
     * URI using the current directory as the base URI: MHK addition.

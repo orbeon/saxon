@@ -1,14 +1,14 @@
 package net.sf.saxon.style;
 import net.sf.saxon.expr.Expression;
+import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.expr.RoleLocator;
 import net.sf.saxon.expr.TypeChecker;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.instruct.ForEachGroup;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.instruct.Block;
+import net.sf.saxon.instruct.ForEachGroup;
+import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.om.Axis;
 import net.sf.saxon.pattern.Pattern;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.type.ItemType;
+import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.xpath.XPathException;
 
@@ -88,7 +88,8 @@ public final class XSLForEachGroup extends StyleElement {
                 (startingAtt==null ? 0 : 1) +
                 (endingAtt==null ? 0 : 1);;
         if (c!=1) {
-            compileError("Exactly one of the attributes group-by, group-adjacent, group-starting-with, and group-ending-with must be specified");
+            compileError("Exactly one of the attributes group-by, group-adjacent, group-starting-with, " +
+                    "and group-ending-with must be specified", "XT1080");
         }
 
         if (groupByAtt != null) {
@@ -108,7 +109,7 @@ public final class XSLForEachGroup extends StyleElement {
         }
 
         if (collationName!=null && groupBy==null && groupAdjacent==null) {
-            compileError("A collation may be specified only if group-by or group-adjacent is specified");
+            compileError("A collation may be specified only if group-by or group-adjacent is specified", "XT1090");
         }
     }
 
@@ -121,7 +122,7 @@ public final class XSLForEachGroup extends StyleElement {
             groupBy = typeCheck("group-by", groupBy);
             try {
                 RoleLocator role =
-                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:for-each-group/group-by", 0);
+                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:for-each-group/group-by", 0, null);
                 groupBy = TypeChecker.staticTypeCheck(groupBy,
                         SequenceType.ATOMIC_SEQUENCE,
                         false, role, getStaticContext());
@@ -132,7 +133,8 @@ public final class XSLForEachGroup extends StyleElement {
             groupAdjacent = typeCheck("group-adjacent", groupAdjacent);
             try {
                 RoleLocator role =
-                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:for-each-group/group-adjacent", 0);
+                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:for-each-group/group-adjacent", 0, null);
+                role.setErrorCode("XT1100");
                 groupAdjacent = TypeChecker.staticTypeCheck(groupAdjacent,
                         SequenceType.SINGLE_ATOMIC,
                         false, role, getStaticContext());
@@ -147,7 +149,8 @@ public final class XSLForEachGroup extends StyleElement {
         if (starting != null || ending != null) {
             try {
                 RoleLocator role =
-                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:for-each-group/select", 0);
+                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:for-each-group/select", 0, null);
+                role.setErrorCode("XT1120");
                 select = TypeChecker.staticTypeCheck(select,
                                             SequenceType.NODE_SEQUENCE,
                                             false, role, getStaticContext());
@@ -163,12 +166,8 @@ public final class XSLForEachGroup extends StyleElement {
         if (collationName != null) {
             collator = getPrincipalStylesheet().findCollation(collationName);
             if (collator==null) {
-                compileError("The collation name '" + collationName + "' has not been defined");
+                compileError("The collation name '" + collationName + "' has not been defined", "XT1110");
             }
-//            if (!(comp instanceof Collator)) {
-//                compileError("The collation used for xsl:for-each-group must be a java.text.Collator");
-//            }
-//            collator = (Collator)comp;
         }
 
         byte algorithm = 0;
@@ -187,8 +186,13 @@ public final class XSLForEachGroup extends StyleElement {
             key = ending;
         }
 
-        Block action = new Block();
-        compileChildren(exec, action, true);
+//        Block action = new Block();
+//        compileChildren(exec, action, true);
+        Expression action = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+        if (action == null) {
+            // body of for-each is empty: it's a no-op.
+            return EmptySequence.getInstance();
+        }
         try {
             ForEachGroup inst = new ForEachGroup(
                                         select,

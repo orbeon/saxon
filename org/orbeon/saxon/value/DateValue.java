@@ -1,18 +1,15 @@
 package net.sf.saxon.value;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.functions.Component;
-import net.sf.saxon.expr.ExpressionTool;
+import net.sf.saxon.Configuration;
+import net.sf.saxon.Err;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.NamePool;
+import net.sf.saxon.functions.Component;
+import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.Err;
-import net.sf.saxon.Configuration;
+import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 
 import java.util.*;
-import java.io.PrintStream;
 
 /**
 * A value of type Date. Note that a Date may include a TimeZone, and unlike the situation

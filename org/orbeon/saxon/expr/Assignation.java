@@ -1,9 +1,12 @@
 package net.sf.saxon.expr;
 import net.sf.saxon.om.NamePool;
+import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.Value;
 import net.sf.saxon.xpath.XPathException;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 /**
 * Assignation is an abstract superclass for the kinds of expression
@@ -43,8 +46,18 @@ public abstract class Assignation extends ComputedExpression implements Binding 
 
     public void setAction(Expression action) {
         this.action = action;
-        declaration.fixupReferences(this);
+        if (declaration != null) {
+            declaration.fixupReferences(this);
+        }
         adoptChildExpression(action);
+    }
+
+    /**
+     * Get the action expression
+     */
+
+    public Expression getAction() {
+        return action;
     }
 
     /**
@@ -87,12 +100,100 @@ public abstract class Assignation extends ComputedExpression implements Binding 
             sequence = sequence.promote(offer);
             if (offer.action == PromotionOffer.INLINE_VARIABLE_REFERENCES ||
                     offer.action == PromotionOffer.UNORDERED) {
-                // Don't pass on other requests. We could pass them on, but only after augmenting
-                // them to say we are interested in subexpressions that don't depend on either the
-                // outer context or the inner context.
                 action = action.promote(offer);
+            } else if (offer.action == PromotionOffer.RANGE_INDEPENDENT
+//                    || offer.action == PromotionOffer.WHERE_CLAUSE
+                                                                            ) {
+                // Pass the offer to the action expression only if the action isn't dependent on the
+                // variable bound by this assignation
+                Binding[] savedBindingList = offer.bindingList;
+                Binding[] newBindingList = new Binding[offer.bindingList.length+1];
+                System.arraycopy(offer.bindingList, 0, newBindingList, 0, offer.bindingList.length);
+                newBindingList[offer.bindingList.length] = this;
+                offer.bindingList = newBindingList;
+                action = action.promote(offer);
+                offer.bindingList = savedBindingList;
             }
             return this;
+        }
+    }
+
+    /**
+     * Promote a WHERE clause whose condition doesn't depend on the variable being bound.
+     * This rewrites an expression of the form
+     *
+     * <p>let $i := SEQ return if (C) then R else ()</p>
+     *
+     * <p>to the form:</p>
+     *
+     * <p>if (C) then (let $i := SEQ return R) else ()
+     */
+
+    protected Expression promoteWhereClause() {
+        if (action instanceof IfExpression) {
+            Container container = getParentExpression();
+            IfExpression ifex = (IfExpression)action;
+            Expression condition = ifex.getCondition();
+            Expression elseex = ifex.getElseExpression();
+            Binding[] bindingList = {this};
+            if (elseex instanceof EmptySequence) {
+                List list = new ArrayList(5);
+                Expression promotedCondition = null;
+                listAndComponents(condition, list);
+                for (int i=list.size()-1; i>=0; i--) {
+                    Expression term = (Expression)list.get(i);
+                    if (!ExpressionTool.dependsOnVariable(term, bindingList)) {
+                        if (promotedCondition == null) {
+                            promotedCondition = term;
+                        } else {
+                            promotedCondition = new BooleanExpression(term, Token.AND, promotedCondition);
+                        }
+                        list.remove(i);
+                    }
+                }
+                if (promotedCondition != null) {
+                    if (list.size() == 0) {
+                        // the whole if() condition has been promoted
+                        Expression oldThen = ifex.getThenExpression();
+                        setAction(oldThen);
+                        ifex.setThenExpression(this);
+                        ifex.setParentExpression(container);
+                        return ifex;
+                    } else {
+                        // one or more terms of the if() condition have been promoted
+                        Expression retainedCondition = (Expression)list.get(0);
+                        for (int i=1; i<list.size(); i++) {
+                            retainedCondition = new BooleanExpression(
+                                    retainedCondition, Token.AND, (Expression)list.get(i));
+                        }
+                        ifex.setCondition(retainedCondition);
+                        IfExpression newIf = new IfExpression(
+                                promotedCondition, this, EmptySequence.getInstance());
+                        newIf.setParentExpression(container);
+                        return newIf;
+                    }
+                }
+
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Construct a list containing the "anded" subexpressions of an expression:
+     * if the expression is (A and B and C), this returns (A, B, C).
+     * TODO: could do more complete analysis to convert the expression to conjunctive normal form
+     * @param exp the expression to be decomposed
+     * @param list the list to which the subexpressions are to be added.
+     */
+
+    private void listAndComponents(Expression exp, List list) {
+        if (exp instanceof BooleanExpression && ((BooleanExpression)exp).getOperator() == Token.AND) {
+            for (Iterator iter = exp.iterateSubExpressions(); iter.hasNext();) {
+                 listAndComponents((Expression)iter.next(), list);
+            }
+        } else {
+            list.add(exp);
         }
     }
 
@@ -100,23 +201,12 @@ public abstract class Assignation extends ComputedExpression implements Binding 
     * Get the immediate subexpressions of this expression
     */
 
-//    public Expression[] getSubExpressions() {
-//        Expression[] exp = new Expression[2];
-//        exp[0] = sequence;
-//        exp[1] = action;
-//        return exp;
-//    }
-
     public Iterator iterateSubExpressions() {
         return new PairIterator(sequence, action);
     }
 
     // Following methods implement the VariableDeclaration interface, in relation to the range
     // variable
-
-//    public boolean isGlobal() {
-//        return false;
-//    }
 
     public int getVariableNameCode() {
         return nameCode;
@@ -131,11 +221,10 @@ public abstract class Assignation extends ComputedExpression implements Binding 
     */
 
     public String getVariableName(NamePool pool) {
-        String slot = (slotNumber == -999 ? "unallocated" : slotNumber+"");
         if (variableName == null) {
-            return "zz:var" + hashCode() + " [" + slot + ']';
+            return "zz:var" + hashCode();
         } else {
-            return variableName + " [" + slot + ']';
+            return variableName;
         }
     }
 
@@ -144,7 +233,6 @@ public abstract class Assignation extends ComputedExpression implements Binding 
     */
 
     public Value evaluateVariable(XPathContext context) throws XPathException {
-        //return context.getController().getBindery().getLocalVariable(slotNumber);
         return context.evaluateLocalVariable(slotNumber);
     }
 

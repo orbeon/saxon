@@ -1,19 +1,13 @@
 package net.sf.saxon.instruct;
-import net.sf.saxon.Controller;
-import net.sf.saxon.event.SequenceOutputter;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.StringValue;
 import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.xpath.StaticError;
+import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 
 /**
@@ -22,29 +16,36 @@ import java.util.Iterator;
  * and xsl:text
  */
 
-public abstract class SimpleNodeConstructor extends InstructionWithChildren {
+public abstract class SimpleNodeConstructor extends Instruction {
 
     protected Expression select = null;
-    protected Expression separator = null;
+
+    public SimpleNodeConstructor() {
+    }
 
     public void setSelect(Expression select) throws StaticError {
         this.select = select;
         adoptChildExpression(select);
     }
 
-    public final void setSeparator(Expression separator) {
-        this.separator = separator;
-        adoptChildExpression(separator);
+    /**
+     * Determine whether this instruction creates new nodes.
+     * This implementation returns true.
+     */
+
+    public final boolean createsNewNodes() {
+        return true;
     }
 
     public Expression simplify(StaticContext env) throws XPathException {
         if (select != null) {
             select = select.simplify(env);
         }
-        if (separator != null) {
-            separator = separator.simplify(env);
-        }
-        return super.simplify(env);
+//        if (separator != null) {
+//            separator = separator.simplify(env);
+//        }
+        return this;
+        //return super.simplify(env);
     }
 
     public abstract void typeCheck(StaticContext env, ItemType contextItemType) throws XPathException;
@@ -61,39 +62,23 @@ public abstract class SimpleNodeConstructor extends InstructionWithChildren {
 
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
         typeCheck(env, contextItemType);
-        String instName = env.getNamePool().getDisplayName(getInstructionNameCode());
-        if (separator != null) {
-            separator = separator.analyze(env, contextItemType);
-            RoleLocator role =
-                new RoleLocator(RoleLocator.INSTRUCTION, instName + "/separator", 0);
-            separator = TypeChecker.staticTypeCheck(separator, SequenceType.SINGLE_STRING, false, role, env);
-        }
+
         if (select != null) {
             select = select.analyze(env, contextItemType);
             if (!Type.isSubType(select.getItemType(), Type.ANY_ATOMIC_TYPE)) {
-                select = new Atomizer(select);
+                select = new Atomizer(select, env.getConfiguration());
             }
             if (!Type.isSubType(select.getItemType(), Type.STRING_TYPE)) {
                 select = new AtomicSequenceConverter(select, Type.STRING_TYPE);
             }
         } else {
-            super.analyze(env, contextItemType);
+            //super.analyze(env, contextItemType);
         }
         return this;
     }
 
     public Iterator iterateSubExpressions() {
-        ArrayList list = new ArrayList(10);
-        if (children != null) {
-            list.addAll(Arrays.asList(children));
-        }
-        if (select != null && !(select instanceof StringValue)) {
-            list.add(select);
-        }
-        if (separator != null && !(separator instanceof StringValue)) {
-            list.add(separator);
-        }
-        return list.iterator();
+        return new MonoIterator(select);
     }
 
     /**
@@ -103,56 +88,52 @@ public abstract class SimpleNodeConstructor extends InstructionWithChildren {
     */
 
     public CharSequence expandChildren(XPathContext context) throws XPathException {
-
-        String sep = " ";
-        if (separator != null) {
-            sep = separator.evaluateAsString(context);
-        }
-
-        if (select != null) {
-            if (select instanceof StringValue) {
-                return ((StringValue)select).getStringValue();
-            } else {
-                return flatten(select.iterate(context), sep);
-            }
-
+        Item item = select.evaluateItem(context);
+        if (item==null) {
+            return "";
         } else {
-            Controller controller = context.getController();
-            XPathContext c2 = context.newMinorContext();
-            SequenceOutputter seq = new SequenceOutputter();
-            seq.setConfiguration(controller.getConfiguration());
-            seq.setDocumentLocator(getExecutable().getLocationMap());
-            c2.setTemporaryReceiver(seq);
-            // process the child elements in the stylesheet
-            processChildren(c2);
-            seq.close();
-            return flatten(seq.getSequence().iterate(context), sep);
-
+            return item.getStringValue();
         }
+
+//        String sep = " ";
+//        if (separator != null) {
+//            sep = separator.evaluateAsString(context);
+//        }
+//
+//        if (select != null) {
+//            if (select instanceof StringValue) {
+//                return ((StringValue)select).getStringValue();
+//            } else {
+//                return flatten(select.iterate(context), sep);
+//            }
+//
+//        } else {
+//            return "";
+//        }
     }
 
     /**
      * Flatten the value of the sequence to a character string
      */
 
-    private StringBuffer flatten(SequenceIterator content, String separator)
-    throws XPathException {
-        StringBuffer buffer = new StringBuffer(80);
-        boolean first = true;
-        while(true) {
-            Item item = content.next();
-            if (item == null) {
-                break;
-            }
-            if (first) {
-                first = false;
-            } else {
-                buffer.append(separator);
-            }
-            buffer.append(item.getStringValue());
-        }
-        return buffer;
-    }
+//    private StringBuffer flatten(SequenceIterator content, String separator)
+//    throws XPathException {
+//        StringBuffer buffer = new StringBuffer(80);
+//        boolean first = true;
+//        while(true) {
+//            Item item = content.next();
+//            if (item == null) {
+//                break;
+//            }
+//            if (first) {
+//                first = false;
+//            } else {
+//                buffer.append(separator);
+//            }
+//            buffer.append(item.getStringValue());
+//        }
+//        return buffer;
+//    }
 
     /**
      * Evaluate as an expression. We rely on the fact that when these instructions
@@ -166,7 +147,7 @@ public abstract class SimpleNodeConstructor extends InstructionWithChildren {
                     select.evaluateAsString(context));
         content = checkContent(content, context);
         try {
-            Orphan o = new Orphan(context.getController().getNamePool());
+            Orphan o = new Orphan(context.getController().getConfiguration());
             o.setNodeKind((short)getItemType().getPrimitiveType());
             o.setStringValue(content);
             o.setNameCode(evaluateNameCode(context));
@@ -205,10 +186,6 @@ public abstract class SimpleNodeConstructor extends InstructionWithChildren {
     public void display(int level, NamePool pool, PrintStream out) {
         if (select != null) {
             select.display(level, pool, out);
-        } else if (children.length==0) {
-            out.println(ExpressionTool.indent(level) + "empty content");
-        } else {
-            InstructionWithChildren.displayChildren(children, level+1, pool, out);
         }
     }
 

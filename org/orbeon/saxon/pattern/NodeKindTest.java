@@ -1,7 +1,6 @@
 package net.sf.saxon.pattern;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.type.ItemType;
 import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.type.Type;
 
 /**
   * NodeTest is an interface that enables a test of whether a node has a particular
@@ -12,13 +11,13 @@ import net.sf.saxon.om.NodeInfo;
 
 public class NodeKindTest extends NodeTest {
 
-    public final static NodeKindTest DOCUMENT = new NodeKindTest(Type.DOCUMENT);
-    public final static NodeKindTest ELEMENT = new NodeKindTest(Type.ELEMENT);
-    public final static NodeKindTest ATTRIBUTE = new NodeKindTest(Type.ATTRIBUTE);
-    public final static NodeKindTest TEXT = new NodeKindTest(Type.TEXT);
-    public final static NodeKindTest COMMENT = new NodeKindTest(Type.COMMENT);
-    public final static NodeKindTest PROCESSING_INSTRUCTION = new NodeKindTest(Type.PROCESSING_INSTRUCTION);
-    public final static NodeKindTest NAMESPACE = new NodeKindTest(Type.NAMESPACE);
+    public static final NodeKindTest DOCUMENT = new NodeKindTest(Type.DOCUMENT);
+    public static final NodeKindTest ELEMENT = new NodeKindTest(Type.ELEMENT);
+    public static final NodeKindTest ATTRIBUTE = new NodeKindTest(Type.ATTRIBUTE);
+    public static final NodeKindTest TEXT = new NodeKindTest(Type.TEXT);
+    public static final NodeKindTest COMMENT = new NodeKindTest(Type.COMMENT);
+    public static final NodeKindTest PROCESSING_INSTRUCTION = new NodeKindTest(Type.PROCESSING_INSTRUCTION);
+    public static final NodeKindTest NAMESPACE = new NodeKindTest(Type.NAMESPACE);
 
 
 	private int kind;
@@ -111,9 +110,13 @@ public class NodeKindTest extends NodeTest {
     }
 
     public String toString() {
+        return toString(kind);
+    }
+
+    public static String toString(int kind) {
             switch (kind) {
                 case Type.DOCUMENT:
-                    return("/" );
+                    return("document-node()" );
                 case Type.ELEMENT:
                     return( "element()" );
                 case Type.ATTRIBUTE:

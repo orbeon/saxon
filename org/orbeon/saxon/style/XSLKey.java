@@ -1,17 +1,17 @@
 package net.sf.saxon.style;
+import net.sf.saxon.Err;
 import net.sf.saxon.expr.*;
-import net.sf.saxon.instruct.Block;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.instruct.SlotManager;
+import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.om.Axis;
 import net.sf.saxon.om.NamespaceException;
 import net.sf.saxon.pattern.Pattern;
 import net.sf.saxon.trans.KeyDefinition;
 import net.sf.saxon.trans.KeyManager;
-import net.sf.saxon.tree.AttributeCollection;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.Err;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.text.Collator;
@@ -76,7 +76,7 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
         try {
             setObjectNameCode(makeNameCode(nameAtt.trim()));
         } catch (NamespaceException err) {
-            compileError(err.getMessage());
+            compileError(err.getMessage(), "XT0280");
         } catch (XPathException err) {
             compileError(err.getMessage());
         }
@@ -103,7 +103,7 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
             }
             try {
                 RoleLocator role =
-                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:key/use", 0);
+                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:key/use", 0, null);
                 use = TypeChecker.staticTypeCheck(
                                 use,
                                 new SequenceType(Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE),
@@ -136,17 +136,17 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
         }
 
         if (use==null) {
-            Block body = new Block();
-            compileChildren(exec, body, true);
+            Expression body = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
             try {
-                use = new Atomizer(body.simplify(getStaticContext()));
+                use = new Atomizer(body.simplify(getStaticContext()),
+                        getStaticContext().getConfiguration());
             } catch (XPathException e) {
                 compileError(e);
             }
 
             try {
                 RoleLocator role =
-                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:key/use", 0);
+                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:key/use", 0, null);
                 use = TypeChecker.staticTypeCheck(
                                 use,
                                 new SequenceType(Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE),

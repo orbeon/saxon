@@ -1,15 +1,11 @@
 package net.sf.saxon.value;
 import net.sf.saxon.Configuration;
-import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.NamePool;
 import net.sf.saxon.type.ExternalObjectType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.xpath.DynamicError;
-
-import java.io.PrintStream;
+import net.sf.saxon.xpath.XPathException;
 
 
 /**
@@ -118,7 +114,7 @@ public class ObjectValue extends AtomicValue {
             return this;
         } else if (target==boolean.class || target==Boolean.class) {
             BooleanValue bval = (BooleanValue)convert(Type.BOOLEAN, null);
-            return new Boolean(bval.getBooleanValue());
+            return Boolean.valueOf(bval.getBooleanValue());
         } else if (target==String.class || target==CharSequence.class) {
             return getStringValue();
         } else if (target==double.class || target==Double.class) {

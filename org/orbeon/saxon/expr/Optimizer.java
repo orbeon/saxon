@@ -8,13 +8,17 @@ import java.io.Serializable;
  * the appropriate level of optimization can be selected.
  */
 public class Optimizer implements Serializable {
-      
+
     /**
      * Create a GeneralComparison expression
      */
 
-    public GeneralComparison makeGeneralComparison(Expression p0, int op, Expression p1) {
-        return new GeneralComparison(p0, op, p1);
+    public BinaryExpression makeGeneralComparison(Expression p0, int op, Expression p1, boolean backwardsCompatible) {
+        if (backwardsCompatible) {
+            return new GeneralComparison10(p0, op, p1);
+        } else {
+            return new GeneralComparison(p0, op, p1);
+        }
     }
 }
 

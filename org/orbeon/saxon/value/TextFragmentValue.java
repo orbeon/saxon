@@ -1,11 +1,10 @@
 package net.sf.saxon.value;
+import net.sf.saxon.Configuration;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.NodeTest;
 import net.sf.saxon.type.Type;
-
 import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.Configuration;
 
 /**
 * This class represents a temporary tree whose root document node owns a single text node. <BR>
@@ -21,7 +20,7 @@ public final class TextFragmentValue extends AbstractNode implements DocumentInf
 
     /**
     * Constructor: create a result tree fragment containing a single text node
-    * @param value: a String containing the value
+    * @param value a String containing the value
     */
 
     public TextFragmentValue(CharSequence value, String systemId) {
@@ -415,6 +414,14 @@ public final class TextFragmentValue extends AbstractNode implements DocumentInf
 
         public void setSystemId(String systemId) {}
 
+        /**
+         * Get the configuration
+         */
+
+        public Configuration getConfiguration() {
+            return config;
+        }
+        
         /**
          * Get the name pool for this node
          * @return the NamePool

@@ -28,7 +28,7 @@ public class XSLVariable extends XSLVariableDeclaration {
     public void prepareAttributes() throws TransformerConfigurationException {
         if (state==2) return;
         if (state==1) {
-            compileError("Circular reference to variable");
+            compileError("Circular reference to variable", "XT0640");
         }
         state = 1;
         //System.err.println("Prepare attributes of $" + getVariableName());
@@ -98,16 +98,59 @@ public class XSLVariable extends XSLVariableDeclaration {
                 if (select instanceof ComputedExpression) {
                     ((ComputedExpression)select).setParentExpression(inst);
                 }
+                initializeInstruction(exec, inst);
+                inst.setVariableName(getVariableName());
+                inst.setSlotNumber(getSlotNumber());
+                inst.setRequiredType(getRequiredType());
+                ExpressionTool.makeParentReferences(inst);
+                fixupBinding(inst);
+                return inst;
             } else {
                 inst = new LocalVariable();
+                initializeInstruction(exec, inst);
+                inst.setVariableName(getVariableName());
+                inst.setSlotNumber(getSlotNumber());
+                inst.setRequiredType(getRequiredType());
+                ExpressionTool.makeParentReferences(inst);
+                fixupBinding(inst);
+                return inst;
             }
-            initializeInstruction(exec, inst);
-            inst.setVariableName(getVariableName());
-            inst.setSlotNumber(getSlotNumber());
-            inst.setRequiredType(getRequiredType());
-            ExpressionTool.makeParentReferences(inst);
-            fixupBinding(inst);
-            return inst;
+        }
+
+        return null;
+    }
+
+public Expression newCompile(Executable exec) throws TransformerConfigurationException {
+
+        if (references.size()==0 && !assignable) {
+            redundant = true;
+        }
+
+        if (!redundant) {
+            GeneralVariable inst;
+            if (global) {
+                inst = new GlobalVariable();
+                ((GlobalVariable)inst).setExecutable(getExecutable());
+                if (select instanceof ComputedExpression) {
+                    ((ComputedExpression)select).setParentExpression(inst);
+                }
+                initializeInstruction(exec, inst);
+                inst.setVariableName(getVariableName());
+                inst.setSlotNumber(getSlotNumber());
+                inst.setRequiredType(getRequiredType());
+                ExpressionTool.makeParentReferences(inst);
+                fixupBinding(inst);
+                return inst;
+            } else {
+                inst = new LocalVariable();
+                initializeInstruction(exec, inst);
+                inst.setVariableName(getVariableName());
+                inst.setSlotNumber(getSlotNumber());
+                inst.setRequiredType(getRequiredType());
+                ExpressionTool.makeParentReferences(inst);
+                //fixupBinding(inst);
+                return inst;
+            }
         }
 
         return null;

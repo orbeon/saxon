@@ -1,12 +1,13 @@
 package net.sf.saxon.om;
 
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.xpath.DynamicError;
 
 import java.util.Iterator;
 
 /**
- * Interface that supports lookup of a lexical QName to get the expanded QName.
+ * Abstract class that supports lookup of a lexical QName to get the expanded QName.
+ * This implements the JAXP NamespaceContext interface with some Saxon-specific methods,
+ * which must be supplied in a concrete implementation.
  */
 
 public interface NamespaceResolver {
@@ -20,7 +21,7 @@ public interface NamespaceResolver {
     * @return the uri for the namespace, or null if the prefix is not in scope
     */
 
-    public String getURIForPrefix(String prefix, boolean useDefault);
+    public abstract String getURIForPrefix(String prefix, boolean useDefault);
 
     /**
     * Use this NamespaceContext to resolve a lexical QName
@@ -32,7 +33,7 @@ public interface NamespaceResolver {
      * if the namespace prefix has not been declared
     */
 
-    public int getFingerprint(String qname, boolean useDefault, NamePool pool)
+    public abstract int getFingerprint(String qname, boolean useDefault, NamePool pool)
     throws DynamicError;
 
     /**
@@ -40,7 +41,8 @@ public interface NamespaceResolver {
      * the default namespace (prefix="") and the XML namespace where appropriate
      */
 
-    public Iterator iteratePrefixes();
+    public abstract Iterator iteratePrefixes();
+
 }
 
 

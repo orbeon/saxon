@@ -1,11 +1,11 @@
 package net.sf.saxon.om;
+import net.sf.saxon.Configuration;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.event.Stripper;
-import net.sf.saxon.pattern.NodeTest;
 import net.sf.saxon.pattern.NodeKindTest;
+import net.sf.saxon.pattern.NodeTest;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.Configuration;
 
 
 /**
@@ -64,6 +64,13 @@ public class StrippedNode implements NodeInfo, VirtualNode {
         return node;
     }
 
+    /**
+     * Get the configuration
+     */
+
+    public Configuration getConfiguration() {
+        return node.getConfiguration();
+    }
 
     /**
      * Get the name pool for this node
@@ -87,8 +94,8 @@ public class StrippedNode implements NodeInfo, VirtualNode {
     * Get the typed value of the item
     */
 
-    public SequenceIterator getTypedValue(Configuration config) throws XPathException {
-        return node.getTypedValue(config);
+    public SequenceIterator getTypedValue() throws XPathException {
+        return node.getTypedValue();
     }
 
     /**

@@ -1,11 +1,14 @@
 package net.sf.saxon.style;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.instruct.*;
+import net.sf.saxon.instruct.Executable;
+import net.sf.saxon.instruct.ForEach;
+import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.om.Axis;
 import net.sf.saxon.sort.SortExpression;
 import net.sf.saxon.sort.SortKeyDefinition;
-import net.sf.saxon.tree.AttributeCollection;
 import net.sf.saxon.type.ItemType;
+import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
@@ -84,8 +87,13 @@ public class XSLForEach extends StyleElement {
             sortedSequence = new SortExpression(select, sortKeys);
             ExpressionTool.makeParentReferences(sortedSequence);
         }
-        Block block = new Block();
-        compileChildren(exec, block, true);
+//        Block block = new Block();
+//        compileChildren(exec, block, true);
+        Expression block = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+        if (block == null) {
+            // body of for-each is empty: it's a no-op.
+            return EmptySequence.getInstance();
+        }
         try {
             ForEach inst = new ForEach(sortedSequence, block.simplify(getStaticContext()));
             ExpressionTool.makeParentReferences(inst);

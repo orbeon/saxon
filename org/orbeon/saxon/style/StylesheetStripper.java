@@ -3,8 +3,6 @@ import net.sf.saxon.event.Stripper;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.NamespaceConstant;
 import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.Navigator;
-
 import net.sf.saxon.xpath.XPathException;
 
 /**
@@ -97,12 +95,8 @@ public class StylesheetStripper extends Stripper
     * Handle a text node
     */
 
-    public void characters (CharSequence chars, int locationId, int properties) throws XPathException
-    {
-
-
+    public void characters (CharSequence chars, int locationId, int properties) throws XPathException {
         // assume adjacent chunks of text are already concatenated
-
         super.characters(chars, locationId, properties);
     }
 

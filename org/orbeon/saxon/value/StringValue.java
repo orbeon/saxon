@@ -21,6 +21,7 @@ import net.sf.saxon.xpath.XPathException;
 public class StringValue extends AtomicValue {
 
     public static final StringValue EMPTY_STRING = new StringValue("");
+    public static final StringValue SINGLE_SPACE = new StringValue(" ");
 
     // We hold the value as a CharSequence (it may be a StringBuffer rather than a string)
     // But the first time this is converted to a string, we keep it as a string
@@ -104,7 +105,9 @@ public class StringValue extends AtomicValue {
                         ((IntegerValue)iv).setSubType(subtype);
                         return iv;
                     } else {
-                        return DerivedAtomicValue.makeValue(iv, value.toString(), subtype, true);
+                        ((BigIntegerValue)iv).setSubType(subtype);
+                        return iv;
+                        //return subtype.makeDerivedValue(iv, value.toString(), true);
                     }
                 case Type.DECIMAL:
                     return new DecimalValue(value);
@@ -329,7 +332,7 @@ public class StringValue extends AtomicValue {
     }
 
     public String toString() {
-        return "\"" + value + "\"";
+        return "\"" + value + '\"';
     }
 
 

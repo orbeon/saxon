@@ -54,6 +54,16 @@ public final class ContextItemExpression extends ComputedExpression {
     }
 
     /**
+     * Determine the special properties of this expression
+     * @return {@link StaticProperty#NON_CREATIVE}
+     */
+
+    public int computeSpecialProperties() {
+        int p = super.computeSpecialProperties();
+        return p | StaticProperty.NON_CREATIVE;
+    }
+
+    /**
     * Is this expression the same as another expression?
     */
 

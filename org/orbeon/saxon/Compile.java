@@ -1,22 +1,18 @@
 package net.sf.saxon;
 import net.sf.saxon.instruct.TerminationException;
-
+import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 import org.xml.sax.InputSource;
 
-
-import java.util.Date;
-import java.io.File;
-import java.io.ObjectOutputStream;
-import java.io.FileOutputStream;
-
-import javax.xml.transform.URIResolver;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-
-import javax.xml.transform.TransformerFactoryConfigurationError;
 import javax.xml.transform.Source;
 import javax.xml.transform.Templates;
+import javax.xml.transform.TransformerFactoryConfigurationError;
+import javax.xml.transform.URIResolver;
 import javax.xml.transform.sax.SAXSource;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.ObjectOutputStream;
+import java.util.Date;
 
 /**
  * This <B>Compile</B> class provides a command-line interface allowing a

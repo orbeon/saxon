@@ -1,15 +1,13 @@
 package net.sf.saxon.instruct;
 import net.sf.saxon.Controller;
-import net.sf.saxon.ParameterSet;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.trans.Mode;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.expr.XPathContextMajor;
-
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.om.Item;
+import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.Mode;
 import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 
 /**
 * An xsl:next-match element in the stylesheet
@@ -17,7 +15,8 @@ import net.sf.saxon.xpath.DynamicError;
 
 public class NextMatch extends ApplyImports {
 
-    public NextMatch() {
+    public NextMatch(boolean backwardsCompatible) {
+        super(backwardsCompatible);
     }
 
     /**
@@ -45,6 +44,9 @@ public class NextMatch extends ApplyImports {
             throw e;
         }
         Mode mode = context.getCurrentMode();
+        if (mode == null) {
+            mode = controller.getRuleManager().getMode(Mode.DEFAULT_MODE);
+        }
         if (context.getCurrentIterator()==null) {
             DynamicError e = new DynamicError("There is no context item");
             e.setXPathContext(context);
@@ -62,7 +64,7 @@ public class NextMatch extends ApplyImports {
         Template nh = controller.getRuleManager().getNextMatchHandler(node, mode, currentTemplate, context);
 
 		if (nh==null) {             // use the default action for the node
-            ApplyTemplates.defaultAction(node, params, tunnels, context);
+            ApplyTemplates.defaultAction(node, params, tunnels, context, false);
         } else {
             XPathContextMajor c2 = context.newContext();
             c2.setOrigin(this);

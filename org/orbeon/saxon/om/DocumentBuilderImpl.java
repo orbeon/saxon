@@ -1,19 +1,20 @@
 package net.sf.saxon.om;
 import net.sf.saxon.Configuration;
-import net.sf.saxon.tinytree.*;
 import net.sf.saxon.event.Builder;
+import net.sf.saxon.event.PipelineConfiguration;
 import net.sf.saxon.event.Sender;
-
-import org.w3c.dom.Document;
+import net.sf.saxon.tinytree.TinyBuilder;
+import net.sf.saxon.tinytree.TinyDocumentImpl;
+import net.sf.saxon.xpath.XPathException;
 import org.w3c.dom.DOMImplementation;
-import org.xml.sax.InputSource;
+import org.w3c.dom.Document;
 import org.xml.sax.EntityResolver;
 import org.xml.sax.ErrorHandler;
+import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
-import javax.xml.parsers.*;
+import javax.xml.parsers.DocumentBuilder;
 import javax.xml.transform.sax.SAXSource;
-import net.sf.saxon.xpath.XPathException;
 
 /**
  * This class implements the JAXP DocumentBuilder interface, allowing a Saxon TinyTree to be
@@ -38,7 +39,21 @@ public class DocumentBuilderImpl extends DocumentBuilder {
     public Document newDocument() {
         // The returned document will be of little use, because it is immutable.
         // But it can be used in a DOMResult as the result of a transformation
-        return new TinyDocumentImpl();
+        Builder builder = new TinyBuilder();
+        Configuration config = new Configuration();
+        PipelineConfiguration pipe = config.makePipelineConfiguration();
+        builder.setPipelineConfiguration(pipe);
+        DocumentInfo doc;
+        try {
+            builder.open();
+            builder.startDocument(0);
+            doc = (DocumentInfo)builder.getCurrentRoot();
+            builder.endDocument();
+            builder.close();
+        } catch (XPathException e) {
+            throw new IllegalStateException(e.getMessage());
+        }
+        return (Document)doc;
     }
 
     public Document parse(InputSource in) throws SAXException {
@@ -46,7 +61,8 @@ public class DocumentBuilderImpl extends DocumentBuilder {
             Builder builder = new TinyBuilder();
             Configuration config = new Configuration();
             NamePool pool = config.getNamePool();
-            builder.setConfiguration(config);
+            PipelineConfiguration pipe = config.makePipelineConfiguration();
+            builder.setPipelineConfiguration(pipe);
             SAXSource source = new SAXSource(in);
             if (entityResolver != null) {
                 source.getXMLReader().setEntityResolver(entityResolver);
@@ -55,8 +71,8 @@ public class DocumentBuilderImpl extends DocumentBuilder {
                 source.getXMLReader().setErrorHandler(errorHandler);
             }
             source.setSystemId(in.getSystemId());
-            new Sender(config).send(source, builder);
-            TinyDocumentImpl doc = (TinyDocumentImpl)builder.getCurrentDocument();
+            new Sender(pipe).send(source, builder);
+            TinyDocumentImpl doc = (TinyDocumentImpl)builder.getCurrentRoot();
             pool.allocateDocumentNumber(doc);
             return doc;
         } catch (XPathException err) {
@@ -73,7 +89,7 @@ public class DocumentBuilderImpl extends DocumentBuilder {
     }
 
     public DOMImplementation getDOMImplementation() {
-        return new TinyDocumentImpl().getImplementation();
+        return newDocument().getImplementation();
     }
 }
 

@@ -3,8 +3,8 @@ package net.sf.saxon.sort;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.type.ItemType;
+import net.sf.saxon.xpath.XPathException;
 
 /**
  * A DocumentSorter is an expression that sorts a sequence of nodes into

@@ -4,9 +4,9 @@ package net.sf.saxon.event;
 /**
  * LocationProvider: this is a marker interface used to identify an object that
  * provides the location of elements in a source document or instructions in a stylesheet
- * or query. A locationProvider may be passed down the Receiver pipeline using the
- * setDocumentLocator() method; on the input pipeline, this will be a SaxonLocator object,
- * on the output pipeline, it will be a LocationMap
+ * or query. A locationProvider may be passed down the Receiver pipeline as part of the
+ * PipelineConfiguration object; on the input pipeline, this will be a {@link SaxonLocator} object,
+ * on the output pipeline, it will be a {@link net.sf.saxon.instruct.LocationMap}
  */
 
 public interface LocationProvider {

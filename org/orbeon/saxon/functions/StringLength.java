@@ -1,11 +1,12 @@
 package net.sf.saxon.functions;
-import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.expr.Expression;
+import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.expr.StaticContext;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.IntegerValue;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.xpath.XPathException;
 
 /**
@@ -23,8 +24,21 @@ public class StringLength extends SystemFunction {
     */
 
      public Expression simplify(StaticContext env) throws XPathException {
-        useContextItemAsDefault();
+        //useContextItemAsDefault();
         return simplifyArguments(env);
+    }
+
+    /**
+    * Pre-evaluate a function at compile time. Functions that do not allow
+    * pre-evaluation, or that need access to context information, can override this method.
+    */
+
+    public Expression preEvaluate(StaticContext env) throws XPathException {
+        if (argument.length == 0) {
+            return this;
+        } else {
+            return ExpressionTool.eagerEvaluate(this, null);
+        }
     }
 
     /**
@@ -40,9 +54,14 @@ public class StringLength extends SystemFunction {
     */
 
     public Item evaluateItem(XPathContext c) throws XPathException {
-        AtomicValue sv = (AtomicValue)argument[0].evaluateItem(c);
+        AtomicValue sv;
+        if (argument.length == 0) {
+            sv = new StringValue(c.getContextItem().getStringValue());
+        } else {
+            sv = (AtomicValue)argument[0].evaluateItem(c);
+        }
         if (sv==null) {
-            sv = StringValue.EMPTY_STRING;
+            return IntegerValue.ZERO;
         }
         String s = sv.getStringValue();
 

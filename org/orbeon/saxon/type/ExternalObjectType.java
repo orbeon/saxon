@@ -9,12 +9,17 @@ import net.sf.saxon.value.ObjectValue;
  * This class represents the type of an external Java object returned by
  * an extension function.
  */
-public class ExternalObjectType extends AtomicType {
+public class ExternalObjectType extends BuiltInAtomicType {
 
     private Class javaClass;
 
     public ExternalObjectType(Class javaClass) {
         this.javaClass = javaClass;
+        this.fingerprint = StandardNames.SAXON_JAVA_LANG_OBJECT;
+    }
+
+    public Class getJavaClass() {
+        return javaClass;
     }
 
     public boolean isBuiltIn() {
@@ -55,6 +60,10 @@ public class ExternalObjectType extends AtomicType {
         String name = javaClass.getName();
         name = name.replace('$', '-');
         return "java:" + name;
+    }
+
+    public String getDisplayName() {
+        return toString();
     }
 }
 

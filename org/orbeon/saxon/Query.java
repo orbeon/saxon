@@ -3,15 +3,21 @@ import net.sf.saxon.event.Builder;
 import net.sf.saxon.instruct.TerminationException;
 import net.sf.saxon.om.DocumentInfo;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.query.*;
-import net.sf.saxon.trace.XQueryTraceListener;
+import net.sf.saxon.query.DynamicQueryContext;
+import net.sf.saxon.query.QueryResult;
+import net.sf.saxon.query.StaticQueryContext;
+import net.sf.saxon.query.XQueryExpression;
 import net.sf.saxon.trace.TraceListener;
+import net.sf.saxon.trace.XQueryTraceListener;
 import net.sf.saxon.value.UntypedAtomicValue;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 import org.xml.sax.InputSource;
 
-import javax.xml.transform.*;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Source;
+import javax.xml.transform.TransformerFactoryConfigurationError;
+import javax.xml.transform.URIResolver;
 import javax.xml.transform.sax.SAXSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.*;
@@ -330,11 +336,13 @@ public class Query {
                     line = err.getLocator().getLineNumber();
                     module = err.getLocator().getSystemId();
                 }
-                if (line == -1) {
-                    System.err.println("Failed to compile query: " + err.getMessage());
-                } else {
-                    System.err.println("Static error at line " + line + " of " + module + ':');
-                    System.err.println(err.getMessage());
+                if (!err.hasBeenReported()) {
+                    if (line == -1) {
+                        System.err.println("Failed to compile query: " + err.getMessage());
+                    } else {
+                        System.err.println("Static error at line " + line + " of " + module + ':');
+                        System.err.println(err.getMessage());
+                    }
                 }
                 throw new DynamicError(err);
             }

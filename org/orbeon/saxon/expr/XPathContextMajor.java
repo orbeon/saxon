@@ -1,7 +1,6 @@
 package net.sf.saxon.expr;
 import net.sf.saxon.Configuration;
 import net.sf.saxon.Controller;
-import net.sf.saxon.ParameterSet;
 import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.AxisIterator;
 import net.sf.saxon.om.Item;
@@ -18,17 +17,11 @@ import net.sf.saxon.xpath.XPathException;
  * a "minor context" only allows changes to the focus and the destination for push output.
 */
 
-// TODO: could refine further to create a lighter-weight context object for XQuery
-
 public class XPathContextMajor extends XPathContextMinor {
 
     private StackFrame stackFrame = null;
     private ParameterSet localParameters = null;
-    private ParameterSet tunnelParameters = null;
-    private Mode currentMode = null;
-    private Template currentTemplate = null;
-    private GroupIterator currentGroupIterator = null;
-    private RegexIterator currentRegexIterator = null;
+    private XSLTContext xsltContext = null;
 
     /**
     * Constructor should only be called by the Controller,
@@ -74,14 +67,10 @@ public class XPathContextMajor extends XPathContextMinor {
         c.currentIterator = currentIterator;
         c.stackFrame = stackFrame;
         c.localParameters = localParameters;
-        c.tunnelParameters = tunnelParameters;
         c.last = last;
         c.currentReceiver = currentReceiver;
         c.isTemporaryDestination = isTemporaryDestination;
-        c.currentMode = currentMode;
-        c.currentTemplate = currentTemplate;
-        c.currentGroupIterator = currentGroupIterator;
-        c.currentRegexIterator = currentRegexIterator;
+        c.xsltContext = xsltContext;
         c.caller = this;
         return c;
     }
@@ -92,16 +81,21 @@ public class XPathContextMajor extends XPathContextMinor {
         c.currentIterator = p.getCurrentIterator();
         c.stackFrame = p.getStackFrame();
         c.localParameters = p.getLocalParameters();
-        c.tunnelParameters = p.getTunnelParameters();
+
         c.last = p.last;
         c.currentReceiver = p.currentReceiver;
         c.isTemporaryDestination = p.isTemporaryDestination;
-        c.currentMode = p.getCurrentMode();
-        c.currentTemplate = p.getCurrentTemplate();
-        c.currentGroupIterator = p.getCurrentGroupIterator();
-        c.currentRegexIterator = p.getCurrentRegexIterator();
+        c.xsltContext = p.getXSLTContext();
         c.caller = p;
         return c;
+    }
+
+    /**
+     * Get the XSLT-specific part of the context
+     */
+
+    public XSLTContext getXSLTContext() {
+        return xsltContext;
     }
 
     /**
@@ -128,7 +122,11 @@ public class XPathContextMajor extends XPathContextMinor {
      */
 
     public ParameterSet getTunnelParameters() {
-        return tunnelParameters;
+        if (xsltContext != null) {
+            return xsltContext.tunnelParameters;
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -137,7 +135,8 @@ public class XPathContextMajor extends XPathContextMinor {
      */
 
     public void setTunnelParameters(ParameterSet tunnelParameters) {
-        this.tunnelParameters = tunnelParameters;
+        xsltContext = new XSLTContext(xsltContext);
+        xsltContext.tunnelParameters = tunnelParameters;
     }
 
     /**
@@ -220,16 +219,23 @@ public class XPathContextMajor extends XPathContextMinor {
      */
 
     public void setCurrentMode(Mode mode) {
-        currentMode = mode;
+        if ((mode != null && !mode.isDefaultMode()) || (getCurrentMode() != null)) {
+            xsltContext = new XSLTContext(xsltContext);
+            xsltContext.currentMode = mode;
+        }
     }
 
     /**
      * Get the current mode.
-     * @return the current mode
+     * @return the current mode. May return null if the current mode is the default mode.
      */
 
     public Mode getCurrentMode() {
-        return currentMode;
+        if (xsltContext != null) {
+            return xsltContext.currentMode;
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -241,7 +247,8 @@ public class XPathContextMajor extends XPathContextMinor {
      */
 
     public void setCurrentTemplate(Template template) {
-        currentTemplate = template;
+        xsltContext = new XSLTContext(xsltContext);
+        xsltContext.currentTemplate = template;
     }
 
     /**
@@ -251,7 +258,11 @@ public class XPathContextMajor extends XPathContextMinor {
      */
 
     public Template getCurrentTemplate() {
-        return currentTemplate;
+        if (xsltContext != null) {
+            return xsltContext.currentTemplate;
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -261,7 +272,8 @@ public class XPathContextMajor extends XPathContextMinor {
      */
 
     public void setCurrentGroupIterator(GroupIterator collection) {
-        currentGroupIterator = collection;
+        xsltContext = new XSLTContext(xsltContext);
+        xsltContext.currentGroupIterator = collection;
     }
 
     /**
@@ -271,7 +283,11 @@ public class XPathContextMajor extends XPathContextMinor {
      */
 
     public GroupIterator getCurrentGroupIterator() {
-        return currentGroupIterator;
+        if (xsltContext != null) {
+            return xsltContext.currentGroupIterator;
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -281,7 +297,8 @@ public class XPathContextMajor extends XPathContextMinor {
      */
 
     public void setCurrentRegexIterator(RegexIterator currentRegexIterator) {
-        this.currentRegexIterator = currentRegexIterator;
+        xsltContext = new XSLTContext(xsltContext);
+        xsltContext.currentRegexIterator = currentRegexIterator;
     }
 
     /**
@@ -291,7 +308,11 @@ public class XPathContextMajor extends XPathContextMinor {
      */
 
     public RegexIterator getCurrentRegexIterator() {
-        return currentRegexIterator;
+        if (xsltContext != null) {
+            return xsltContext.currentRegexIterator;
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -308,11 +329,42 @@ public class XPathContextMajor extends XPathContextMinor {
                                      LocalParam binding,
                                      boolean isTunnel) throws XPathException {
 
-        ParameterSet params = (isTunnel ? tunnelParameters : localParameters);
+        ParameterSet params = (isTunnel ? getTunnelParameters() : localParameters);
     	if (params==null) return false;
     	Value val = params.get(fingerprint);
         stackFrame.slots[binding.getSlotNumber()] = val;
         return (val != null);
+    }
+
+    /**
+     * An XSLTContext object holds all the additional dynamic context items used in XSLT.
+     * These are held in a separate object for two reasons: firstly, they don't change often,
+     * so it's costly to copy them every time a new context object is created, and secondly,
+     * they aren't used at all in XQuery, they just add overhead.
+     */
+
+    protected static class XSLTContext {
+        public ParameterSet tunnelParameters = null;
+        public Mode currentMode = null;
+        public Template currentTemplate = null;
+        public GroupIterator currentGroupIterator = null;
+        public RegexIterator currentRegexIterator = null;
+
+        /**
+         * Create a new XSLTContext optionally by copying an existing XSLTContext
+         * @param original the existing XSLTContext. May be null, in which case a new XSLTContext is
+         * created from scratch.
+         */
+
+        public XSLTContext(XSLTContext original) {
+            if (original != null) {
+                this.tunnelParameters = original.tunnelParameters;
+                this.currentMode = original.currentMode;
+                this.currentTemplate = original.currentTemplate;
+                this.currentGroupIterator = original.currentGroupIterator;
+                this.currentRegexIterator = original.currentRegexIterator;
+            }
+        }
     }
 
 }

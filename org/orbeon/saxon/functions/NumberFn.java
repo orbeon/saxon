@@ -1,21 +1,18 @@
 package net.sf.saxon.functions;
-import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.expr.Expression;
+import net.sf.saxon.expr.MappingFunction;
 import net.sf.saxon.expr.StaticContext;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
-import net.sf.saxon.value.DoubleValue;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.value.BooleanValue;
-import net.sf.saxon.value.NumericValue;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.value.AtomicValue;
+import net.sf.saxon.value.*;
 import net.sf.saxon.xpath.XPathException;
 
 /**
  * Implements the XPath number() function
  */
 
-public class NumberFn extends SystemFunction {
+public class NumberFn extends SystemFunction implements MappingFunction {
 
     /**
     * Simplify and validate.
@@ -69,6 +66,14 @@ public class NumberFn extends SystemFunction {
         }
     }
 
+    /**
+     * Mapping function for use when converting a sequence of atomic values to doubles
+     * using the rules of the number() function
+     */
+
+    public Object map(Item item, XPathContext context, Object info) throws XPathException {
+        return convert((AtomicValue)item);
+    }
 }
 
 //

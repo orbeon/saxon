@@ -1,10 +1,9 @@
 package net.sf.saxon.style;
-import net.sf.saxon.instruct.Assign;
-import net.sf.saxon.instruct.Instruction;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
+import net.sf.saxon.instruct.Assign;
+import net.sf.saxon.instruct.Executable;
+import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -50,6 +49,9 @@ public class SaxonAssign extends XSLGeneralVariable  {
         }
         if (!declaration.isAssignable()) {
             compileError("Variable " + getVariableName() + " is not marked as assignable");
+        }
+        if (!declaration.isGlobal()) {
+            compileError("saxon:assign now works only with global variables");
         }
     }
 

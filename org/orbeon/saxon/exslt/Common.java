@@ -1,9 +1,9 @@
 package net.sf.saxon.exslt;
-import net.sf.saxon.value.*;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.pattern.AnyNodeTest;
 import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.pattern.AnyNodeTest;
+import net.sf.saxon.type.ItemType;
+import net.sf.saxon.type.Type;
+import net.sf.saxon.value.Value;
 
 /**
 * This class implements extension functions in the
@@ -13,6 +13,12 @@ import net.sf.saxon.expr.XPathContext;
 
 
 public abstract class Common  {
+
+    /**
+     * Class is not instantiated
+     */
+    private Common() {
+    }
 
     /**
     * Convert a result tree fragment to a node-set. This is a hangover from XSLT 1.0;

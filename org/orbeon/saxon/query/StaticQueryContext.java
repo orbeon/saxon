@@ -7,10 +7,14 @@ import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.sort.CodepointCollator;
 import net.sf.saxon.sort.CollationFactory;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.type.AtomicType;
+import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.xpath.StaticError;
+import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.Source;
+import javax.xml.transform.SourceLocator;
+import javax.xml.transform.TransformerException;
 import java.io.*;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -30,10 +34,13 @@ import java.util.*;
 
 public class StaticQueryContext implements StaticContext {
 
-	private Configuration config;
+	private boolean clean;
+    private Configuration config;
     private NamePool namePool;
 	private HashMap passiveNamespaces;
+    private HashSet explicitPrologNamespaces;
     private Stack activeNamespaces;
+    private boolean inheritNamespaces = true;
 	private HashMap collations;
 	private HashMap variables;
     private List variableList;  // unlike the hashmap, this preserves the order in which variables were declared
@@ -47,7 +54,7 @@ public class StaticQueryContext implements StaticContext {
     private short moduleNamespaceURICode;
     private int constructionMode;
     private Executable executable;
-
+    private StaticQueryContext importer;
     private FunctionLibraryList functionLibraryList;
     private XQueryFunctionLibrary functions;
 
@@ -66,7 +73,9 @@ public class StaticQueryContext implements StaticContext {
      */
 
     public void reset() {
+        clean = true;
         passiveNamespaces = new HashMap(10);
+        explicitPrologNamespaces = new HashSet(10);
         activeNamespaces = new Stack();
         collations = new HashMap(5);
         variables = new HashMap(40);
@@ -82,15 +91,8 @@ public class StaticQueryContext implements StaticContext {
         // Set up a "default default" collation based on the Java locale
         // String lang = Locale.getDefault().getLanguage();
         // defaultCollationName = "http://saxon.sf.net/collation?lang=" + lang + ";strength=tertiary";
-        defaultCollationName = CodepointCollator.URI;
+        defaultCollationName = NamespaceConstant.CodepointCollationURI;
         declareCollation(defaultCollationName, CodepointCollator.getInstance());
-//        try {
-//            declareCollation(defaultCollationName, CollationFactory.makeCollationFromURI(defaultCollationName));
-//        } catch (XPathException err) {
-//            defaultCollationName = CodepointCollator.URI;
-//            declareCollation(defaultCollationName, CodepointCollator.getInstance());
-//        }
-
         functionLibraryList = new FunctionLibraryList();
         functionLibraryList.addFunctionLibrary(new SystemFunctionLibrary(config, false));
         functionLibraryList.addFunctionLibrary(config.getVendorFunctionLibrary());
@@ -100,7 +102,7 @@ public class StaticQueryContext implements StaticContext {
         }
         functionLibraryList.addFunctionLibrary(functions);
 
-        clearNamespaces();
+        clearPassiveNamespaces();
     }
 
     /**
@@ -146,9 +148,15 @@ public class StaticQueryContext implements StaticContext {
      * @throws net.sf.saxon.xpath.XPathException if the syntax of the expression is wrong,
      * or if it references namespaces, variables, or functions that have not been declared,
      * or contains other static errors.
+     * @throws IllegalStateException if the StaticQueryContext has been used to compile another
+     * query and has not been reset using {@link #reset}
     */
 
     public XQueryExpression compileQuery(String query) throws XPathException {
+        if (!clean) {
+            throw new IllegalStateException("StaticQueryContext is not reusable without calling reset()");
+        }
+        clean = false;
         return new QueryProcessor(this).compileQuery(query);
     }
 
@@ -161,10 +169,16 @@ public class StaticQueryContext implements StaticContext {
      * @throws net.sf.saxon.xpath.XPathException if the syntax of the expression is wrong, or if it references namespaces,
      * variables, or functions that have not been declared, or any other static error is reported.
      * @throws java.io.IOException if a failure occurs reading the supplied input.
+     * @throws IllegalStateException if the StaticQueryContext has been used to compile another
+     * query and has not been reset using {@link #reset}
     */
 
     public XQueryExpression compileQuery(Reader source)
     throws XPathException, IOException {
+        if (!clean) {
+            throw new IllegalStateException("StaticQueryContext is not reusable without calling reset()");
+        }
+        clean = false;
         return new QueryProcessor(this).compileQuery(source);
     }
 
@@ -180,34 +194,43 @@ public class StaticQueryContext implements StaticContext {
         return executable.getLocationMap();
     }
 
-//    public void setLocationMap(LocationMap locationMap) {
-//        this.locationMap = locationMap;
-//    }
+    /**
+    * Declare a namespace whose prefix can be used in expressions. This is
+    * a passive namespace, it won't be copied into the result tree. Passive
+    * namespaces are never undeclared, and active namespaces override them.
+    * @param prefix The namespace prefix. Must not be null.
+     * @param uri The namespace URI. Must not be null.
+     * @param explicit
+     */
 
-	/**
-	* Declare a namespace whose prefix can be used in expressions. This is
-     * a passive namespace, it won't be copied into the result tree. Passive
-     * namespaces are never undeclared, and active namespaces override them.
-	* @param prefix The namespace prefix. Must not be null.
-	* @param uri The namespace URI. Must not be null.
-	*/
-
-	protected void declarePassiveNamespace(String prefix, String uri) {
+	public void declarePassiveNamespace(String prefix, String uri, boolean explicit) throws StaticError {
 	    if (prefix==null) {
 	        throw new NullPointerException("Null prefix supplied to declarePassiveNamespace()");
 	    }
 	    if (uri==null) {
 	        throw new NullPointerException("Null namespace URI supplied to declarePassiveNamespace()");
 	    }
+        if (explicit) {
+            if (explicitPrologNamespaces.contains(prefix)) {
+                StaticError err = new StaticError("Duplicate declaration of namespace prefix \"" + prefix + '"');
+                err.setErrorCode("XQ0033");
+                throw err;
+            }
+            explicitPrologNamespaces.add(prefix);
+        }
 		passiveNamespaces.put(prefix, uri);
 		namePool.allocateNamespaceCode(prefix, uri);
 	}
 
     /**
-     * Declare an active namespace
+     * Declare an active namespace, that is, a namespace which as well as affecting the static
+     * context of the query, will also be copied to the result tree when element constructors
+     * are evaluated. When searching for a prefix-URI binding, active namespaces are searched
+     * first, then passive namespaces. Active namespaces may be undeclared (in reverse sequence)
+     * using {@link #undeclareNamespace()}.
      */
 
-    protected void declareActiveNamespace(String prefix, String uri) {
+    public void declareActiveNamespace(String prefix, String uri) {
 	    if (prefix==null) {
 	        throw new NullPointerException("Null prefix supplied to declareActiveNamespace()");
 	    }
@@ -230,6 +253,7 @@ public class StaticQueryContext implements StaticContext {
 
 	/**
 	* Undeclare the most recently-declared active namespace
+     * @see #declareActiveNamespace(String, String)
 	*/
 
 	public void undeclareNamespace() {
@@ -246,22 +270,27 @@ public class StaticQueryContext implements StaticContext {
 	}
 
 	/**
-	* Clear all the declared namespaces, except for the standard ones (xml, saxon, etc)
+	* Clear all the declared passive namespaces, except for the standard ones (xml, saxon, etc)
 	*/
 
-	public void clearNamespaces() {
-        if (passiveNamespaces != null) {
-            passiveNamespaces.clear();
-            declarePassiveNamespace("xml", NamespaceConstant.XML);
-            declarePassiveNamespace("saxon", NamespaceConstant.SAXON);
-            declarePassiveNamespace("xs", NamespaceConstant.SCHEMA);
-            declarePassiveNamespace("fn", NamespaceConstant.FN);
-            declarePassiveNamespace("xdt", NamespaceConstant.XDT);
-            declarePassiveNamespace("xsi", NamespaceConstant.SCHEMA_INSTANCE);
-            declarePassiveNamespace("local", NamespaceConstant.LOCAL);
-            declarePassiveNamespace("", "");
+	public void clearPassiveNamespaces() {
+        try {
+            if (passiveNamespaces != null) {
+                passiveNamespaces.clear();
+                declarePassiveNamespace("xml", NamespaceConstant.XML, false);
+                declarePassiveNamespace("saxon", NamespaceConstant.SAXON, false);
+                declarePassiveNamespace("xs", NamespaceConstant.SCHEMA, false);
+                declarePassiveNamespace("fn", NamespaceConstant.FN, false);
+                declarePassiveNamespace("xdt", NamespaceConstant.XDT, false);
+                declarePassiveNamespace("xsi", NamespaceConstant.SCHEMA_INSTANCE, false);
+                declarePassiveNamespace("local", NamespaceConstant.LOCAL, false);
+                declarePassiveNamespace("", "", false);
+            }
+        } catch (StaticError staticError) {
+            // can't happen when third argument is "false"
+            throw new IllegalStateException("Internal Failure initializing namespace declarations");
         }
-	}
+    }
 
     /**
      * Get the URI for a prefix.
@@ -340,12 +369,8 @@ public class StaticQueryContext implements StaticContext {
         for (int a=0; a<active.length; a++) {
             nscodes[used++] = active[a];
         }
-//        if (used < nscodes.length) {
-//            int[] nscodes2 = new int[used];
-//            System.arraycopy(nscodes, 0, nscodes2, 0, used);
-//            nscodes = nscodes2;
-//        }
-        return new NamespaceContext(nscodes, namePool);
+
+        return new SavedNamespaceContext(nscodes, namePool);
     }
 
     /**
@@ -370,10 +395,10 @@ public class StaticQueryContext implements StaticContext {
      * Set the default element namespace
      */
 
-    protected void setDefaultElementNamespace(String uri) {
+    public void setDefaultElementNamespace(String uri) throws StaticError {
         int nscode = namePool.allocateNamespaceCode("", uri);
         defaultElementNamespace = (short)(nscode & 0xffff);
-        declarePassiveNamespace("", uri);
+        declarePassiveNamespace("", uri, true);
     }
 
     /**
@@ -411,6 +436,23 @@ public class StaticQueryContext implements StaticContext {
         return moduleNamespaceURICode;
     }
 
+    /**
+     * Set the namespace inheritance mode
+     * @param inherit true if namespaces are inherited, false if not
+     */
+
+    public void setInheritNamespaces(boolean inherit) {
+        inheritNamespaces = inherit;
+    }
+
+    /**
+     * Get the namespace inheritance mode
+     * @return true if namespaces are inherited, false if not
+     */
+
+    public boolean isInheritNamespaces() {
+        return inheritNamespaces;
+    }
     /**
     * Declare a named collation. Collations are only available in a query if this method
      * has been called externally to declare the collation and associate it with an
@@ -467,7 +509,7 @@ public class StaticQueryContext implements StaticContext {
         if (defaultCollationName != null) {
             return defaultCollationName;
         } else {
-            return CodepointCollator.URI;
+            return NamespaceConstant.CodepointCollationURI;
         }
     }
 
@@ -496,11 +538,13 @@ public class StaticQueryContext implements StaticContext {
     */
 
     public void declareVariable(VariableDeclaration var) throws StaticError {
-        int key = var.getNameCode();
+        int key = var.getNameCode() & 0xfffff;
         Integer keyObj = new Integer(key);
         if (variables.get(keyObj) != null) {
-            throw new StaticError(
+            StaticError err = new StaticError(
                     "Duplicate definition of global variable " + var.getVariableName());
+            err.setErrorCode("XQ0049");
+            throw err;
         }
         variables.put(keyObj, var);
         variableList.add(var);
@@ -572,14 +616,18 @@ public class StaticQueryContext implements StaticContext {
     }
 
     /**
-    * Issue a compile-time warning. This method is used during XPath expression compilation to
-    * output warning conditions. The default implementation writes the message to System.err. To
-    * change the destination of messages, create a subclass of StandaloneContext that overrides
-    * this method.
+    * Issue a compile-time warning. This method is used during XQuery expression compilation to
+    * output warning conditions.
     */
 
-    public void issueWarning(String s) {
-        System.err.println(s);
+    public void issueWarning(String s, SourceLocator locator) {
+        StaticError err = new StaticError(s);
+        err.setLocator(locator);
+        try {
+            config.getErrorListener().warning(err);
+        } catch (TransformerException e) {
+            // ignore any error thrown
+        }
     }
 
     /**
@@ -652,20 +700,15 @@ public class StaticQueryContext implements StaticContext {
      */
 
     public void declareFunction(XQueryFunction function) throws StaticError {
-        int fp = function.getFunctionFingerprint();
-//        int arity = function.getNumberOfArguments();
-//        Long keyObj = new Long(((long)arity)<<32 + (long)fp);
-//        if (functions.get(keyObj) != null) {
-//            throw new XPathException.Static("Duplicate definition of function " +
-//                    namePool.getDisplayName(fp));
-//        }
-        if (moduleNamespace != null &&
-                namePool.getURICode(fp) != moduleNamespaceURICode) {
-            throw new StaticError("Function " + namePool.getDisplayName(fp) +
-                                            " is not defined in the module namespace"
-                                            );
+        if (function.getNumberOfArguments() == 1) {
+            SchemaType t = config.getSchemaType(function.getNameCode() & 0xfffff);
+            if (t != null && t instanceof AtomicType) {
+                StaticError err = new StaticError("Function name " + function.getFunctionDisplayName(getNamePool()) +
+                        " clashes with the name of the constructor function for an atomic type");
+                err.setErrorCode("XQ0034");
+                throw err;
+            }
         }
-        //functions.put(keyObj, function);
         functions.declareFunction(function);
     }
 
@@ -679,35 +722,6 @@ public class StaticQueryContext implements StaticContext {
 
     protected void bindUnboundFunctionCalls() throws StaticError {
         functions.bindUnboundFunctionCalls();
-//        Iterator iter = unboundFunctionCalls.iterator();
-//        while (iter.hasNext()) {
-//            UserFunctionCall ufc = (UserFunctionCall)iter.next();
-//            int fp = ufc.getFunctionNameCode() & 0xfffff;
-//            int arity = ufc.getNumberOfArguments();
-//            Long keyObj = new Long(((long)arity)<<32 + (long)fp);
-//
-//            // First try user-written functions
-//
-//            XQueryFunction fd = (XQueryFunction)functions.get(keyObj);
-//            if (fd != null) {
-//                ufc.setStaticType(fd.getResultType());
-//                fd.registerReference(ufc);
-//            } else {
-//                throw new XPathException.Static("Function " +
-//                        namePool.getDisplayName(fp) +
-//                        " has not been declared",
-//                        ExpressionTool.getLocator(ufc));
-//            }
-//        }
-//
-//         /*
-//
-//            // We've failed - no implementation of this function was found
-//
-//            throw new XPathException.Static("Unknown function: " + qname);
-//
-//        }  */
-
     }
 
     /**
@@ -730,7 +744,7 @@ public class StaticQueryContext implements StaticContext {
      * This method is for internal use.
      */
 
-    protected void fixupGlobalFunctions() throws StaticError {
+    protected void fixupGlobalFunctions() throws XPathException {
         functions.fixupGlobalFunctions(this);
     }
 
@@ -812,7 +826,18 @@ public class StaticQueryContext implements StaticContext {
      */
 
     protected StaticQueryContext loadModule(String namespaceURI, String locationURI) throws StaticError {
-        return loadQueryModule(config, executable, baseURI, namespaceURI, locationURI);
+        // Check that this import would not create a cycle
+        StaticQueryContext parent = importer;
+        while (parent != null) {
+            if (namespaceURI.equals(parent.moduleNamespace)) {
+                StaticError err = new StaticError("A module cannot import itself directly or indirectly");
+                err.setErrorCode("XQ0073");
+                throw err;
+            }
+            parent = parent.importer;
+        }
+        // load the requested module
+        return loadQueryModule(config, executable, baseURI, namespaceURI, locationURI, this);
     }
 
     /**
@@ -822,17 +847,19 @@ public class StaticQueryContext implements StaticContext {
      * @param baseURI The base URI of the invoking module
      * @param namespaceURI namespace of the query module to be loaded
      * @param locationURI location hint of the query module to be loaded
+     * @param importer The importing query module (used to check for cycles)
      * @return The StaticQueryContext representing the loaded query module
      * @throws net.sf.saxon.xpath.StaticError
      */
 
-    public static StaticQueryContext loadQueryModule(Configuration config, Executable executable, String baseURI, String namespaceURI, String locationURI)
+    public static StaticQueryContext loadQueryModule(
+            Configuration config, 
+            Executable executable, 
+            String baseURI, 
+            String namespaceURI, 
+            String locationURI,
+            StaticQueryContext importer)
     throws StaticError {
-
-        StaticQueryContext mod = executable.getQueryLibraryModule(namespaceURI);
-        if (mod != null) {
-            return mod;
-        }
 
         if (locationURI == null) {
             throw new StaticError(
@@ -875,6 +902,7 @@ public class StaticQueryContext implements StaticContext {
             StaticQueryContext module = new StaticQueryContext(config);
             module.setBaseURI(absoluteURL.toString());
             module.setExecutable(executable);
+            module.importer = importer;
             QueryParser qp = new QueryParser();
             qp.parseLibraryModule(sb.toString(), module);
             if (module.getModuleNamespace() == null) {

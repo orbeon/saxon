@@ -4,8 +4,8 @@ import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.type.*;
 
-import java.util.Set;
 import java.io.Serializable;
+import java.util.Set;
 
 /**
   * A NodeTest is a simple kind of pattern that enables a context-free test of whether

@@ -2,11 +2,12 @@ package net.sf.saxon.functions;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.sort.CodepointCollator;
 import net.sf.saxon.sort.AtomicComparer;
-import net.sf.saxon.value.StringValue;
+import net.sf.saxon.sort.CodepointCollator;
 import net.sf.saxon.value.AtomicValue;
+import net.sf.saxon.value.StringValue;
 import net.sf.saxon.value.Value;
+import net.sf.saxon.xpath.StaticError;
 import net.sf.saxon.xpath.XPathException;
 
 import java.util.Comparator;
@@ -30,6 +31,12 @@ public abstract class CollatingFunction extends SystemFunction {
         if (getNumberOfArguments() == getDetails().maxArguments) {
             // A collection was supplied explicitly (as a compile-time name, or we wouldn't be here)
             collation = env.getCollation(((Value)argument[getNumberOfArguments()-1]).getStringValue());
+            if (collation == null) {
+                StaticError err = new StaticError("Unknown collation {" +
+                        ((Value)argument[getNumberOfArguments()-1]).getStringValue() + '}');
+                err.setLocator(this);
+                throw err;
+            }
             return super.preEvaluate(env);
         } else {
             // Use the default collation

@@ -38,6 +38,16 @@ public final class IsLastExpression extends ComputedExpression {
         return this;
     }
 
+    /**
+     * Determine the special properties of this expression
+     * @return {@link StaticProperty#NON_CREATIVE}.
+     */
+
+    public int computeSpecialProperties() {
+        int p = super.computeSpecialProperties();
+        return p | StaticProperty.NON_CREATIVE;
+    }
+
     public Item evaluateItem(XPathContext c) throws XPathException {
         return BooleanValue.get(condition==c.isAtLast());
     }

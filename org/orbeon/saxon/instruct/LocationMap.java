@@ -15,6 +15,8 @@ public class LocationMap implements LocationProvider, Serializable {
     private String[] modules = new String[10];
     private int numberOfModules = 0;
 
+    public LocationMap() {}
+
     /**
      * Allocate a location identifier to an expression
      */
@@ -22,7 +24,7 @@ public class LocationMap implements LocationProvider, Serializable {
     public int allocateLocationId(String module, int lineNumber) {
         if (module == null) {
             // the module has no base URI
-            module = "module-" + numberOfModules + " (no base URI)";
+            module = "*module with no systemId*";
         }
         int mod = -1;
         for (int m=numberOfModules-1; m>=0; m--) {

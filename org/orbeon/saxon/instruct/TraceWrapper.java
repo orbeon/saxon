@@ -1,16 +1,16 @@
 package net.sf.saxon.instruct;
 
-import net.sf.saxon.expr.*;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.type.ItemType;
 import net.sf.saxon.Controller;
+import net.sf.saxon.expr.*;
 import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.om.NamePool;
+import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.trace.TraceListener;
+import net.sf.saxon.type.ItemType;
+import net.sf.saxon.xpath.XPathException;
 
-import java.util.Iterator;
 import java.io.PrintStream;
+import java.util.Iterator;
 
 /**
  * Created by IntelliJ IDEA.
@@ -107,6 +107,16 @@ public class TraceWrapper extends Instruction {
 
     public int getDependencies() {
         return child.getDependencies();
+    }
+
+    /**
+     * Determine whether this instruction creates new nodes.
+     * This implementation returns true unconditionally. This suppresses
+     * optimizations, which is appropriate when tracing.
+     */
+
+    public final boolean createsNewNodes() {
+        return true;
     }
 
     /**

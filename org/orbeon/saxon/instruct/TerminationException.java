@@ -1,5 +1,4 @@
 package net.sf.saxon.instruct;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.xpath.DynamicError;
 
 /**

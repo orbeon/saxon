@@ -1,10 +1,9 @@
 package net.sf.saxon.style;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.instruct.Instruction;
-import net.sf.saxon.instruct.ProcessingInstruction;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.tree.AttributeCollection;
+import net.sf.saxon.instruct.ProcessingInstruction;
+import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.value.StringValue;
 
 import javax.xml.transform.TransformerConfigurationException;
@@ -56,8 +55,8 @@ public class XSLProcessingInstruction extends XSLStringConstructor {
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {
         ProcessingInstruction inst = new ProcessingInstruction(name);
-        compileContent(exec, inst);
-        inst.setSeparator(new StringValue(select==null ? "" : " "));
+        compileContent(exec, inst, StringValue.SINGLE_SPACE);
+        //inst.setSeparator(new StringValue(select==null ? "" : " "));
         ExpressionTool.makeParentReferences(inst);
         return inst;
     }

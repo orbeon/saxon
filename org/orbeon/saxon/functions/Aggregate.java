@@ -2,11 +2,11 @@ package net.sf.saxon.functions;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.type.Type;
 import net.sf.saxon.type.ItemType;
+import net.sf.saxon.type.Type;
+import net.sf.saxon.value.*;
+import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 
 /**
 * This class implements the sum(), avg(), count() functions,
@@ -100,7 +100,7 @@ public class Aggregate extends SystemFunction {
                 return IntegerValue.ZERO;
             }
         }
-        if (sum instanceof DerivedAtomicValue) {
+        if (!sum.hasBuiltInType()) {
             sum = sum.getPrimitiveValue();
         }
         if (sum instanceof UntypedAtomicValue) {
@@ -165,7 +165,7 @@ public class Aggregate extends SystemFunction {
             return null;
         }
         count++;
-        if (sum instanceof DerivedAtomicValue) {
+        if (!sum.hasBuiltInType()) {
             sum = sum.getPrimitiveValue();
         }
         if (sum instanceof UntypedAtomicValue) {

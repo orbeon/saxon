@@ -2,9 +2,10 @@ package net.sf.saxon.expr;
 
 import net.sf.saxon.Controller;
 import net.sf.saxon.event.SequenceOutputter;
-import net.sf.saxon.instruct.Instruction;
-import net.sf.saxon.instruct.SlotManager;
+import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.*;
+import net.sf.saxon.sort.SortExpression;
+import net.sf.saxon.sort.TupleSorter;
 import net.sf.saxon.trace.InstructionInfoProvider;
 import net.sf.saxon.value.*;
 import net.sf.saxon.xpath.XPathException;
@@ -58,7 +59,6 @@ public class ExpressionTool
     public static void copyLocationInfo(Expression from, Expression to) {
         if (from instanceof ComputedExpression && to instanceof ComputedExpression) {
             ((ComputedExpression)to).setLocationId(((ComputedExpression)from).getLocationId());
-//            ((ComputedExpression)to).setParentExpression(from.getParentExpression());
         }
     }
 
@@ -95,6 +95,49 @@ public class ExpressionTool
     }
 
     /**
+     * Determine whether an expression is a repeatedly-evaluated subexpression
+     * of a parent expression. For example, the predicate in a filter expression is
+     * a repeatedly-evaluated subexpression of the filter expression.
+     */
+
+    public static boolean isRepeatedSubexpression(Expression parent, Expression child) {
+        if (parent instanceof PathExpression) {
+            return child == ((PathExpression)parent).getStepExpression();
+        }
+        if (parent instanceof FilterExpression) {
+            return child == ((FilterExpression)parent).getFilter();
+        }
+        if (parent instanceof ForExpression) {
+            return child == ((ForExpression)parent).getAction();
+        }
+        if (parent instanceof QuantifiedExpression) {
+            return child == ((QuantifiedExpression)parent).getAction();
+        }
+        if (parent instanceof SimpleMappingExpression) {
+            return child == ((SimpleMappingExpression)parent).getStepExpression();
+        }
+        if (parent instanceof SortExpression) {
+            return ((SortExpression)parent).isSortKey(child);
+        }
+        if (parent instanceof TupleSorter) {
+            return ((TupleSorter)parent).isSortKey(child);
+        }
+        if (parent instanceof AnalyzeString) {
+            return child == ((AnalyzeString)parent).getMatchingExpression() ||
+                    child == ((AnalyzeString)parent).getNonMatchingExpression();
+        }
+        if (parent instanceof ForEach) {
+            return child == ((ForEach)parent).getActionExpression();
+        }
+        if (parent instanceof ForEachGroup) {
+            return child == ((ForEachGroup)parent).getActionExpression();
+        }
+        if (parent instanceof While) {
+            return child == ((While)parent).getActionExpression();
+        }
+        return false;
+    }
+    /**
      * Remove unwanted sorting from an expression, at compile time
      */
 
@@ -115,6 +158,8 @@ public class ExpressionTool
      *     the expression is not evaluated immediately, then parts of the
      *     context on which the expression depends need to be saved as part of
      *      the Closure
+     * @param save indicates whether the value should be saved while it is being
+     * evaluated, so that it can be used more than once.
      * @exception XPathException if any error occurs in evaluating the
      *     expression
      * @return a value: either the actual value obtained by evaluating the
@@ -122,7 +167,7 @@ public class ExpressionTool
      *     evaluate it later
      */
 
-    public static Value lazyEvaluate(Expression exp, XPathContext context) throws XPathException {
+    public static Value lazyEvaluate(Expression exp, XPathContext context, boolean save) throws XPathException {
         if (exp instanceof Value) {
             return (Value)exp;
         } else if (exp instanceof VariableReference) {
@@ -147,7 +192,7 @@ public class ExpressionTool
             return eagerEvaluate(exp, context);
         } else {
             // create a Closure, a wrapper for the expression and its context
-            return Closure.make(exp, context);
+            return Closure.make(exp, context, save);
         }
 
     }
@@ -165,44 +210,41 @@ public class ExpressionTool
         if (exp instanceof Value && !(exp instanceof Closure)) {
             return (Value)exp;
         }
-        switch (exp.getImplementationMethod()) {
-            case Expression.ITERATE_METHOD: {
-                SequenceIterator iterator = exp.iterate(context);
-                if (iterator instanceof EmptyIterator) {
-                    return EmptySequence.getInstance();
-                } else if (iterator instanceof SingletonIterator) {
-                    Item item = ((SingletonIterator)iterator).getValue();
-                    return Value.asValue(item);
-                }
-                SequenceExtent extent = new SequenceExtent(iterator);
-                int len = extent.getLength();
-                if (len==0) {
-                    return EmptySequence.getInstance();
-                } else if (len==1) {
-                    return Value.asValue(extent.itemAt(0));
-                } else {
-                    return extent;
-                }
-            }
-            case Expression.EVALUATE_METHOD: {
-                Item item = exp.evaluateItem(context);
+        int m = exp.getImplementationMethod();
+        if ((m & Expression.ITERATE_METHOD) != 0) {
+            SequenceIterator iterator = exp.iterate(context);
+            if (iterator instanceof EmptyIterator) {
+                return EmptySequence.getInstance();
+            } else if (iterator instanceof SingletonIterator) {
+                Item item = ((SingletonIterator)iterator).getValue();
                 return Value.asValue(item);
             }
-            case Expression.PROCESS_METHOD: {
-                Controller controller = context.getController();
-                XPathContext c2 = context.newMinorContext();
-                c2.setOrigin((InstructionInfoProvider)exp);
-                SequenceOutputter seq = new SequenceOutputter();
-                seq.setConfiguration(controller.getConfiguration());
-                seq.setDocumentLocator(((Instruction)exp).getExecutable().getLocationMap());
-                c2.setTemporaryReceiver(seq);
-                seq.open();
-                exp.process(c2);
-                seq.close();
-                return seq.getSequence();
+            SequenceExtent extent = new SequenceExtent(iterator);
+            int len = extent.getLength();
+            if (len==0) {
+                return EmptySequence.getInstance();
+            } else if (len==1) {
+                return Value.asValue(extent.itemAt(0));
+            } else {
+                return extent;
             }
-            default:
-                throw new AssertionError("Expression has unknown evaluation method");
+
+        } else if ((m & Expression.EVALUATE_METHOD) != 0) {
+            Item item = exp.evaluateItem(context);
+            return Value.asValue(item);
+
+        } else {
+            // Use PROCESS_METHOD
+            Controller controller = context.getController();
+            XPathContext c2 = context.newMinorContext();
+            c2.setOrigin((InstructionInfoProvider)exp);
+            SequenceOutputter seq = new SequenceOutputter();
+            seq.setPipelineConfiguration(controller.makePipelineConfiguration());
+            c2.setTemporaryReceiver(seq);
+            seq.open();
+            exp.process(c2);
+            seq.close();
+            return seq.getSequence();
         }
     }
 
@@ -284,6 +326,31 @@ public class ExpressionTool
     }
 
 
+    /**
+     * Determine whether an expression depends on any one of a set of variables
+     * @param e the expression being tested
+     * @param bindingList the set of variables being tested
+     * @return true if the expression depends on one of the given variables
+     */
+
+    public static boolean dependsOnVariable(Expression e, Binding[] bindingList) {
+        if (e instanceof VariableReference) {
+            for (int i=0; i<bindingList.length; i++) {
+                if (((VariableReference)e).getBinding() == bindingList[i]) {
+                    return true;
+                }
+            }
+            return false;
+        } else {
+            for (Iterator children = e.iterateSubExpressions(); children.hasNext();) {
+                Expression child = (Expression)children.next();
+                if (dependsOnVariable(child, bindingList)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
 }
 
 //

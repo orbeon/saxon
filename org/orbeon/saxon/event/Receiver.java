@@ -1,5 +1,4 @@
 package net.sf.saxon.event;
-import net.sf.saxon.Configuration;
 import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.Result;
@@ -12,40 +11,23 @@ import javax.xml.transform.Result;
 
 public interface Receiver extends Result {
 
-	/**
-	* Set the configuration
-	*/
+    /**
+    * Set the pipeline configuration
+    */
 
-	public void setConfiguration(Configuration config);
+    public void setPipelineConfiguration(PipelineConfiguration config);
 
-	/**
-	* Get the configuration
-	*/
+    /**
+    * Get the pipeline configuration
+    */
 
-	public Configuration getConfiguration();
+    public PipelineConfiguration getPipelineConfiguration();
 
 	/**
 	* Set the System ID of the destination tree
 	*/
 
 	public void setSystemId(String systemId);
-
-    /**
-     * Set location provider, to identify position in the source document or stylesheet.
-     * This method may only be called before the startDocument() event. However, the locator returned by
-     * the location provider may be different on different occasions.
-     * If a location provider is supplied, it may be used
-     * by the Receiver to obtain information about the location of the current event in a source
-     * XML document.
-     */
-
-    public void setDocumentLocator(LocationProvider locator);
-
-    /**
-     * Get the LocationProvider previously set using setDocumentLocator
-     */
-
-    public LocationProvider getDocumentLocator();
 
     /**
     * Notify the start of the event stream
@@ -82,7 +64,7 @@ public interface Receiver extends Result {
      * @param locationId an integer which can be interpreted using a LocationMap to return
      * information such as line number and system ID. If no location information is available,
      * the value zero is supplied.
-     * @param properties: bit-significant properties of the element node. If there are no revelant
+     * @param properties bit-significant properties of the element node. If there are no revelant
      * properties, zero is supplied.
     */
 

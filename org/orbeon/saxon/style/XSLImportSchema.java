@@ -1,8 +1,9 @@
 package net.sf.saxon.style;
 import net.sf.saxon.Configuration;
+import net.sf.saxon.event.PipelineConfiguration;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.tree.AttributeCollection;
+import net.sf.saxon.om.*;
 import net.sf.saxon.type.SchemaException;
 
 import javax.xml.transform.TransformerConfigurationException;
@@ -18,16 +19,15 @@ public class XSLImportSchema extends StyleElement {
     public void prepareAttributes() throws TransformerConfigurationException {
 
 		AttributeCollection atts = getAttributeList();
-        String href = null;
         String namespace = null;
 
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
             if (f==StandardNames.SCHEMA_LOCATION) {
-        		href = atts.getValue(a).trim();
+        		//
             } else if (f==StandardNames.NAMESPACE) {
-                href = atts.getValue(a).trim();
+                namespace = atts.getValue(a).trim();
         	} else {
         		checkUnknownAttribute(nc);
         	}
@@ -35,12 +35,12 @@ public class XSLImportSchema extends StyleElement {
 
         if ("".equals(namespace)) {
             compileError("The zero-length string is not a valid namespace URI. "+
-                    "For a schema with no namspace, omit the namespace attribute");
+                    "For a schema with no namespace, omit the namespace attribute");
         }
     }
 
     public void validate() throws TransformerConfigurationException {
-        checkEmpty();
+        //checkEmpty();
         checkTopLevel(null);
     }
 
@@ -61,12 +61,37 @@ public class XSLImportSchema extends StyleElement {
                 compileError("To use xsl:import-schema, you need the schema-aware version of Saxon from http://www.saxonica.com/");
                 return;
             }
+            AxisIterator kids = iterateAxis(Axis.CHILD);
+            NodeInfo inlineSchema = null;
+            while (true) {
+                Item child = kids.next();
+                if (child==null) {
+                    break;
+                }
+                if (inlineSchema != null) {
+                    compileError(getDisplayName() + " must not have more than one child element");
+                }
+                inlineSchema = (NodeInfo)child;
+                if (inlineSchema.getFingerprint() != StandardNames.XS_SCHEMA) {
+                    compileError("The only child element permitted for " + getDisplayName() + " is xs:schema");
+                }
+                if (schemaLoc != null) {
+                    compileError("The schema-location attribute must be absent if an inline schema is present");
+                }
+                PipelineConfiguration pipe = config.makePipelineConfiguration();
+                config.readInlineSchema(pipe, inlineSchema, namespace);
+                getPrincipalStylesheet().addImportedSchema(namespace);
+            }
+            if (inlineSchema != null) {
+                return;
+            }
             if (config.getSchema(namespace)==null) {
                 if (schemaLoc == null) {
                     compileError("The schema-location attribute is required (no schema for this namespace is known)");
                     return;
                 }
-                namespace = config.readSchema(getBaseURI(), schemaLoc, namespace);
+                PipelineConfiguration pipe = config.makePipelineConfiguration();
+                namespace = config.readSchema(pipe, getBaseURI(), schemaLoc, namespace);
             }
             getPrincipalStylesheet().addImportedSchema(namespace);
         } catch (SchemaException err) {

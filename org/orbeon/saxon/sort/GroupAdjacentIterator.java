@@ -2,17 +2,17 @@ package net.sf.saxon.sort;
 
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.ListIterator;
 import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.om.ListIterator;
 import net.sf.saxon.om.LookaheadIterator;
+import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Comparator;
+import java.util.List;
 
 /**
  * A GroupAdjacentIterator iterates over a sequence of groups defined by
@@ -27,7 +27,8 @@ public class GroupAdjacentIterator implements GroupIterator, LookaheadIterator {
     private Comparator collator;
     private AtomicSortComparer comparer;
     private AtomicSortComparer.ComparisonKey currentComparisonKey;
-    private XPathContext keyContext;
+    private XPathContext baseContext;
+    private XPathContext runningContext;
     private AtomicValue currentKey = null;
     private List currentMembers;
     private AtomicValue nextKey = null;
@@ -36,21 +37,24 @@ public class GroupAdjacentIterator implements GroupIterator, LookaheadIterator {
     private int position = 0;
 
     public GroupAdjacentIterator(SequenceIterator population, Expression keyExpression,
-                                 XPathContext keyContext, Comparator collator)
+                                 XPathContext baseContext, Comparator collator)
     throws XPathException {
         this.population = population;
         this.keyExpression = keyExpression;
-        this.keyContext = keyContext;
+        this.baseContext = baseContext;
+        this.runningContext = baseContext.newMinorContext();
+        //runningContext.setOrigin(baseContext);
+        runningContext.setCurrentIterator(population);
         this.collator = collator;
         this.comparer = new AtomicSortComparer(collator);
         next = population.next();
         if (next != null) {
-            nextKey = (AtomicValue)keyExpression.evaluateItem(keyContext);
+            nextKey = (AtomicValue)keyExpression.evaluateItem(runningContext);
         }
     }
 
     private void advance() throws XPathException {
-        currentMembers = new ArrayList();
+        currentMembers = new ArrayList(20);
         currentMembers.add(current);
         while (true) {
             Item nextCandidate = population.next();
@@ -58,7 +62,7 @@ public class GroupAdjacentIterator implements GroupIterator, LookaheadIterator {
                 break;
             }
             AtomicValue candidateKey =
-                    (AtomicValue)keyExpression.evaluateItem(keyContext);
+                    (AtomicValue)keyExpression.evaluateItem(runningContext);
             try {
                 if (currentComparisonKey.equals(comparer.getComparisonKey(candidateKey))) {
                     currentMembers.add(nextCandidate);
@@ -71,9 +75,9 @@ public class GroupAdjacentIterator implements GroupIterator, LookaheadIterator {
                 DynamicError err = new DynamicError("Grouping key values are of non-comparable types (" +
                         currentKey.getItemType() +
                         " and " +
-                        candidateKey.getItemType() + ")");
+                        candidateKey.getItemType() + ')');
                 err.setIsTypeError(true);
-                err.setXPathContext(keyContext);
+                err.setXPathContext(runningContext);
                 throw err;
             }
         }
@@ -114,9 +118,7 @@ public class GroupAdjacentIterator implements GroupIterator, LookaheadIterator {
     }
 
     public SequenceIterator getAnother() throws XPathException {
-        XPathContext c2 = keyContext.newMinorContext();
-        c2.setOrigin(keyContext.getOrigin());
-        return new GroupAdjacentIterator(population, keyExpression, c2, collator);
+        return new GroupAdjacentIterator(population.getAnother(), keyExpression, baseContext, collator);
     }
 
 

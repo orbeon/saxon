@@ -1,5 +1,7 @@
 package net.sf.saxon.event;
+import net.sf.saxon.Configuration;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.om.NamePool;
 import net.sf.saxon.xpath.XPathException;
 
 /**
@@ -11,22 +13,27 @@ import net.sf.saxon.xpath.XPathException;
 public abstract class SequenceReceiver implements Receiver {
 
     protected boolean previousAtomic = false;
-    protected LocationProvider locator;
+
+    protected PipelineConfiguration pipelineConfiguration;
 
     public SequenceReceiver(){}
+
+    public PipelineConfiguration getPipelineConfiguration() {
+        return pipelineConfiguration;
+    }
+
+    public void setPipelineConfiguration(PipelineConfiguration pipelineConfiguration) {
+        this.pipelineConfiguration = pipelineConfiguration;
+    }
+
+    public Configuration getConfiguration() {
+        return pipelineConfiguration.getConfiguration();
+    }
 
     public void setSystemId(String systemId) {}
 
     public String getSystemId() {
         return null;
-    }
-
-    public void setDocumentLocator(LocationProvider locator) {
-        this.locator = locator;
-    }
-
-    public LocationProvider getDocumentLocator() {
-        return locator;
     }
 
     public void setUnparsedEntity(String name, String systemId, String publicId) throws XPathException {}
@@ -45,6 +52,14 @@ public abstract class SequenceReceiver implements Receiver {
     
     public abstract void append(Item item, int locationId) throws XPathException;
 
+    /**
+    * Get the name pool
+    * @return the Name Pool that was supplied using the setConfiguration() method
+    */
+
+    public NamePool getNamePool() {
+        return getConfiguration().getNamePool();
+    }
 }
 
 //

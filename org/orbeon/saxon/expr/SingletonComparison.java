@@ -20,9 +20,6 @@ import java.util.Comparator;
 public class SingletonComparison extends BinaryExpression {
 
     private AtomicComparer comparer;
-    private boolean backwardsCompatible = false;
-
-//    public SingletonComparison() {}
 
     public SingletonComparison(Expression p1, int operator, Expression p2) {
         super(p1, operator, p2);
@@ -49,7 +46,7 @@ public class SingletonComparison extends BinaryExpression {
     */
 
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
-        backwardsCompatible = env.isInBackwardsCompatibleMode();
+        //backwardsCompatible = env.isInBackwardsCompatibleMode();
         return super.analyze(env, contextItemType);
     }
 
@@ -85,7 +82,7 @@ public class SingletonComparison extends BinaryExpression {
         if (v2==null) return false;
 
         try {
-            return GeneralComparison.compare(v1, operator, v2, comparer, backwardsCompatible, context);
+            return GeneralComparison.compare(v1, operator, v2, comparer, context);
         } catch (DynamicError e) {
             // re-throw the exception with location information added
             if (e.getXPathContext() == null) {

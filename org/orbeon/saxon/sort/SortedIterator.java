@@ -3,8 +3,8 @@ import net.sf.saxon.expr.LastPositionFinder;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.trace.Location;
+import net.sf.saxon.xpath.XPathException;
 
 import java.util.Comparator;
 
@@ -121,6 +121,7 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
         XPathContext c2 = context.newMinorContext();
         c2.setOriginatingConstructType(Location.SORT_KEY);
         c2.setCurrentIterator(base);
+        //c2.setReceiver(new SequenceOutputter());
 
         // initialise the array with data
 
@@ -137,6 +138,8 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
             }
             int k = count*recordSize;
             nodeKeys[k] = item;
+            // TODO: delay evaluating the sort keys until we know they are needed. Often the 2nd and subsequent
+            // sort key values will never be used. The only problem is with sort keys that depend on position().
             for (int n=0; n<sortkeys.length; n++) {
                 nodeKeys[k+n+1] = sortkeys[n].getSortKey().evaluateItem(c2);
             }
@@ -144,7 +147,7 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
             nodeKeys[k+sortkeys.length+1] = new Integer(count);
             count++;
         }
-        //diag();
+        //forest.close();
     }
 
 //    private void diag() {
@@ -161,7 +164,9 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
 
         // sort the array
 
-        QuickSort.sort(this, 0, count-1);
+        //QuickSort.sort(this, 0, count-1);
+        GenericSorter.quickSort(0, count, this);
+        //GenericSorter.mergeSort(0, count, this);
     }
 
     /**

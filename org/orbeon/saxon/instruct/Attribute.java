@@ -8,20 +8,17 @@ import net.sf.saxon.expr.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.NodeKindTest;
 import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.SimpleType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.type.ValidationException;
+import net.sf.saxon.type.*;
 import net.sf.saxon.value.QNameValue;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.value.StringValue;
 import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.StaticError;
 import net.sf.saxon.xpath.XPathException;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Iterator;
 
 /**
 * An instruction derived from an xsl:attribute element in stylesheet, or from
@@ -100,7 +97,7 @@ public final class Attribute extends SimpleNodeConstructor {
         attributeName = attributeName.analyze(env, contextItemType);
 
         RoleLocator role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "attribute/name", 0);
+                new RoleLocator(RoleLocator.INSTRUCTION, "attribute/name", 0, null);
 
         if (attributeName.getItemType() == Type.QNAME_TYPE) {
             // Can only happen in XQuery
@@ -114,32 +111,25 @@ public final class Attribute extends SimpleNodeConstructor {
         if (namespace != null) {
             namespace.analyze(env, contextItemType);
 
-            role = new RoleLocator(RoleLocator.INSTRUCTION, "attribute/namespace", 0);
+            role = new RoleLocator(RoleLocator.INSTRUCTION, "attribute/namespace", 0, null);
             namespace = TypeChecker.staticTypeCheck(
                     namespace, SequenceType.SINGLE_STRING, false, role, env);
         }
     }
 
-    public int getDependencies() {
-        int dependencies = 0;
-        dependencies |= attributeName.getDependencies();
-        if (namespace != null) {
-            dependencies |= namespace.getDependencies();
-        }
-        return dependencies | super.getDependencies();
-    }
+    /**
+     * Get the subexpressions of this expression
+     * @return an iterator over the subexpressions
+     */
 
     public Iterator iterateSubExpressions() {
         ArrayList list = new ArrayList(10);
-        if (children != null) {
-            list.addAll(Arrays.asList(children));
-        }
         if (select != null) {
             list.add(select);
         }
-        if (separator != null && !(separator instanceof StringValue)) {
-            list.add(separator);
-        }
+//        if (separator != null && !(separator instanceof StringValue)) {
+//            list.add(separator);
+//        }
         list.add(attributeName);
         if (namespace != null) {
             list.add(namespace);
@@ -166,6 +156,25 @@ public final class Attribute extends SimpleNodeConstructor {
             namespace = namespace.promote(offer);
         }
         super.promoteInst(offer);
+    }
+
+    /**
+     * Check that any elements and attributes constructed or returned by this expression are acceptable
+     * in the content model of a given complex type. It's always OK to say yes, since the check will be
+     * repeated at run-time. The process of checking element and attribute constructors against the content
+     * model of a complex type also registers the type of content expected of those constructors, so the
+     * static validation can continue recursively.
+     */
+
+    public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException {
+        if (parentType instanceof SimpleType) {
+            StaticError err = new StaticError(
+                    "Attributes are not permitted here: the containing element is of simple type " +
+                    parentType.getDescription());
+            err.setIsTypeError(true);
+            err.setLocator(this);
+            throw err;
+        }
     }
 
     /**
@@ -197,6 +206,8 @@ public final class Attribute extends SimpleNodeConstructor {
                 if (schemaType.isNamespaceSensitive()) {
                     options |= ReceiverOptions.NEEDS_PREFIX_CHECK;
                 }
+            } catch (UnresolvedReferenceException ure) {
+                throw new ValidationException(ure);
             } catch (ValidationException err) {
                 throw new ValidationException("Attribute value " + Err.wrap(value, Err.VALUE) +
                                                " does not match the required type " +
@@ -251,7 +262,7 @@ public final class Attribute extends SimpleNodeConstructor {
             if (rawName.equals("xmlns")) {
                 if (namespace==null) {
                     DynamicError err = new DynamicError("Invalid attribute name: " + rawName, this);
-                    err.setErrorCode("XT0850");
+                    err.setErrorCode("XT0855");
                     err.setXPathContext(context);
                     context.getController().recoverableError(err);
                     return -1;
@@ -260,7 +271,7 @@ public final class Attribute extends SimpleNodeConstructor {
             if (prefix.equals("xmlns")) {
                 if (namespace==null) {
                     DynamicError err = new DynamicError("Invalid attribute name: " + rawName, this);
-                    err.setErrorCode("XT0850");
+                    err.setErrorCode("XT0860");
                     err.setXPathContext(context);
                     context.getController().recoverableError(err);
                     return -1;

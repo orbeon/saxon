@@ -1,19 +1,15 @@
 package net.sf.saxon.value;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.Token;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.Configuration;
 import net.sf.saxon.Err;
+import net.sf.saxon.expr.Token;
+import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.type.ItemType;
+import net.sf.saxon.type.Type;
+import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 
-import java.lang.Math;
 import java.math.BigDecimal;
-import java.io.PrintStream;
 
 /**
 * A numeric (single precision floating point) value
@@ -215,6 +211,20 @@ public final class FloatValue extends NumericValue {
         } catch (XPathException err) {
             throw new AssertionError(err);
         }
+    }
+
+    /**
+     * Determine whether the value is negative, zero, or positive
+     * @return -1 if negative, 0 if zero (including negative zero), +1 if positive, NaN if NaN
+     */
+
+    public double signum() {
+        if (Float.isNaN(value)) {
+            return value;
+        }
+        if (value > 0) return 1;
+        if (value == 0) return 0;
+        return -1;
     }
 
     /**

@@ -15,37 +15,11 @@ public interface DocumentInfo extends NodeInfo {
 
 	/**
 	 * Set the configuration, which defines the name pool used for all names in this document.
-     * This is always called after a new
-	 * document has been created. The implementation must register the name pool with the document,
-	 * so that it can be retrieved using getNamePool(). It must also call NamePool.allocateDocumentNumber(),
-	 * and return the relevant document number when getDocumentNumber() is subsequently called.
+     * This is always called after a new document has been created. 
 	 * @param config The configuration to be used
 	 */
 
 	public void setConfiguration(Configuration config);
-
-    /**
-     * Get the configuration previously set using setConfiguration
-     */
-
-    public Configuration getConfiguration();
-
-	/**
-	 * Get the name pool used for the names in this document
-	 * @return the name pool in which all the names used in this document are
-	 *     registered
-	 */
-
-	public NamePool getNamePool();
-
-	/**
-	 * Get the unique document number for this document
-	 * (the number is unique for all documents within a NamePool)
-	 *
-	 * @return the unique number identifying this document within the name pool
-	 */
-
-	public int getDocumentNumber();
 
     /**
      * Get the element with a given ID, if any

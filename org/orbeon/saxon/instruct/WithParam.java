@@ -1,12 +1,12 @@
 package net.sf.saxon.instruct;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.PromotionOffer;
-import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.expr.StaticContext;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.Value;
+import net.sf.saxon.xpath.XPathException;
 
 import java.util.List;
 
@@ -54,7 +54,7 @@ public class WithParam extends GeneralVariable {
         for (int i=0; i<params.length; i++) {
             Expression select = params[i].getSelectExpression();
             if (select != null) {
-                params[i].setSelectExpression(params[i].promote(offer));
+                params[i].setSelectExpression(select.promote(offer));
             }
         }
     }

@@ -4,6 +4,7 @@ import net.sf.saxon.trace.InstructionInfo;
 import net.sf.saxon.trace.InstructionInfoProvider;
 import net.sf.saxon.trace.Location;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Iterator;
 
@@ -11,7 +12,7 @@ import java.util.Iterator;
 * Details about an instruction, used when reporting errors and when tracing
 */
 
-public final class InstructionDetails implements InstructionInfo, InstructionInfoProvider {
+public final class InstructionDetails implements InstructionInfo, InstructionInfoProvider, Serializable {
 
     private int constructType = Location.UNCLASSIFIED;
     private String systemId = null;
@@ -19,7 +20,7 @@ public final class InstructionDetails implements InstructionInfo, InstructionInf
     private int columnNumber = -1;
     private int objectNameCode = -1;
     private NamespaceResolver namespaceResolver;
-    private HashMap properties = new HashMap();
+    private HashMap properties = new HashMap(5);
 
     public InstructionDetails() {}
 

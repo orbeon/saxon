@@ -83,6 +83,9 @@ public class VennExpression extends BinaryExpression {
         if (testSubTree(prop0, prop1)) {
             props |= StaticProperty.SUBTREE_NODESET;
         }
+        if (!testCreative(prop0, prop1)) {
+            props |= StaticProperty.NON_CREATIVE;
+        }
         return props;
     }
 
@@ -118,6 +121,15 @@ public class VennExpression extends BinaryExpression {
                 return (prop0 & StaticProperty.SUBTREE_NODESET) != 0;
         }
         return false;
+    }
+
+    /**
+     * Determine whether the expression can create new nodes
+     */
+
+    private boolean testCreative(final int prop0, final int prop1) {
+        return !(((prop0 & StaticProperty.NON_CREATIVE) == 1) &&
+                ((prop1 & StaticProperty.NON_CREATIVE) == 1));
     }
 
 
@@ -213,7 +225,7 @@ public class VennExpression extends BinaryExpression {
                                                 exp1.getFilter());
                         break;
                     case Token.EXCEPT:
-                        final FunctionCall negate2 = SystemFunction.makeSystemFunction("not", env.getNamePool());
+                        final FunctionCall negate2 = SystemFunction.makeSystemFunction("not", 1, env.getNamePool());
                         final Expression[] args = new Expression[1];
                         args[0] = exp1.getFilter();
                         negate2.setArguments(args);
@@ -244,10 +256,10 @@ public class VennExpression extends BinaryExpression {
         operand0 = operand0.analyze(env, contextItemType);
         operand1 = operand1.analyze(env, contextItemType);
 
-        final RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0);
+        final RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0, null);
         operand0 = TypeChecker.staticTypeCheck(operand0, SequenceType.NODE_SEQUENCE, false, role0, env);
 
-        final RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1);
+        final RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1, null);
         operand1 = TypeChecker.staticTypeCheck(operand1, SequenceType.NODE_SEQUENCE, false, role1, env);
         return this;
     }

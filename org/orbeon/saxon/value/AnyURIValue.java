@@ -1,19 +1,16 @@
 package net.sf.saxon.value;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.expr.ExpressionTool;
+import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.NamePool;
+import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.Configuration;
+import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 
-import java.net.URL;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.io.PrintStream;
+import java.net.URL;
 
 
 

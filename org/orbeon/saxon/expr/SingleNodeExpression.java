@@ -64,8 +64,10 @@ public abstract class SingleNodeExpression extends ComputedExpression {
         return StaticProperty.DEPENDS_ON_CONTEXT_ITEM;
     }
 
-    protected int computeSpecialProperties() {
-        return StaticProperty.ORDERED_NODESET | StaticProperty.CONTEXT_DOCUMENT_NODESET;
+    public int computeSpecialProperties() {
+        return StaticProperty.ORDERED_NODESET |
+                StaticProperty.CONTEXT_DOCUMENT_NODESET |
+                StaticProperty.NON_CREATIVE;
     }
 
     /**

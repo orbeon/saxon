@@ -1,20 +1,22 @@
 package net.sf.saxon.value;
 
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.dom.DOMNodeList;
-import net.sf.saxon.om.*;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.AnyItemType;
 import net.sf.saxon.Configuration;
+import net.sf.saxon.dom.DOMNodeList;
+import net.sf.saxon.event.SequenceReceiver;
+import net.sf.saxon.expr.*;
+import net.sf.saxon.om.*;
+import net.sf.saxon.type.AnyItemType;
+import net.sf.saxon.type.ItemType;
+import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
+import java.io.PrintStream;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.lang.reflect.Array;
-import java.io.PrintStream;
-
-import org.w3c.dom.*;
+import java.util.List;
 
 /**
  * A SequenceValue object represents a sequence whose members
@@ -37,7 +39,7 @@ public abstract class SequenceValue extends Value {
      * This method indicates which of these methods is prefered.
      */
 
-    public final int getImplementationMethod() {
+    public int getImplementationMethod() {
         return ITERATE_METHOD;
     }
 
@@ -47,12 +49,13 @@ public abstract class SequenceValue extends Value {
       * the current variables, etc.
       */
 
-    public final void process(XPathContext context) throws XPathException {
+    public void process(XPathContext context) throws XPathException {
         SequenceIterator iter = iterate(context);
+        SequenceReceiver out = context.getReceiver();
         while (true) {
             Item it = iter.next();
             if (it==null) break;
-            context.getReceiver().append(it, 0);
+            out.append(it, 0);
         }
     }
 
@@ -262,7 +265,8 @@ public abstract class SequenceValue extends Value {
     public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
 
         if (target == Object.class) {
-            return iterate(null);
+            List list = new ArrayList(20);
+            return convertToJavaList(list, config, context);
 
         } else if (target.isAssignableFrom(SequenceValue.class)) {
             return this;
@@ -277,20 +281,17 @@ public abstract class SequenceValue extends Value {
             } else {
                 try {
                     list = (Collection)target.newInstance();
-                } catch (Exception e) {
+                } catch (InstantiationException e) {
                     DynamicError de = new DynamicError("Cannot instantiate collection class " + target);
+                    de.setXPathContext(context);
+                    throw de;
+                } catch (IllegalAccessException e) {
+                    DynamicError de = new DynamicError("Cannot access collection class " + target);
                     de.setXPathContext(context);
                     throw de;
                 }
             }
-            SequenceIterator iter = iterate(null);
-            while (true) {
-                Item it = iter.next();
-                if (it == null) {
-                    return list;
-                }
-                list.add(it);
-            }
+            return convertToJavaList(list, config, context);
         } else if (target.isArray()) {
             Class component = target.getComponentType();
             if (component.isAssignableFrom(Item.class) ||
@@ -303,7 +304,7 @@ public abstract class SequenceValue extends Value {
                 for (int i=0; i<length; i++) {
                     try {
                         Array.set(array, i, extent.itemAt(i));
-                    } catch (Exception err) {
+                    } catch (IllegalArgumentException err) {
                         DynamicError d = new DynamicError(
                                 "Cannot convert item in sequence to the component type of the Java array", err);
                         d.setXPathContext(context);
@@ -313,7 +314,7 @@ public abstract class SequenceValue extends Value {
                 return array;
             } else {
                 // try atomizing the sequence
-                SequenceIterator it = new Atomizer(this).iterate(context);
+                SequenceIterator it = new Atomizer(this, config).iterate(context);
                 int length;
                 if (it instanceof LastPositionFinder) {
                     length = ((LastPositionFinder)it).getLastPosition();
@@ -328,7 +329,7 @@ public abstract class SequenceValue extends Value {
                         AtomicValue val = (AtomicValue)it.next();
                         Object jval = val.convertToJava(component, config, context);
                         Array.set(array, i, jval);
-                    } catch (Exception err) {
+                    } catch (XPathException err) {
                         DynamicError d = new DynamicError(
                                 "Cannot convert item in atomized sequence to the component type of the Java array", err);
                         d.setXPathContext(context);
@@ -382,7 +383,7 @@ public abstract class SequenceValue extends Value {
             throw new DynamicError("Cannot convert supplied XPath value to the required type for the extension function");
         } else {
             // try atomizing the value
-            SequenceIterator it = new Atomizer(this).iterate(context);
+            SequenceIterator it = new Atomizer(this, config).iterate(context);
             Item first = null;
             while (true) {
                 Item next = it.next();
@@ -406,7 +407,29 @@ public abstract class SequenceValue extends Value {
                 return ((AtomicValue)first).convertToJava(target, config, context);
             }
         }
+    }
 
+    private Collection convertToJavaList(Collection list, Configuration config, XPathContext context) throws XPathException {
+        // TODO: with JDK 1.5, check to see if the item type of the list is constrained
+        SequenceIterator iter = iterate(null);
+        while (true) {
+            Item it = iter.next();
+            if (it == null) {
+                if (list.size() == 0) {
+                    // map empty sequence to null
+                    return null;
+                } else {
+                    return list;
+                }
+            }
+            if (it instanceof AtomicValue) {
+                list.add(((AtomicValue)it).convertToJava(Object.class, config, context));
+            } else if (it instanceof VirtualNode) {
+                list.add(((VirtualNode)it).getUnderlyingNode());
+            } else {
+                list.add(it);
+            }
+        }
     }
 
     /**
@@ -423,10 +446,15 @@ public abstract class SequenceValue extends Value {
                 if (it == null) {
                     break;
                 }
-                ((ComputedExpression) it).display(level + 1, pool, out);
+                if (it instanceof NodeInfo) {
+                    out.println(ExpressionTool.indent(level + 1) + "node " + Navigator.getPath(((NodeInfo)it)));
+                } else {
+                    out.println(ExpressionTool.indent(level + 1) + it.toString());
+                }
             }
-            out.println(ExpressionTool.indent(level) + ")");
-        } catch (Exception err) {
+            out.println(ExpressionTool.indent(level) + ')');
+        } catch (XPathException err) {
+            out.println(ExpressionTool.indent(level) + "(*error*)");
         }
     }
 }

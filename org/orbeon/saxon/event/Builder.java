@@ -26,15 +26,15 @@ import java.util.Date;
  */
 
 public abstract class Builder implements Receiver {
-    public final static int STANDARD_TREE = 0;
-    public final static int TINY_TREE = 1;
+    public static final int STANDARD_TREE = 0;
+    public static final int TINY_TREE = 1;
 
+    protected PipelineConfiguration pipe;
     protected Configuration config;
     protected NamePool namePool;
     protected String systemId;
-    protected LocationProvider locator;
-    protected DocumentInfo currentDocument;
-    protected boolean lineNumbering;
+    protected NodeInfo currentRoot;
+    protected boolean lineNumbering = false;
 
     protected boolean started = false;
     protected boolean timing = false;
@@ -48,10 +48,15 @@ public abstract class Builder implements Receiver {
     public Builder() {
     }
 
-    public void setConfiguration(Configuration config) {
-        this.config = config;
+    public void setPipelineConfiguration(PipelineConfiguration pipe) {
+        this.pipe = pipe;
+        this.config = pipe.getConfiguration();
         this.namePool = config.getNamePool();
-        this.lineNumbering = config.isLineNumbering();
+        this.lineNumbering = (lineNumbering || config.isLineNumbering());
+    }
+
+    public PipelineConfiguration getPipelineConfiguration () {
+        return pipe;
     }
 
     public Configuration getConfiguration() {
@@ -70,18 +75,6 @@ public abstract class Builder implements Receiver {
         lineNumbering = is;
     }
 
-    public void setDocumentLocator(LocationProvider loc) {
-        locator = loc;
-    }
-
-    /**
-     * Get the Document Locator
-     */
-
-    public LocationProvider getDocumentLocator() {
-        return locator;
-    }
-
     /////////////////////////////////////////////////////////////////////////
     // Methods setting and getting options for building the tree
     /////////////////////////////////////////////////////////////////////////
@@ -94,7 +87,7 @@ public abstract class Builder implements Receiver {
      */
 
     public void setRootNode(DocumentInfo doc) {
-        currentDocument = doc;
+        currentRoot = doc;
     }
 
 
@@ -125,8 +118,8 @@ public abstract class Builder implements Receiver {
         if (timing) {
             long endTime = (new Date()).getTime();
             System.err.println("Tree built in " + (endTime - startTime) + " milliseconds");
-            if (currentDocument instanceof TinyDocumentImpl) {
-                ((TinyDocumentImpl)currentDocument).showSize();
+            if (currentRoot instanceof TinyDocumentImpl) {
+                ((TinyDocumentImpl)currentRoot).showSize();
             }
             startTime = endTime;
         }
@@ -146,12 +139,14 @@ public abstract class Builder implements Receiver {
     public void endDocument() throws XPathException { }
 
     /**
-     * Get the current document
-     * @return the document that has been most recently built using this builder
+     * Get the current root node. This will normally be a document node, but if the root of the tree
+     * is an element node, it can be an element.
+     * @return the root of the tree that is currently being built, or that has been most recently built
+     * using this builder
      */
 
-    public DocumentInfo getCurrentDocument() {
-        return currentDocument;
+    public NodeInfo getCurrentRoot() {
+        return currentRoot;
     }
 
     /**
@@ -203,7 +198,9 @@ public abstract class Builder implements Receiver {
             } else {
                 b = new TreeBuilder();
             }
-            b.setConfiguration(config);
+            PipelineConfiguration pipe = config.makePipelineConfiguration();
+            pipe.setConfiguration(config);
+            b.setPipelineConfiguration(pipe);
             b.setLineNumbering(config.isLineNumbering());
             Receiver receiver = b;
             if (stripper != null) {
@@ -211,11 +208,11 @@ public abstract class Builder implements Receiver {
                 receiver = stripper;
             }
             try {
-                new Sender(config).send(source, receiver);
+                new Sender(pipe).send(source, receiver);
             } catch (XPathException err) {
                 throw new DynamicError(err);
             }
-            start = b.getCurrentDocument();
+            start = b.getCurrentRoot();
         }
         return start;
     }

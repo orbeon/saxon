@@ -1,13 +1,12 @@
 package net.sf.saxon.query;
 
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.StandardURIResolver;
-import net.sf.saxon.StandardErrorListener;
 import net.sf.saxon.Configuration;
+import net.sf.saxon.StandardErrorListener;
+import net.sf.saxon.om.Item;
+import net.sf.saxon.om.NodeInfo;
 
-import javax.xml.transform.URIResolver;
 import javax.xml.transform.ErrorListener;
+import javax.xml.transform.URIResolver;
 import java.util.HashMap;
 
 /**
@@ -41,7 +40,7 @@ public class DynamicQueryContext {
      * To obtain a NodeInfo by parsing a source document, see the method
      * {@link net.sf.saxon.query.QueryProcessor#buildDocument buildDocument}
      * in class QueryProcessor.
-     * @see
+     * 
      * @param node      The node that is to be the context node for the query
      */
 

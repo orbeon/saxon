@@ -1,16 +1,16 @@
 package net.sf.saxon.query;
 
 import net.sf.saxon.expr.*;
+import net.sf.saxon.functions.ExecutableFunctionLibrary;
 import net.sf.saxon.instruct.*;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.StaticError;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.NamespaceResolver;
+import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.trace.InstructionInfo;
 import net.sf.saxon.trace.Location;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.functions.ExecutableFunctionLibrary;
+import net.sf.saxon.value.SequenceType;
+import net.sf.saxon.xpath.StaticError;
+import net.sf.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -18,7 +18,7 @@ import java.util.List;
 
 public class XQueryFunction implements InstructionInfo {
     private int nameCode;
-    List arguments;
+    List arguments;              // A list of RangeVariableDeclaration objects
     SequenceType resultType;
     Expression body = null;
     List references = new ArrayList(10);
@@ -72,6 +72,17 @@ public class XQueryFunction implements InstructionInfo {
         return types;
     }
 
+    public UserFunctionParameter[] getParameterDefinitions() {
+        UserFunctionParameter[] params = new UserFunctionParameter[arguments.size()];
+        for (int i=0; i<arguments.size(); i++) {
+            SequenceType type = ((RangeVariableDeclaration)arguments.get(i)).getRequiredType();
+            UserFunctionParameter param = new UserFunctionParameter();
+            param.setRequiredType(type);
+            params[i] = param;
+        }
+        return params;
+    }
+
     public int getNumberOfArguments() {
         return arguments.size();
     }
@@ -90,16 +101,16 @@ public class XQueryFunction implements InstructionInfo {
             // module.
 
             if (compiledFunction == null) {
-                // first create a UserFunctionParameter object for each declared
+                // first get the UserFunctionParameter object for each declared
                 // argument of the function, and bind the references to that argument
                 SlotManager map = env.getConfiguration().makeSlotManager();
+                UserFunctionParameter[] params = getParameterDefinitions();
                 Iterator iter = arguments.iterator();
                 int slot = 0;
                 while (iter.hasNext()) {
                     RangeVariableDeclaration decl = (RangeVariableDeclaration)iter.next();
-                    UserFunctionParameter param = new UserFunctionParameter();
+                    UserFunctionParameter param = params[slot];
                     param.setSlotNumber(slot++);
-                    param.setVariableName(decl.getVariableName());
                     param.setRequiredType(decl.getRequiredType());
                     map.allocateSlotNumber(decl.getNameCode() & 0xfffff);
                     decl.fixupReferences(param);
@@ -109,7 +120,7 @@ public class XQueryFunction implements InstructionInfo {
 
                 body = body.simplify(env).analyze(env, null);
                 RoleLocator role =
-                        new RoleLocator(RoleLocator.FUNCTION_RESULT, env.getNamePool().getDisplayName(nameCode), 0);
+                        new RoleLocator(RoleLocator.FUNCTION_RESULT, new Integer(nameCode), 0, env.getNamePool());
                 body = TypeChecker.staticTypeCheck(body, resultType, false, role, env);
 
                 ExpressionTool.allocateSlots(body, slot, map);
@@ -128,7 +139,8 @@ public class XQueryFunction implements InstructionInfo {
 
                 compiledFunction = new UserFunction(body);
                 compiledFunction.setFunctionNameCode(nameCode);
-                compiledFunction.setArgumentTypes(getArgumentTypes());
+                compiledFunction.setParameterDefinitions(params);
+                //compiledFunction.setArgumentTypes(getArgumentTypes());
                 compiledFunction.setResultType(getResultType());
                 compiledFunction.setLineNumber(lineNumber);
                 compiledFunction.setSystemId(systemId);
@@ -138,6 +150,13 @@ public class XQueryFunction implements InstructionInfo {
                 // mark tail calls within the function body
 
                 ExpressionTool.markTailFunctionCalls(body);
+
+                for (int i=0; i<params.length; i++) {
+                    RangeVariableDeclaration decl = (RangeVariableDeclaration)arguments.get(i);
+                    UserFunctionParameter param = params[i];
+                    int refs = decl.getReferenceCount(param);
+                    param.setReferenceCount(refs);
+                }
 
             }
 
@@ -151,8 +170,8 @@ public class XQueryFunction implements InstructionInfo {
                 ExecutableFunctionLibrary lib  = (ExecutableFunctionLibrary)executable.getFunctionLibrary();
                 lib.addFunction(compiledFunction);
             } else {
-                throw new AssertionError("executable.getFunctionLibrary() is a " +
-                        executable.getFunctionLibrary().getClass());
+                throw new AssertionError("executable.getFunctionLibrary() is an instance of " +
+                        executable.getFunctionLibrary().getClass().getName());
             }
 
             return compiledFunction;
@@ -177,6 +196,18 @@ public class XQueryFunction implements InstructionInfo {
         while (iter.hasNext()) {
             UserFunctionCall ufc = (UserFunctionCall)iter.next();
             ufc.setFunction(compiledFunction, env);
+        }
+    }
+
+    /**
+     * Type-check references to this function
+     */
+
+    public void checkReferences(StaticContext env) throws XPathException {
+        Iterator iter = references.iterator();
+        while (iter.hasNext()) {
+            UserFunctionCall ufc = (UserFunctionCall)iter.next();
+            ufc.checkFunctionCall(compiledFunction, env);
         }
 
         // clear the list of references, so that more can be added in another module

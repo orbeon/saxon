@@ -1,10 +1,11 @@
 package net.sf.saxon.dom;
-import net.sf.saxon.value.SequenceExtent;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.om.VirtualNode;
+import net.sf.saxon.value.SequenceExtent;
+import net.sf.saxon.value.SequenceValue;
+import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 import org.w3c.dom.Node;
 
 /**
@@ -51,6 +52,15 @@ public final class DOMNodeList implements org.w3c.dom.NodeList {
         }
         return new DOMNodeList(extent);
     }
+
+    /**
+     * Return the sequence of nodes as a Saxon SequenceValue
+     */
+
+    public SequenceValue getSequence() {
+        return sequence;
+    }
+
     /**
     * return the number of nodes in the list (DOM method)
     */
@@ -65,7 +75,15 @@ public final class DOMNodeList implements org.w3c.dom.NodeList {
     */
 
     public Node item(int index) {
-        return (Node)sequence.itemAt(index);
+        Object o = sequence.itemAt(index);
+        if (o instanceof VirtualNode) {
+            o = ((VirtualNode)o).getUnderlyingNode();
+        }
+        if (o instanceof Node) {
+            return (Node)o;
+        } else {
+            throw new ClassCastException("NodeList contains a non-DOM node");
+        }
     }
 
 }

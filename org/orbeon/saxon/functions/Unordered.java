@@ -2,8 +2,8 @@ package net.sf.saxon.functions;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.type.ItemType;
+import net.sf.saxon.xpath.XPathException;
 
 /**
 * XPath 2.0 unordered() function

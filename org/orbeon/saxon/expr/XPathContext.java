@@ -1,8 +1,8 @@
 package net.sf.saxon.expr;
 import net.sf.saxon.Controller;
-import net.sf.saxon.ParameterSet;
 import net.sf.saxon.event.SequenceReceiver;
 import net.sf.saxon.instruct.LocalParam;
+import net.sf.saxon.instruct.ParameterSet;
 import net.sf.saxon.instruct.RegexIterator;
 import net.sf.saxon.instruct.Template;
 import net.sf.saxon.om.Item;
@@ -45,6 +45,12 @@ public interface XPathContext {
      */
 
     public XPathContextMinor newMinorContext();
+
+    /**
+     * Get the XSLT-specific part of the context
+     */
+
+    public XPathContextMajor.XSLTContext getXSLTContext();
 
     /**
      * Get the local (non-tunnel) parameters that were passed to the current function or template

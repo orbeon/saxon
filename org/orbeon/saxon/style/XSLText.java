@@ -1,16 +1,16 @@
 package net.sf.saxon.style;
-import net.sf.saxon.instruct.Instruction;
-import net.sf.saxon.instruct.Text;
+import net.sf.saxon.expr.Expression;
+import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.instruct.Executable;
+import net.sf.saxon.instruct.ValueOf;
+import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.Axis;
 import net.sf.saxon.om.AxisIterator;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.tree.AttributeCollection;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
+import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -21,6 +21,7 @@ import javax.xml.transform.TransformerConfigurationException;
 public class XSLText extends XSLStringConstructor {
 
     private boolean disable = false;
+    private StringValue value;
 
     /**
      * Determine the type of item returned by this instruction (only relevant if
@@ -54,7 +55,7 @@ public class XSLText extends XSLStringConstructor {
             } else if (disableAtt.equals("no")) {
                 disable = false;
             } else {
-                compileError("disable-output-escaping attribute must be either yes or no");
+                compileError("disable-output-escaping attribute must be either 'yes' or 'no'", "XT0020");
             }
         }
     }
@@ -67,19 +68,26 @@ public class XSLText extends XSLStringConstructor {
         while(true) {
             Item child = kids.next();
             if (child == null) {
+                value = StringValue.EMPTY_STRING;
                 break;
-            }
-            if (child instanceof StyleElement) {
-                compileError("xsl:text may not contain child elements");
+            } else if (child instanceof StyleElement) {
+                compileError("xsl:text must not contain child elements", "XT0010");
                 return;
+            } else {
+                try {
+                    value = new StringValue(child.getStringValue());
+                } catch (XPathException e) {
+                    value = StringValue.EMPTY_STRING;
+                }
+                break;
             }
         }
         super.validate();
     }
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {
-        Text inst = new Text(disable);
-        compileContent(exec, inst);
+        ValueOf inst = new ValueOf(value, disable);
+        //compileContent(exec, inst);
         ExpressionTool.makeParentReferences(inst);
         return inst;
     }

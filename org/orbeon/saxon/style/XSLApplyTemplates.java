@@ -7,7 +7,6 @@ import net.sf.saxon.om.*;
 import net.sf.saxon.sort.SortExpression;
 import net.sf.saxon.sort.SortKeyDefinition;
 import net.sf.saxon.trans.Mode;
-import net.sf.saxon.tree.AttributeCollection;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.xpath.XPathException;
@@ -67,7 +66,7 @@ public class XSLApplyTemplates extends StyleElement {
                 } catch (NamespaceException err) {
                     compileError(err.getMessage());
                 } catch (XPathException err) {
-                    compileError("Mode name " + Err.wrap(modeAttribute) + " is not a valid QName");
+                    compileError("Mode name " + Err.wrap(modeAttribute) + " is not a valid QName", "XT0280");
                 }
             }
         }
@@ -101,11 +100,10 @@ public class XSLApplyTemplates extends StyleElement {
             } else if (child.getNodeKind() == Type.TEXT) {
                     // with xml:space=preserve, white space nodes may still be there
                 if (!Navigator.isWhite(child.getStringValue())) {
-                    compileError(
-                        "No character data allowed within xsl:apply-templates");
+                    compileError("No character data is allowed within xsl:apply-templates", "XT0010");
                 }
             } else {
-                compileError("Invalid element within xsl:apply-templates");
+                compileError("Invalid element within xsl:apply-templates", "XT0010");
             }
         }
 
@@ -116,7 +114,8 @@ public class XSLApplyTemplates extends StyleElement {
         select = typeCheck("select", select);
         try {
             RoleLocator role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:apply-templates/select", 0);
+                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:apply-templates/select", 0, null);
+            role.setErrorCode("XT0520");
             select = TypeChecker.staticTypeCheck(select,
                                         SequenceType.NODE_SEQUENCE,
                                         false, role, getStaticContext());
@@ -152,7 +151,8 @@ public class XSLApplyTemplates extends StyleElement {
                                     getWithParamInstructions(exec, true),
                                     useCurrentMode,
                                     useTailRecursion,
-                                    mode );
+                                    mode,
+                                    backwardsCompatibleModeIsEnabled());
         ExpressionTool.makeParentReferences(app);
         return app;
     }

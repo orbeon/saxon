@@ -16,7 +16,9 @@ public class StaticBaseURI extends CompileTimeFunction {
     */
 
     public Expression preEvaluate(StaticContext env) throws XPathException {
-        return new StringValue(env.getBaseURI());
+        String baseURI = env.getBaseURI();
+        if (baseURI == null) return null;
+        return new StringValue(baseURI);
     }
 
 }

@@ -2,8 +2,8 @@ package net.sf.saxon.style;
 import net.sf.saxon.Loader;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
+import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.NamespaceException;
-import net.sf.saxon.tree.AttributeCollection;
 
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;

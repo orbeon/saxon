@@ -1,11 +1,10 @@
 package net.sf.saxon.functions;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.Tokenizer;
 import net.sf.saxon.expr.Token;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.IntegerValue;
 import net.sf.saxon.value.NumericValue;
-import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.xpath.XPathException;
 
 /**
@@ -15,10 +14,10 @@ import net.sf.saxon.xpath.XPathException;
 
 public final class Rounding extends SystemFunction {
 
-    public final static int FLOOR = 0;
-    public final static int CEILING = 1;
-    public final static int ROUND = 2;
-    public final static int HALF_EVEN = 3;
+    public static final int FLOOR = 0;
+    public static final int CEILING = 1;
+    public static final int ROUND = 2;
+    public static final int HALF_EVEN = 3;
     public static final int ABS = 4;
 
     /**
@@ -47,7 +46,7 @@ public final class Rounding extends SystemFunction {
                 }
                 return val.roundToHalfEven(scale);
             case ABS:
-                int sign = val.compareTo(IntegerValue.ZERO);
+                double sign = val.signum();
                 if (sign < 0) {
                     return val.negate();
                 } else if (sign == 0) {

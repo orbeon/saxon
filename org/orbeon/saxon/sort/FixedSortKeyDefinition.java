@@ -1,17 +1,17 @@
 package net.sf.saxon.sort;
-import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.CardinalityChecker;
 import net.sf.saxon.expr.RoleLocator;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.value.StringValue;
+import net.sf.saxon.expr.StaticProperty;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.Configuration;
+import net.sf.saxon.value.StringValue;
+import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 
+import java.text.Collator;
 import java.util.Comparator;
 import java.util.Locale;
-import java.text.Collator;
 
 /**
 * A FixedSortKeyDefinition is a SortKeyDefinition in which all aspects of the
@@ -70,7 +70,7 @@ public class FixedSortKeyDefinition extends SortKeyDefinition {
 
         if (dataTypeExpression==null || dataTypeExpression instanceof EmptySequence) {
             RoleLocator role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:sort/sort-key", 0);
+                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:sort/sort-key", 0, null);
             sortKey = new CardinalityChecker(sortKey, StaticProperty.ALLOWS_ZERO_OR_ONE, role);
             comp = new AtomicSortComparer(comp);
         } else {

@@ -1,5 +1,4 @@
 package net.sf.saxon.om;
-import net.sf.saxon.Configuration;
 import net.sf.saxon.Err;
 import net.sf.saxon.dom.DOMNodeList;
 import net.sf.saxon.event.Receiver;
@@ -11,7 +10,6 @@ import net.sf.saxon.sort.AtomicComparer;
 import net.sf.saxon.sort.CodepointCollator;
 import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.tree.DOMExceptionImpl;
-import net.sf.saxon.type.BuiltInSchemaFactory;
 import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.SequenceExtent;
@@ -229,30 +227,6 @@ public abstract class AbstractNode
     }
 
     /**
-     * Get the TypeInfo for this node. This is a DOM Level 3 method (though it currently uses
-     * a copy of TypeInfo in a Saxon package). This always returns a TypeInfo object in the case
-     * of element and attribute nodes, and null for other kinds of node.
-     */
-
-    public TypeInfo getSchemaTypeInfo() {
-        DocumentInfo doc = getDocumentRoot();
-        int type = getTypeAnnotation();
-        if (type == -1 || doc==null) {
-            int kind = getNodeKind();
-            if (kind == Type.ELEMENT) {
-                return BuiltInSchemaFactory.getSchemaType(StandardNames.XDT_UNTYPED);
-            } else if (kind == Type.ATTRIBUTE) {
-                return BuiltInSchemaFactory.getSchemaType(StandardNames.XDT_UNTYPED_ATOMIC);
-            } else {
-                return null;
-            }
-        } else {
-            Configuration config = doc.getConfiguration();
-            return config.getSchemaType(type);
-        }
-    }
-
-    /**
      * Determine whether this (attribute) node is an ID. This method is introduced
      * in DOM Level 3. The current implementation is simplistic; it returns true if the
      * type annotation of the node is xs:ID (subtypes not allowed).
@@ -466,13 +440,13 @@ public abstract class AbstractNode
      * of xdt:untypedAtomic
     */
 
-    public SequenceIterator getTypedValue(Configuration config) throws XPathException {
+    public SequenceIterator getTypedValue() throws XPathException {
         int annotation = getTypeAnnotation();
         if (annotation==-1) {
             return SingletonIterator.makeIterator(
                                 new UntypedAtomicValue(getStringValue()));
         } else {
-            SchemaType stype = config.getSchemaType(annotation);
+            SchemaType stype = getConfiguration().getSchemaType(annotation);
             if (stype == null) {
                 String typeName = getNamePool().getDisplayName(annotation);
                 throw new DynamicError("Unknown type annotation " +
@@ -548,7 +522,7 @@ public abstract class AbstractNode
 
     public NamedNodeMap getAttributes() {
         if (getNodeKind()==Type.ELEMENT) {
-            return new AttributeMap(this);
+            return new DOMAttributeMap(this);
         } else {
             return null;
         }
@@ -720,7 +694,7 @@ public abstract class AbstractNode
      * Compare the position of the (other) node in document order with the reference node (this node).
      * DOM Level 3 method.
      * @param other the other node.
-     * @return
+     * @return -1 (this node is first), 0 (same node), +1 (other node is first)
      * @throws DOMException
      * @throws UnsupportedOperationException (always)
      */
@@ -855,18 +829,25 @@ public abstract class AbstractNode
      * Get a feature of this node. DOM Level 3 method, always returns null.
      * @param feature the required feature
      * @param version the version of the required feature
-     * @return
+     * @return the value of the feature. Always null in this implementation
      */
 
     public Object getFeature(String feature, String version) {
         return null;
     }
 
-//    DOM LEVEL 3 METHOD
-//    public Object setUserData(String key, Object data, UserDataHandler handler) {
-//        disallowUpdate();
-//        return null;
-//    }
+    /**
+     * Set user data. Always throws UnsupportedOperationException in this implementation
+     * @param key
+     * @param data
+     * @param handler
+     * @return This implementation always throws an exception
+     */
+
+    public Object setUserData(String key, Object data, UserDataHandler handler) {
+        disallowUpdate();
+        return null;
+    }
 
     /**
      * Get user data associated with this node. DOM Level 3 method, always returns
@@ -877,6 +858,7 @@ public abstract class AbstractNode
     public Object getUserData(String key) {
         return null;
     }
+
 
 
     /**
@@ -1407,6 +1389,19 @@ public abstract class AbstractNode
     }
 
 
+    /**
+     * Get the schema type information for this node. Returns null for an untyped node.
+     */
+
+    public TypeInfo getSchemaTypeInfo() {
+        int annotation = getTypeAnnotation();
+        if (annotation == -1) {
+            return null;
+        }
+        return getDocumentRoot().getConfiguration().getSchemaType(annotation);
+            // TODO: what if the node is orphaned?
+
+    }
 
     ///////////////////////////////////////////////////////////////////
     // Methods defined on the DOM Text and Comment classes
@@ -1531,6 +1526,80 @@ public abstract class AbstractNode
         return null;
     }
 
+    /**
+     * Replaces the text of the current node and all logically-adjacent text
+     * nodes with the specified text. All logically-adjacent text nodes are
+     * removed including the current node unless it was the recipient of the
+     * replacement text.
+     * <br>This method returns the node which received the replacement text.
+     * The returned node is:
+     * <ul>
+     * <li><code>null</code>, when the replacement text is
+     * the empty string;
+     * </li>
+     * <li>the current node, except when the current node is
+     * read-only;
+     * </li>
+     * <li> a new <code>Text</code> node of the same type (
+     * <code>Text</code> or <code>CDATASection</code>) as the current node
+     * inserted at the location of the replacement.
+     * </li>
+     * </ul>
+     * <br>For instance, in the above example calling
+     * <code>replaceWholeText</code> on the <code>Text</code> node that
+     * contains "bar" with "yo" in argument results in the following:
+     * <br>Where the nodes to be removed are read-only descendants of an
+     * <code>EntityReference</code>, the <code>EntityReference</code> must
+     * be removed instead of the read-only nodes. If any
+     * <code>EntityReference</code> to be removed has descendants that are
+     * not <code>EntityReference</code>, <code>Text</code>, or
+     * <code>CDATASection</code> nodes, the <code>replaceWholeText</code>
+     * method must fail before performing any modification of the document,
+     * raising a <code>DOMException</code> with the code
+     * <code>NO_MODIFICATION_ALLOWED_ERR</code>.
+     * <br>For instance, in the example below calling
+     * <code>replaceWholeText</code> on the <code>Text</code> node that
+     * contains "bar" fails, because the <code>EntityReference</code> node
+     * "ent" contains an <code>Element</code> node which cannot be removed.
+     *
+     * @param content The content of the replacing <code>Text</code> node.
+     * @return The <code>Text</code> node created with the specified content.
+     * @throws org.w3c.dom.DOMException NO_MODIFICATION_ALLOWED_ERR: Raised if one of the <code>Text</code>
+     *                                  nodes being replaced is readonly.
+     * @since DOM Level 3
+     */
+    public Text replaceWholeText(String content) throws DOMException {
+        disallowUpdate();
+        return null;
+    }
+
+    /**
+     * Returns whether this text node contains <a href='http://www.w3.org/TR/2004/REC-xml-infoset-20040204#infoitem.character'>
+     * element content whitespace</a>, often abusively called "ignorable whitespace". The text node is
+     * determined to contain whitespace in element content during the load
+     * of the document or if validation occurs while using
+     * <code>Document.normalizeDocument()</code>.
+     *
+     * @since DOM Level 3
+     */
+    public boolean isElementContentWhitespace() {
+        return false;  //To change body of implemented methods use File | Settings | File Templates.
+    }
+
+    /**
+     * Returns all text of <code>Text</code> nodes logically-adjacent text
+     * nodes to this node, concatenated in document order.
+     * <br>For instance, in the example below <code>wholeText</code> on the
+     * <code>Text</code> node that contains "bar" returns "barfoo", while on
+     * the <code>Text</code> node that contains "foo" it returns "barfoo".
+     *
+     * @since DOM Level 3
+     */
+    public String getWholeText() {
+        return null;  //To change body of implemented methods use File | Settings | File Templates.
+    }
+
+
     /////////////////////////////////////////////////////////////////////////
     // Methods to implement the DOM Attr interface
     /////////////////////////////////////////////////////////////////////////
@@ -1585,215 +1654,6 @@ public abstract class AbstractNode
         }
         return (Element)getParent();
     }
-
-    /////////////////////////////////////////////////////////////////////////
-    // Methods to implement the DOMImplementation interface
-    /////////////////////////////////////////////////////////////////////////
-
-    /**
-    * Inner class implementing the DOMImplementation interface
-    */
-
-    private static class DOMImplementationImpl implements DOMImplementation {
-
-     /**
-     *  Test if the DOM implementation implements a specific feature.
-     * @param feature  The name of the feature to test (case-insensitive).
-     * @param version  This is the version number of the feature to test.
-     * @return <code>true</code> if the feature is implemented in the
-     *   specified version, <code>false</code> otherwise.
-     */
-
-    public boolean hasFeature(String feature, String version) {
-        return false;
-    }
-
-     /**
-     *  Return the value of a specific feature.
-      * DOM level 3 method.
-     * @param feature  The name of the feature to test (case-insensitive).
-     * @param version  This is the version number of the feature to test.
-     * @return the value of the feature. Always null in this implementation.
-     */
-
-    public Object getFeature(String feature,
-                             String version) {
-        return null;
-    }
-
-
-    /**
-     *  Creates an empty <code>DocumentType</code> node.
-     * @param qualifiedName  The  qualified name of the document type to be
-     *   created.
-     * @param publicId  The external subset public identifier.
-     * @param systemId  The external subset system identifier.
-     * @return  A new <code>DocumentType</code> node with
-     *   <code>Node.ownerDocument</code> set to <code>null</code> .
-     * @exception DOMException
-     *    INVALID_CHARACTER_ERR: Raised if the specified qualified name
-     *   contains an illegal character.
-     *   <br> NAMESPACE_ERR: Raised if the <code>qualifiedName</code> is
-     *   malformed.
-     * @since DOM Level 2
-     */
-
-    public DocumentType createDocumentType(String qualifiedName,
-                                           String publicId,
-                                           String systemId)
-                                           throws DOMException
-    {
-        disallowUpdate();
-        return null;
-    }
-
-    /**
-     *  Creates an XML <code>Document</code> object of the specified type with
-     * its document element.
-     * @param namespaceURI  The  namespace URI of the document element to
-     *   create.
-     * @param qualifiedName  The  qualified name of the document element to be
-     *   created.
-     * @param doctype  The type of document to be created or <code>null</code>.
-     * @return  A new <code>Document</code> object.
-     * @exception DOMException
-     * @since DOM Level 2
-     */
-    public Document createDocument(String namespaceURI,
-                                   String qualifiedName,
-                                   DocumentType doctype)
-                                   throws DOMException
-    {
-        disallowUpdate();
-        return null;
-    }
-
-    } // end of inner class DOMImplementationImpl
-
-    //////////////////////////////////////////////////////////////////////
-    // Inner class to implement DOM NamedNodeMap (the set of attributes)
-    //////////////////////////////////////////////////////////////////////
-
-    private static class AttributeMap implements NamedNodeMap {
-
-        private AbstractNode parent;
-
-        /**
-         * Construct an AttributeMap for a given element node
-         */
-
-        public AttributeMap(AbstractNode parent) {
-            this.parent = parent;
-        }
-
-        /**
-        * Get named attribute (DOM NamedNodeMap method)
-        */
-
-        public Node getNamedItem(String name) {
-            AxisIterator atts = parent.iterateAxis(Axis.ATTRIBUTE);
-            while (true) {
-                NodeInfo att = (NodeInfo)atts.next();
-                if (att == null) {
-                    return null;
-                }
-                if (name.equals(att.getDisplayName())) {
-                    return (Node)att;
-                }
-            }
-        }
-
-        /**
-        * Get n'th attribute (DOM NamedNodeMap method).
-        * Namespace declarations are not retrieved.
-        */
-
-        public Node item(int index) {
-            if (index<0) {
-                return null;
-            }
-            int length = 0;
-            AxisIterator atts = parent.iterateAxis(Axis.ATTRIBUTE);
-            while (true) {
-                NodeInfo att = (NodeInfo)atts.next();
-                if (att == null) {
-                    return null;
-                }
-                if (length==index) {
-                    return (Node)att;
-                }
-                length++;
-            }
-        }
-
-        /**
-        * Get number of attributes (DOM NamedNodeMap method).
-        */
-
-        public int getLength() {
-            int length = 0;
-            AxisIterator atts = parent.iterateAxis(Axis.ATTRIBUTE);
-            while (atts.next() != null) {
-                length++;
-            }
-            return length;
-        }
-
-        /**
-        * Get named attribute (DOM NamedNodeMap method)
-        */
-
-        public Node getNamedItemNS(String uri, String localName) {
-            if (uri==null) uri="";
-            AxisIterator atts = parent.iterateAxis(Axis.ATTRIBUTE);
-            while (true) {
-                NodeInfo att = (NodeInfo)atts.next();
-                if (att == null) {
-                    return null;
-                }
-                if (uri.equals(att.getURI()) && localName.equals(att.getLocalPart())) {
-                    return (Node)att;
-                }
-            }
-        }
-
-        /**
-        * Set named attribute (DOM NamedNodeMap method: always fails)
-        */
-
-        public Node setNamedItem(Node arg) throws DOMException {
-            disallowUpdate();
-            return null;
-        }
-
-        /**
-        * Remove named attribute (DOM NamedNodeMap method: always fails)
-        */
-
-        public Node removeNamedItem(String name) throws DOMException {
-            disallowUpdate();
-            return null;
-        }
-
-        /**
-        * Set named attribute (DOM NamedNodeMap method: always fails)
-        */
-
-        public Node setNamedItemNS(Node arg) throws DOMException {
-            disallowUpdate();
-            return null;
-        }
-
-        /**
-        * Remove named attribute (DOM NamedNodeMap method: always fails)
-        */
-
-        public Node removeNamedItemNS(String uri, String localName) throws DOMException {
-            disallowUpdate();
-            return null;
-        }
-
-    } // end of inner class NamedAttributeMap
 
 }
 

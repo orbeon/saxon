@@ -1,21 +1,18 @@
 package net.sf.saxon.jdom;
 
 import net.sf.saxon.Transform;
-
-import javax.xml.transform.sax.SAXSource;
-import javax.xml.transform.Source;
-import javax.xml.transform.stream.StreamSource;
-
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.xpath.DynamicError;
-
-import java.util.List;
-import java.util.ArrayList;
-import java.io.IOException;
-
-import org.jdom.input.SAXBuilder;
+import net.sf.saxon.xpath.XPathException;
 import org.jdom.JDOMException;
+import org.jdom.input.SAXBuilder;
 import org.xml.sax.InputSource;
+
+import javax.xml.transform.Source;
+import javax.xml.transform.sax.SAXSource;
+import javax.xml.transform.stream.StreamSource;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Variant of command line net.sf.saxon.Transform do build the source document

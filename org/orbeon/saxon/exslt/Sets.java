@@ -1,15 +1,12 @@
 package net.sf.saxon.exslt;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.sort.GlobalOrderComparer;
 import net.sf.saxon.expr.*;
-import net.sf.saxon.value.SingletonNode;
+import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.sort.GlobalOrderComparer;
+import net.sf.saxon.value.SingletonNode;
 import net.sf.saxon.xpath.DynamicError;
-
-import java.util.HashSet;
+import net.sf.saxon.xpath.XPathException;
 
 /**
 * This class implements extension functions in the
@@ -54,25 +51,6 @@ public abstract class Sets  {
         SequenceIterator intersection =
             new IntersectionEnumeration(p1, p2, GlobalOrderComparer.getInstance());
         return intersection.next() != null;
-    }
-
-    /**
-    * Given a node-set, return a subset that includes only nodes with distinct string-values
-    */
-
-    public static SequenceIterator distinct(SequenceIterator in) {
-        return new MappingIterator(in, new DistinctStringValue(), null, new HashSet(128));
-    }
-
-    private static class DistinctStringValue implements MappingFunction {
-        public Object map(Item item, XPathContext context, Object lookup) throws XPathException {
-            if (((HashSet)lookup).contains(item.getStringValue())) {
-                return null;
-            } else {
-                ((HashSet)lookup).add(item.getStringValue());
-                return item;
-            }
-        }
     }
 
     /**

@@ -1,21 +1,25 @@
 package net.sf.saxon.style;
+import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.trans.DecimalFormatManager;
+import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.Name;
 import net.sf.saxon.om.NamespaceException;
 import net.sf.saxon.om.QNameException;
+import net.sf.saxon.trans.DecimalFormatManager;
+import net.sf.saxon.xpath.StaticError;
 import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.expr.Expression;
-import javax.xml.transform.TransformerConfigurationException;
 
+import javax.xml.transform.TransformerConfigurationException;
 import java.text.DecimalFormatSymbols;
+import java.util.HashMap;
 
 /**
 * Handler for xsl:decimal-format elements in stylesheet. <br>
 */
 
 public class XSLDecimalFormat extends StyleElement {
+
+    boolean prepared = false;
 
     String name;
     String decimalSeparator;
@@ -30,6 +34,11 @@ public class XSLDecimalFormat extends StyleElement {
     String patternSeparator;
 
     public void prepareAttributes() throws TransformerConfigurationException {
+
+        if (prepared) {
+            return;
+        }
+        prepared = true;
 
 		AttributeCollection atts = getAttributeList();
 
@@ -69,8 +78,7 @@ public class XSLDecimalFormat extends StyleElement {
         checkEmpty();
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException
-    {
+    public DecimalFormatSymbols makeDecimalFormatSymbols() throws TransformerConfigurationException {
         DecimalFormatSymbols d = new DecimalFormatSymbols();
         DecimalFormatManager.setDefaults(d);
         if (decimalSeparator!=null) {
@@ -103,13 +111,72 @@ public class XSLDecimalFormat extends StyleElement {
         if (patternSeparator!=null) {
             d.setPatternSeparator(toChar(patternSeparator));
         }
+        checkDistinctRoles(d);
+        return d;
+    }
 
+    /**
+     * Check that no character is used in more than one role
+     * @throws TransformerConfigurationException
+     */
+
+    private void checkDistinctRoles(DecimalFormatSymbols dfs) throws TransformerConfigurationException {
+        HashMap map = new HashMap(20);
+        Character c = new Character(dfs.getDecimalSeparator());
+        map.put(c, StandardNames.DECIMAL_SEPARATOR);
+
+        c = new Character(dfs.getGroupingSeparator());
+        if (map.get(c) != null) {
+            duplicate(StandardNames.GROUPING_SEPARATOR, (String)map.get(c));
+        }
+        map.put(c, StandardNames.GROUPING_SEPARATOR);
+
+        c = new Character(dfs.getPercent());
+        if (map.get(c) != null) {
+            duplicate(StandardNames.PERCENT, (String)map.get(c));
+        }
+        map.put(c, StandardNames.PERCENT);
+
+        c = new Character(dfs.getPerMill());
+        if (map.get(c) != null) {
+            duplicate(StandardNames.PER_MILLE, (String)map.get(c));
+        }
+        map.put(c, StandardNames.PER_MILLE);
+
+        c = new Character(dfs.getZeroDigit());
+        if (map.get(c) != null) {
+            duplicate(StandardNames.ZERO_DIGIT, (String)map.get(c));
+        }
+        map.put(c, StandardNames.ZERO_DIGIT);
+
+        c = new Character(dfs.getDigit());
+        if (map.get(c) != null) {
+            duplicate(StandardNames.DIGIT, (String)map.get(c));
+        }
+        map.put(c, StandardNames.DIGIT);
+
+        c = new Character(dfs.getPatternSeparator());
+        if (map.get(c) != null) {
+            duplicate(StandardNames.PATTERN_SEPARATOR, (String)map.get(c));
+        }
+        map.put(c, StandardNames.PATTERN_SEPARATOR);
+    }
+
+    private void duplicate(String role1, String role2) throws TransformerConfigurationException {
+        compileError("The same character is used as the " + role1 +
+                " and as the " + role2, "XT1300");
+    }
+
+    public void register() throws TransformerConfigurationException
+    {
+        prepareAttributes();
+        DecimalFormatSymbols d = makeDecimalFormatSymbols();
         DecimalFormatManager dfm = getPrincipalStylesheet().getDecimalFormatManager();
         if (name==null) {
             try {
-                dfm.setDefaultDecimalFormat(d);
-            } catch (TransformerConfigurationException err) {
-                compileError(err.getMessage());
+                dfm.setDefaultDecimalFormat(d, getPrecedence());
+            } catch (StaticError err) {
+                compileError(err.getMessage(), err.getErrorCode());
             }
         } else {
             try {
@@ -117,24 +184,27 @@ public class XSLDecimalFormat extends StyleElement {
                 String[] parts = Name.getQNameParts(name);
 	            String uri = getURIForPrefix(parts[0], false);
                 try {
-                    dfm.setNamedDecimalFormat(uri, parts[1], d);
-                } catch (TransformerConfigurationException err) {
-                    compileError(err.getMessage());
+                    dfm.setNamedDecimalFormat(uri, parts[1], d, getPrecedence());
+                } catch (StaticError err) {
+                    compileError(err.getMessage(), err.getErrorCode());
                 }
             } catch (XPathException err) {
-                compileError("Invalid decimal format name. " + err.getMessage());
+                compileError("Invalid decimal format name. " + err.getMessage(), "XT0020");
             } catch (QNameException err) {
-                compileError("Invalid decimal format name. " + err.getMessage());
+                compileError("Invalid decimal format name. " + err.getMessage(), "XT0020");
             } catch (NamespaceException err) {
-                compileError("Invalid decimal format name. " + err.getMessage());
+                compileError("Invalid decimal format name. " + err.getMessage(), "XT0280");
             }
         }
+    }
+
+    public Expression compile(Executable exec) throws TransformerConfigurationException {
         return null;
     }
 
     private char toChar(String s) throws TransformerConfigurationException {
         if (s.length()!=1)
-            compileError("Attribute \"" + s + "\" should be a single character");
+            compileError("Attribute \"" + s + "\" should be a single character", "XT0020");
         return s.charAt(0);
     }
 

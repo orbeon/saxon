@@ -1,18 +1,14 @@
 package net.sf.saxon.functions;
-import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.sort.AtomicComparer;
-import net.sf.saxon.value.BooleanValue;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.NameTest;
-import net.sf.saxon.Configuration;
+import net.sf.saxon.sort.AtomicComparer;
+import net.sf.saxon.type.Type;
+import net.sf.saxon.value.BooleanValue;
+import net.sf.saxon.xpath.XPathException;
 
 /**
 * XSLT 2.0 deep-equal() function.
@@ -175,7 +171,7 @@ public class DeepEqual extends CollatingFunction {
                 if (n1.getFingerprint() != n2.getFingerprint()) {
                     return false;
                 }
-                return deepEquals(n1.getTypedValue(config), n2.getTypedValue(config), collator, config);
+                return deepEquals(n1.getTypedValue(), n2.getTypedValue(), collator, config);
 
             case Type.PROCESSING_INSTRUCTION:
             case Type.NAMESPACE:

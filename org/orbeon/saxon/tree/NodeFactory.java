@@ -1,8 +1,7 @@
 package net.sf.saxon.tree;
-import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.event.LocationProvider;
-
-import org.xml.sax.Locator;
+import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.om.NodeInfo;
 
 
 /**

@@ -1,10 +1,10 @@
 package net.sf.saxon.style;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.instruct.Block;
 import net.sf.saxon.instruct.Choose;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.tree.AttributeCollection;
+import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.om.Axis;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.Value;
 import net.sf.saxon.xpath.XPathException;
@@ -95,10 +95,11 @@ public class XSLIf extends StyleElement {
             // This can happen with expressions such as test="function-available('abc')".
             try {
                 if (test.effectiveBooleanValue(null)) {
-                    Block block = new Block();
-                    block.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
-                    compileChildren(exec, block, true);
-                    return block.simplify(getStaticContext());
+                    return compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+//                    Block block = new Block();
+//                    block.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
+//                    compileChildren(exec, block, true);
+//                    return block.simplify(getStaticContext());
                 } else {
                     return null;
                 }
@@ -107,12 +108,9 @@ public class XSLIf extends StyleElement {
             }
         }
 
-        Block b = new Block();
-        b.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
-        Expression action = b;
-        Expression[] children = compileChildren(exec, b, true);
-        if (children.length==1) {
-            action = children[0];
+        Expression action = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+        if (action == null) {
+            return null;
         }
         Expression[] conditions = {test};
         Expression[] actions = {action};

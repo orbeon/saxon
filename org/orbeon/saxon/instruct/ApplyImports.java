@@ -1,6 +1,5 @@
 package net.sf.saxon.instruct;
 import net.sf.saxon.Controller;
-import net.sf.saxon.ParameterSet;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
@@ -23,8 +22,10 @@ public class ApplyImports extends Instruction {
 
     WithParam[] actualParams = null;
     WithParam[] tunnelParams = null;
+    private boolean backwardsCompatible;
 
-    public ApplyImports() {
+    public ApplyImports(boolean backwardsCompatible) {
+        this.backwardsCompatible = backwardsCompatible;
     }
 
     /**
@@ -87,6 +88,16 @@ public class ApplyImports extends Instruction {
     }
 
     /**
+     * Determine whether this instruction creates new nodes.
+     * This implementation returns true (which is almost invariably the case, so it's not worth
+     * doing any further analysis to find out more precisely).
+     */
+
+    public final boolean createsNewNodes() {
+        return true;
+    }
+
+    /**
      * Handle promotion offers, that is, non-local tree rewrites.
      * @param offer The type of rewrite being offered
      * @throws XPathException
@@ -129,6 +140,9 @@ public class ApplyImports extends Instruction {
         int min = currentTemplate.getMinImportPrecedence();
         int max = currentTemplate.getPrecedence()-1;
         Mode mode = context.getCurrentMode();
+        if (mode == null) {
+            mode = controller.getRuleManager().getMode(Mode.DEFAULT_MODE);
+        }
         if (context.getCurrentIterator()==null) {
             DynamicError e = new DynamicError("Cannot call xsl:apply-imports when there is no context item");
             e.setXPathContext(context);
@@ -146,7 +160,7 @@ public class ApplyImports extends Instruction {
         Template nh = controller.getRuleManager().getTemplateRule(node, mode, min, max, context);
 
 		if (nh==null) {             // use the default action for the node
-            ApplyTemplates.defaultAction(node, params, tunnels, context);
+            ApplyTemplates.defaultAction(node, params, tunnels, context, backwardsCompatible);
         } else {
             XPathContextMajor c2 = context.newContext();
             c2.setOrigin(this);

@@ -47,7 +47,7 @@ public class XHTMLEmitter extends XMLEmitter
                 if (mime==null) mime="text/html";
                 try {
                     writer.write("\n      <meta http-equiv=\"Content-Type\" content=\"" +
-                            mime + "; charset=" + encoding + "\"/>\n   ");
+                            mime + "; charset=" + encoding + "\" />\n   ");
                 } catch (java.io.IOException err) {}
             }
         }

@@ -4,20 +4,20 @@ import net.sf.saxon.expr.*;
 import net.sf.saxon.functions.Matches;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
-import net.sf.saxon.type.RegexTranslator;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.pattern.NoNodeTest;
+import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.type.ItemType;
+import net.sf.saxon.type.RegexTranslator;
+import net.sf.saxon.type.Type;
+import net.sf.saxon.value.SequenceType;
+import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 
-import java.util.Iterator;
+import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
-import java.io.PrintStream;
 
 /**
  * An xsl:analyze-string elements in the stylesheet. New at XSLT 2.0<BR>
@@ -60,6 +60,23 @@ public class AnalyzeString extends Instruction {
     public int getInstructionNameCode() {
         return StandardNames.XSL_ANALYZE_STRING;
     }
+
+    /**
+     * Get the expression used to process matching substrings
+     */
+
+    public Expression getMatchingExpression() {
+        return matching;
+    }
+
+    /**
+     * Get the expression used to process non-matching substrings
+     */
+
+    public Expression getNonMatchingExpression() {
+        return nonMatching;
+    }
+
 
     /**
      * Simplify an expression. This performs any static optimization (by rewriting the expression
@@ -116,15 +133,15 @@ public class AnalyzeString extends Instruction {
         // Following type checking has already been done in the case of XSLT xsl:analyze-string, but is
         // needed where the instruction is generated from saxon:analyze-string extension function
         RoleLocator role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "analyze-string/select", 0);
+                new RoleLocator(RoleLocator.INSTRUCTION, "analyze-string/select", 0, null);
         select = TypeChecker.staticTypeCheck(select, SequenceType.SINGLE_STRING, false, role, env);
 
         role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "analyze-string/regex", 0);
+                new RoleLocator(RoleLocator.INSTRUCTION, "analyze-string/regex", 0, null);
         regex = TypeChecker.staticTypeCheck(regex, SequenceType.SINGLE_STRING, false, role, env);
 
         role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "analyze-string/flags", 0);
+                new RoleLocator(RoleLocator.INSTRUCTION, "analyze-string/flags", 0, null);
         flags = TypeChecker.staticTypeCheck(flags, SequenceType.SINGLE_STRING, false, role, env);
 
         return this;

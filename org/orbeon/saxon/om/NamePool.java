@@ -27,7 +27,6 @@ public class NamePool implements Serializable {
 	// The NamePool holds two kinds of entry: name entries, representing
 	// expanded names (local name + prefix + URI), identified by a name code,
 	// and namespace entries (prefix + URI) identified by a namespace code.
-    // It also contains an index of names used as schema types.
 	//
 	// The data structure of the name table is as follows.
 	//
@@ -142,12 +141,13 @@ public class NamePool implements Serializable {
     }
 
     /**
-    * Add a document to the pool, and allocate a document number
-    * @param doc The DocumentInfo for the document in question
+    * Add a tree to the pool, and allocate a document number
+    * @param doc The NodeInfo for the root of the tree in question
+    * (this is not necessarily a document node)
     * @return the document number, unique within this document pool
     */
 
-    public synchronized int allocateDocumentNumber(DocumentInfo doc) {
+    public synchronized int allocateDocumentNumber(NodeInfo doc) {
         if (documentNumberMap == null) {
             // this can happen after deserialization
             documentNumberMap = new WeakHashMap(10);
@@ -453,23 +453,6 @@ public class NamePool implements Serializable {
 	}
 
     /**
-    * Allocate a nameCode, given a fingerprint and a prefix
-    * @param fingerprint - the fingerprint of a name already in the name pool
-    * @param prefix - the namespace prefix
-    * @return an integer (the "namecode") identifying the name within the namepool.
-    */
-
-    public synchronized int allocate(int fingerprint, String prefix) {
-        short uriCode = getURICode(fingerprint);
-        int prefixIndex = getPrefixIndex(uriCode, prefix);
-        if (prefixIndex<0) {
-        	prefixesForUri[uriCode] += (prefix + ' ');
-        	prefixIndex = getPrefixIndex(uriCode, prefix);
-        }
-		return (prefixIndex<<20) | fingerprint;
-	}
-
-    /**
     * Allocate a namespace code for the prefix/URI of a given namecode
     * @param namecode a code identifying an expanded QName, e.g. of an element or attribute
     * @return a code identifying the namespace used in the given name. The namespace code
@@ -565,17 +548,12 @@ public class NamePool implements Serializable {
         if ((nameCode & 0xffc00) == 0) {
             // This indicates a standard name known to the system (but it might have a non-standard prefix)
             int prefixIndex = (nameCode >> 20) & 0xff;
-            if (prefixIndex == 0) {
-                return StandardNames.getDisplayName(nameCode);
-                // uses a conventional prefix
+            short uriCode = getURICode(nameCode);
+            String prefix = getPrefixWithIndex(uriCode, prefixIndex);
+            if (prefix.equals("")) {
+                return StandardNames.getLocalName(nameCode & 0xfffff);
             } else {
-                short uriCode = getURICode(nameCode);
-                String prefix = getPrefixWithIndex(uriCode, prefixIndex);
-                if (prefix.equals("")) {
-                    return StandardNames.getLocalName(nameCode & 0xfffff);
-                } else {
-                    return prefix + ':' + StandardNames.getLocalName(nameCode & 0xfffff);
-                }
+                return prefix + ':' + StandardNames.getLocalName(nameCode & 0xfffff);
             }
         }
 

@@ -1,9 +1,8 @@
 package net.sf.saxon.style;
-import net.sf.saxon.instruct.Instruction;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.type.ItemType;
 import net.sf.saxon.expr.Expression;
+import net.sf.saxon.instruct.Executable;
+import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.type.ItemType;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -44,7 +43,7 @@ public class XSLMatchingSubstring extends StyleElement {
 
     public void validate() throws TransformerConfigurationException {
         if (!(getParentNode() instanceof XSLAnalyzeString)) {
-            compileError(getDisplayName() + " must be immediately within xsl:analyze-string");
+            compileError(getDisplayName() + " must be immediately within xsl:analyze-string", "XT0010");
         }
     }
 

@@ -8,13 +8,18 @@ import java.util.List;
 * or indeed in any other kind of List
 */
 
-final public class ListIterator
+public final class ListIterator
         implements AxisIterator, LastPositionFinder, LookaheadIterator {
 
     int index=0;
     int length;
     Item current = null;
     List list = null;
+
+    /**
+     * Create a ListIterator over a given List
+     * @param list the list: all objects in the list must be instances of {@link Item}
+     */
 
     public ListIterator(List list) {
         index = 0;

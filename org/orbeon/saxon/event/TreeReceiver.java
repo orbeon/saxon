@@ -1,6 +1,5 @@
 package net.sf.saxon.event;
 
-import net.sf.saxon.Configuration;
 import net.sf.saxon.om.*;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.xpath.XPathException;
@@ -15,13 +14,13 @@ import net.sf.saxon.xpath.XPathException;
 
 public class TreeReceiver extends SequenceReceiver {
     private Receiver baseReceiver;
-    private Configuration config;
     private String systemId;
+    private boolean contentStarted = true;
 
     public TreeReceiver(Receiver nextInChain) {
         baseReceiver = nextInChain;
         previousAtomic = false;
-        locator = nextInChain.getDocumentLocator();
+        setPipelineConfiguration(nextInChain.getPipelineConfiguration());
     }
 
     public void setSystemId(String systemId) {
@@ -45,41 +44,8 @@ public class TreeReceiver extends SequenceReceiver {
         return baseReceiver;
     }
 
-
     /**
-     * Set the configuration to be used (providing access to a NamePool)
-     */
-
-    public void setConfiguration(Configuration config) {
-        if (this.config != config) {
-            this.config = config;
-            if (baseReceiver != null) {
-                baseReceiver.setConfiguration(config);
-            }
-        }
-    }
-
-    /**
-     * Get the configuration to be used (providing access to a NamePool)
-     */
-
-    public Configuration getConfiguration() {
-        return config;
-    }
-
-    /**
-     * Set the Document Locator
-     */
-
-    public void setDocumentLocator(LocationProvider locator) {
-        this.locator = locator;
-        if (baseReceiver != null) {
-            baseReceiver.setDocumentLocator(locator);
-        }
-    }
-
-    /**
-     * Start of document
+     * Start of event sequence
      */
 
     public void open() throws XPathException {
@@ -91,7 +57,7 @@ public class TreeReceiver extends SequenceReceiver {
     }
 
     /**
-     * End of document
+     * End of event sequence
      */
 
     public void close() throws XPathException {
@@ -125,10 +91,14 @@ public class TreeReceiver extends SequenceReceiver {
      * Notify the start of an element
      * @param nameCode integer code identifying the name of the element within the name pool.
      * @param typeCode integer code identifying the element's type within the name pool.
-     * @param properties: for future use. Should be set to zero.
+     * @param properties bit-significant properties of the element node
      */
 
     public void startElement(int nameCode, int typeCode, int locationId, int properties) throws XPathException {
+        if (!contentStarted) {
+            startContent();
+        }
+        contentStarted = false;
         if (baseReceiver != null) {
             baseReceiver.startElement(nameCode, typeCode, locationId, properties);
         }
@@ -184,6 +154,7 @@ public class TreeReceiver extends SequenceReceiver {
 
 
     public void startContent() throws XPathException {
+        contentStarted = true;
         if (baseReceiver != null) {
             baseReceiver.startContent();
         }
@@ -195,6 +166,9 @@ public class TreeReceiver extends SequenceReceiver {
      */
 
     public void endElement() throws XPathException {
+        if (!contentStarted) {
+            startContent();
+        }
         if (baseReceiver != null) {
             baseReceiver.endElement();
         }
@@ -206,6 +180,9 @@ public class TreeReceiver extends SequenceReceiver {
      */
 
     public void characters(CharSequence chars, int locationId, int properties) throws XPathException {
+        if (!contentStarted) {
+            startContent();
+        }
         if (baseReceiver != null) {
             baseReceiver.characters(chars, locationId, properties);
         }
@@ -218,6 +195,9 @@ public class TreeReceiver extends SequenceReceiver {
      */
 
     public void processingInstruction(String target, CharSequence data, int locationId, int properties) throws XPathException {
+        if (!contentStarted) {
+            startContent();
+        }
         if (baseReceiver != null) {
             baseReceiver.processingInstruction(target, data, locationId, properties);
         }
@@ -229,6 +209,9 @@ public class TreeReceiver extends SequenceReceiver {
      */
 
     public void comment(CharSequence chars, int locationId, int properties) throws XPathException {
+        if (!contentStarted) {
+            startContent();
+        }
         if (baseReceiver != null) {
             baseReceiver.comment(chars, locationId, properties);
         }

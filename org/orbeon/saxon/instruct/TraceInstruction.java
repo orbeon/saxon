@@ -1,17 +1,7 @@
 package net.sf.saxon.instruct;
 
-import net.sf.saxon.Controller;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.expr.Expression;
 import net.sf.saxon.trace.InstructionInfo;
-import net.sf.saxon.trace.TraceListener;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.XPathException;
-
-import java.util.Iterator;
-import java.io.PrintStream;
 
 
 /**
@@ -31,16 +21,6 @@ public class TraceInstruction extends TraceWrapper {
     public TraceInstruction(Expression child, InstructionInfo details) {
         this.child = child;
         this.details = details;
-        adoptChildExpression(child);
-    }
-
-   /**
-     * Create a Trace instruction
-     * @param child the "real" instruction to be traced
-     */
-
-    public TraceInstruction(Expression child) {
-        this.child = child;
         adoptChildExpression(child);
     }
 

@@ -1,16 +1,15 @@
 package net.sf.saxon.style;
+import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.instruct.ResultDocument;
-import net.sf.saxon.om.NamespaceException;
-import net.sf.saxon.om.Validation;
-import net.sf.saxon.tree.AttributeCollection;
+import net.sf.saxon.om.*;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.SchemaType;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.Configuration;
+import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.*;
@@ -27,11 +26,12 @@ import java.util.*;
 
 public class XSLResultDocument extends StyleElement {
 
-    private final static HashSet fans = new HashSet(25);    // formatting attribute names
+    private static final HashSet fans = new HashSet(25);    // formatting attribute names
 
     static {
         fans.add(StandardNames.METHOD);
         fans.add(StandardNames.OUTPUT_VERSION);
+        fans.add(StandardNames.BYTE_ORDER_MARK);
         fans.add(StandardNames.INDENT);
         fans.add(StandardNames.ENCODING);
         fans.add(StandardNames.MEDIA_TYPE);
@@ -47,7 +47,6 @@ public class XSLResultDocument extends StyleElement {
         fans.add(StandardNames.SAXON_NEXT_IN_CHAIN);
         fans.add(StandardNames.SAXON_CHARACTER_REPRESENTATION);
         fans.add(StandardNames.SAXON_INDENT_SPACES);
-        fans.add(StandardNames.SAXON_BYTE_ORDER_MARK);
         fans.add(StandardNames.SAXON_REQUIRE_WELL_FORMED);
     }
 
@@ -55,7 +54,7 @@ public class XSLResultDocument extends StyleElement {
     private int format = -1;     // fingerprint of required xsl:output element
     private int validationAction = Validation.STRIP;
     private SchemaType schemaType = null;
-    private HashMap serializationAttributes = new HashMap();
+    private HashMap serializationAttributes = new HashMap(20);
 
     /**
     * Determine whether this node is an instruction.
@@ -113,6 +112,7 @@ public class XSLResultDocument extends StyleElement {
                 String val = atts.getValue(a).trim();
                 Expression exp = makeAttributeValueTemplate(val);
                 serializationAttributes.put(new Integer(nc&0xfffff), exp);
+                // TODO: support use-character-maps
         	} else {
         		checkUnknownAttribute(nc);
         	}
@@ -128,7 +128,7 @@ public class XSLResultDocument extends StyleElement {
             try {
                 format = makeNameCode(formatAttribute.trim()) & 0xfffff;
             } catch (NamespaceException err) {
-                compileError(err.getMessage());
+                compileError(err.getMessage(), "XT0280");
             } catch (XPathException err) {
                 compileError(err.getMessage());
             }
@@ -139,21 +139,21 @@ public class XSLResultDocument extends StyleElement {
         } else {
             validationAction = Validation.getCode(validationAtt);
             if (validationAction != Validation.STRIP && !getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("To perform validation, a schema-aware XSLT processor is needed");
+                compileError("To perform validation, a schema-aware XSLT processor is needed", "XT1660");
             }
             if (validationAction == Validation.INVALID) {
-                compileError("Invalid value of validation attribute");
+                compileError("Invalid value of validation attribute", "XT0020");
             }
         }
         if (typeAtt!=null) {
             if (!getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("The type attribute is available only with a schema-aware XSLT processor");
+                compileError("The type attribute is available only with a schema-aware XSLT processor", "XT1660");
             }
             schemaType = getSchemaType(typeAtt);
         }
 
         if (typeAtt != null && validationAtt != null) {
-            compileError("validation and type attributes are mutually exclusive");
+            compileError("The validation and type attributes are mutually exclusive", "XT1505");
         }
     }
 
@@ -175,7 +175,7 @@ public class XSLResultDocument extends StyleElement {
     }
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {
-        Properties props = null;
+        Properties props;
         try {
             props = getPrincipalStylesheet().gatherOutputProperties(format);
         } catch (TransformerConfigurationException err) {
@@ -183,7 +183,7 @@ public class XSLResultDocument extends StyleElement {
             return null;
         }
 
-        ArrayList fixed = new ArrayList();
+        ArrayList fixed = new ArrayList(10);
         boolean needsNamespaceContext = false;
         for (Iterator it=serializationAttributes.keySet().iterator(); it.hasNext();) {
             Integer fp = (Integer)it.next();
@@ -195,7 +195,12 @@ public class XSLResultDocument extends StyleElement {
                             getNamePool(), getStaticContext().getNamespaceResolver());
                     fixed.add(fp);
                 } catch (XPathException e) {
-                    compileError(e);
+                    if (NamespaceConstant.SAXON.equals(e.getErrorCode().getNamespaceURI()) &&
+                            "warning".equals(e.getErrorCode().getLocalPart())) {
+                        compileWarning(e.getMessage());
+                    } else {
+                        compileError(e);
+                    }
                 }
             } else {
                 String lname = getNamePool().getLocalName(fp.intValue());
@@ -216,7 +221,11 @@ public class XSLResultDocument extends StyleElement {
                                               serializationAttributes,
                                               (needsNamespaceContext ? getStaticContext().getNamespaceResolver() : null));
 
-        compileChildren(exec, inst, true);
+        Expression b = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+        if (b == null) {
+            b = EmptySequence.getInstance();
+        }
+        inst.setContent(b);
         ExpressionTool.makeParentReferences(inst);
         return inst;
     }

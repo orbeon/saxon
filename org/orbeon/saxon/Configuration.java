@@ -1,29 +1,37 @@
 package net.sf.saxon;
 
 import net.sf.saxon.event.Builder;
+import net.sf.saxon.event.PipelineConfiguration;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.event.StandardOutputResolver;
+import net.sf.saxon.expr.Optimizer;
+import net.sf.saxon.functions.ExtensionFunctionFactory;
+import net.sf.saxon.functions.FunctionLibrary;
+import net.sf.saxon.functions.JavaExtensionLibrary;
+import net.sf.saxon.functions.VendorFunctionLibrary;
+import net.sf.saxon.instruct.Debugger;
+import net.sf.saxon.instruct.SlotManager;
+import net.sf.saxon.om.ExternalObjectModel;
 import net.sf.saxon.om.NamePool;
+import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.pattern.NodeTest;
 import net.sf.saxon.trace.TraceListener;
 import net.sf.saxon.type.*;
 import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.functions.FunctionLibrary;
-import net.sf.saxon.functions.JavaExtensionLibrary;
-import net.sf.saxon.functions.ExtensionFunctionFactory;
-import net.sf.saxon.functions.VendorFunctionLibrary;
-import net.sf.saxon.instruct.SlotManager;
-import net.sf.saxon.instruct.Debugger;
-import net.sf.saxon.expr.Optimizer;
+import org.w3c.dom.ls.LSResourceResolver;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXNotRecognizedException;
 import org.xml.sax.SAXNotSupportedException;
 import org.xml.sax.XMLReader;
 
-import javax.xml.parsers.SAXParserFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.parsers.SAXParserFactory;
 import javax.xml.transform.*;
+import javax.xml.validation.Schema;
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 
 
@@ -42,12 +50,13 @@ public class Configuration implements Serializable {
     private TraceListener traceListener = null;
     private FunctionLibrary extensionBinder;
     protected VendorFunctionLibrary vendorFunctionLibrary;
-    private int recoveryPolicy = RECOVER_WITH_WARNINGS;
+    protected int recoveryPolicy = RECOVER_WITH_WARNINGS;
     private String messageEmitterClass = "net.sf.saxon.event.MessageEmitter";
     private String sourceParserClass;
     private String styleParserClass;
     private transient OutputURIResolver outputURIResolver;
     private boolean timing = false;
+    private boolean versionWarning = true;
     private boolean allowExternalFunctions = true;
     private boolean traceExternalFunctions = false;
     private boolean validation = false;
@@ -60,6 +69,8 @@ public class Configuration implements Serializable {
     private Debugger debugger = null;
     protected Optimizer optimizer = null;
     private ExtensionFunctionFactory extensionFunctionFactory = new ExtensionFunctionFactory();
+    private List externalObjectModels = new ArrayList(4);
+    private LSResourceResolver resourceResolver;
 
     /**
      * Constant indicating that the processor should take the recovery action
@@ -185,6 +196,7 @@ public class Configuration implements Serializable {
     public ErrorListener getErrorListener() {
         if (listener == null) {
             listener = new StandardErrorListener();
+            ((StandardErrorListener)listener).setRecoveryPolicy(recoveryPolicy);
         }
         return listener;
     }
@@ -424,6 +436,26 @@ public class Configuration implements Serializable {
     }
 
     /**
+     * Determine whether a warning is to be output when running against a stylesheet labelled
+     * as version="1.0". The XSLT specification requires such a warning unless the user disables it.
+     * @return true if these messages are to be output.
+     */
+
+    public boolean isVersionWarning() {
+        return versionWarning;
+    }
+
+    /**
+     * Determine whether a warning is to be output when running against a stylesheet labelled
+     * as version="1.0". The XSLT specification requires such a warning unless the user disables it.
+     * @param warn true if these messages are to be output.
+     */
+
+    public void setVersionWarning(boolean warn) {
+        this.versionWarning = warn;
+    }
+
+    /**
      * Determine whether calls to external Java functions are permitted.
      * @return true if such calls are permitted.
      */
@@ -579,10 +611,14 @@ public class Configuration implements Serializable {
      * being treated as fatal, but report a warning if they are being treated as warnings
      */
 
-    public void reportValidationError(ValidationException err, boolean isOutput) throws ValidationException {
-        if (validationWarnings && isOutput) {
+    public void reportValidationError(ValidationException err, ErrorListener listener, boolean isOutput)
+    throws ValidationException {
+        if (listener == null) {
+            listener = getErrorListener();
+        }
+        //if (validationWarnings && isOutput) {
             try {
-                getErrorListener().warning(err);
+                listener.error(err);
             } catch (TransformerException e) {
                 if (e instanceof ValidationException) {
                     throw (ValidationException)e;
@@ -592,9 +628,9 @@ public class Configuration implements Serializable {
                     throw new ValidationException(e);
                 }
             }
-        } else {
-            throw err;
-        }
+        //} else {
+        //    throw err;
+        //}
     }
     /**
      * Get the target namepool to be used for stylesheets/queries and for source documents.
@@ -696,8 +732,23 @@ public class Configuration implements Serializable {
      * @return the target namespace of the schema
      */
 
-    public String readSchema(String baseURI, String schemaLocation, String expected)
+    public String readSchema(PipelineConfiguration pipe, String baseURI, String schemaLocation, String expected)
     throws TransformerConfigurationException {
+        needSchemaAwareVersion();
+        return null;
+    }
+
+    /**
+     * Read an inline schema from a stylesheet
+     * @param pipe
+     * @param root the xs:schema element in the stylesheet
+     * @param expected the target namespace expected; null if there is no
+     * expectation
+     * @return the actual target namespace of the schema
+     */
+
+    public String readInlineSchema(PipelineConfiguration pipe, NodeInfo root, String expected)
+            throws SchemaException {
         needSchemaAwareVersion();
         return null;
     }
@@ -722,7 +773,7 @@ public class Configuration implements Serializable {
      * Add a schema to the cache
      */
 
-    public void addSchema(SchemaMarker schema)
+    public void addSchema(Schema schema)
     throws TransformerConfigurationException {
         needSchemaAwareVersion();
     }
@@ -731,7 +782,7 @@ public class Configuration implements Serializable {
      * Get a schema from the cache. Return null if not found.
      */
 
-    public SchemaMarker getSchema(String namespace) {
+    public Schema getSchema(String namespace) {
         return null;
     }
 
@@ -924,9 +975,70 @@ public class Configuration implements Serializable {
         return optimizer;
     }
 
-//    public void builtInParse(Source source, Receiver receiver, int validation) throws XPathException {
-//        needSchemaAwareVersion();
-//    }
+    /**
+     * Register an external object model
+     */
+
+    public void registerExternalObjectModel(ExternalObjectModel model) {
+        externalObjectModels.add(model);
+    }
+
+    /**
+     * Find the external object model corresponding to a given node
+     * @param node a Node as implemented in some external object model
+     * @return the first registered external object model that recognizes
+     * this node; or null if no-one will own up to it.
+     */
+
+    public ExternalObjectModel findExternalObjectModel(Object node) {
+        Iterator it = externalObjectModels.iterator();
+        while (it.hasNext()) {
+            final ExternalObjectModel model = (ExternalObjectModel)it.next();
+            if (model.isRecognizedNode(node)) {
+                return model;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Get a (DOM level 3) resource resolver. If this is available, it takes precedence
+     * over the URIResolver when dereferencing URIs. Unlike the URIResolver, the resource
+     * resolver can handle non-XML resources (such as query modules), and is sensitive to the
+     * type of resource required and the target namespace expected.
+     * @return the resource resolver previously registered using
+     * {@link #setResourceResolver(org.w3c.dom.ls.LSResourceResolver)}, or null if none has
+     * been registered.
+     */
+
+    public LSResourceResolver getResourceResolver() {
+        return resourceResolver;
+    }
+
+   /**
+     * Set a (DOM level 3) resource resolver. If this is supplied, it takes precedence
+     * over the URIResolver when dereferencing URIs. Unlike the URIResolver, the resource
+     * resolver can handle non-XML resources (such as query modules), and is sensitive to the
+     * type of resource required and the target namespace expected.
+     * @param resourceResolver the resource resolver to be used
+     */
+
+    public void setResourceResolver(LSResourceResolver resourceResolver) {
+        this.resourceResolver = resourceResolver;
+    }
+
+    /**
+     * Make a PipelineConfiguration from the properties of this Configuration
+     */
+
+    public PipelineConfiguration makePipelineConfiguration() {
+        PipelineConfiguration pipe = new PipelineConfiguration();
+        pipe.setConfiguration(this);
+        pipe.setErrorListener(getErrorListener());
+        pipe.setURIResolver(getURIResolver());
+        pipe.setResourceResolver(getResourceResolver());
+        return pipe;
+    }
 }
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");

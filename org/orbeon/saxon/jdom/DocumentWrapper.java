@@ -1,9 +1,9 @@
 package net.sf.saxon.jdom;
+import net.sf.saxon.Configuration;
 import net.sf.saxon.om.DocumentInfo;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.Configuration;
 import org.jdom.Document;
 
 /**
@@ -42,7 +42,7 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
      * @return the wrapping NodeInfo object
      */
 
-    public NodeInfo wrap(Object node) {
+    public NodeWrapper wrap(Object node) {
         if (node==this.node) {
             return this;
         }

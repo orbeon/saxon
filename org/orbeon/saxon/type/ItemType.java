@@ -11,7 +11,7 @@ import net.sf.saxon.om.NamePool;
  * (matches nothing). Atomic types, represented by the class AtomicType, are also
  * instances of SimpleType in the schema type heirarchy. Node Types, represented by
  * the class NodeTest, are also Patterns as used in XSLT.
- * @see AtomicType
+ * @see net.sf.saxon.type.AtomicType
  * @see net.sf.saxon.pattern.NodeTest
 */
 
@@ -69,7 +69,7 @@ public interface ItemType {
      * of this type is atomized
      */
 
-    public abstract AtomicType getAtomizedItemType();
+    public AtomicType getAtomizedItemType();
 
 }
 

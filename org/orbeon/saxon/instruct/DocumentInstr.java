@@ -3,10 +3,7 @@ package net.sf.saxon.instruct;
 import net.sf.saxon.Controller;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.event.SequenceReceiver;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.expr.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.NodeKindTest;
 import net.sf.saxon.style.StandardNames;
@@ -17,6 +14,7 @@ import net.sf.saxon.value.TextFragmentValue;
 import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
+import java.util.Iterator;
 
 
 /**
@@ -30,14 +28,15 @@ import java.io.PrintStream;
  * children of the document node.</p>
  */
 
-public class DocumentInstr extends InstructionWithChildren {
+public class DocumentInstr extends Instruction {
 
     private static final int[] treeSizeParameters = {50, 10, 5, 200};
     // estimated size of a temporary tree: {nodes, attributes, namespaces, characters}
 
-    boolean textOnly = false;
-    String constantText = null;
-    String baseURI = null;
+    private Expression content;
+    private boolean textOnly;
+    private String constantText;
+    private String baseURI;
     private int validationAction = Validation.PRESERVE;
     private SchemaType schemaType;
 
@@ -47,6 +46,15 @@ public class DocumentInstr extends InstructionWithChildren {
         this.textOnly = textOnly;
         this.constantText = constantText;
         this.baseURI = baseURI;
+    }
+
+    /**
+     * Set the expression that constructs the content
+     */
+
+    public void setContent(Expression content) {
+        this.content = content;
+        adoptChildExpression(content);
     }
 
     /**
@@ -63,6 +71,73 @@ public class DocumentInstr extends InstructionWithChildren {
 
     public void setSchemaType(SchemaType type) {
         schemaType = type;
+    }
+
+    /**
+     * Simplify an expression. This performs any static optimization (by rewriting the expression
+     * as a different expression). The default implementation does nothing.
+     * @return the simplified expression
+     * @throws net.sf.saxon.xpath.XPathException
+     *          if an error is discovered during expression rewriting
+     */
+
+    public Expression simplify(StaticContext env) throws XPathException {
+        content = content.simplify(env);
+        return this;
+    }
+
+    /**
+     * Perform static analysis of an expression and its subexpressions.
+     * <p/>
+     * <p>This checks statically that the operands of the expression have
+     * the correct type; if necessary it generates code to do run-time type checking or type
+     * conversion. A static type error is reported only if execution cannot possibly succeed, that
+     * is, if a run-time type error is inevitable. The call may return a modified form of the expression.</p>
+     * <p/>
+     * <p>This method is called after all references to functions and variables have been resolved
+     * to the declaration of the function or variable. However, the types of such functions and
+     * variables will only be accurately known if they have been explicitly declared.</p>
+     *
+     * @param env the static context of the expression
+     * @return the original expression, rewritten to perform necessary
+     *         run-time type checks, and to perform other type-related
+     *         optimizations
+     * @throws net.sf.saxon.xpath.XPathException
+     *          if an error is discovered during this phase
+     *          (typically a type error)
+     */
+
+    public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
+        content = content.analyze(env, contextItemType);
+        return this;
+    }
+
+    /**
+     * Handle promotion offers, that is, non-local tree rewrites.
+     * @param offer The type of rewrite being offered
+     * @throws XPathException
+     */
+
+    protected void promoteInst(PromotionOffer offer) throws XPathException {
+        content = content.promote(offer);
+    }
+
+    /**
+      * Get the immediate sub-expressions of this expression.
+      * @return an iterator containing the sub-expressions of this expression
+      */
+
+    public Iterator iterateSubExpressions() {
+        return new MonoIterator(content);
+    }
+
+    /**
+     * Determine whether this instruction creates new nodes.
+     * This implementation returns true.
+     */
+
+    public final boolean createsNewNodes() {
+        return true;
     }
 
     public ItemType getItemType() {
@@ -88,24 +163,21 @@ public class DocumentInstr extends InstructionWithChildren {
 
     public Item evaluateItem(XPathContext context) throws XPathException {
         Controller controller = context.getController();
-        DocumentInfo root = null;
+        DocumentInfo root;
         if (textOnly) {
             CharSequence textValue;
             if (constantText != null) {
                 textValue = constantText;
             } else {
-                textValue = new StringBuffer();
-                Expression[] children = getChildren();
-                for (int i=0; i<children.length; i++) {
-                    SequenceIterator iter = children[i].iterate(context);
-                    if (iter instanceof AtomizableIterator) {
-                        ((AtomizableIterator)iter).setIsAtomizing(true);
-                    }
-                    while (true) {
-                        Item item = iter.next();
-                        if (item==null) break;
-                        ((StringBuffer)textValue).append(item.getStringValue());
-                    }
+                textValue = new StringBuffer(100);
+                SequenceIterator iter = content.iterate(context);
+                if (iter instanceof AtomizableIterator) {
+                    ((AtomizableIterator)iter).setIsAtomizing(true);
+                }
+                while (true) {
+                    Item item = iter.next();
+                    if (item==null) break;
+                    ((StringBuffer)textValue).append(item.getStringValue());
                 }
             }
             root = new TextFragmentValue(textValue, baseURI);
@@ -130,21 +202,23 @@ public class DocumentInstr extends InstructionWithChildren {
 
             Receiver receiver = builder;
             receiver.setSystemId(baseURI);
-            receiver.setConfiguration(controller.getConfiguration());
-            receiver.open();
-            receiver.startDocument(0);
+            receiver.setPipelineConfiguration(controller.makePipelineConfiguration());
+
             c2.changeOutputDestination(null,
                     receiver,
                     false,
                     validationAction,
                     schemaType);
-            processChildren(c2);
-            //c2.resetOutputDestination(old);
-            receiver.endDocument();
-            receiver.close();
-            //System.err.println("End build doc " + builder);
+            Receiver out = c2.getReceiver();
+            out.open();
+            out.startDocument(0);
 
-            root = builder.getCurrentDocument();
+            content.process(c2);
+
+            out.endDocument();
+            out.close();
+
+            root = (DocumentInfo)builder.getCurrentRoot();
         }
         return root;
     }
@@ -165,11 +239,7 @@ public class DocumentInstr extends InstructionWithChildren {
 
     public void display(int level, NamePool pool, PrintStream out) {
         out.println(ExpressionTool.indent(level) + "document-constructor");
-        if (children.length == 0) {
-            out.println(ExpressionTool.indent(level + 1) + "empty content");
-        } else {
-            InstructionWithChildren.displayChildren(children, level + 1, pool, out);
-        }
+        content.display(level+1, pool, out);
     }
 }
 

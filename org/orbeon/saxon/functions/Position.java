@@ -1,8 +1,8 @@
 package net.sf.saxon.functions;
-import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.expr.Expression;
+import net.sf.saxon.expr.StaticContext;
+import net.sf.saxon.expr.StaticProperty;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.value.IntegerValue;
 import net.sf.saxon.xpath.XPathException;

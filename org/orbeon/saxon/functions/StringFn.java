@@ -1,12 +1,9 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.type.ItemType;
 import net.sf.saxon.xpath.XPathException;
 
 /**
@@ -23,20 +20,6 @@ public class StringFn extends SystemFunction {
      public Expression simplify(StaticContext env) throws XPathException {
         useContextItemAsDefault();
         return simplifyArguments(env);
-    }
-
-    /**
-    * Type check. This refinement of the method removes the function call wrapper if the
-    * argument is already of type single string
-    */
-
-    public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
-        super.analyze(env, contextItemType);
-        if (argument[0].getItemType()==Type.STRING_TYPE &&
-                argument[0].getCardinality()==StaticProperty.EXACTLY_ONE) {
-            return argument[0];
-        }
-        return this;
     }
 
     /**

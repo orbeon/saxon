@@ -3,7 +3,7 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.instruct.ApplyImports;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.tree.AttributeCollection;
+import net.sf.saxon.om.AttributeCollection;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -38,7 +38,7 @@ public class XSLApplyImports extends StyleElement {
     }
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {
-        ApplyImports inst = new ApplyImports();
+        ApplyImports inst = new ApplyImports(backwardsCompatibleModeIsEnabled());
         inst.setActualParameters(getWithParamInstructions(exec, false),
                                  getWithParamInstructions(exec, true));
         ExpressionTool.makeParentReferences(inst);

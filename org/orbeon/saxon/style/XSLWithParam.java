@@ -1,12 +1,12 @@
 package net.sf.saxon.style;
-import net.sf.saxon.instruct.WithParam;
+import net.sf.saxon.expr.Expression;
+import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.instruct.Executable;
+import net.sf.saxon.instruct.WithParam;
 import net.sf.saxon.om.Axis;
 import net.sf.saxon.om.AxisIterator;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -33,7 +33,7 @@ public class XSLWithParam extends XSLGeneralVariable {
                  (parent instanceof XSLCallTemplate) ||
                  (parent instanceof XSLApplyImports) ||
                  (parent instanceof XSLNextMatch))) {
-            compileError("xsl:with-param cannot appear as a child of " + parent.getDisplayName());
+            compileError("xsl:with-param cannot appear as a child of " + parent.getDisplayName(), "XT0010");
         }
 
         // Check for duplicate parameter names
@@ -46,7 +46,7 @@ public class XSLWithParam extends XSLGeneralVariable {
             }
             if (prev instanceof XSLWithParam) {
                 if (this.getVariableFingerprint() == ((XSLWithParam)prev).getVariableFingerprint()) {
-                    compileError("Duplicate parameter name");
+                    compileError("Duplicate parameter name", "XT0670");
                 }
             }
         }

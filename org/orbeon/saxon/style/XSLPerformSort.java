@@ -1,17 +1,13 @@
 package net.sf.saxon.style;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.instruct.Block;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.Navigator;
-import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.om.*;
 import net.sf.saxon.sort.SortExpression;
 import net.sf.saxon.sort.SortKeyDefinition;
-import net.sf.saxon.tree.AttributeCollection;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
+import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
@@ -113,8 +109,10 @@ public class XSLPerformSort extends StyleElement {
             ExpressionTool.makeParentReferences(sortedSequence);
             return sortedSequence;
         } else {
-            Block body = new Block();
-            compileChildren(exec, body, true);
+            Expression body = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+            if (body == null) {
+                body = EmptySequence.getInstance();
+            }
             try {
                 SortExpression sortedSequence =  new SortExpression(body.simplify(getStaticContext()), sortKeys);
                 ExpressionTool.makeParentReferences(sortedSequence);

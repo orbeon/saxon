@@ -1,20 +1,14 @@
 package net.sf.saxon.tree;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.ListIterator;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.XMLChar;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.type.Type;
-
-import java.util.HashMap;
-import java.util.ArrayList;
-import org.xml.sax.Attributes;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.Configuration;
-
+import net.sf.saxon.event.Receiver;
+import net.sf.saxon.om.*;
+import net.sf.saxon.type.Type;
+import net.sf.saxon.xpath.XPathException;
 import org.w3c.dom.*;
+import org.xml.sax.Attributes;
+
+import java.util.ArrayList;
+import java.util.HashMap;
 
 /**
   * A node in the XML parse tree representing the Document itself (or equivalently, the root
@@ -124,8 +118,6 @@ public final class DocumentImpl extends ParentNodeImpl
     void setSystemId(int seq, String uri) {
         if (uri==null) {
             uri = "";
-        //    uri = "*unknown.uri*";
-        //    throw new NullPointerException("URI may not be null");
         }
         systemIdMap.setSystemId(seq, uri);
     }
@@ -402,10 +394,10 @@ public final class DocumentImpl extends ParentNodeImpl
         return null;
     }
 
-//    DOM LEVEL 3 METHOD
-//    public DOMConfiguration getDomConfig() {
-//        return null;
-//    }
+    //DOM LEVEL 3 METHOD
+    public DOMConfiguration getDomConfig() {
+        return null;
+    }
 
     public void normalizeDocument() {
         disallowUpdate();
@@ -424,11 +416,11 @@ public final class DocumentImpl extends ParentNodeImpl
     * Copy this node to a given outputter
     */
 
-    public void copy(Receiver out, int whichNamespaces) throws XPathException {
+    public void copy(Receiver out, int whichNamespaces, boolean copyAnnotations, int locationId) throws XPathException {
         out.startDocument(0);
         NodeImpl next = (NodeImpl)getFirstChild();
         while (next!=null) {
-            next.copy(out, whichNamespaces);
+            next.copy(out, whichNamespaces, copyAnnotations, locationId);
             next = (NodeImpl)next.getNextSibling();
         }
         out.endDocument();
@@ -445,11 +437,9 @@ public final class DocumentImpl extends ParentNodeImpl
 // WITHOUT WARRANTY OF ANY KIND, either express or implied.
 // See the License for the specific language governing rights and limitations under the License.
 //
-// The Original Code is: all this file except PB-SYNC section.
+// The Original Code is: all this file
 //
 // The Initial Developer of the Original Code is Michael H. Kay.
 //
-// Portions marked PB-SYNC are Copyright (C) Peter Bryant (pbryant@bigfoot.com). All Rights Reserved.
-//
-// Contributor(s): Michael Kay, Peter Bryant.
+// Contributor(s):
 //

@@ -1,7 +1,7 @@
 package net.sf.saxon.functions;
-import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
+import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.xpath.XPathException;
@@ -19,7 +19,9 @@ public class Current extends SystemFunction implements XSLTFunction {
     */
 
     public int computeSpecialProperties() {
-        return StaticProperty.CONTEXT_DOCUMENT_NODESET | StaticProperty.ORDERED_NODESET;
+        return StaticProperty.CONTEXT_DOCUMENT_NODESET |
+                StaticProperty.ORDERED_NODESET |
+                StaticProperty.NON_CREATIVE;
     }
 
     /**

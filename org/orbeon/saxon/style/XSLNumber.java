@@ -1,15 +1,18 @@
 package net.sf.saxon.style;
 import net.sf.saxon.Loader;
-import net.sf.saxon.expr.*;
+import net.sf.saxon.expr.Expression;
+import net.sf.saxon.expr.ExpressionTool;
+import net.sf.saxon.expr.RoleLocator;
+import net.sf.saxon.expr.TypeChecker;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.instruct.NumberInstruction;
 import net.sf.saxon.instruct.ValueOf;
 import net.sf.saxon.number.NumberFormatter;
 import net.sf.saxon.number.Numberer;
 import net.sf.saxon.number.Numberer_en;
+import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.pattern.NodeKindTest;
 import net.sf.saxon.pattern.Pattern;
-import net.sf.saxon.tree.AttributeCollection;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.value.StringValue;
@@ -117,16 +120,16 @@ public class XSLNumber extends StyleElement {
         if (valueAtt!=null) {
             value = makeExpression(valueAtt);
             if (selectAtt != null) {
-                compileError("The select attribute and value attribute must not both be present");
+                compileError("The select attribute and value attribute must not both be present", "XT0975");
             }
             if (countAtt != null) {
-                compileError("The count attribute and value attribute must not both be present");
+                compileError("The count attribute and value attribute must not both be present", "XT0975");
             }
             if (fromAtt != null) {
-                compileError("The from attribute and value attribute must not both be present");
+                compileError("The from attribute and value attribute must not both be present", "XT0975");
             }
             if (levelAtt != null) {
-                compileError("The level attribute and value attribute must not both be present");
+                compileError("The level attribute and value attribute must not both be present", "XT0975");
             }
         }
 
@@ -137,24 +140,6 @@ public class XSLNumber extends StyleElement {
             if (countAtt.indexOf('$')>=0) {
                 hasVariablesInPatterns = true;
             }
-        } else {
-//            // if count is not specified, we try to supply a suitable value if the node type
-//            // and name are known statically. This is important because it enables optimization
-//            // (currently used only for level=any) when the pattern is the same each time.
-
-              // Removed because it only worked under very limited circumstances,
-              // and there were bugs (e.g. when used within a template having both
-              // a name and a match attribute). TODO: Should be based on static type analysis.
-
-//            if (select == null) {
-//                Pattern pat = getContextItemType();
-//                if (pat == null) {
-//                    compileError("The context node is undefined");
-//                }
-//                if (pat instanceof NameTest) {
-//                    count = pat;
-//                }
-//            }
         }
 
         if (fromAtt!=null) {
@@ -173,7 +158,7 @@ public class XSLNumber extends StyleElement {
         } else if (levelAtt.equals("any")) {
             level = ANY;
         } else {
-            compileError("Invalid value for level attribute");
+            compileError("Invalid value for level attribute", "XT0020");
         }
 
         if (level==SINGLE && from==null && count==null) {
@@ -235,7 +220,7 @@ public class XSLNumber extends StyleElement {
         if (select != null) {
             try {
                 RoleLocator role =
-                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:number/select", 0);
+                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:number/select", 0, null);
                 select = TypeChecker.staticTypeCheck(select,
                                             SequenceType.SINGLE_NODE,
                                             false, role, getStaticContext());
@@ -259,7 +244,8 @@ public class XSLNumber extends StyleElement {
                                         lang,
                                         formatter,
                                         numberer,
-                                        hasVariablesInPatterns );
+                                        hasVariablesInPatterns,
+                                        backwardsCompatibleModeIsEnabled());
         int loc = getStaticContext().getLocationMap().allocateLocationId(getSystemId(), getLineNumber());
         expr.setLocationId(loc);
         ExpressionTool.makeParentReferences(expr);

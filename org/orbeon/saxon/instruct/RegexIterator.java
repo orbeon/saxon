@@ -1,7 +1,7 @@
 package net.sf.saxon.instruct;
+import net.sf.saxon.om.ArrayIterator;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.ArrayIterator;
 import net.sf.saxon.value.StringValue;
 
 import java.util.regex.Matcher;

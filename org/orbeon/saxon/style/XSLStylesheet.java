@@ -16,8 +16,8 @@ import net.sf.saxon.trans.DecimalFormatManager;
 import net.sf.saxon.trans.KeyManager;
 import net.sf.saxon.trans.Mode;
 import net.sf.saxon.trans.RuleManager;
-import net.sf.saxon.tree.AttributeCollection;
 import net.sf.saxon.type.Type;
+import net.sf.saxon.xpath.StaticError;
 import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
@@ -39,7 +39,7 @@ public class XSLStylesheet extends StyleElement {
     // index of global variables and parameters, by fingerprint
     // (overridden variables are excluded).
     // Used at compile-time only, except for debugging
-    private HashMap globalVariableIndex = new HashMap();
+    private HashMap globalVariableIndex = new HashMap(20);
 
     // the name pool used for names that will be needed at run-time, notably
     // the names used in XPath expressions and patterns, but also key names, parameter names, etc
@@ -66,10 +66,10 @@ public class XSLStylesheet extends StyleElement {
 
     // table of named templates. Key is the integer fingerprint of the template name;
     // value is the XSLTemplate object in the source stylesheet.
-    private HashMap templateIndex = new HashMap();
+    private HashMap templateIndex = new HashMap(20);
 
     // table of imported schemas
-    private HashSet schemaIndex = new HashSet();
+    private HashSet schemaIndex = new HashSet(10);
 
     // table of functions imported from XQuery library modules
 //private HashMap xqueryFunctionIndex;
@@ -181,7 +181,7 @@ public class XSLStylesheet extends StyleElement {
 
     protected Mode getStripperRules() {
         if (exec.getStripperRules() == null) {
-            exec.setStripperRules(new Mode());
+            exec.setStripperRules(new Mode(true));
         }
         return exec.getStripperRules();
     }
@@ -228,7 +228,7 @@ public class XSLStylesheet extends StyleElement {
 
     public void setCollation(String name, Comparator collation, boolean isDefault) {
         if (exec.getCollationTable() == null) {
-            exec.setCollationTable(new HashMap());
+            exec.setCollationTable(new HashMap(20));
         }
         exec.getCollationTable().put(name, collation);
         if (isDefault) {
@@ -246,7 +246,7 @@ public class XSLStylesheet extends StyleElement {
 
     protected Comparator findCollation(String name) {
 
-        if (name.equals(CodepointCollator.URI)) {
+        if (name.equals(NamespaceConstant.CodepointCollationURI)) {
             return CodepointCollator.getInstance();
         }
 
@@ -432,7 +432,7 @@ public class XSLStylesheet extends StyleElement {
                 defaultValidation = Validation.getCode(atts.getValue(a));
                 if (defaultValidation == Validation.INVALID) {
                     compileError("Invalid value for default-validation attribute. " +
-                            "Permitted values are (strict, lax, preserve, strip)");
+                            "Permitted values are (strict, lax, preserve, strip)", "XT0020");
                 }
             } else {
                 checkUnknownAttribute(nc);
@@ -493,7 +493,39 @@ public class XSLStylesheet extends StyleElement {
             compileError(validationError);
         }
         if (!(getParentNode() instanceof DocumentInfo)) {
-            compileError(getDisplayName() + " must be the outermost element");
+            compileError(getDisplayName() + " must be the outermost element", "XT0010");
+        }
+
+        AxisIterator kids = iterateAxis(Axis.CHILD);
+        while(true) {
+            NodeInfo curr = (NodeInfo)kids.next();
+            if (curr == null) break;
+            if (curr.getNodeKind() == Type.TEXT ||
+                    curr instanceof XSLTemplate ||
+                    curr instanceof XSLImport ||
+                    curr instanceof XSLInclude ||
+                    curr instanceof XSLAttributeSet ||
+                    curr instanceof XSLCharacterMap ||
+                    curr instanceof XSLDecimalFormat ||
+                    curr instanceof XSLFunction ||
+                    curr instanceof XSLImportSchema ||
+                    curr instanceof XSLKey ||
+                    curr instanceof XSLNamespaceAlias ||
+                    curr instanceof XSLOutput ||
+                    curr instanceof XSLParam ||
+                    curr instanceof XSLPreserveSpace ||
+                    curr instanceof XSLVariable ||
+                    curr instanceof XSLParam ||
+                    curr instanceof DataElement) {
+                // all is well
+            } else if (!NamespaceConstant.XSLT.equals(curr.getURI()) && !"".equals(curr.getURI())) {
+                // elements in other namespaces are allowed and ignored
+            } else if (curr instanceof AbsentExtensionElement && ((StyleElement)curr).forwardsCompatibleModeIsEnabled()) {
+                // this is OK: an unknown XSLT element is allowed in forwards compatibility mode
+            } else {
+                ((StyleElement)curr).compileError("Element " + curr.getDisplayName() +
+                        " must not appear directly within " + getDisplayName(), "XT0010");
+            }
         }
     }
 
@@ -549,7 +581,7 @@ public class XSLStylesheet extends StyleElement {
     public void spliceIncludes() throws TransformerConfigurationException {
 
         boolean foundNonImport = false;
-        topLevel = new ArrayList();
+        topLevel = new ArrayList(50);
         minImportPrecedence = precedence;
         StyleElement previousElement = this;
 
@@ -577,7 +609,7 @@ public class XSLStylesheet extends StyleElement {
 
                     if (xslinc.isImport()) {
                         if (foundNonImport) {
-                            xslinc.compileError("xsl:import elements must come first");
+                            xslinc.compileError("xsl:import elements must come first", "XT0010");
                         }
                     } else {
                         foundNonImport = true;
@@ -635,7 +667,7 @@ public class XSLStylesheet extends StyleElement {
      */
 
     private void buildIndexes() throws TransformerConfigurationException {
-// Scan the declarations in reverse order
+    // Scan the declarations in reverse order
         for (int i = topLevel.size() - 1; i >= 0; i--) {
             Object node = topLevel.get(i);
             if (node instanceof XSLTemplate) {
@@ -647,6 +679,8 @@ public class XSLStylesheet extends StyleElement {
                 numberOfAliases++;
             } else if (node instanceof XSLImportSchema) {
                 ((XSLImportSchema) node).readSchema();
+            } else if (node instanceof XSLDecimalFormat) {
+                ((XSLDecimalFormat) node).register();
             } else if (node instanceof SaxonImportQuery) {
                 ((SaxonImportQuery) node).importModule();
             }
@@ -675,7 +709,7 @@ public class XSLStylesheet extends StyleElement {
                 int otherPrecedence = other.getPrecedence();
                 if (thisPrecedence == otherPrecedence) {
                     var.compileError("Duplicate global variable declaration (see line " +
-                            other.getLineNumber() + " of " + other.getSystemId() + ")");
+                            other.getLineNumber() + " of " + other.getSystemId() + ')', "XT0630");
                 } else if (thisPrecedence < otherPrecedence) {
                     var.setRedundant();
                 } else {
@@ -707,7 +741,7 @@ public class XSLStylesheet extends StyleElement {
                 int otherPrecedence = other.getPrecedence();
                 if (thisPrecedence == otherPrecedence) {
                     template.compileError("Duplicate named template (see line " +
-                            other.getLineNumber() + " of " + other.getSystemId() + ")");
+                            other.getLineNumber() + " of " + other.getSystemId() + ')', "XT0660");
                 } else if (thisPrecedence < otherPrecedence) {
                     //template.setRedundantNamedTemplate();
                 } else {
@@ -748,7 +782,7 @@ public class XSLStylesheet extends StyleElement {
             for (int j = precedenceBoundary; j < i; j++) {
                 if (scode == aliasSCodes[j]) {
                     if ((ncode & 0xffff) != (aliasNCodes[j] & 0xffff)) {
-                        xna.compileError("Inconsistent namespace aliases");
+                        xna.compileError("More than one alias is defined for the same namespace prefix", "XT0810");
                     }
                 }
             }
@@ -912,7 +946,11 @@ public class XSLStylesheet extends StyleElement {
             // Fix up references to the default default decimal format
 
             if (exec.getDecimalFormatManager() != null) {
-                exec.getDecimalFormatManager().fixupDefaultDefault();
+                try {
+                    exec.getDecimalFormatManager().fixupDefaultDefault();
+                } catch (StaticError err) {
+                    compileError(err.getMessage(), err.getErrorCode());
+                }
             }
 
             exec.setStripsWhitespace(stripsWhitespace());
@@ -926,10 +964,10 @@ public class XSLStylesheet extends StyleElement {
                     XSLCharacterMap t = (XSLCharacterMap) topLevel.get(i);
                     if (!t.isRedundant()) {
                         int fp = t.getCharacterMapFingerprint();
-                        HashMap map = new HashMap();
+                        HashMap map = new HashMap(20);
                         t.assemble(map);
                         if (exec.getCharacterMapIndex() == null) {
-                            exec.setCharacterMapIndex(new HashMap());
+                            exec.setCharacterMapIndex(new HashMap(20));
                         }
                         exec.getCharacterMapIndex().put(new Integer(fp), map);
                     }

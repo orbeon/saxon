@@ -20,11 +20,11 @@ public class Orphan implements NodeInfo {
     private int nameCode = -1;
     private CharSequence stringValue;
     private int typeAnnotation = -1;
-    private NamePool namePool;
+    private Configuration config;
     private String systemId;
 
-    public Orphan(NamePool pool) {
-        this.namePool = pool;
+    public Orphan(Configuration config) {
+        this.config = config;
     }
 
     public void setNodeKind(short kind) {
@@ -60,14 +60,14 @@ public class Orphan implements NodeInfo {
     * Get the typed value of the item
     */
 
-    public SequenceIterator getTypedValue(Configuration config) throws XPathException {
+    public SequenceIterator getTypedValue() throws XPathException {
         if (typeAnnotation == -1) {
             return SingletonIterator.makeIterator(
                     new UntypedAtomicValue(stringValue));
         } else {
             SchemaType stype = config.getSchemaType(typeAnnotation);
             if (stype == null) {
-                String typeName = namePool.getDisplayName(typeAnnotation);
+                String typeName = config.getNamePool().getDisplayName(typeAnnotation);
                 throw new IllegalStateException("Unknown type annotation " +
                         Err.wrap(typeName) + " in standalone node");
             } else {
@@ -77,11 +77,19 @@ public class Orphan implements NodeInfo {
     }
 
     /**
+     * Get the configuration
+     */
+
+    public Configuration getConfiguration() {
+        return config;
+    }    
+
+    /**
      * Get the name pool
      */
 
     public NamePool getNamePool() {
-        return namePool;
+        return config.getNamePool();
     }
 
     /**
@@ -120,6 +128,7 @@ public class Orphan implements NodeInfo {
     */
 
     public String getBaseURI() {
+        // TODO: check this against the data model
         return systemId;
     }
 
@@ -192,7 +201,7 @@ public class Orphan implements NodeInfo {
         if (nameCode == -1) {
             return "";
         } else {
-            return namePool.getLocalName(nameCode);
+            return config.getNamePool().getLocalName(nameCode);
         }
     }
 
@@ -207,7 +216,7 @@ public class Orphan implements NodeInfo {
         if (nameCode == -1) {
             return "";
         } else {
-            return namePool.getURI(nameCode);
+            return config.getNamePool().getURI(nameCode);
         }
     }
 
@@ -222,7 +231,7 @@ public class Orphan implements NodeInfo {
         if (nameCode == -1) {
             return "";
         } else {
-            return namePool.getDisplayName(nameCode);
+            return config.getNamePool().getDisplayName(nameCode);
         }
     }
 
@@ -364,7 +373,7 @@ public class Orphan implements NodeInfo {
     */
 
     public void copy(Receiver out, int whichNamespaces, boolean copyAnnotations, int locationId) throws XPathException {
-        Navigator.copy(this, out, namePool, whichNamespaces, copyAnnotations, locationId);
+        Navigator.copy(this, out, config.getNamePool(), whichNamespaces, copyAnnotations, locationId);
     }
 
     /**

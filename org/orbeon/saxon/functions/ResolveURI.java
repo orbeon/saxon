@@ -1,10 +1,11 @@
 package net.sf.saxon.functions;
+import net.sf.saxon.Err;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.StringValue;
 import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.Err;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -18,8 +19,10 @@ public class ResolveURI extends SystemFunction {
     String expressionBaseURI = null;
 
     public void checkArguments(StaticContext env) throws XPathException {
-        super.checkArguments(env);
-        expressionBaseURI = env.getBaseURI();
+        if (expressionBaseURI == null) {
+            super.checkArguments(env);
+            expressionBaseURI = env.getBaseURI();
+        }
     }
 
     /**
@@ -28,7 +31,11 @@ public class ResolveURI extends SystemFunction {
 
     public Item evaluateItem(XPathContext context) throws XPathException {
         URI relativeURI;
-        String relative = argument[0].evaluateAsString(context);
+        AtomicValue arg0 = (AtomicValue)argument[0].evaluateItem(context);
+        if (arg0 == null) {
+            return null;
+        }
+        String relative = arg0.getStringValue();
         try {
             relativeURI = new URI(relative);
         } catch (URISyntaxException err) {

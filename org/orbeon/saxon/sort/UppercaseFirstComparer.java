@@ -1,6 +1,6 @@
 package net.sf.saxon.sort;
-import java.util.Comparator;
 import java.text.Collator;
+import java.util.Comparator;
 
 /**
  * A Comparer used for comparing keys

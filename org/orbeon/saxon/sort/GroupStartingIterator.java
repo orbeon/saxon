@@ -1,8 +1,8 @@
 package net.sf.saxon.sort;
 
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.ListIterator;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.om.ListIterator;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.pattern.Pattern;
@@ -22,7 +22,8 @@ public class GroupStartingIterator implements GroupIterator {
 
     private SequenceIterator population;
     private Pattern startPattern;
-    private XPathContext context;
+    private XPathContext baseContext;
+    private XPathContext runningContext;
     private List currentMembers;
     private Item next;
     private Item current = null;
@@ -33,20 +34,22 @@ public class GroupStartingIterator implements GroupIterator {
     throws XPathException {
         this.population = population;
         this.startPattern = startPattern;
-        this.context = context;
+        baseContext = context;
+        runningContext = context.newMinorContext();
+        runningContext.setCurrentIterator(population);
         // the first item in the population always starts a new group
         next = population.next();
      }
 
      private void advance() throws XPathException {
-         currentMembers = new ArrayList();
+         currentMembers = new ArrayList(10);
          currentMembers.add(current);
          while (true) {
              NodeInfo nextCandidate = (NodeInfo)population.next();
              if (nextCandidate == null) {
                  break;
              }
-             if (startPattern.matches(nextCandidate, context)) {
+             if (startPattern.matches(nextCandidate, runningContext)) {
                  next = nextCandidate;
                  return;
              } else {
@@ -84,7 +87,7 @@ public class GroupStartingIterator implements GroupIterator {
      }
 
     public SequenceIterator getAnother() throws XPathException {
-        return new GroupStartingIterator(population, startPattern, context);
+        return new GroupStartingIterator(population.getAnother(), startPattern, baseContext);
     }
 
 

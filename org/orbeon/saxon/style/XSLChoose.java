@@ -1,15 +1,16 @@
 package net.sf.saxon.style;
-import net.sf.saxon.instruct.*;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.Navigator;
-import net.sf.saxon.om.Axis;
+import net.sf.saxon.expr.Container;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.value.BooleanValue;
-import net.sf.saxon.type.Type;
+import net.sf.saxon.instruct.Choose;
+import net.sf.saxon.instruct.Executable;
+import net.sf.saxon.instruct.Instruction;
+import net.sf.saxon.instruct.TraceWrapper;
+import net.sf.saxon.om.*;
 import net.sf.saxon.type.ItemType;
+import net.sf.saxon.type.Type;
+import net.sf.saxon.value.BooleanValue;
+import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
@@ -61,27 +62,27 @@ public class XSLChoose extends StyleElement {
             }
             if (curr instanceof XSLWhen) {
                 if (otherwise!=null) {
-                    compileError("xsl:otherwise must come last");
+                    compileError("xsl:otherwise must come last", "XT0010");
                 }
                 numberOfWhens++;
             } else if (curr instanceof XSLOtherwise) {
                 if (otherwise!=null) {
-                    compileError("Only one xsl:otherwise allowed in an xsl:choose");
+                    compileError("Only one xsl:otherwise allowed in an xsl:choose", "XT0010");
                 } else {
                     otherwise = (StyleElement)curr;
                 }
             } else if (curr.getNodeKind() == Type.TEXT &&
                         Navigator.isWhite(curr.getStringValue())) {
-                compileError("Text node inside xsl:choose");
+                compileError("Text node inside xsl:choose", "XT0010");
                 // tolerate a whitespace text node; but it should have been stripped
                 // by now.
             } else {
-                compileError("Only xsl:when and xsl:otherwise are allowed here");
+                compileError("Only xsl:when and xsl:otherwise are allowed here", "XT0010");
             }
         }
 
         if (numberOfWhens==0) {
-            compileError("xsl:choose must contain at least one xsl:when");
+            compileError("xsl:choose must contain at least one xsl:when", "XT0010");
         }
     }
 
@@ -118,9 +119,11 @@ public class XSLChoose extends StyleElement {
             }
             if (curr instanceof XSLWhen) {
                 conditions[w] = ((XSLWhen)curr).getCondition();
-                Block b = new Block();
-                b.setLocationId(allocateLocationId(getSystemId(), curr.getLineNumber()));
-                ((XSLWhen)curr).compileChildren(exec, b, true);
+                Expression b = ((XSLWhen)curr).compileSequenceConstructor(
+                        exec, curr.iterateAxis(Axis.CHILD), true);
+                if (b == null) {
+                    b = EmptySequence.getInstance();
+                }
                 try {
                     actions[w] = b.simplify(((XSLWhen)curr).getStaticContext());
                 } catch (XPathException e) {
@@ -129,7 +132,9 @@ public class XSLChoose extends StyleElement {
 
                 if (getConfiguration().getTraceListener() != null) {
                     TraceWrapper trace = makeTraceInstruction((XSLWhen)curr, actions[w]);
-                    trace.setParentExpression(b);
+                    if (b instanceof Container) {
+                        trace.setParentExpression((Container)b);
+                    }
                     actions[w] = trace;
                 }
 
@@ -148,9 +153,11 @@ public class XSLChoose extends StyleElement {
                 w++;
             } else if (curr instanceof XSLOtherwise) {
                 conditions[w] = BooleanValue.TRUE;
-                Block b = new Block();
-                b.setLocationId(allocateLocationId(getSystemId(), curr.getLineNumber()));
-                ((XSLOtherwise)curr).compileChildren(exec, b, true);
+                Expression b = ((XSLOtherwise)curr).compileSequenceConstructor(
+                        exec, curr.iterateAxis(Axis.CHILD), true);
+                if (b == null) {
+                    b = EmptySequence.getInstance();
+                }
                 try {
                     actions[w] = b.simplify(((XSLOtherwise)curr).getStaticContext());
                 } catch (XPathException e) {
@@ -158,7 +165,9 @@ public class XSLChoose extends StyleElement {
                 }
                 if (getConfiguration().getTraceListener() != null) {
                     TraceWrapper trace = makeTraceInstruction((XSLOtherwise)curr, actions[w]);
-                    trace.setParentExpression(b);
+                    if (b instanceof Container) {
+                        trace.setParentExpression((Container)b);
+                    }
                     actions[w] = trace;
                 }
                 w++;

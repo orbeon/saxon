@@ -33,13 +33,14 @@ public abstract class Pattern implements Serializable, Container {
 
     public static Pattern make(String pattern, StaticContext env, Executable exec) throws XPathException {
 
-        Pattern pat = (new ExpressionParser()).parsePattern(pattern, env).simplify(env);
+        Pattern pat = (new ExpressionParser()).parsePattern(pattern, env);        
         pat.setSystemId(env.getSystemId());
         pat.setLineNumber(env.getLineNumber());
         // System.err.println("Simplified [" + pattern + "] to " + pat.getClass() + " default prio = " + pat.getDefaultPriority());
         // set the pattern text for use in diagnostics
         pat.setOriginalText(pattern);
         pat.setExecutable(exec);
+        pat = pat.simplify(env);
         return pat;
     }
 

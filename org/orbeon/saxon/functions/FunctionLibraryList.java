@@ -1,12 +1,11 @@
 package net.sf.saxon.functions;
 
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.functions.FunctionLibrary;
 import net.sf.saxon.expr.Expression;
+import net.sf.saxon.xpath.XPathException;
 
-import java.util.List;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 /**
  * A FunctionLibraryList is a list of FunctionLibraries. It is also a FunctionLibrary in its own right.

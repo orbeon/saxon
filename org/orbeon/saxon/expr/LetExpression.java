@@ -3,6 +3,7 @@ import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.type.ItemType;
+import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.value.Value;
 import net.sf.saxon.xpath.XPathException;
 
@@ -15,6 +16,10 @@ import java.io.PrintStream;
 */
 
 public class LetExpression extends Assignation {
+
+    // This boolean is set if static analysis reveals that the value of the variable will
+    // be referenced more than once.
+    boolean keepValue;
 
     public LetExpression() {}
 
@@ -35,21 +40,50 @@ public class LetExpression extends Assignation {
 
         sequence = sequence.analyze(env, contextItemType);
 
-        RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, getVariableName(env.getNamePool()), 0);
-        sequence = TypeChecker.staticTypeCheck(
-                        sequence, declaration.getRequiredType(), false, role, env);
+        RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, new Integer(nameCode), 0, env.getNamePool());
+        sequence = TypeChecker.strictTypeCheck(
+                        sequence, declaration.getRequiredType(), role, env);
         ItemType actualItemType = sequence.getItemType();
         declaration.refineTypeInformation(actualItemType,
                         sequence.getCardinality(),
                         (sequence instanceof Value ? (Value)sequence : null),
                         sequence.getSpecialProperties());
 
+        action = action.analyze(env, contextItemType);
+
+        int count = declaration.getReferenceCount(this);
+        if (count == 0) {
+            // variable is not used - no need to evaluate it
+            return action;
+        } else if (count == 1) {
+            keepValue = false;
+        } else {
+            keepValue = true;
+        }
+
         declaration = null;     // let the garbage collector take it
 
-        action = action.analyze(env, contextItemType);
+        // Try to promote any WHERE clause appearing within the LET expression
+
+        Expression p = promoteWhereClause();
+        if (p != null) {
+            return p;
+        }
+
         return this;
     }
 
+    /**
+     * Check that any elements and attributes constructed or returned by this expression are acceptable
+     * in the content model of a given complex type. It's always OK to say yes, since the check will be
+     * repeated at run-time. The process of checking element and attribute constructors against the content
+     * model of a complex type also registers the type of content expected of those constructors, so the
+     * static validation can continue recursively.
+     */
+
+    public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException {
+        action.checkPermittedContents(parentType, env, whole);
+    }        
 
     /**
     * Iterate over the sequence of values
@@ -66,7 +100,7 @@ public class LetExpression extends Assignation {
      */
 
     protected Value eval(XPathContext context) throws XPathException {
-        return ExpressionTool.lazyEvaluate(sequence, context);
+        return ExpressionTool.lazyEvaluate(sequence, context, keepValue);
     }
 
     /**
@@ -75,13 +109,6 @@ public class LetExpression extends Assignation {
 
     public Item evaluateItem(XPathContext context) throws XPathException {
         Value val = eval(context);
-        if (val==null) {
-            // this shouldn't happen but is inserted as a trap for the unresolved
-            // problem reported by Gunther Schadow, see
-            // https://sourceforge.net/forum/forum.php?thread_id=897476&forum_id=94027
-            System.err.println("Invalid null value from lazyEvaluate() in LetExpression");
-            throw new NullPointerException("Please report this as a Saxon bug");
-        }
         context.setLocalVariable(slotNumber, val);
         return action.evaluateItem(context);
     }
@@ -147,10 +174,19 @@ public class LetExpression extends Assignation {
             sequence = sequence.promote(offer);
             if (offer.action == PromotionOffer.INLINE_VARIABLE_REFERENCES ||
                     offer.action == PromotionOffer.UNORDERED) {
-                // Don't pass on other requests. We could pass them on, but only after augmenting
-                // them to say we are interested in subexpressions that don't depend on either the
-                // outer context or the inner context.
                 action = action.promote(offer);
+            } else if (offer.action == PromotionOffer.RANGE_INDEPENDENT
+//                  ||  offer.action == PromotionOffer.WHERE_CLAUSE
+            ) {
+                // Pass the offer to the action expression only if the action isn't depending on the
+                // variable bound by this let expression
+                Binding[] savedBindingList = offer.bindingList;
+                Binding[] newBindingList = new Binding[offer.bindingList.length+1];
+                System.arraycopy(offer.bindingList, 0, newBindingList, 0, offer.bindingList.length);
+                newBindingList[offer.bindingList.length] = this;
+                offer.bindingList = newBindingList;
+                action = action.promote(offer);
+                offer.bindingList = savedBindingList;
             }
             // if this results in the expression (let $x := $y return Z), replace all references to
             // to $x by references to $y in the Z part, and eliminate this LetExpression by
@@ -159,7 +195,8 @@ public class LetExpression extends Assignation {
                 //System.err.println("Before INLINING:"); display(10);
                 PromotionOffer offer2 = new PromotionOffer();
                 offer2.action = PromotionOffer.INLINE_VARIABLE_REFERENCES;
-                offer2.binding = this;
+                Binding[] bindingList = {this};
+                offer2.bindingList = bindingList;
                 offer2.containingExpression = sequence;
                 action = action.promote(offer2);
                 //System.err.println("After INLINING:"); action.display(10);

@@ -22,7 +22,7 @@ public final class Cardinality {
      * Determine whether multiple occurrences are allowed
      */
 
-    public final static boolean allowsMany(int cardinality) {
+    public static final boolean allowsMany(int cardinality) {
         return (cardinality & StaticProperty.ALLOWS_MANY) != 0;
     }
 
@@ -30,7 +30,7 @@ public final class Cardinality {
      * Determine whether empty sequence is allowed
      */
 
-    public final static boolean allowsZero(int cardinality) {
+    public static final boolean allowsZero(int cardinality) {
         return (cardinality & StaticProperty.ALLOWS_ZERO) != 0;
     }
 
@@ -42,13 +42,28 @@ public final class Cardinality {
     * @return the cardinality that allows both c1 and c2
     */
 
-    public final static int union(int c1, int c2) {
+    public static final int union(int c1, int c2) {
         int r = c1 | c2;
         // eliminate disallowed options
         if (r == (StaticProperty.ALLOWS_MANY |
                     StaticProperty.ALLOWS_ZERO ))
             r = StaticProperty.ALLOWS_ZERO_OR_MORE;
         return r;
+    }
+
+    /**
+     * Form the sum of two cardinalities
+     */
+
+    public static final int sum(int c1, int c2) {
+        if (allowsMany(c1) || allowsMany(c2)) {
+            return c1 | c2;
+        }
+        if (!allowsZero(c1) && !allowsZero(c2)) {
+            return StaticProperty.ALLOWS_ONE_OR_MORE;
+        } else {
+            return StaticProperty.ALLOWS_ZERO_OR_MORE;
+        }
     }
 
     /**
@@ -60,7 +75,7 @@ public final class Cardinality {
     * by c2 is also permitted by c1.
     */
 
-    public final static boolean subsumes(int c1, int c2) {
+    public static final boolean subsumes(int c1, int c2) {
         return (c1|c2)==c1;
     }
 
@@ -68,7 +83,7 @@ public final class Cardinality {
      * Add two cardinalities
      */
 
-    public final static int add(int c1, int c2) {
+    public static final int add(int c1, int c2) {
         if (c1==StaticProperty.EMPTY) {
             return c2;
         }
@@ -83,7 +98,7 @@ public final class Cardinality {
      * Multiply two cardinalities
      */
 
-    public final static int multiply(int c1, int c2) {
+    public static final int multiply(int c1, int c2) {
         if (c1==StaticProperty.EMPTY || c2==StaticProperty.EMPTY) {
             return StaticProperty.EMPTY;
         }

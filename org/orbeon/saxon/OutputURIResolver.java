@@ -2,8 +2,6 @@ package net.sf.saxon;
 import javax.xml.transform.Result;
 import javax.xml.transform.TransformerException;
 
-import net.sf.saxon.xpath.XPathException;
-
 
 /**
 * This interface defines an OutputURIResolver. This is a counterpart to the JAXP

@@ -1,15 +1,15 @@
 package net.sf.saxon.functions;
-import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.TailExpression;
 import net.sf.saxon.expr.StaticContext;
+import net.sf.saxon.expr.TailExpression;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.value.IntegerValue;
+import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.AtomicValue;
+import net.sf.saxon.value.IntegerValue;
 import net.sf.saxon.value.NumericValue;
 import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.type.ItemType;
 
 /**
 * The XPath 2.0 remove() function
@@ -78,11 +78,9 @@ public class Remove extends SystemFunction {
         SequenceIterator base;
         int removePosition;
         int position = 0;
-        //Item nextItem = null;
         Item current = null;
 
-        public RemoveIterator(SequenceIterator base, int removePosition)
-        throws XPathException {
+        public RemoveIterator(SequenceIterator base, int removePosition) {
             this.base = base;
             this.removePosition = removePosition;
         }

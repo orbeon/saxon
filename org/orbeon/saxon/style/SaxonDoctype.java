@@ -1,9 +1,10 @@
 package net.sf.saxon.style;
-import net.sf.saxon.instruct.Instruction;
+import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Doctype;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.expr.Expression;
+import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.om.Axis;
+import net.sf.saxon.value.EmptySequence;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -46,8 +47,11 @@ public class SaxonDoctype extends StyleElement {
     }
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {
-        Doctype inst = new Doctype();
-        compileChildren(exec, inst, true);
+        Expression content = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+        if (content == null) {
+            content = EmptySequence.getInstance();
+        }
+        Doctype inst = new Doctype(content);
         return inst;
     }
 

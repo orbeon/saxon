@@ -47,15 +47,6 @@ public class TupleSorter extends ComputedExpression implements MappingFunction {
         return StaticProperty.ALLOWS_ZERO_OR_MORE;
     }
 
-//    public Expression[] getSubExpressions() {
-//        Expression[] sub = new Expression[sortKeys.length + 1];
-//        sub[0] = base;
-//        for (int i=0; i<sortKeys.length; i++) {
-//            sub[i+1] = sortKeys[i].getSortKey();
-//        }
-//        return sub;
-//    }
-
     public Iterator iterateSubExpressions() {
         ArrayList list = new ArrayList(sortKeys.length + 1);
         list.add(base);
@@ -64,6 +55,21 @@ public class TupleSorter extends ComputedExpression implements MappingFunction {
         }
         return list.iterator();
     }
+
+    /**
+     * Test whether a given expression is one of the sort keys
+     */
+
+    public boolean isSortKey(Expression child) {
+        for (int i=0; i<sortKeys.length; i++) {
+            Expression exp = sortKeys[i].getSortKey();
+            if (exp == child) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
     /**
     * Promote this expression if possible
     */

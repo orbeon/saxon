@@ -1,14 +1,10 @@
 package net.sf.saxon.style;
+import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.tree.AttributeCollection;
+import net.sf.saxon.om.*;
+import net.sf.saxon.pattern.*;
 import net.sf.saxon.trans.Mode;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.om.Name;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NamespaceException;
-import net.sf.saxon.om.QNameException;
-import net.sf.saxon.pattern.*;
-import net.sf.saxon.expr.Expression;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.StringTokenizer;
@@ -46,7 +42,7 @@ public class XSLPreserveSpace extends StyleElement {
 
     public Expression compile(Executable exec) throws TransformerConfigurationException
     {
-        Boolean preserve = new Boolean(getFingerprint()==StandardNames.XSL_PRESERVE_SPACE);
+        Boolean preserve = Boolean.valueOf(getFingerprint() == StandardNames.XSL_PRESERVE_SPACE);
         Mode stripperRules = getPrincipalStylesheet().getStripperRules();
 
         // elements is a space-separated list of element names
@@ -125,7 +121,7 @@ public class XSLPreserveSpace extends StyleElement {
                 }
 
             } catch (NamespaceException err) {
-                compileError(err.getMessage());
+                compileError(err.getMessage(), "XT0280");
             }
         }
         return null;

@@ -324,6 +324,11 @@ public abstract class Token {
      * "declare xmlspace"
      */
     public static final int DECLARE_ORDERING = 84;
+
+    /**
+     * "declare inherit-namespaces"
+     */
+    public static final int DECLARE_INHERIT_NAMESPACES = 85;
     /**
      * semicolon separator
      */
@@ -515,21 +520,22 @@ public abstract class Token {
 
     static {
         mapDouble("instance of", INSTANCE_OF);
-        mapDouble("cast as", (CAST_AS));
-        mapDouble("treat as", (TREAT_AS));
-        mapDouble("castable as", (CASTABLE_AS));
-        mapDouble("xquery version", (XQUERY_VERSION));
-        mapDouble("declare namespace", (DECLARE_NAMESPACE));
-        mapDouble("declare default", (DECLARE_DEFAULT));
-        mapDouble("declare construction", (DECLARE_CONSTRUCTION));
-        mapDouble("declare base-uri", (DECLARE_BASEURI));
-        mapDouble("declare xmlspace", (DECLARE_XMLSPACE));
+        mapDouble("cast as", CAST_AS);
+        mapDouble("treat as", TREAT_AS);
+        mapDouble("castable as", CASTABLE_AS);
+        mapDouble("xquery version", XQUERY_VERSION);
+        mapDouble("declare namespace", DECLARE_NAMESPACE);
+        mapDouble("declare default", DECLARE_DEFAULT);
+        mapDouble("declare construction", DECLARE_CONSTRUCTION);
+        mapDouble("declare base-uri", DECLARE_BASEURI);
+        mapDouble("declare xmlspace", DECLARE_XMLSPACE);
         mapDouble("declare ordering", DECLARE_ORDERING);
-        mapDouble("import schema", (IMPORT_SCHEMA));
-        mapDouble("import module", (IMPORT_MODULE));
-        mapDouble("declare variable", (DECLARE_VARIABLE));
-        mapDouble("declare function", (DECLARE_FUNCTION));
-        mapDouble("module namespace", (MODULE_NAMESPACE));
+        mapDouble("declare inherit-namespaces", DECLARE_INHERIT_NAMESPACES);
+        mapDouble("import schema", IMPORT_SCHEMA);
+        mapDouble("import module", IMPORT_MODULE);
+        mapDouble("declare variable", DECLARE_VARIABLE);
+        mapDouble("declare function", DECLARE_FUNCTION);
+        mapDouble("module namespace", MODULE_NAMESPACE);
         mapDouble("validate strict", VALIDATE_STRICT);
         mapDouble("validate lax", VALIDATE_LAX);
         //mapDouble("validate skip", VALIDATE_SKIP);

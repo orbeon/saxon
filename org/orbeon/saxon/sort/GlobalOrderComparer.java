@@ -1,7 +1,5 @@
 package net.sf.saxon.sort;
 import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.type.Type;
 
 import java.io.Serializable;
 

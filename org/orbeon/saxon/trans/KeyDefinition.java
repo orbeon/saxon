@@ -1,13 +1,12 @@
 package net.sf.saxon.trans;
 import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.pattern.Pattern;
-import net.sf.saxon.instruct.SlotManager;
 import net.sf.saxon.instruct.InstructionDetails;
 import net.sf.saxon.instruct.Procedure;
-import net.sf.saxon.trace.InstructionInfoProvider;
-import net.sf.saxon.trace.InstructionInfo;
+import net.sf.saxon.instruct.SlotManager;
+import net.sf.saxon.pattern.Pattern;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trace.InstructionInfo;
+import net.sf.saxon.trace.InstructionInfoProvider;
 
 import java.io.Serializable;
 import java.text.Collator;
@@ -113,11 +112,9 @@ public class KeyDefinition extends Procedure implements Serializable, Instructio
 // WITHOUT WARRANTY OF ANY KIND, either express or implied.
 // See the License for the specific language governing rights and limitations under the License.
 //
-// The Original Code is: all this file except PB-SYNC section.
+// The Original Code is: all this file 
 //
 // The Initial Developer of the Original Code is Michael H. Kay.
 //
-// Portions marked PB-SYNC are Copyright (C) Peter Bryant (pbryant@bigfoot.com). All Rights Reserved.
-//
-// Contributor(s): Michael Kay, Peter Bryant.
+// Contributor(s):
 //

@@ -1,17 +1,15 @@
 package net.sf.saxon.value;
+import net.sf.saxon.Configuration;
+import net.sf.saxon.event.SequenceOutputter;
 import net.sf.saxon.expr.*;
-import net.sf.saxon.om.ListIterator;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.om.SingletonIterator;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.Configuration;
 import net.sf.saxon.trace.Location;
+import net.sf.saxon.type.ItemType;
+import net.sf.saxon.xpath.XPathException;
 
-import java.util.ArrayList;
 import java.io.PrintStream;
 
 /**
@@ -19,21 +17,10 @@ import java.io.PrintStream;
  * by an expression, together with saved values of all the context variables that the
  * expression depends on.
  *
- * <p>The Closure maintains a reservoir containing those items in the value that have
- * already been read. When a new iterator is requested to read the value, this iterator
- * first examines and returns any items already placed in the reservoir by previous
- * users of the Closure. When the reservoir is exhausted, it then uses an underlying
- * Input Iterator to read further values of the underlying expression. If the value is
- * not read to completion (for example, if the first user did exists($expr), then the
- * Input Iterator is left positioned where this user abandoned it. The next user will read
- * any values left in the reservoir by the first user, and then pick up iterating the
- * base expression where the first user left off. Eventually, all the values of the
- * expression will find their way into the reservoir, and future users simply iterate
- * over the reservoir contents. Alternatively, of course, the values may be left unread.</p>
- *
- * <p>Delayed evaluation is used only for expressions with a static type that allows
- * more than one item, so the evaluateItem() method will not normally be used, but it is
- * supported for completeness.</p>
+ * <p>This Closure is designed for use when the value is only read once. If the value
+ * is read more than once, a new iterator over the underlying expression is obtained
+ * each time: this may (for example in the case of a filter expression) involve
+ * significant re-calculation.</p>
  *
  * <p>The expression may depend on local variables and on the context item; these values
  * are held in the saved XPathContext object that is kept as part of the Closure, and they
@@ -46,34 +33,11 @@ import java.io.PrintStream;
  *
 */
 
-// This class replaces the class SequenceIntent used in earlier releases. It can handle scalar
-// values as well as sequences, and it saves the context variables explicitly without requiring
-// a reduced copy of the expression to be made.
+public class Closure extends SequenceValue {
 
-// TODO: determine statically whether a variable is used once only, and in such cases don't save
-// the value when it's first evaluated.
-
-public final class Closure extends SequenceValue {
-
-    private Expression expression;
-    private XPathContextMajor savedXPathContext;
-    private ArrayList reservoir = new ArrayList(50);
-    private int state;
-    private int depth = 0;
-
-    // State in which no items have yet been read
-    private static final int UNREAD = 0;
-
-    // State in which zero or more items are in the reservoir and it is not known
-    // whether more items exist
-    private static final int MAYBE_MORE = 1;
-
-    // State in which all the items are in the reservoir
-    private static final int ALL_READ = 3;
-
-    // State in which we are getting the base iterator. If the closure is called in this state,
-    // it indicates a recursive entry, which is only possible on an error path
-    private static final int BUSY = 4;
+    protected Expression expression;
+    protected XPathContextMajor savedXPathContext;
+    protected int depth = 0;
 
     // The base iterator is used to copy items on demand from the underlying value
     // to the reservoir. It only ever has one instance (for each Closure) and each
@@ -85,13 +49,13 @@ public final class Closure extends SequenceValue {
      * Private constructor: instances must be created using the make() method
      */
 
-    private Closure() {}
+    protected Closure() {}
 
     /**
     * Construct a Closure by supplying the expression and the set of context variables.
     */
 
-    public static Value make(Expression expression, XPathContext context) throws XPathException {
+    public static Value make(Expression expression, XPathContext context, boolean save) throws XPathException {
 
         // Treat tail recursion as a special case, to avoid creating a deeply-nested
         // tree of Closures. If this expression is a TailExpression, and its first
@@ -102,7 +66,7 @@ public final class Closure extends SequenceValue {
             TailExpression tail = (TailExpression)expression;
             Expression base = tail.getBaseExpression();
             if (base instanceof VariableReference) {
-                base = ExpressionTool.lazyEvaluate(base, context);
+                base = ExpressionTool.lazyEvaluate(base, context, save);
                 if (base instanceof SequenceExtent) {
                     return new SequenceExtent(
                             (SequenceExtent)base,
@@ -112,7 +76,7 @@ public final class Closure extends SequenceValue {
             }
         }
 
-        Closure c = new Closure();
+        Closure c = (save? new MemoClosure() : new Closure());
         c.expression = expression;
         c.savedXPathContext = context.newContext();
         c.savedXPathContext.setOriginatingConstructType(Location.LAZY_EVALUATION);
@@ -153,7 +117,8 @@ public final class Closure extends SequenceValue {
             // created if the expression depends on position() or last()
         }
 
-        c.state = UNREAD;
+        c.savedXPathContext.setReceiver(new SequenceOutputter());
+
         return c;
     }
 
@@ -185,12 +150,13 @@ public final class Closure extends SequenceValue {
     }
 
     /**
-     * Evaluate as a singleton. We don't use a Closure for singleton expressions,
-     * so this method shouldn't be called, but we implement it anyway for safety.
-    */
+     * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
+     * This method indicates which of these methods is provided. This implementation provides both iterate() and
+     * process() methods natively.
+     */
 
-    public Item evaluateItem(XPathContext context) throws XPathException {
-        return iterate(context).next();
+    public int getImplementationMethod() {
+        return ITERATE_METHOD | PROCESS_METHOD;
     }
 
     /**
@@ -200,28 +166,27 @@ public final class Closure extends SequenceValue {
     */
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
-
-        switch (state) {
-            case UNREAD:
-                state = BUSY;
-                inputIterator = expression.iterate(savedXPathContext);
-                state = MAYBE_MORE;
-                return new ProgressiveIterator();
-
-            case MAYBE_MORE:
-                return new ProgressiveIterator();
-
-            case ALL_READ:
-                return new ListIterator(reservoir);
-
-            case BUSY:
-                // this indicates a recursive entry, probably on an error path while printing diagnostics
-                throw new DynamicError("Attempt to access a lazily-evaluated variable while it is being evaluated");
-
-            default:
-                throw new IllegalStateException("Unknown iterator state");
-
+        if (inputIterator == null) {
+            inputIterator = expression.iterate(savedXPathContext);
+            return inputIterator;
+        } else {
+            return inputIterator.getAnother();
         }
+    }
+
+    /**
+     * Process the instruction, without returning any tail calls
+     * @param context The dynamic context, giving access to the current node,
+     *                the current variables, etc.
+     */
+
+    public void process(XPathContext context) throws XPathException {
+        // To evaluate the closure in push mode, we need to use the original context of the
+        // expression for everything except the current output destination, which is taken from the
+        // context supplied at evaluation time
+        XPathContext c2 = savedXPathContext.newContext();
+        c2.setTemporaryReceiver(context.getReceiver());
+        expression.process(c2);
     }
 
     /**
@@ -230,11 +195,7 @@ public final class Closure extends SequenceValue {
     */
 
     public Item itemAt(int n) throws XPathException {
-        if (n < reservoir.size()) {
-            return (Item)reservoir.get(n);
-        } else {
-            return super.itemAt(n);
-        }
+        return super.itemAt(n);
     }
 
     /**
@@ -250,51 +211,6 @@ public final class Closure extends SequenceValue {
     public void display(int level, NamePool pool, PrintStream out) {
         out.println(ExpressionTool.indent(level) + "Closure of expression:");
         expression.display(level+1, pool, out);
-    }
-
-    /**
-     * A ProgressiveIterator starts by reading any items already held in the reservoir;
-     * when the reservoir is exhausted, it reads further items from the inputIterator,
-     * copying them into the reservoir as they are read.
-     */
-
-    public final class ProgressiveIterator implements SequenceIterator {
-
-        int position = -1;  // zero-based position in the reservoir of the
-                            // item most recently read
-
-        public ProgressiveIterator() {
-
-        }
-
-        public Item next() throws XPathException {
-            if (++position < reservoir.size()) {
-                return (Item)reservoir.get(position);
-            } else {
-                Item i = inputIterator.next();
-                if (i==null) {
-                    state = ALL_READ;
-                    position--;     // leave position at last item
-                    return null;
-                }
-                position = reservoir.size();
-                reservoir.add(i);
-                state = MAYBE_MORE;
-                return i;
-            }
-        }
-
-        public Item current() {
-            return (Item)reservoir.get(position);
-        }
-
-        public int position() {
-            return position + 1;    // return one-based position
-        }
-
-        public SequenceIterator getAnother() {
-            return new ProgressiveIterator();
-        }
     }
 
 }

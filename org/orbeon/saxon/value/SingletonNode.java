@@ -1,17 +1,12 @@
 package net.sf.saxon.value;
+import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.Navigator;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.SingletonIterator;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.type.ItemType;
+import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.AnyNodeTest;
-import net.sf.saxon.Configuration;
+import net.sf.saxon.type.ItemType;
+import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -92,7 +87,8 @@ public class SingletonNode extends Value {
     */
 
     public int getSpecialProperties() {
-        return StaticProperty.ORDERED_NODESET;
+        return StaticProperty.ORDERED_NODESET |
+                StaticProperty.NON_CREATIVE;
     }
 
     /**

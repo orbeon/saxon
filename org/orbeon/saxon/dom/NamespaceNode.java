@@ -41,8 +41,16 @@ public class NamespaceNode implements NodeInfo {
     * Get the typed value of the item
     */
 
-    public SequenceIterator getTypedValue(Configuration config) {
+    public SequenceIterator getTypedValue() {
         return SingletonIterator.makeIterator(new UntypedAtomicValue(uri));
+    }
+
+    /**
+     * Get the configuration
+     */
+
+    public Configuration getConfiguration() {
+        return getParent().getConfiguration();
     }
 
     /**
@@ -132,7 +140,7 @@ public class NamespaceNode implements NodeInfo {
                 return -1;
             }
         }
-        return (getParent().compareOrder(other));
+        return (getParent().compareOrder(other.getParent()));
     }
 
     /**

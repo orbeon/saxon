@@ -1,20 +1,16 @@
 package net.sf.saxon.style;
+import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.instruct.Instruction;
-import net.sf.saxon.instruct.ResultDocument;
 import net.sf.saxon.instruct.DocumentInstr;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.om.NamespaceException;
+import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.om.Axis;
 import net.sf.saxon.om.Validation;
-import net.sf.saxon.tree.AttributeCollection;
 import net.sf.saxon.type.SchemaType;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.Configuration;
+import net.sf.saxon.value.EmptySequence;
 
 import javax.xml.transform.TransformerConfigurationException;
-import java.util.Properties;
 
 /**
 * An xsl:document instruction in the stylesheet. <BR>
@@ -68,21 +64,21 @@ public class XSLDocument extends StyleElement {
         } else {
             validationAction = Validation.getCode(validationAtt);
             if (validationAction != Validation.STRIP && !getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("To perform validation, a schema-aware XSLT processor is needed");
+                compileError("To perform validation, a schema-aware XSLT processor is needed", "XT1660");
             }
             if (validationAction == Validation.INVALID) {
-                compileError("Invalid value of validation attribute");
+                compileError("Invalid value of validation attribute", "XT0020");
             }
         }
         if (typeAtt!=null) {
             if (!getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("The type attribute is available only with a schema-aware XSLT processor");
+                compileError("The type attribute is available only with a schema-aware XSLT processor", "XT1660");
             }
             schemaType = getSchemaType(typeAtt);
         }
 
         if (typeAtt != null && validationAtt != null) {
-            compileError("validation and type attributes are mutually exclusive");
+            compileError("The validation and type attributes are mutually exclusive", "XT1505");
         }
     }
 
@@ -95,8 +91,11 @@ public class XSLDocument extends StyleElement {
         DocumentInstr inst = new DocumentInstr(false, null, getBaseURI());
         inst.setValidationAction(validationAction);
         inst.setSchemaType(schemaType);
-
-        compileChildren(exec, inst, true);
+        Expression b = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+        if (b == null) {
+            b = EmptySequence.getInstance();
+        }
+        inst.setContent(b);
         ExpressionTool.makeParentReferences(inst);
         return inst;
     }

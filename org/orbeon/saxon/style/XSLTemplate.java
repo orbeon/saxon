@@ -4,14 +4,16 @@ import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.expr.RoleLocator;
 import net.sf.saxon.expr.TypeChecker;
 import net.sf.saxon.instruct.*;
+import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.om.Axis;
 import net.sf.saxon.om.NamespaceException;
 import net.sf.saxon.pattern.NoNodeTest;
 import net.sf.saxon.pattern.Pattern;
 import net.sf.saxon.trans.Mode;
 import net.sf.saxon.trans.RuleManager;
-import net.sf.saxon.tree.AttributeCollection;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
+import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.xpath.XPathException;
 
@@ -32,7 +34,6 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
     private String asAtt = null;
 
     private int[] modeNameCodes;
-    //private int templateFingerprint = -1;
     private String diagnosticId;
     private Pattern match;
     private boolean prioritySpecified;
@@ -119,7 +120,7 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
                 modeNameCodes[0] = -1;
             } else {
                 if (matchAtt==null) {
-                    compileError("The mode attribute must be absent if the match attribute is absent");
+                    compileError("The mode attribute must be absent if the match attribute is absent", "XT0500");
                 }
                 // mode is a space-separated list of mode names, or "#default", or "#all"
 
@@ -132,7 +133,7 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
                 }
 
                 if (count==0) {
-                    compileError("The mode attribute must not be empty");
+                    compileError("The mode attribute must not be empty", "XT0550");
                 }
 
                 modeNameCodes = new int[count];
@@ -140,16 +141,22 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
                 st = new StringTokenizer(modeAtt);
                 while (st.hasMoreTokens()) {
                     String s = st.nextToken();
+                    int code;
                     if ("#default".equals(s)) {
-                        modeNameCodes[count++] = Mode.DEFAULT_MODE;
+                        code = Mode.DEFAULT_MODE;
                     } else if ("#all".equals(s)) {
                         allModes = true;
-                        modeNameCodes[count++] = Mode.ALL_MODES;
+                        code = Mode.ALL_MODES;
                     } else {
-                        modeNameCodes[count++] = makeNameCode(s);
+                        code = makeNameCode(s);
                     }
+                    for (int e=0; e < count; e++) {
+                        if (modeNameCodes[e] == code) {
+                            compileError("In the list of modes, the value " + s + " is duplicated", "XT0550");
+                        }
+                    }
+                    modeNameCodes[count++] = code;
                 }
-                // TODO: check that all the mode names are distinct (error XT0550)
                 if (allModes && (count>1)) {
                     compileError("mode='#all' cannot be combined with other modes", "XT0550");
                 }
@@ -160,7 +167,7 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
                 diagnosticId = nameAtt;
             }
         } catch (NamespaceException err) {
-            compileError(err.getMessage());
+            compileError(err.getMessage(), "XT0280");
         } catch (XPathException err) {
             compileError(err.getMessage());
         }
@@ -168,7 +175,7 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
         prioritySpecified = (priorityAtt != null);
         if (prioritySpecified) {
             if (matchAtt==null) {
-                compileError("The priority attribute must be absent if the match attribute is absent");
+                compileError("The priority attribute must be absent if the match attribute is absent", "XT0500");
             }
             try {
                 priority = Double.parseDouble(priorityAtt.trim());
@@ -186,7 +193,7 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
         }
 
         if (match==null && nameAtt==null)
-            compileError("xsl:template must have a name or match attribute (or both)");
+            compileError("xsl:template must have a name or match attribute (or both)", "XT0010");
 
         if (asAtt != null) {
             requiredType = makeSequenceType(asAtt);
@@ -234,24 +241,34 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {
 
-        Block block = new Block();
-        compileChildren(exec, block, true);
+        Expression block = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+        if (block == null) {
+            block = EmptySequence.getInstance();
+        }
+        compiledTemplate.setBody(block);
+        compiledTemplate.setStackFrameMap(stackFrameMap);
+        compiledTemplate.setExecutable(getExecutable());
+        compiledTemplate.setSystemId(getSystemId());
+        compiledTemplate.setLineNumber(getLineNumber());
+
         Expression exp = null;
         try {
             exp = block.simplify(getStaticContext());
         } catch (XPathException e) {
             compileError(e);
         }
+        
         try {
             if (requiredType != null) {
                 RoleLocator role =
-                        new RoleLocator(RoleLocator.TEMPLATE_RESULT, diagnosticId, 0);
+                        new RoleLocator(RoleLocator.TEMPLATE_RESULT, diagnosticId, 0, null);
                 exp = TypeChecker.staticTypeCheck(exp, requiredType, false, role, getStaticContext());
             }
         } catch (XPathException err) {
             compileError(err);
         }
 
+        compiledTemplate.setBody(exp);
         compiledTemplate.init ( getObjectFingerprint(),
                                 getPrecedence(),
                                 getMinImportPrecedence());
@@ -263,11 +280,8 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
             exp = trace;
         }
 
-        compiledTemplate.setBody(exp);
-        compiledTemplate.setStackFrameMap(stackFrameMap);
-        compiledTemplate.setExecutable(getExecutable());
-        compiledTemplate.setSystemId(getSystemId());
-        compiledTemplate.setLineNumber(getLineNumber());
+
+
 
         ItemType contextItemType = Type.ITEM_TYPE;
         if (getObjectFingerprint() == -1) {
@@ -290,10 +304,6 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
             for (int i=0; i<modeNameCodes.length; i++) {
                 int nc = modeNameCodes[i];
                 Mode mode = mgr.getMode(nc);
-                if (nc != Mode.DEFAULT_MODE && nc != Mode.ALL_MODES) {
-                    mode.setModeNameCode(nc);
-                                // used for tracing only
-                }
                 if (prioritySpecified) {
                     mgr.setHandler(match, compiledTemplate, mode, getPrecedence(), priority);
                 } else {

@@ -1,14 +1,10 @@
 package net.sf.saxon.functions;
 
-import net.sf.saxon.functions.StandardFunction;
-import net.sf.saxon.functions.SystemFunction;
-import net.sf.saxon.functions.XSLTFunction;
-import net.sf.saxon.functions.FunctionLibrary;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.StaticError;
 import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.Expression;
+import net.sf.saxon.om.NamespaceConstant;
+import net.sf.saxon.xpath.StaticError;
+import net.sf.saxon.xpath.XPathException;
 
 /**
  * The SystemFunctionLibrary represents the collection of functions in the fn: namespace. That is, the
@@ -44,7 +40,7 @@ public class SystemFunctionLibrary implements FunctionLibrary {
 
     public boolean isAvailable(int fingerprint, String uri, String local, int arity) {
         if (uri.equals(NamespaceConstant.FN)) {
-            StandardFunction.Entry entry = StandardFunction.getFunction(local);
+            StandardFunction.Entry entry = StandardFunction.getFunction(local, arity);
             if (entry == null) {
                 return false;
             }
@@ -75,7 +71,7 @@ public class SystemFunctionLibrary implements FunctionLibrary {
     public Expression bind(int nameCode, String uri, String local, Expression[] staticArgs)
             throws XPathException {
         if (uri.equals(NamespaceConstant.FN)) {
-            StandardFunction.Entry entry = StandardFunction.getFunction(local);
+            StandardFunction.Entry entry = StandardFunction.getFunction(local, staticArgs.length);
             if (entry == null) {
                 throw new StaticError("Unknown system function " + local + "()");
             }

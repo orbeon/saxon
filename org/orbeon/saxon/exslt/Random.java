@@ -1,9 +1,9 @@
 package net.sf.saxon.exslt;
 
-import net.sf.saxon.value.DoubleValue;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.Item;
 import net.sf.saxon.om.AxisIteratorImpl;
+import net.sf.saxon.om.Item;
+import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.value.DoubleValue;
 import net.sf.saxon.xpath.XPathException;
 
 /**

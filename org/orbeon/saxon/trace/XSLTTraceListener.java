@@ -1,7 +1,7 @@
 package net.sf.saxon.trace;
 
-import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.om.NamespaceConstant;
+import net.sf.saxon.style.StandardNames;
 
 /**
  * A Simple trace listener for XSLT that writes messages (by default) to System.err

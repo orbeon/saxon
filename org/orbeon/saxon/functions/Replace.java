@@ -1,15 +1,14 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.expr.StaticContext;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.type.RegexTranslator;
+import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.StringValue;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.type.RegexTranslator;
+import net.sf.saxon.xpath.XPathException;
 
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -100,7 +99,7 @@ public class Replace extends SystemFunction {
                         "The regular expression must not be one that matches a zero-length string", "FORX0003", c);
             }
         }
-        String res = re.matcher(arg0.getStringValue()).replaceAll(arg2.getStringValue());
+        String res = re.matcher(arg0.getStringValue()).replaceAll(replacement);
         return new StringValue(res);
     }
 

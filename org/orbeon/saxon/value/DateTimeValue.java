@@ -64,6 +64,7 @@ public final class DateTimeValue extends CalendarValue implements Comparable {
         zoneSpecified = (tz1 != null || tz2 != null);
         if (tz1 != null && tz2 != null && !tz1.equals(tz2)) {
             DynamicError err = new DynamicError("Supplied date and time are in different timezones");
+            err.setErrorCode("FORG0008");
             throw err;
         }
         // create a calendar that uses the timezone actually specified, or GMT otherwise
@@ -168,7 +169,7 @@ public final class DateTimeValue extends CalendarValue implements Comparable {
                         badDate("Decimal separator occurs twice");
                     }
                     part = (String)tok.nextElement();
-                    double fractionalSeconds = Double.parseDouble("." + part);
+                    double fractionalSeconds = Double.parseDouble('.' + part);
                     millisecond = (int)(Math.round(fractionalSeconds * 1000));
                     state = 1;
                 } else if ("Z".equals(delim)) {
@@ -380,7 +381,7 @@ public final class DateTimeValue extends CalendarValue implements Comparable {
         if (millis != 0) {
             sb.append('.');
             String m = calendar.get(Calendar.MILLISECOND) + "";
-            while (m.length() < 3) m = "0" + m;
+            while (m.length() < 3) m = '0' + m;
             while (m.endsWith("0")) m = m.substring(0, m.length()-1);
             sb.append(m);
         }

@@ -2,10 +2,10 @@ package net.sf.saxon.style;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.instruct.Executable;
+import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.Axis;
 import net.sf.saxon.om.AxisIterator;
 import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.tree.AttributeCollection;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.EmptySequence;
 
@@ -91,7 +91,7 @@ public final class XSLSequence extends StyleElement {
             NodeInfo child = (NodeInfo)kids.next();
             if (child == null) break;
             if (!(child instanceof XSLFallback)) {
-                compileError("The only child node allowed for xsl:sequence is an xsl:fallback instruction");
+                compileError("The only child node allowed for xsl:sequence is an xsl:fallback instruction", "XT0010");
                 break;
             }
         }
@@ -112,7 +112,7 @@ public final class XSLSequence extends StyleElement {
     }
 
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) {
         return select;
     }
 

@@ -199,6 +199,7 @@ public class HTMLEmitter extends net.sf.saxon.event.XMLEmitter {
         String byteOrderMark = outputProperties.getProperty(SaxonOutputKeys.BYTE_ORDER_MARK);
 
         if ("yes".equals(byteOrderMark)) {
+            // TODO: default for UTF-16 is "yes"
             try {
                 writer.write('\uFEFF');
             } catch (java.io.IOException err) {

@@ -1,8 +1,8 @@
 package net.sf.saxon.instruct;
-import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.value.Value;
+import net.sf.saxon.xpath.XPathException;
 
 /**
 * Handler for local xsl:variable elements in stylesheet. Not used in XQuery. <br>
@@ -16,7 +16,7 @@ public class LocalVariable extends GeneralVariable {
 
     public TailCall processLeavingTail(XPathContext context) throws XPathException {
         context.setLocalVariable(getSlotNumber(),
-                ExpressionTool.lazyEvaluate(getSelectExpression(), context));
+                ExpressionTool.lazyEvaluate(getSelectExpression(), context, true));
         return null;
     }
 

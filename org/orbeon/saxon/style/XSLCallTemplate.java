@@ -1,13 +1,10 @@
 package net.sf.saxon.style;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.instruct.*;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.NamespaceException;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.NamespaceResolver;
-import net.sf.saxon.tree.AttributeCollection;
+import net.sf.saxon.instruct.CallTemplate;
+import net.sf.saxon.instruct.Executable;
+import net.sf.saxon.instruct.Template;
+import net.sf.saxon.om.*;
 import net.sf.saxon.type.AnyItemType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.SequenceType;
@@ -88,7 +85,7 @@ public class XSLCallTemplate extends StyleElement {
                 calledTemplateFingerprint =
             	    makeNameCode(nameAttribute.trim()) & 0xfffff;
             } catch (NamespaceException err) {
-                compileError(err.getMessage());
+                compileError(err.getMessage(), "XT0280");
             } catch (XPathException err) {
                 compileError(err.getMessage());
             }

@@ -3,13 +3,10 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
-import net.sf.saxon.value.DateTimeValue;
-import net.sf.saxon.value.DateValue;
-import net.sf.saxon.value.TimeValue;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.CalendarValue;
-import net.sf.saxon.value.SecondsDurationValue;
 import net.sf.saxon.value.AtomicValue;
+import net.sf.saxon.value.CalendarValue;
+import net.sf.saxon.value.DateTimeValue;
+import net.sf.saxon.value.SecondsDurationValue;
 import net.sf.saxon.xpath.XPathException;
 
 /**

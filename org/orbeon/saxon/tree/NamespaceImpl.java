@@ -1,10 +1,9 @@
 package net.sf.saxon.tree;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.NamePool;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.event.ReceiverOptions;
+import net.sf.saxon.om.NamePool;
+import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.type.Type;
-
 import net.sf.saxon.xpath.XPathException;
 import org.w3c.dom.Node;
 
@@ -32,7 +31,12 @@ final class NamespaceImpl extends NodeImpl {
         this.parent = element;
         this.nsCode = nsCode;
         NamePool pool = getNamePool();
-        this.nameCode = pool.allocate("", "", pool.getPrefixFromNamespaceCode(nsCode));
+        String prefix = pool.getPrefixFromNamespaceCode(nsCode);
+        if ("".equals(prefix)) {
+            nameCode = -1;
+        } else {
+            nameCode = pool.allocate("", "", prefix);
+        }
         this.index = index;
     }
 
@@ -158,7 +162,7 @@ final class NamespaceImpl extends NodeImpl {
     * Copy this node to a given outputter
     */
 
-    public void copy(Receiver out, int whichNamespaces) throws XPathException {
+    public void copy(Receiver out, int whichNamespaces, boolean copyAnnotations, int locationId) throws XPathException {
 		out.namespace(nsCode, ReceiverOptions.REJECT_DUPLICATES);
     }
 

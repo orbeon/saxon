@@ -1,7 +1,6 @@
 package net.sf.saxon.tinytree;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.type.Type;
-
 import net.sf.saxon.xpath.XPathException;
 import org.w3c.dom.Comment;
 
@@ -14,8 +13,8 @@ import org.w3c.dom.Comment;
 
 final class TinyCommentImpl extends TinyNodeImpl implements Comment {
 
-    public TinyCommentImpl(TinyDocumentImpl doc, int nodeNr) {
-        this.document = doc;
+    public TinyCommentImpl(TinyTree tree, int nodeNr) {
+        this.tree = tree;
         this.nodeNr = nodeNr;
     }
 
@@ -24,11 +23,11 @@ final class TinyCommentImpl extends TinyNodeImpl implements Comment {
     */
 
     public final String getStringValue() {
-        int start = document.alpha[nodeNr];
-        int len = document.beta[nodeNr];
+        int start = tree.alpha[nodeNr];
+        int len = tree.beta[nodeNr];
         if (len==0) return "";
         char[] dest = new char[len];
-        document.commentBuffer.getChars(start, start+len, dest, 0);
+        tree.commentBuffer.getChars(start, start+len, dest, 0);
         return new String(dest, 0, len);
     }
 

@@ -1,7 +1,6 @@
 package net.sf.saxon.functions;
-import net.sf.saxon.expr.Tokenizer;
-import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.expr.Token;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.IntegerValue;

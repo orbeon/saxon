@@ -1,10 +1,11 @@
 package net.sf.saxon.instruct;
-import net.sf.saxon.ParameterSet;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.Cardinality;
+import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.Value;
 import net.sf.saxon.xpath.DynamicError;
 import net.sf.saxon.xpath.XPathException;
@@ -21,7 +22,7 @@ public final class Bindery  {
 
     private Value[] globals;                        // values of global variables and parameters
     private boolean[] busy;                         // set to true while variable is being evaluated
-    private ParameterSet globalParameters;          // supplied global parameters
+    private GlobalParameterSet globalParameters;          // supplied global parameters
     private SlotManager globalVariableMap;        // contains the mapping of variable names to slot numbers
 
     /**
@@ -44,7 +45,7 @@ public final class Bindery  {
     * @param params The ParameterSet passed in by the user, eg. from the command line
     */
 
-    public void defineGlobalParameters(ParameterSet params) {
+    public void defineGlobalParameters(GlobalParameterSet params) {
         globalParameters = params;
     }
 
@@ -57,14 +58,25 @@ public final class Bindery  {
     * @return true if a parameter of this name was supplied, false if not
     */
 
-    public boolean useGlobalParameter(int fingerprint, GlobalParam binding) throws XPathException {
+    public boolean useGlobalParameter(int fingerprint, GlobalParam binding, XPathContext context) throws XPathException {
         if (globalParameters==null) {
             return false;
         }
-        Value val = globalParameters.get(fingerprint);
-        if (val==null) {
+        Object obj = globalParameters.get(fingerprint);
+        if (obj==null) {
             return false;
         }
+
+        Value val;
+        //try {
+            val = Value.convertJavaObjectToXPath(obj, binding.getRequiredType(), context);
+            if (val==null) {
+                val = EmptySequence.getInstance();
+            }
+        //} catch (XPathException err) {
+        //    val = new StringValue(obj.toString());
+        //}
+
         ItemType reqItemType = binding.getRequiredType().getPrimaryType();
         if (val instanceof AtomicValue && reqItemType instanceof AtomicType) {
             // If the parameter is an atomic value, typically a string supplied on

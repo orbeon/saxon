@@ -1,7 +1,6 @@
 package net.sf.saxon.instruct;
 
 import net.sf.saxon.Controller;
-import net.sf.saxon.value.Value;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
@@ -11,6 +10,9 @@ import net.sf.saxon.sort.*;
 import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.trace.TraceListener;
 import net.sf.saxon.type.ItemType;
+import net.sf.saxon.type.SchemaType;
+import net.sf.saxon.value.EmptySequence;
+import net.sf.saxon.value.Value;
 import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
@@ -63,6 +65,14 @@ public class ForEachGroup extends Instruction implements MappingFunction {
     }
 
     /**
+     * Get the action expression (the content of the for-each)
+     */
+
+    public Expression getActionExpression() {
+        return action;
+    }    
+
+    /**
      * Simplify an expression. This performs any static optimization (by rewriting the expression
      * as a different expression).
      *
@@ -105,6 +115,12 @@ public class ForEachGroup extends Instruction implements MappingFunction {
         action = action.analyze(env, select.getItemType());
         if (key instanceof Expression) {
             key = ((Expression)key).analyze(env, select.getItemType());
+        }
+        if (select instanceof EmptySequence) {
+            return EmptySequence.getInstance();
+        }
+        if (action instanceof EmptySequence) {
+            return EmptySequence.getInstance();
         }
         return this;
     }
@@ -161,6 +177,17 @@ public class ForEachGroup extends Instruction implements MappingFunction {
     }
 
     /**
+     * Determine whether this instruction creates new nodes.
+     * This implementation returns true if the "action" creates new nodes.
+     * (Nodes created by the condition can't contribute to the result).
+     */
+
+    public final boolean createsNewNodes() {
+        int props = action.getSpecialProperties();
+        return ((props & StaticProperty.NON_CREATIVE) == 0);
+    }
+
+    /**
      * Handle promotion offers, that is, non-local tree rewrites.
      *
      * @param offer The type of rewrite being offered
@@ -210,6 +237,18 @@ public class ForEachGroup extends Instruction implements MappingFunction {
             }
         }
         return list.iterator();
+    }
+
+    /**
+     * Check that any elements and attributes constructed or returned by this expression are acceptable
+     * in the content model of a given complex type. It's always OK to say yes, since the check will be
+     * repeated at run-time. The process of checking element and attribute constructors against the content
+     * model of a complex type also registers the type of content expected of those constructors, so the
+     * static validation can continue recursively.
+     */
+
+    public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException {
+        action.checkPermittedContents(parentType, env, false);
     }
 
     public TailCall processLeavingTail(XPathContext context) throws XPathException {
@@ -267,12 +306,9 @@ public class ForEachGroup extends Instruction implements MappingFunction {
                 }
             case GROUP_ADJACENT:
                 {
-                    XPathContext c2 = context.newMinorContext();
-                    c2.setOrigin(this);
-                    c2.setCurrentIterator(population);
                     groupIterator = new GroupAdjacentIterator(population,
                             (Expression)key,
-                            c2,
+                            context,
                             collator);
                     break;
                 }

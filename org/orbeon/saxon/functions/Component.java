@@ -1,7 +1,7 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.expr.StaticContext;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.xpath.XPathException;
@@ -12,23 +12,20 @@ import net.sf.saxon.xpath.XPathException;
 
 public class Component extends SystemFunction {
 
-    public final static int YEAR        = 1;
-    public final static int MONTH       = 2;
-    public final static int DAY         = 3;
-    public final static int HOURS       = 4;
-    public final static int MINUTES     = 5;
-    public final static int SECONDS     = 6;
-    public final static int TIMEZONE    = 7;
-    public final static int LOCALNAME   = 8;
-    public final static int NAMESPACE   = 9;
+    public static final int YEAR        = 1;
+    public static final int MONTH       = 2;
+    public static final int DAY         = 3;
+    public static final int HOURS       = 4;
+    public static final int MINUTES     = 5;
+    public static final int SECONDS     = 6;
+    public static final int TIMEZONE    = 7;
+    public static final int LOCALNAME   = 8;
+    public static final int NAMESPACE   = 9;
 
-
-    //int targetType;
     int component;
 
      public Expression simplify(StaticContext env) throws XPathException {
         component = (operation>>16) & 0xffff;
-        //targetType = operation & 0xffff;
         return super.simplify(env);
     }
 

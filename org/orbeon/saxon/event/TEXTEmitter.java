@@ -26,6 +26,7 @@ public class TEXTEmitter extends XMLEmitter {
 
         if ("yes".equals(byteOrderMark)) {
             try {
+                // TODO: default for UTF-16 is "yes"
                 openDocument();
                 writer.write('\uFEFF');
                 empty = false;

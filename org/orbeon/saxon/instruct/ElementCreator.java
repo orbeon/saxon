@@ -4,11 +4,13 @@ import net.sf.saxon.event.*;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.type.*;
+import net.sf.saxon.type.ItemType;
+import net.sf.saxon.type.SchemaType;
+import net.sf.saxon.type.ValidationException;
+import net.sf.saxon.xpath.DynamicError;
 import net.sf.saxon.xpath.XPathException;
 
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+import java.util.Iterator;
 
 
 /**
@@ -18,8 +20,9 @@ import net.sf.saxon.xpath.DynamicError;
  * Instruction and as an Expression.
 */
 
-public abstract class ElementCreator extends InstructionWithChildren {
+public abstract class ElementCreator extends Instruction {
 
+    protected Expression content;
     protected AttributeSet[] useAttributeSets;
     protected SchemaType schemaType;
     protected int validation;
@@ -33,6 +36,89 @@ public abstract class ElementCreator extends InstructionWithChildren {
 
     protected boolean inheritNamespaces = true;
 
+    public ElementCreator() { }
+
+    /**
+     * Set the expression that constructs the content of the element
+     */
+
+    public void setContent(Expression content) {
+        this.content = content;
+        adoptChildExpression(content);
+    }
+
+    /**
+     * Simplify an expression. This performs any static optimization (by rewriting the expression
+     * as a different expression). The default implementation does nothing.
+     * @return the simplified expression
+     * @throws net.sf.saxon.xpath.XPathException
+     *          if an error is discovered during expression rewriting
+     */
+
+    public Expression simplify(StaticContext env) throws XPathException {
+        content = content.simplify(env);
+        return this;
+    }
+
+    /**
+     * Perform static analysis of an expression and its subexpressions.
+     * <p/>
+     * <p>This checks statically that the operands of the expression have
+     * the correct type; if necessary it generates code to do run-time type checking or type
+     * conversion. A static type error is reported only if execution cannot possibly succeed, that
+     * is, if a run-time type error is inevitable. The call may return a modified form of the expression.</p>
+     * <p/>
+     * <p>This method is called after all references to functions and variables have been resolved
+     * to the declaration of the function or variable. However, the types of such functions and
+     * variables will only be accurately known if they have been explicitly declared.</p>
+     *
+     * @param env the static context of the expression
+     * @return the original expression, rewritten to perform necessary
+     *         run-time type checks, and to perform other type-related
+     *         optimizations
+     * @throws net.sf.saxon.xpath.XPathException
+     *          if an error is discovered during this phase
+     *          (typically a type error)
+     */
+
+    public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
+        content = content.analyze(env, contextItemType);
+        return this;
+    }
+
+    /**
+     * Handle promotion offers, that is, non-local tree rewrites.
+     * @param offer The type of rewrite being offered
+     * @throws XPathException
+     */
+
+    protected void promoteInst(PromotionOffer offer) throws XPathException {
+        content = content.promote(offer);
+    }
+
+    /**
+      * Get the immediate sub-expressions of this expression.
+      * @return an iterator containing the sub-expressions of this expression
+      */
+
+    public Iterator iterateSubExpressions() {
+        return new MonoIterator(content);
+    }
+
+
+    /**
+     * Determine whether this instruction creates new nodes.
+     * This implementation returns true.
+     */
+
+    public final boolean createsNewNodes() {
+        return true;
+    }
+
+    /**
+     * Get the item type of the value returned by this instruction
+     * @return the item type
+     */
 
     public ItemType getItemType() {
         return NodeKindTest.ELEMENT;
@@ -72,6 +158,15 @@ public abstract class ElementCreator extends InstructionWithChildren {
     throws XPathException;
 
     /**
+     * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
+     * This method indicates which of these methods is prefered. For instructions this is the process() method.
+     */
+
+    public int getImplementationMethod() {
+        return Expression.PROCESS_METHOD | Expression.EVALUATE_METHOD;
+    }
+
+    /**
      * Evaluate the instruction to produce a new element node
      * @param context
      * @return null (this instruction never returns a tail call)
@@ -81,6 +176,7 @@ public abstract class ElementCreator extends InstructionWithChildren {
     throws XPathException {
 
         try {
+
             int nameCode = getNameCode(context);
             if (nameCode == -1) {
                 // XSLT recovery action when the computed name is invalid
@@ -102,7 +198,7 @@ public abstract class ElementCreator extends InstructionWithChildren {
                 c2 = context.newMinorContext();
                 c2.setOrigin(this);
                 out = new TreeReceiver(validator);
-                out.setConfiguration(controller.getConfiguration());
+                out.setPipelineConfiguration(controller.makePipelineConfiguration());
                 c2.setReceiver(out);
             }
             int properties = (inheritNamespaces ? 0 : ReceiverOptions.DISINHERIT_NAMESPACES);
@@ -112,14 +208,13 @@ public abstract class ElementCreator extends InstructionWithChildren {
 
             outputNamespaceNodes(c2, out);
 
-
             // apply the content of any attribute sets mentioned in use-attribute-sets
             if (useAttributeSets != null) {
                 AttributeSet.expand(useAttributeSets, c2);
             }
 
             // process subordinate instructions to generate attributes and content
-            processChildren(c2);
+            content.process(c2);
 
             // output the element end tag (which will fail if validation fails)
             out.endElement();
@@ -145,7 +240,7 @@ public abstract class ElementCreator extends InstructionWithChildren {
         context.getReceiver().startElement(-1, -1, locationId, 0);
         // Sending a namecode of -1 to the Outputter is a special signal to ignore
         // this element and the attributes that follow it
-        processChildren(context);
+        content.process(context);
         // Note, we don't bother with an endElement call
     }
 
@@ -161,8 +256,16 @@ public abstract class ElementCreator extends InstructionWithChildren {
             Controller controller = context.getController();
             XPathContext c2 = context.newMinorContext();
             c2.setOrigin(this);
-            SequenceOutputter seq = new SequenceOutputter();
-            seq.setConfiguration(controller.getConfiguration());
+            SequenceReceiver old = c2.getReceiver();
+            SequenceOutputter seq;
+            if (old instanceof SequenceOutputter && !((SequenceOutputter)old).hasOpenNodes()) {
+                // Reuse the current SequenceOutputter if possible. This enables the construction of
+                // a single TinyTree to hold a sequence of parentless elements (a forest).
+                seq = (SequenceOutputter)old;
+            } else {
+                seq = new SequenceOutputter(1);
+            }
+            seq.setPipelineConfiguration(controller.makePipelineConfiguration());
 
             int nameCode = getNameCode(c2);
 
@@ -177,28 +280,27 @@ public abstract class ElementCreator extends InstructionWithChildren {
                 c2.setTemporaryReceiver(seq);
             } else {
                 TreeReceiver tr = new TreeReceiver(validator);
-                tr.setConfiguration(controller.getConfiguration());
-                tr.setDocumentLocator(getExecutable().getLocationMap());
+                tr.setPipelineConfiguration(seq.getPipelineConfiguration());
                 c2.setReceiver(tr);
                 ini = tr;
             }
 
 
             ini.open();
-            ini.startElement(nameCode, -1, locationId, 0);
+            int properties = (inheritNamespaces ? 0 : ReceiverOptions.DISINHERIT_NAMESPACES);
+            ini.startElement(nameCode, -1, locationId, properties);
             // ignore attribute sets for now
 
             // output the namespace nodes for the new element
             outputNamespaceNodes(c2, ini);
 
-            processChildren(c2);
+            content.process(c2);
 
             ini.endElement();
             ini.close();
-            //c2.resetOutputDestination(old);
 
             // the constructed element is the first and only item in the sequence
-            return seq.getFirstItem();
+            return seq.popLastItem();
 
         } catch (XPathException err) {
             if (err instanceof ValidationException) {

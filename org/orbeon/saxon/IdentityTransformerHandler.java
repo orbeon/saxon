@@ -1,17 +1,15 @@
 package net.sf.saxon;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.event.ResultWrapper;
+import net.sf.saxon.event.PipelineConfiguration;
 import net.sf.saxon.event.ReceivingContentHandler;
+import net.sf.saxon.event.ResultWrapper;
+import net.sf.saxon.xpath.XPathException;
+import org.xml.sax.SAXException;
 
 import javax.xml.transform.Result;
 import javax.xml.transform.Transformer;
-import net.sf.saxon.xpath.XPathException;
 import javax.xml.transform.sax.TransformerHandler;
 import javax.xml.transform.stream.StreamResult;
-
 import java.util.Properties;
-
-import org.xml.sax.SAXException;
 
 /**
   * <b>IdentityTransformerHandler</b> implements the javax.xml.transform.sax.TransformerHandler
@@ -35,7 +33,7 @@ public class IdentityTransformerHandler extends ReceivingContentHandler implemen
 
     protected IdentityTransformerHandler(Controller controller) {
         this.controller = controller;
-        setConfiguration(controller.getConfiguration());
+        setPipelineConfiguration(controller.makePipelineConfiguration());
 
     }
 
@@ -92,8 +90,9 @@ public class IdentityTransformerHandler extends ReceivingContentHandler implemen
         }
         try {
             Properties props = controller.getOutputProperties();
-            setReceiver(ResultWrapper.getReceiver(result, controller.getConfiguration(), props, null));
-            setConfiguration(controller.getConfiguration());
+            PipelineConfiguration pipe = controller.makePipelineConfiguration();
+            setReceiver(ResultWrapper.getReceiver(result, pipe, props, null));
+            setPipelineConfiguration(pipe);
         } catch (XPathException err) {
             throw new SAXException(err);
         }

@@ -4,8 +4,6 @@ import net.sf.saxon.sort.Reverser;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.xpath.XPathException;
 
-import java.util.Iterator;
-
 /**
 * PromotionOffer is an object used transiently during compilation of an expression. It contains
 * information passed by a containing expression to its subexpressions, when looking for subexpressions
@@ -24,7 +22,7 @@ public class PromotionOffer  {
     * with a different focus
     */
 
-    public final static int FOCUS_INDEPENDENT = 10;
+    public static final int FOCUS_INDEPENDENT = 10;
 
     /**
     * RANGE_INDEPENDENT requests promotion of all non-trivial subexpressions that don't depend on a
@@ -36,7 +34,7 @@ public class PromotionOffer  {
     * that prevent their promotion.
     */
 
-    public final static int RANGE_INDEPENDENT = 11;
+    public static final int RANGE_INDEPENDENT = 11;
 
     /**
     * Inline variable references causes all references to a variable V to be replaced by the
@@ -44,7 +42,7 @@ public class PromotionOffer  {
     * in the containingExpression property
     */
 
-    public final static int INLINE_VARIABLE_REFERENCES = 12;
+    public static final int INLINE_VARIABLE_REFERENCES = 12;
 
     /**
      * UNORDERED indicates that the containing expression does not require the results
@@ -52,7 +50,7 @@ public class PromotionOffer  {
      * is set if duplicate items in the result are not allowed.
      */
 
-    public final static int UNORDERED = 13;
+    public static final int UNORDERED = 13;
 
     /**
     * action is one of the possible promotion actions, FOCUS_INDEPENDENT, RANGE_INDEPENDENT,
@@ -73,6 +71,14 @@ public class PromotionOffer  {
     public boolean promoteDocumentDependent = false;
 
     /**
+     * In the case of FOCUS_INDEPENDENT, "promoteXSLTFunctions" is a boolean that, when set to true, indicates
+     * that it is safe to promote XSLT functions such as current(). This flag is set when rewriting XPath expressions
+     * and is unset when rewriting XSLT templates.
+     */
+
+    public boolean promoteXSLTFunctions = true;
+
+    /**
      * In the case of UNORDERED, "mustEliminateDuplicates" is a boolean that is set to
      * true if the nodes can be delivered in any order so long as there are no duplicates
      * (for example, as required by the count() function). If this boolean is false, the
@@ -83,11 +89,11 @@ public class PromotionOffer  {
     public boolean mustEliminateDuplicates = true;
 
     /**
-    * In the case of RANGE_INDEPENDENT, "binding" identifies the range variable whose dependencies
-    * we are looking for
+    * In the case of RANGE_INDEPENDENT and WHERE_CLAUSE, "binding" identifies the range variables whose dependencies
+    * we are looking for. For INLINE_VARIABLE_REFERENCES it is a single Binding that we are aiming to inline
     */
 
-    public Binding binding;
+    public Binding[] bindingList;
 
     /**
     * When a promotion offer is made, containingExpression identifies the level to which the promotion
@@ -105,38 +111,46 @@ public class PromotionOffer  {
     */
 
     public Expression accept(Expression child) throws XPathException {
-        // System.err.println("Accepting promotion offer, containing expression = ");containingExpression.display(10);
-        // System.err.println("Child expression");child.display(10);
-        // TODO: avoid promoting subexpressions that are "creative" (i.e. that create new nodes)
         switch (action) {
-            case RANGE_INDEPENDENT:
-                if (!dependsOnVariable(child, binding)) {
+            case RANGE_INDEPENDENT: {
+                int properties = child.getSpecialProperties();
+                if (((properties & StaticProperty.NON_CREATIVE) != 0) && !ExpressionTool.dependsOnVariable(child, bindingList)) {
                     return promote(child);
                 }
                 break;
-            case FOCUS_INDEPENDENT:
+            }
+
+            case FOCUS_INDEPENDENT: {
                 int dependencies = child.getDependencies();
-                if ((dependencies & StaticProperty.DEPENDS_ON_FOCUS) == 0) {
+                int properties = child.getSpecialProperties();
+                if (!promoteXSLTFunctions && ((dependencies & StaticProperty.DEPENDS_ON_XSLT_CONTEXT) != 0)) {
+                    break;
+                }
+                if ((dependencies & StaticProperty.DEPENDS_ON_FOCUS) == 0 &&
+                        (properties & StaticProperty.NON_CREATIVE) != 0) {
                     return promote(child);
                 } else if (promoteDocumentDependent &&
-                        (dependencies & StaticProperty.DEPENDS_ON_NON_DOCUMENT_FOCUS) == 0) {
+                        (dependencies & StaticProperty.DEPENDS_ON_NON_DOCUMENT_FOCUS) == 0 &&
+                        (properties & StaticProperty.NON_CREATIVE) != 0) {
                     return promote(child);
                 }
                 break;
-            case INLINE_VARIABLE_REFERENCES:
+            }
+            case INLINE_VARIABLE_REFERENCES: {
                 if (child instanceof VariableReference &&
-                    ((VariableReference)child).getBinding() == binding) {
+                    ((VariableReference)child).getBinding() == bindingList[0]) {
                     return containingExpression;
                 }
                 break;
-            case UNORDERED:
+            }
+            case UNORDERED: {
                 if (child instanceof Reverser) {
                     return ((Reverser)child).getBaseExpression();
                 } else if (child instanceof DocumentSorter && !mustEliminateDuplicates) {
                     return ((DocumentSorter)child).getBaseExpression();
                 }
                 break;
-
+            }
             default:
                 throw new UnsupportedOperationException("Unknown promotion action " + action);
         }
@@ -155,7 +169,7 @@ public class PromotionOffer  {
 
         VariableReference var = new VariableReference(decl);
         ExpressionTool.copyLocationInfo(containingExpression, var);
-        var.setParentExpression((ComputedExpression)containingExpression);
+        var.setParentExpression(child.getParentExpression());
 
         Container container = containingExpression.getParentExpression();
         LetExpression let = new LetExpression();
@@ -167,27 +181,6 @@ public class PromotionOffer  {
         containingExpression = let;
 
         return var;
-    }
-
-    /**
-     * Determine whether an expression depends on a particular variable
-     * @param e the expression being tested
-     * @param binding the variable being tested
-     * @return true if the expression depends on a given variable
-     */
-
-    private static boolean dependsOnVariable(Expression e, Binding binding) {
-        if (e instanceof VariableReference) {
-            return ((VariableReference)e).getBinding() == binding;
-        } else {
-            for (Iterator children = e.iterateSubExpressions(); children.hasNext();) {
-                Expression child = (Expression)children.next();
-                if (dependsOnVariable(child, binding)) {
-                    return true;
-                }
-            }
-            return false;
-        }
     }
 
 

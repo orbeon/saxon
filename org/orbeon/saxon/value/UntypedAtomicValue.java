@@ -8,7 +8,6 @@ import net.sf.saxon.xpath.XPathException;
 
 import java.util.Comparator;
 
-
 /**
 * An Untyped Atomic value. This inherits from StringValue for implementation convenience, even
 * though an untypedAtomic value is not a String in the data model type hierarchy.
@@ -48,7 +47,12 @@ public class UntypedAtomicValue extends StringValue {
 
     public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
         if (requiredType==Type.STRING) {
-            return new StringValue(value);
+            if (value.length() == 0) {
+                // this case is common!
+                return StringValue.EMPTY_STRING;
+            } else {
+                return new StringValue(value);
+            }
         } else if (requiredType==Type.DOUBLE) {
             if (doubleValue==null) {
                 doubleValue = (DoubleValue)super.convert(requiredType, context);

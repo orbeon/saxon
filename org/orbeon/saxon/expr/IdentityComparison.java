@@ -52,12 +52,12 @@ public final class IdentityComparison extends BinaryExpression {
         operand1 = operand1.analyze(env, contextItemType);
 
         RoleLocator role0 = new RoleLocator(
-                RoleLocator.BINARY_EXPR, Token.tokens[operator], 0);
+                RoleLocator.BINARY_EXPR, Token.tokens[operator], 0, null);
         operand0 = TypeChecker.staticTypeCheck(
                 operand0, SequenceType.OPTIONAL_NODE, false, role0, env);
 
         RoleLocator role1 = new RoleLocator(
-                RoleLocator.BINARY_EXPR, Token.tokens[operator], 1);
+                RoleLocator.BINARY_EXPR, Token.tokens[operator], 1, null);
         operand1 = TypeChecker.staticTypeCheck(
                 operand1, SequenceType.OPTIONAL_NODE, false, role1, env);
         return this;

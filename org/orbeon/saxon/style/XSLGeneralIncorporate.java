@@ -1,25 +1,20 @@
 package net.sf.saxon.style;
-import net.sf.saxon.instruct.Instruction;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.StandardURIResolver;
-import net.sf.saxon.PreparedStylesheet;
 import net.sf.saxon.Configuration;
+import net.sf.saxon.PreparedStylesheet;
+import net.sf.saxon.StandardURIResolver;
 import net.sf.saxon.expr.Expression;
+import net.sf.saxon.instruct.Executable;
+import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.tree.DocumentImpl;
 import net.sf.saxon.tree.ElementImpl;
-import net.sf.saxon.tree.AttributeCollection;
-import javax.xml.transform.Source;
+import net.sf.saxon.xpath.DynamicError;
+import org.w3c.dom.Node;
 
+import javax.xml.transform.Source;
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
-
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-
 import javax.xml.transform.dom.DOMSource;
-
-import org.w3c.dom.Node;
 
 
 /**

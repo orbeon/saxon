@@ -1,8 +1,8 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.sort.Reverser;
+import net.sf.saxon.xpath.XPathException;
 
 /**
 * Implement XPath function fn:reverse()

@@ -1,10 +1,9 @@
 package net.sf.saxon.style;
-import net.sf.saxon.instruct.Instruction;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.om.NamespaceException;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.tree.AttributeCollection;
 import net.sf.saxon.expr.Expression;
+import net.sf.saxon.instruct.Executable;
+import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.om.NamePool;
+import net.sf.saxon.om.NamespaceException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -16,7 +15,6 @@ import javax.xml.transform.TransformerConfigurationException;
 public class XSLNamespaceAlias extends StyleElement {
 
     private short stylesheetURICode;
-    //private short resultURICode;
     private int resultNamespaceCode;
 
     public void prepareAttributes() throws TransformerConfigurationException {
@@ -78,10 +76,6 @@ public class XSLNamespaceAlias extends StyleElement {
     public int getResultNamespaceCode() {
         return resultNamespaceCode;
     }
-
-    //public short getResultURICode() {
-    //    return resultURICode;
-    //}
 
 }
 

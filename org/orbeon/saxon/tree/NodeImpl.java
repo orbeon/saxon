@@ -1,23 +1,15 @@
 package net.sf.saxon.tree;
 
-import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.pattern.NameTest;
-import net.sf.saxon.pattern.AnyNodeTest;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.EmptyIterator;
-import net.sf.saxon.om.SingletonIterator;
-import net.sf.saxon.om.AbstractNode;
-import net.sf.saxon.type.Type;
+import net.sf.saxon.Configuration;
 import net.sf.saxon.event.Receiver;
-
-import org.w3c.dom.Node;
-import org.w3c.dom.Element;
-
+import net.sf.saxon.om.*;
+import net.sf.saxon.pattern.AnyNodeTest;
+import net.sf.saxon.pattern.NameTest;
+import net.sf.saxon.pattern.NodeTest;
+import net.sf.saxon.type.Type;
 import net.sf.saxon.xpath.XPathException;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 
 
 /**
@@ -145,6 +137,14 @@ abstract public class NodeImpl extends AbstractNode {
         if (a<b) return -1;
         if (a>b) return +1;
         return 0;
+    }
+
+    /**
+     * Get the configuration
+     */
+
+    public Configuration getConfiguration() {
+        return getDocumentRoot().getConfiguration();
     }
 
 	/**
@@ -443,7 +443,7 @@ abstract public class NodeImpl extends AbstractNode {
 
     /**
     * Get the next node in document order
-    * @param anchor: the scan stops when it reaches a node that is not a descendant of the specified
+    * @param anchor  the scan stops when it reaches a node that is not a descendant of the specified
     * anchor node
     * @return the next node in the document, or null if there is no such node
     */
@@ -511,12 +511,12 @@ abstract public class NodeImpl extends AbstractNode {
     * structure, so we simply map the new interface onto the old
     */
 
-    public final void copy(Receiver out, int whichNamespaces, boolean copyAnnotations, int locationId)
-    throws XPathException {
-        copy(out, whichNamespaces);
-    }
-
-    public abstract void copy(Receiver out, int whichNamespaces) throws XPathException;
+//    public final void copy(Receiver out, int whichNamespaces, boolean copyAnnotations, int locationId)
+//    throws XPathException {
+//        copy(out, whichNamespaces);
+//    }
+//
+//    public abstract void copy(Receiver out, int whichNamespaces) throws XPathException;
 
      // implement DOM Node methods
 

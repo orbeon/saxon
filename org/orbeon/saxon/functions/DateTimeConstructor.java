@@ -1,9 +1,9 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
-import net.sf.saxon.om.Name;
-import net.sf.saxon.om.QNameException;
-import net.sf.saxon.value.*;
+import net.sf.saxon.value.DateTimeValue;
+import net.sf.saxon.value.DateValue;
+import net.sf.saxon.value.TimeValue;
 import net.sf.saxon.xpath.XPathException;
 
 
@@ -19,13 +19,7 @@ public class DateTimeConstructor extends SystemFunction {
 
     public Item evaluateItem(XPathContext context) throws XPathException {
         DateValue arg0 = (DateValue)argument[0].evaluateItem(context);
-        if (arg0==null) {
-            return null;
-        }
         TimeValue arg1 = (TimeValue)argument[1].evaluateItem(context);
-        if (arg1==null) {
-            return null;
-        }
         return new DateTimeValue(arg0, arg1);
     }
 

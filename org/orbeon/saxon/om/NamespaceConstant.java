@@ -5,6 +5,10 @@ package net.sf.saxon.om;
  * namespaces. For each of these, there is a constant for the namespace URI and for many of
  * them, there is a numeric constant used as the code for this namespace in the name pool.
  *
+ * <p>This class also defines constant URIs for some objects other than namespaces -
+ * for example, URIs that identify the various object models used in the JAXP XPath API,
+ * and the Unicode codepoint collation URI.</p>
+ *
  * @author Michael H. Kay
  */
 
@@ -60,7 +64,7 @@ public class NamespaceConstant {
      * Namespace for additional XPath-defined data types:
      * "http://www.w3.org/2003/05/xpath-datatypes"
      */
-    public static final String XDT = "http://www.w3.org/2004/07/xpath-datatypes";
+    public static final String XDT = "http://www.w3.org/2004/10/xpath-datatypes";
     /**
      * Numeric code representing the schema namespace
      */
@@ -105,12 +109,18 @@ public class NamespaceConstant {
     /**
      * The standard namespace for functions and operators
      */
-    public static final String FN = "http://www.w3.org/2004/07/xpath-functions";
+    public static final String FN = "http://www.w3.org/2004/10/xpath-functions";
+
+    /**
+     * The standard namespace for system error codes
+     */
+    public static final String ERR = "http://www.w3.org/2004/10/xqt-errors";
+
 
     /**
      * Predefined XQuery namespace for local functions
      */
-    public static final String LOCAL = "http://www.w3.org/2004/07/xquery-local-functions";
+    public static final String LOCAL = "http://www.w3.org/2004/10/xquery-local-functions";
     /**
      * Recognize the Microsoft namespace so we can give a suitably sarcastic error message
      */
@@ -124,8 +134,7 @@ public class NamespaceConstant {
     public static final String XHTML = "http://www.w3.org/1999/xhtml";
 
     /**
-     * Namespace for types representing external Java objects: currently
-     * the only one is java:Object
+     * Namespace for types representing external Java objects
      */
 
     public static final String JAVA_TYPE = "http://saxon.sf.net/java-type";
@@ -136,6 +145,31 @@ public class NamespaceConstant {
      */
 
     public static final String ANONYMOUS = "http://ns.saxonica.com/anonymous-type";
+
+    /**
+     * URI identifying the Saxon object model for use in the JAXP 1.3 XPath API
+     */
+
+    public static final String OBJECT_MODEL_SAXON = "http://saxon.sf.net/jaxp/xpath/om";
+
+
+    /**
+     * URI identifying the XOM object model for use in the JAXP 1.3 XPath API
+     */
+
+    public static final String OBJECT_MODEL_XOM = "http://www.xom.nu/jaxp/xpath/xom";
+
+    /**
+     * URI identifying the JDOM object model for use in the JAXP 1.3 XPath API
+     */
+
+    public static final String OBJECT_MODEL_JDOM = "http://jdom.org/jaxp/xpath/jdom";
+
+    /**
+     * URI identifying the Unicode codepoint collation
+     */
+
+    public static final String CodepointCollationURI = "http://www.w3.org/2004/10/xpath-functions/collation/codepoint";
 
     /**
      * Private constructor: class is never instantiated
@@ -154,6 +188,18 @@ public class NamespaceConstant {
                 uri.equals(XML) ||
                 uri.equals(SCHEMA)||
                 uri.equals(SCHEMA_DATATYPES) ||
+                uri.equals(XDT) ||
+                uri.equals(SCHEMA_INSTANCE);
+    }
+
+    /**
+     * Determine whether a namespace is a reserved namespace
+     */
+
+    public static final boolean isReservedInQuery(String uri) {
+        return  uri.equals(FN) ||
+                uri.equals(XML) ||
+                uri.equals(SCHEMA) ||
                 uri.equals(XDT) ||
                 uri.equals(SCHEMA_INSTANCE);
     }

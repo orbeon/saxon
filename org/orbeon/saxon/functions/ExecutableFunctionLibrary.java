@@ -1,12 +1,11 @@
 package net.sf.saxon.functions;
 
-import net.sf.saxon.instruct.UserFunction;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.StandaloneContext;
 import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.UserFunctionCall;
-import net.sf.saxon.functions.FunctionLibrary;
+import net.sf.saxon.instruct.UserFunction;
+import net.sf.saxon.xpath.IndependentContext;
+import net.sf.saxon.xpath.XPathException;
 
 import java.util.HashMap;
 
@@ -26,7 +25,7 @@ import java.util.HashMap;
 public class ExecutableFunctionLibrary implements FunctionLibrary {
 
     private Configuration config;
-    private HashMap functions = new HashMap();
+    private HashMap functions = new HashMap(20);
     // The key of the hash table is a Long containing the arity in the top half, and the
     // fingerprint of the function name in the bottom half. The value is a UserFunction object.
 
@@ -92,11 +91,12 @@ public class ExecutableFunctionLibrary implements FunctionLibrary {
         if (fn == null) {
             return null;
         }
-        StandaloneContext env = new StandaloneContext(config); // this is needed only for the name pool
+        IndependentContext env = new IndependentContext(config); // this is needed only for the name pool
         UserFunctionCall fc = new UserFunctionCall();
         fc.setFunctionNameCode(nameCode);
         fc.setArguments(staticArgs);
         fc.setFunction(fn, env);
+        fc.checkFunctionCall(fn, env);
         fc.setStaticType(fn.getResultType());
         return fc;
     }

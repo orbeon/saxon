@@ -1,13 +1,13 @@
 package net.sf.saxon.functions;
-import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
+import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.instruct.RegexIterator;
 import net.sf.saxon.om.Item;
-import net.sf.saxon.value.StringValue;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.NumericValue;
+import net.sf.saxon.value.StringValue;
 import net.sf.saxon.xpath.XPathException;
 
 

@@ -169,7 +169,7 @@ public abstract class GeneralVariable extends Instruction implements Binding {
     private void checkAgainstRequiredType(StaticContext env)
     throws XPathException {
         RoleLocator role =
-                new RoleLocator(RoleLocator.VARIABLE, variableName, 0);
+                new RoleLocator(RoleLocator.VARIABLE, variableName, 0, null);
         SequenceType r = requiredType;
         if (r != null) {
             // check that the expression is consistent with the required type
@@ -238,25 +238,12 @@ public abstract class GeneralVariable extends Instruction implements Binding {
             // There is a select attribute: do a lazy evaluation of the expression,
             // which will already contain any code to force conversion to the required type.
 
-//            // But with global variables, we have already delayed evaluating the expression
-//            // until the first reference to the variable is encountered, and there's not
-//            // much point delaying it any further.
-//
-//            if (isGlobal()) {
-//                XPathContextMajor c2 = context.newCleanContext();
-//                c2.setOrigin(this);
-//                c2.setCurrentIterator(SingletonIterator.makeIterator(c2.getController().getPrincipalSourceDocument()));
-//                if (stackFrameMap != null) {
-//                    c2.openStackFrame(stackFrameMap);
-//                }
-//                return ExpressionTool.eagerEvaluate(select, c2);
-//            } else {
-                if (isAssignable()) {
-                    return ExpressionTool.eagerEvaluate(select, context);
-                } else {
-                    return ExpressionTool.lazyEvaluate(select, context);
-                }
-//            }
+            if (isAssignable()) {
+                return ExpressionTool.eagerEvaluate(select, context);
+            } else {
+                return ExpressionTool.lazyEvaluate(select, context, true);
+            }
+
         }
     }
 

@@ -1,14 +1,14 @@
 package net.sf.saxon.dom;
-import net.sf.saxon.om.Name;
-import net.sf.saxon.om.NamePool;
+import net.sf.saxon.event.PipelineConfiguration;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.event.SaxonLocator;
+import net.sf.saxon.om.Name;
+import net.sf.saxon.om.NamePool;
+import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 import org.w3c.dom.*;
 import org.xml.sax.helpers.AttributesImpl;
 import org.xml.sax.helpers.NamespaceSupport;
-
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -22,7 +22,7 @@ import java.util.Iterator;
 
 public class DOMSender implements SaxonLocator {
     private Receiver receiver;
-    private NamePool namePool;
+    private PipelineConfiguration pipe;
 
     private NamespaceSupport nsSupport = new NamespaceSupport();
     private AttributesImpl attlist = new AttributesImpl();
@@ -31,6 +31,14 @@ public class DOMSender implements SaxonLocator {
     private HashMap nsDeclarations = new HashMap(10);
     protected Node root = null;
     protected String systemId;
+
+    /**
+     * Set the pipeline configuration
+     */
+
+    public void setPipelineConfiguration(PipelineConfiguration pipe) {
+        this.pipe = pipe;
+    }
 
     /**
     * Set the receiver.
@@ -45,9 +53,9 @@ public class DOMSender implements SaxonLocator {
     * Set the namePool
     */
 
-    public void setNamePool(NamePool pool) {
-        this.namePool = pool;
-    }
+//    public void setNamePool(NamePool pool) {
+//        this.namePool = pool;
+//    }
 
     /**
     * Set the DOM Document that will be walked
@@ -80,13 +88,17 @@ public class DOMSender implements SaxonLocator {
         }
 
         receiver.setSystemId(systemId);
-        receiver.setDocumentLocator(this);
+        pipe.setLocationProvider(this);
+        receiver.setPipelineConfiguration(pipe);
 
         receiver.open();
         if (root instanceof Element) {
             sendElement((Element)root);
         } else {
-            walkNode(root);                         // walk the root node
+            // walk the root node
+            receiver.startDocument(0);
+            walkNode(root);
+            receiver.endDocument();
         }
         receiver.close();
     }
@@ -178,6 +190,7 @@ public class DOMSender implements SaxonLocator {
         String local = elparts2[1];
         String prefix = Name.getPrefix(elparts2[2]);
 
+        NamePool namePool = pipe.getConfiguration().getNamePool();
         int nameCode = namePool.allocate(prefix, uri, local);
 
         receiver.startElement(nameCode, -1, 0, 0);

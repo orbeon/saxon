@@ -1,8 +1,8 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.*;
-import net.sf.saxon.value.QNameValue;
 import net.sf.saxon.value.AtomicValue;
+import net.sf.saxon.value.QNameValue;
 import net.sf.saxon.xpath.XPathException;
 
 
@@ -18,6 +18,9 @@ public class ResolveQName extends SystemFunction {
 
     public Item evaluateItem(XPathContext context) throws XPathException {
         AtomicValue arg0 = (AtomicValue)argument[0].evaluateItem(context);
+        if (arg0 == null) {
+            return null;
+        }
 
         String qname = arg0.getStringValue();
         String[] parts;
@@ -27,11 +30,6 @@ public class ResolveQName extends SystemFunction {
             dynamicError(err.getMessage(), "FOCA0002", context);
             return null;
         }
-
-//        if (parts[0].equals("")) {
-//            // TODO: BUG: this is not what the spec says.
-//            return new QNameValue("", null, parts[1]);
-//        }
 
         NodeInfo element = (NodeInfo)argument[1].evaluateItem(context);
         SequenceIterator nsNodes = element.iterateAxis(Axis.NAMESPACE);

@@ -1,9 +1,8 @@
 package net.sf.saxon.tinytree;
-import net.sf.saxon.om.*;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.event.ReceiverOptions;
+import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.type.Type;
-
 import net.sf.saxon.xpath.XPathException;
 /**
   * A node in the XML parse tree representing a Namespace. Note that this is
@@ -24,10 +23,15 @@ final class TinyNamespaceImpl extends TinyNodeImpl {
 								// namecode is NOT the same as the namespace code, which
 								// identifies the prefix/uri pair
 
-    public TinyNamespaceImpl(TinyDocumentImpl doc, int nodeNr) {
-        document = doc;
+    public TinyNamespaceImpl(TinyTree tree, int nodeNr) {
+        this.tree = tree;
         this.nodeNr = nodeNr;
-        nameCode = document.getNamePool().allocate("", "", getLocalPart());
+        String prefix = getLocalPart();
+        if ("".equals(prefix)) {
+            nameCode = -1;
+        } else {
+            nameCode = tree.getNamePool().allocate("", "", prefix);
+        }
     }
 
     /**
@@ -35,7 +39,7 @@ final class TinyNamespaceImpl extends TinyNodeImpl {
     */
 
     public int getNamespaceCode() {
-        return document.namespaceCode[nodeNr];
+        return tree.namespaceCode[nodeNr];
     }
 
     /**
@@ -50,7 +54,7 @@ final class TinyNamespaceImpl extends TinyNodeImpl {
     * Set the parent element for this namespace node
     */
 
-    protected void setParentNode(int nodeNr) {
+    void setParentNode(int nodeNr) {
         parentNode = nodeNr;
     }
 
@@ -87,8 +91,8 @@ final class TinyNamespaceImpl extends TinyNodeImpl {
     */
 
     public String getLocalPart() {
-        return document.getNamePool().getPrefixFromNamespaceCode(
-        				document.namespaceCode[nodeNr]);
+        return tree.getNamePool().getPrefixFromNamespaceCode(
+        				tree.namespaceCode[nodeNr]);
     }
 
     /**
@@ -105,7 +109,7 @@ final class TinyNamespaceImpl extends TinyNodeImpl {
     */
 
     public NodeInfo getParent() {
-        return document.getNode(parentNode);
+        return tree.getNode(parentNode);
     }
 
     /**
@@ -119,7 +123,7 @@ final class TinyNamespaceImpl extends TinyNodeImpl {
         if (this==other) return true;
         TinyNamespaceImpl otherN = (TinyNamespaceImpl)other;
         return (this.parentNode==((TinyNamespaceImpl)other).parentNode &&
-             this.document==otherN.document &&
+             this.tree==otherN.tree &&
              this.nodeNr==((TinyNamespaceImpl)other).nodeNr);
     }
 
@@ -138,8 +142,8 @@ final class TinyNamespaceImpl extends TinyNodeImpl {
     */
 
     public final String getStringValue() {
-        return document.getNamePool().getURIFromNamespaceCode(
-        				document.namespaceCode[nodeNr]);
+        return tree.getNamePool().getURIFromNamespaceCode(
+        				tree.namespaceCode[nodeNr]);
     }
 
     /**
@@ -156,7 +160,13 @@ final class TinyNamespaceImpl extends TinyNodeImpl {
     */
 
     public String generateId() {
-        return (getParent()).generateId() + "n" + getNameCode();
+        String suffix;
+        if (nameCode < 0) {
+            suffix = "";
+        } else {
+            suffix = ""+nameCode;
+        }
+        return (getParent()).generateId() + 'n' + suffix;
         // we previously used the namespace prefix as part of the id, but this breaks
         // the rule that the result of generate-id() must consist entirely of alphanumeric
         // ASCII characters.

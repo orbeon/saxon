@@ -1,7 +1,7 @@
 package net.sf.saxon;
 
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 
 
 /**
@@ -13,16 +13,6 @@ import net.sf.saxon.xpath.DynamicError;
 
 
 public class Loader {
-
-    //private static boolean tracing = false;
-
-    /**
-    * Switch tracing on or off
-    */
-
-//    public synchronized static void setTracing(boolean onOrOff) {
-//        tracing = onOrOff;
-//    }
 
     /**
     * Load a class using the class name provided.
@@ -97,11 +87,9 @@ public class Loader {
 // See the License for the specific language governing rights and limitations under the License.
 //
 // The Original Code is: all this file, other than fragments copied from the SAX distribution
-// made available by David Megginson, and the line marked PB-SYNC.
+// made available by David Megginson.
 //
 // The Initial Developer of the Original Code is Michael H. Kay.
 //
-// The line marked PB-SYNC is by Peter Bryant (pbryant@bigfoot.com). All Rights Reserved.
-//
-// Contributor(s): Michael Kay, Peter Bryant, David Megginson
+// Contributor(s): Michael Kay, David Megginson
 //

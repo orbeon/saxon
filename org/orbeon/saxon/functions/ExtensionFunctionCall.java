@@ -1,25 +1,28 @@
 package net.sf.saxon.functions;
-import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.Configuration;
+import net.sf.saxon.expr.*;
 import net.sf.saxon.om.EmptyIterator;
 import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.om.SingletonIterator;
-import net.sf.saxon.type.ItemType;
+import net.sf.saxon.pattern.AnyNodeTest;
 import net.sf.saxon.type.AnyItemType;
+import net.sf.saxon.type.ExternalObjectType;
+import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.pattern.AnyNodeTest;
-
-import java.lang.reflect.*;
-import java.util.List;
-
-import org.w3c.dom.NodeList;
+import net.sf.saxon.xpath.XPathException;
 import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 import javax.xml.transform.Source;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
+import java.lang.reflect.*;
+import java.util.List;
 
 
 
@@ -30,7 +33,10 @@ import javax.xml.transform.Source;
 
 public class ExtensionFunctionCall extends FunctionCall {
 
-    private AccessibleObject theMethod;
+    private transient AccessibleObject theMethod;
+             // declared transient because AccessibleObject is not serializable
+    private MethodRepresentation persistentMethod;
+             // a serializable representation of the method, constructor, or field to be called
     private Class theClass;
 
     /**
@@ -110,7 +116,7 @@ public class ExtensionFunctionCall extends FunctionCall {
     public SequenceIterator iterate(XPathContext context) throws XPathException {
         Value[] argValues = new Value[argument.length];
         for (int i=0; i<argValues.length; i++) {
-            argValues[i] = ExpressionTool.lazyEvaluate(argument[i], context);
+            argValues[i] = ExpressionTool.lazyEvaluate(argument[i], context, true);
         }
         return call(argValues, context);
     }
@@ -311,7 +317,7 @@ public class ExtensionFunctionCall extends FunctionCall {
         if (result instanceof NodeInfo) {
             return SingletonIterator.makeIterator(((NodeInfo) result));
         }
-        Value actual = Value.convertJavaObjectToXPath(result, context.getController());
+        Value actual = Value.convertJavaObjectToXPath(result, SequenceType.ANY_SEQUENCE, context);
         return actual.iterate(context);
     }
 
@@ -381,8 +387,10 @@ public class ExtensionFunctionCall extends FunctionCall {
                     Source.class.isAssignableFrom(resultClass)) {
             return AnyNodeTest.getInstance();
             // we could be more specific regarding the kind of node
-        } else {
+        } else if (List.class.isAssignableFrom(resultClass)) {
             return AnyItemType.getInstance();
+        } else {
+            return new ExternalObjectType(resultClass);
         }
     }
 
@@ -496,6 +504,70 @@ public class ExtensionFunctionCall extends FunctionCall {
     protected Object getField(Field field, Object instance)
     throws java.lang.IllegalAccessException {
         return field.get(instance);
+    }
+
+    /**
+     * Code to handle serialization, used when compiling a stylesheet containing calls to extension functions
+     */
+
+    private void writeObject(ObjectOutputStream s) throws IOException {
+        persistentMethod = new MethodRepresentation(theClass, theMethod);
+        s.defaultWriteObject();
+    }
+
+    /**
+     * Code to handle deserialization, used when reading in a compiled stylesheet
+     */
+
+    private void readObject(ObjectInputStream s) throws IOException  {
+        try {
+            s.defaultReadObject();
+            theMethod = persistentMethod.recoverAccessibleObject();
+        } catch (Exception e) {
+            throw new IOException("Failed to read compiled representation of extension function call to " + theClass.getClass());
+        }
+    }
+
+
+    /**
+     * A Java AccessibleObject is not serializable. When compiling a stylesheet that contains extension
+     * functions, we therefore need to create a serializable representation of the method (or constructor
+     * or field) to be called. This is provided by the class MethodRepresentation.
+     */
+
+    private static class MethodRepresentation implements Serializable {
+        private Class theClass;
+        private byte category;     // one of Method, Constructor, Field
+        private String name;        // the name of the method or field
+        private Class[] params;     // the types of the parameters to a method or constructor
+
+        public MethodRepresentation(Class theClass, AccessibleObject obj) {
+            this.theClass = theClass;
+            if (obj instanceof Method) {
+                category = 0;
+                name = ((Method)obj).getName();
+                params = ((Method)obj).getParameterTypes();
+            } else if (obj instanceof Constructor) {
+                category = 1;
+                params = ((Constructor)obj).getParameterTypes();
+            } else {
+                category = 2;
+                name = ((Field)obj).getName();
+            }
+        }
+
+        public AccessibleObject recoverAccessibleObject() throws NoSuchMethodException, NoSuchFieldException {
+            switch (category) {
+                case 0:
+                    return theClass.getMethod(name, params);
+                case 1:
+                    return theClass.getConstructor(params);
+                case 2:
+                    return theClass.getField(name);
+                default:
+                    return null;
+            }
+        }
     }
 
 }

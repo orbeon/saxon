@@ -1,20 +1,17 @@
 package net.sf.saxon.value;
-import net.sf.saxon.Err;
 import net.sf.saxon.Configuration;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.Err;
 import net.sf.saxon.expr.Token;
-import net.sf.saxon.om.NamePool;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
 import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.xpath.XPathException;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.regex.Pattern;
-import java.io.PrintStream;
 
 /**
 * A decimal value
@@ -87,7 +84,7 @@ public final class DecimalValue extends NumericValue {
     */
 
     public DecimalValue(long in) {
-        this.value = new BigDecimal(in);
+        this.value = BigDecimal.valueOf(in);
     }
 
     /**
@@ -260,6 +257,15 @@ public final class DecimalValue extends NumericValue {
             return new DecimalValue(value.setScale(scale, BigDecimal.ROUND_HALF_EVEN));
         }
     }
+
+    /**
+     * Determine whether the value is negative, zero, or positive
+     * @return -1 if negative, 0 if zero, +1 if positive, NaN if NaN
+     */
+
+    public double signum() {
+        return value.signum();
+    }    
 
     /**
     * Determine whether the value is a whole number, that is, whether it compares

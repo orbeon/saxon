@@ -9,6 +9,7 @@ import net.sf.saxon.xpath.DynamicError;
 import net.sf.saxon.xpath.XPathException;
 import org.xml.sax.SAXException;
 
+import javax.xml.namespace.QName;
 import javax.xml.transform.ErrorListener;
 import javax.xml.transform.SourceLocator;
 import javax.xml.transform.TransformerException;
@@ -108,7 +109,7 @@ public class StandardErrorListener implements ErrorListener {
         if (exception instanceof ValidationException) {
             errorOutput.println("Validation error " + message);
 
-        } else if (recoveryPolicy==Configuration.RECOVER_WITH_WARNINGS) {
+        } else {
             errorOutput.println("Warning: " + message);
             warningCount++;
             if (warningCount > 25) {
@@ -116,12 +117,7 @@ public class StandardErrorListener implements ErrorListener {
                 recoveryPolicy = Configuration.RECOVER_SILENTLY;
                 warningCount = 0;
             }
-        } else {
-            errorOutput.println("Recoverable error");
-            errorOutput.println(message);
-            errorOutput.println("Processing terminated because error recovery is disabled");
-            throw new DynamicError(exception);
-        }
+        } 
     }
 
     /**
@@ -161,7 +157,7 @@ public class StandardErrorListener implements ErrorListener {
             errorOutput.println("Validation error " + message);
 
         } else if (recoveryPolicy==Configuration.RECOVER_WITH_WARNINGS) {
-            errorOutput.println("Warning: " + message);
+            errorOutput.println("Recoverable error " + message);
             warningCount++;
             if (warningCount > 25) {
                 errorOutput.println("No more warnings will be displayed");
@@ -169,8 +165,7 @@ public class StandardErrorListener implements ErrorListener {
                 warningCount = 0;
             }
         } else {
-            errorOutput.println("Recoverable error");
-            errorOutput.println(message);
+            errorOutput.println("Recoverable error " + message);
             errorOutput.println("Processing terminated because error recovery is disabled");
             throw new DynamicError(exception);
         }
@@ -279,9 +274,9 @@ public class StandardErrorListener implements ErrorListener {
         String message = "";
 
         if (err instanceof XPathException) {
-            String code = ((XPathException)err).getErrorCode();
-            if (code != null) {
-                message = code;
+            QName qcode = ((XPathException)err).getErrorCode();
+            if (qcode != null) {
+                message = qcode.getLocalPart();
             }
         }
 
@@ -291,12 +286,15 @@ public class StandardErrorListener implements ErrorListener {
                 break;
             }
             String next = e.getMessage();
+            if (next.startsWith("net.sf.saxon.xpath.StaticError: ")) {
+                next = next.substring(next.indexOf(": ") + 2);
+            }
             if (next==null) next="";
             if (!("TRaX Transform Exception".equals(next) || message.endsWith(next))) {
                 if (!"".equals(message)) {
                     message += ": ";
                 }
-                message += e.getMessage();
+                message += next;
             }
             if (e instanceof TransformerException) {
                 e = ((TransformerException)e).getException();

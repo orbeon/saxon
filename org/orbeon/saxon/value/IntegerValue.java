@@ -68,7 +68,7 @@ public final class IntegerValue extends NumericValue {
      *      target type
      */
 
-    public IntegerValue(long val, ItemType type) throws DynamicError {
+    public IntegerValue(long val, AtomicType type) throws DynamicError {
         this.value = val;
         this.type = type;
         checkRange(value, type);
@@ -80,7 +80,7 @@ public final class IntegerValue extends NumericValue {
      * @param type the subtype of integer required
      * @throws DynamicError if the value is out of range for this subtype
      */
-    public void setSubType(ItemType type) throws DynamicError {
+    public void setSubType(AtomicType type) throws DynamicError {
         this.type = type;
         checkRange(value, type);
     }
@@ -124,9 +124,9 @@ public final class IntegerValue extends NumericValue {
      *      subtype
      */
 
-    private static void checkRange(long value, ItemType type) throws DynamicError {
+    private static void checkRange(long value, AtomicType type) throws DynamicError {
         for (int i = 0; i < ranges.length; i += 3) {
-            if (ranges[i] == ((AtomicType) type).getFingerprint()) {
+            if (ranges[i] == type.getFingerprint()) {
                 if (value < ranges[i + 1] || value > ranges[i + 2]) {
                     DynamicError err = new DynamicError("Value is out of range for type " + type.toString());
                     err.setErrorCode("FORG0001");
@@ -358,6 +358,17 @@ public final class IntegerValue extends NumericValue {
     }
 
     /**
+     * Determine whether the value is negative, zero, or positive
+     * @return -1 if negative, 0 if zero, +1 if positive, NaN if NaN
+     */
+
+    public double signum() {
+        if (value > 0) return +1;
+        if (value == 0) return 0;
+        return -1;
+    }
+
+    /**
      * Determine whether the value is a whole number, that is, whether it compares
      * equal to some integer
      *
@@ -406,6 +417,7 @@ public final class IntegerValue extends NumericValue {
                         } else {
                             e = new DynamicError("Integer division failure", err);
                         }
+                        e.setLocator(ExpressionTool.getLocator(this));
                         e.setXPathContext(context);
                         throw e;
                     }
@@ -497,7 +509,7 @@ public final class IntegerValue extends NumericValue {
         } else if (target == BigInteger.class) {
             return BigInteger.valueOf(value);
         } else if (target == BigDecimal.class) {
-            return new BigDecimal(value);
+            return BigDecimal.valueOf(value);
         } else {
             Object o = super.convertToJava(target, config, context);
             if (o == null) {

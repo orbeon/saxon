@@ -1,10 +1,10 @@
 package net.sf.saxon.style;
 import net.sf.saxon.expr.*;
-import net.sf.saxon.instruct.Block;
 import net.sf.saxon.instruct.Executable;
+import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.om.Axis;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.sort.SortKeyDefinition;
-import net.sf.saxon.tree.AttributeCollection;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.SequenceType;
@@ -119,7 +119,7 @@ public class XSLSort extends StyleElement {
                  || (parent instanceof XSLForEachGroup)
                  || (parent instanceof XSLPerformSort)
                  )) {
-            compileError("xsl:sort must be a child of xsl:apply-templates, xsl:for-each[-group], or xsl:perform-sort");
+            compileError("xsl:sort must be a child of xsl:apply-templates, xsl:for-each[-group], or xsl:perform-sort", "XT0010");
         }
 
         // Get the named or default collation
@@ -143,7 +143,7 @@ public class XSLSort extends StyleElement {
         if (select != null) {
             try {
                 RoleLocator role =
-                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:sort/select", 0);
+                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:sort/select", 0, null);
                 select = TypeChecker.staticTypeCheck(select,
                                 SequenceType.ATOMIC_SEQUENCE,
                                 false, role, getStaticContext());
@@ -179,10 +179,14 @@ public class XSLSort extends StyleElement {
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {
         if (select == null) {
-            Block body = new Block();
-            compileChildren(exec, body, true);
+            Expression b = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+            if (b == null) {
+                b = EmptySequence.getInstance();
+            }
             try {
-                sortKeyDefinition.setSortKey(new Atomizer(body.simplify(getStaticContext())));
+                StaticContext env = getStaticContext();
+                sortKeyDefinition.setSortKey(
+                        new Atomizer(b.simplify(env), env.getConfiguration()));
             } catch (XPathException e) {
                 compileError(e);
             }

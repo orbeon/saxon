@@ -5,9 +5,9 @@ import net.sf.saxon.value.Value;
 import net.sf.saxon.xpath.StaticError;
 import net.sf.saxon.xpath.XPathException;
 
+import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.io.PrintStream;
 
 /**
 * Abstract superclass for calls to system-defined and user-defined functions

@@ -34,19 +34,24 @@ public class DocumentSender implements SaxonLocator {
 
 	public void send(Receiver receiver) throws XPathException {
 
-        if (top.getNamePool() != receiver.getConfiguration().getNamePool()) {
+        PipelineConfiguration pipe = receiver.getPipelineConfiguration();
+        if (top.getNamePool() != pipe.getConfiguration().getNamePool()) {
             throw new IllegalArgumentException("DocumentSender source and target must use the same NamePool");
         }
 
 		// set system id
-		receiver.setSystemId(top.getSystemId());
-		receiver.setDocumentLocator(this);
+        if (pipe.getLocationProvider() == null) {
+		    receiver.setSystemId(top.getSystemId());
+	        pipe.setLocationProvider(this);
+        }
 
 		// start event stream
 		receiver.open();
 
 		// copy the contents of the document
+        receiver.startDocument(0);
 		top.copy(receiver, NodeInfo.ALL_NAMESPACES, true, 0);
+        receiver.endDocument();
 
 		// end event stream
 		receiver.close();

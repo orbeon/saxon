@@ -1,11 +1,9 @@
 package net.sf.saxon.style;
 
-import net.sf.saxon.style.XSLFunction;
-import net.sf.saxon.style.XSLStylesheet;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.functions.FunctionLibrary;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.UserFunctionCall;
+import net.sf.saxon.functions.FunctionLibrary;
+import net.sf.saxon.xpath.XPathException;
 
 /**
  * A StylesheetFunctionLibrary contains functions defined by the user in a stylesheet. This library is used at

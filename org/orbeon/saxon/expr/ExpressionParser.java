@@ -74,14 +74,26 @@ public class ExpressionParser {
     }
 
     /**
-     * Report a parsing error
-     *
+     * Report a syntax error (a static error with error code XP0003)
      * @param message the error message
-     * @throws net.sf.saxon.xpath.StaticError always thrown: an exception containing the
+     * @exception net.sf.saxon.xpath.StaticError always thrown: an exception containing the
      *     supplied message
      */
 
     protected void grumble(String message) throws StaticError {
+        grumble(message, "XP0003");
+    }
+
+    /**
+     * Report a static error
+     *
+     * @param message the error message
+     * @param errorCode the error code
+     * @throws net.sf.saxon.xpath.StaticError always thrown: an exception containing the
+     *     supplied message
+     */
+
+    protected void grumble(String message, String errorCode) throws StaticError {
         String s = t.recentText();
         int line = t.getLineNumber();
         int column = t.getColumnNumber();
@@ -90,7 +102,9 @@ public class ExpressionParser {
         String prefix = getLanguage() + " syntax error " + columnInfo + lineInfo +
                     (message.startsWith("...") ? "near" : "in") +
                     ' ' + Err.wrap(s) + ":\n    ";
-        throw new StaticError(prefix + message);
+        StaticError err = new StaticError(prefix + message);
+        err.setErrorCode(errorCode);
+        throw err;
     }
 
     /**
@@ -104,7 +118,7 @@ public class ExpressionParser {
         String prefix = "Warning " + lineInfo +
                     (message.startsWith("...") ? "near" : "in") +
                 ' ' + Err.wrap(s) + ":\n    ";
-        env.issueWarning(prefix + message);
+        env.issueWarning(prefix + message, null);
     }
 
     /**
@@ -368,6 +382,7 @@ public class ExpressionParser {
         do {
             ForClause clause = new ForClause();
             clause.offset = offset;
+            clause.requiredType = SequenceType.SINGLE_ITEM;
             clauseList.add(clause);
             nextToken();
             expect(Token.DOLLAR);
@@ -383,7 +398,17 @@ public class ExpressionParser {
             clause.rangeVariable = v;
             nextToken();
 
-            // "as" and "at" clauses are not recognized in XPath
+            if (isKeyword("as") && "XQuery".equals(getLanguage())) {
+                nextToken();
+                SequenceType type = parseSequenceType();
+                clause.requiredType = type;
+                v.setRequiredType(type);
+                if (type.getCardinality() != StaticProperty.EXACTLY_ONE) {
+                    grumble("Cardinality of range variable must be exactly one");
+                }
+            }
+
+            // "at" clauses are not recognized in XPath
             clause.positionVariable = null;
 
             // process the "in" clause
@@ -427,9 +452,13 @@ public class ExpressionParser {
             // of all expressions to return some kind of type information even if this is
             // imprecise.
 
-            SequenceType type =
-                    new SequenceType(fc.sequence.getItemType(), StaticProperty.EXACTLY_ONE);
-            fc.rangeVariable.setRequiredType(type);
+            if (fc.requiredType == SequenceType.SINGLE_ITEM) {
+                SequenceType type =
+                        new SequenceType(fc.sequence.getItemType(), StaticProperty.EXACTLY_ONE);
+                fc.rangeVariable.setRequiredType(type);
+            } else {
+                fc.rangeVariable.setRequiredType(fc.requiredType);
+            }
             exp.setAction(action);
 
             // for the next outermost "for" clause, the "action" is this ForExpression
@@ -597,7 +626,7 @@ public class ExpressionParser {
             if (uri.equals(NamespaceConstant.SCHEMA) || uri.equals(NamespaceConstant.XDT)) {
                 ItemType t = Type.getBuiltInItemType(uri, parts[1]);
                 if (t == null) {
-                    grumble("Unknown atomic type " + qname);
+                    grumble("Unknown atomic type " + qname, "XP0051");
                 }
                 if (t instanceof AtomicType) {
                     return (AtomicType)t;
@@ -630,7 +659,11 @@ public class ExpressionParser {
                     }
 
                 } else {
-                    grumble("There is no imported schema for namespace " + uri);
+                    if ("".equals(uri)) {
+                        grumble("There is no imported schema for the null namespace");
+                    } else {
+                        grumble("There is no imported schema for namespace " + uri);
+                    }
                     return null;
                 }
             }
@@ -671,7 +704,8 @@ public class ExpressionParser {
             case Token.GE:
                 op = t.currentToken;
                 nextToken();
-                exp = env.getConfiguration().getOptimizer().makeGeneralComparison(exp, op, parseRangeExpression());
+                exp = env.getConfiguration().getOptimizer().makeGeneralComparison(
+                        exp, op, parseRangeExpression(), env.isInBackwardsCompatibleMode());
                 setLocation(exp);
                 return exp;
 
@@ -980,7 +1014,7 @@ public class ExpressionParser {
                 t.currentToken == Token.SLSL ) {
             int op = t.currentToken;
             nextToken();
-            Expression next = parseRelativePath();
+            Expression next = parseStepExpression();
             if (op == Token.SLASH) {
                 exp = new PathExpression(exp, next);
             } else {
@@ -1368,7 +1402,7 @@ public class ExpressionParser {
                         return NodeKindTest.makeNodeKindTest(primaryType);
                     } else {
                         NodeTest nameTest = null;
-                        SchemaType schemaType = null;
+                        ValidSchemaType schemaType = null;
                         if (primaryType == Type.ATTRIBUTE) {
                             // attribute(N) or schema-attribute(N)
                             if (schemaDeclaration) {
@@ -1380,7 +1414,7 @@ public class ExpressionParser {
                                 if (attributeDecl == null) {
                                     grumble("There is no declaration for attribute @" + nodeName + " in an imported schema");
                                 } else {
-                                    schemaType = attributeDecl.getType();
+                                    schemaType = attributeDecl.getValidType();
                                     nameTest = new NameTest(Type.ATTRIBUTE, nameCode, env.getNamePool());
                                 }
                             } else {
@@ -1398,7 +1432,7 @@ public class ExpressionParser {
                                 if (elementDecl == null) {
                                     grumble("There is no declaration for element <" + nodeName + "> in an imported schema");
                                 } else {
-                                    schemaType = elementDecl.getType();
+                                    schemaType = elementDecl.getValidType();
                                     nameTest = env.getConfiguration().makeSubstitutionGroupTest(elementDecl);
 
                                 }
@@ -1647,7 +1681,7 @@ public class ExpressionParser {
         }
         for (int v=rangeVariables.size()-1; v>=0; v--) {
             VariableDeclaration b = (VariableDeclaration)rangeVariables.elementAt(v);
-            if (b.getNameCode()==fingerprint) {
+            if ((b.getNameCode() & 0xfffff) == fingerprint) {
                 return b;
             }
         }
@@ -2070,12 +2104,12 @@ public class ExpressionParser {
         this.scanOnly = scanOnly;
     }
 
-
     public static class ForClause {
 
         public RangeVariableDeclaration rangeVariable;
         public RangeVariableDeclaration positionVariable;
         public Expression sequence;
+        public SequenceType requiredType;
         public int offset;
     }
 

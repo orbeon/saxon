@@ -3,11 +3,11 @@ import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.EmptyIterator;
-import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.om.NamePool;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.type.ItemType;
+import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.pattern.NoNodeTest;
+import net.sf.saxon.type.ItemType;
+import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 

@@ -10,9 +10,9 @@ import net.sf.saxon.value.ObjectValue;
 import net.sf.saxon.value.Value;
 import net.sf.saxon.xpath.XPathException;
 
-import java.util.Iterator;
-import java.util.Arrays;
 import java.io.PrintStream;
+import java.util.Arrays;
+import java.util.Iterator;
 
 /**
  * A tuple expression is an expression that returns a tuple. Specifically,
@@ -69,9 +69,10 @@ public class TupleExpression extends ComputedExpression {
 
     public Item evaluateItem(XPathContext context) throws XPathException {
         Value[] tuple = new Value[components.length];
+        // TODO: Use eager evaluation to get the first sort key, because it will always be needed.
+        // For the return value and the other sort keys, use lazy evaluation
         for (int i=0; i<components.length; i++) {
-            //tuple[i] = components[i].evaluateItem(context);
-            tuple[i] = ExpressionTool.eagerEvaluate(components[i], context);
+            tuple[i] = ExpressionTool.lazyEvaluate(components[i], context, true);
         }
         return new ObjectValue(tuple);
     }
@@ -89,10 +90,6 @@ public class TupleExpression extends ComputedExpression {
     public int getIntrinsicDependencies() {
         return 0;
     }
-
-//    public Expression[] getSubExpressions() {
-//        return components;
-//    }
 
     public Iterator iterateSubExpressions() {
         return Arrays.asList(components).iterator();
