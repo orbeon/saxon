@@ -1,9 +1,8 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.instruct.Instruction;
-import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.tree.AttributeCollection;
-import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.type.ItemType;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -44,7 +43,7 @@ public class XSLOtherwise extends StyleElement {
 
     public void validate() throws TransformerConfigurationException {
         if (!(getParentNode() instanceof XSLChoose)) {
-            compileError("xsl:otherwise must be immediately within xsl:choose");
+            compileError("xsl:otherwise must be immediately within xsl:choose", "XT0010");
         }
     }
 

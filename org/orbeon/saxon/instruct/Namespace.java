@@ -1,22 +1,19 @@
 package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.event.ReceiverOptions;
 import org.orbeon.saxon.event.SequenceReceiver;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.XMLChar;
 import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
-import java.util.List;
-import java.util.Iterator;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Iterator;
 
 /**
 * An xsl:namespace element in the stylesheet. (XSLT 2.0)
@@ -38,6 +35,11 @@ public class Namespace extends SimpleNodeConstructor {
         return StandardNames.XSL_NAMESPACE;
     }
 
+    public Expression simplify(StaticContext env) throws XPathException {
+        name = name.simplify(env);
+        return super.simplify(env);
+    }
+
     public ItemType getItemType() {
         return NodeKindTest.NAMESPACE;
     }
@@ -55,15 +57,12 @@ public class Namespace extends SimpleNodeConstructor {
 
     public Iterator iterateSubExpressions() {
         ArrayList list = new ArrayList(6);
-        if (children != null) {
-            list.addAll(Arrays.asList(children));
-        }
         if (select != null) {
             list.add(select);
         }
-        if (separator != null && !(separator instanceof StringValue)) {
-            list.add(separator);
-        }
+//        if (separator != null && !(separator instanceof StringValue)) {
+//            list.add(separator);
+//        }
         list.add(name);
         return list.iterator();
     }

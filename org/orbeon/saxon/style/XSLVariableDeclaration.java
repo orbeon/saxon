@@ -2,16 +2,15 @@ package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Binding;
 import org.orbeon.saxon.expr.BindingReference;
 import org.orbeon.saxon.expr.VariableDeclaration;
-
-import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.value.SequenceType;
 import org.orbeon.saxon.instruct.SlotManager;
 import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.Value;
 
 import javax.xml.transform.TransformerConfigurationException;
-import java.util.List;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 
 /**
@@ -58,12 +57,29 @@ public abstract class XSLVariableDeclaration
     }
 
     /**
+     * Get the list of references to this variable or parameter. The items in the list are
+     * of class BindingReference.
+     */
+
+    public List getReferences() {
+        return references;
+    }
+
+    /**
     * Determine whether this node is an instruction.
     * @return true - it is an instruction (well, it can be, anyway)
     */
 
     public boolean isInstruction() {
         return true;
+    }
+
+    /**
+     * Get the list of references
+     */
+
+    public List getReferenceList() {
+        return references;
     }
 
     /**
@@ -109,7 +125,7 @@ public abstract class XSLVariableDeclaration
             checkWithinTemplate();
             SlotManager p = getContainingSlotManager();
             if (p==null) {
-                compileError("Local variable must be declared within a template or function");
+                compileError("Local variable must be declared within a template or function", "XT0010");
             } else {
                 slotNumber = p.allocateSlotNumber(getVariableFingerprint());
             }

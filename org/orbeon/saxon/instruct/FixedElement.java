@@ -1,11 +1,16 @@
 package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.event.Receiver;
-import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.Validation;
+import org.orbeon.saxon.pattern.CombinedNodeTest;
+import org.orbeon.saxon.pattern.ContentTypeTest;
+import org.orbeon.saxon.pattern.NameTest;
+import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.trace.InstructionInfo;
 import org.orbeon.saxon.trace.Location;
-import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.type.*;
+import org.orbeon.saxon.xpath.StaticError;
 import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
@@ -22,6 +27,7 @@ public class FixedElement extends ElementCreator {
 
     private int nameCode;
     protected int[] namespaceCodes = null;
+    private ItemType itemType;
 
     /**
      * Create an instruction that creates a new element node
@@ -30,6 +36,7 @@ public class FixedElement extends ElementCreator {
      *                       May be null if none are required.
      * @param useAttributeSets Array of attribute sets to be expanded. May be null
      *                       if none are required.
+     * @param inheritNamespaces true if the children of this element are to inherit its namespaces
      * @param schemaType Type annotation for the new element node
      */
     public FixedElement( int nameCode,
@@ -54,6 +61,116 @@ public class FixedElement extends ElementCreator {
     }
 
     /**
+     * Simplify an expression. This performs any static optimization (by rewriting the expression
+     * as a different expression). The default implementation does nothing.
+     *
+     * @return the simplified expression
+     * @throws org.orbeon.saxon.xpath.XPathException
+     *          if an error is discovered during expression rewriting
+     */
+
+    public Expression simplify(StaticContext env) throws XPathException {
+        if (schemaType == null) {
+            if (validation == Validation.STRICT) {
+                SchemaDeclaration decl = env.getConfiguration().getElementDeclaration(nameCode & 0xfffff);
+                if (decl == null) {
+                    StaticError err = new StaticError("There is no global element declaration for " +
+                            env.getNamePool().getDisplayName(nameCode) +
+                            ", so strict validation will fail");
+                    err.setIsTypeError(true);
+                    err.setLocator(this);
+                    throw err;
+                }
+                schemaType = decl.getValidType();
+                itemType = new CombinedNodeTest(
+                        new NameTest(Type.ELEMENT, nameCode, env.getNamePool()),
+                        Token.INTERSECT,
+                        new ContentTypeTest(Type.ELEMENT, schemaType, env.getConfiguration()));
+            } else if (validation == Validation.LAX) {
+                SchemaDeclaration decl = env.getConfiguration().getElementDeclaration(nameCode & 0xfffff);
+                if (decl == null) {
+                    env.issueWarning("There is no global element declaration for " +
+                            env.getNamePool().getDisplayName(nameCode) +
+                            ", so lax validation has no effect", this);
+                    itemType = new CombinedNodeTest(
+                        new NameTest(Type.ELEMENT, nameCode, env.getNamePool()),
+                        Token.INTERSECT,
+                        new ContentTypeTest(Type.ELEMENT,
+                                BuiltInSchemaFactory.getSchemaType(StandardNames.XDT_UNTYPED),
+                                env.getConfiguration()));
+                } else {
+                    schemaType = decl.getValidType();
+                    itemType = new CombinedNodeTest(
+                            new NameTest(Type.ELEMENT, nameCode, env.getNamePool()),
+                            Token.INTERSECT,
+                            new ContentTypeTest(Type.ELEMENT, schemaType, env.getConfiguration()));
+                }
+            } else {
+                // we know the result will be an untyped element
+                itemType = new CombinedNodeTest(
+                        new NameTest(Type.ELEMENT, nameCode, env.getNamePool()),
+                        Token.INTERSECT,
+                        new ContentTypeTest(Type.ELEMENT,
+                                BuiltInSchemaFactory.getSchemaType(StandardNames.XDT_UNTYPED),
+                                env.getConfiguration()));
+            }
+        } else {
+            itemType = new CombinedNodeTest(
+                    new NameTest(Type.ELEMENT, nameCode, env.getNamePool()),
+                    Token.INTERSECT,
+                    new ContentTypeTest(Type.ELEMENT, schemaType, env.getConfiguration())
+            );
+        }
+        return super.simplify(env);
+    }
+
+    /**
+     * Perform static analysis of an expression and its subexpressions.
+     * <p/>
+     * <p>This checks statically that the operands of the expression have
+     * the correct type; if necessary it generates code to do run-time type checking or type
+     * conversion. A static type error is reported only if execution cannot possibly succeed, that
+     * is, if a run-time type error is inevitable. The call may return a modified form of the expression.</p>
+     * <p/>
+     * <p>This method is called after all references to functions and variables have been resolved
+     * to the declaration of the function or variable. However, the types of such functions and
+     * variables will only be accurately known if they have been explicitly declared.</p>
+     *
+     * @param env the static context of the expression
+     * @return the original expression, rewritten to perform necessary
+     *         run-time type checks, and to perform other type-related
+     *         optimizations
+     * @throws org.orbeon.saxon.xpath.XPathException
+     *          if an error is discovered during this phase
+     *          (typically a type error)
+     */
+
+    public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
+        if (schemaType != null) {
+            try {
+                schemaType.analyzeContentExpression(content, Type.ELEMENT, env);
+            } catch (ValidationException e) {
+                if (e.getLocator().getLineNumber() == 1) {
+                    e.setLocator(this);
+                }
+                throw e;
+            }
+        }
+        return super.analyze(env, contextItemType);
+    }
+
+    /**
+     * Get the type of the item returned by this instruction
+     * @return the item type
+     */
+    public ItemType getItemType() {
+        if (itemType == null) {
+            return super.getItemType();
+        }
+        return itemType;
+    }
+
+    /**
      * Callback from the superclass ElementCreator to get the nameCode
      * for the element name
      * @param context The evaluation context (not used)
@@ -63,6 +180,61 @@ public class FixedElement extends ElementCreator {
     protected int getNameCode(XPathContext context) {
         return nameCode;
     }
+
+    /**
+     * Check that any elements and attributes constructed or returned by this expression are acceptable
+     * in the content model of a given complex type. It's always OK to say yes, since the check will be
+     * repeated at run-time. The process of checking element and attribute constructors against the content
+     * model of a complex type also registers the type of content expected of those constructors, so the
+     * static validation can continue recursively.
+     */
+
+    public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException {
+        if (parentType instanceof SimpleType) {
+            StaticError err = new StaticError("Element " + env.getNamePool().getDisplayName(nameCode) +
+                    " is not permitted here: the containing element is of simple type " + parentType.getDescription());
+            err.setIsTypeError(true);
+            err.setLocator(this);
+            throw err;
+        } else if (((ComplexType)parentType).isSimpleContent()) {
+            StaticError err = new StaticError("Element " + env.getNamePool().getDisplayName(nameCode) +
+                    " is not permitted here: the containing element has a complex type with simple content");
+            err.setIsTypeError(true);
+            err.setLocator(this);
+            throw err;
+        }
+        SchemaType type;
+        try {
+            type = ((ComplexType)parentType).getElementParticleType(nameCode & 0xfffff);
+        } catch (SchemaException e) {
+            throw new StaticError(e);
+        }
+        if (type == null) {
+            StaticError err = new StaticError("Element " + env.getNamePool().getDisplayName(nameCode) +
+                    " is not permitted in the content model of the complex type " + parentType.getDescription());
+            err.setIsTypeError(true);
+            err.setLocator(this);
+            throw err;
+        }
+        if (type instanceof AnyType) {
+            return;
+        }
+
+        try {
+            content.checkPermittedContents(type, env, true);
+        } catch (XPathException e) {
+            if (e.getLocator() == null || e.getLocator() == e) {
+                e.setLocator(this);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Callback from the superclass ElementCreator to output the namespace nodes
+     * @param context The evaluation context (not used)
+     * @param out The receiver to handle the output
+     */
 
     protected void outputNamespaceNodes(XPathContext context, Receiver out)
     throws XPathException {
@@ -81,11 +253,8 @@ public class FixedElement extends ElementCreator {
         out.println(ExpressionTool.indent(level) + "element ");
         out.println(ExpressionTool.indent(level+1) + "name " +
                 (pool==null ? nameCode+"" : pool.getDisplayName(nameCode)));
-        if (children==null || children.length==0) {
-            out.println(ExpressionTool.indent(level+1) + "empty content");
-        } else {
-            InstructionWithChildren.displayChildren(children, level+1, pool, out);
-        }
+        out.println(ExpressionTool.indent(level+1) + "content");
+        content.display(level+1, pool, out);
     }
 }
 

@@ -14,8 +14,8 @@ import java.io.Serializable;
 public class UserFunctionParameter implements Binding, Serializable {
 
     private SequenceType requiredType;
-    private String variableName;
     private int slotNumber;
+    private int referenceCount = 999;
 
     public void setRequiredType(SequenceType type) {
         requiredType = type;
@@ -25,22 +25,22 @@ public class UserFunctionParameter implements Binding, Serializable {
         return requiredType;
     }
 
+    public void setReferenceCount(int count) {
+        referenceCount = count;
+    }
+
+    public int getReferenceCount() {
+        return referenceCount;
+    }
+
     public void setSlotNumber(int slot) {
         slotNumber = slot;
     }
 
     public Value evaluateVariable(XPathContext context) throws XPathException {
         return context.evaluateLocalVariable(slotNumber);
-        //return context.getController().getBindery().getLocalVariable(slotNumber);
     }
 
-    public void setVariableName(String name) {
-        variableName = name;
-    }
-
-    public String getVariableName() {
-        return variableName;
-    }
 }
 
 //

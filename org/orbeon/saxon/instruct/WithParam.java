@@ -1,12 +1,12 @@
 package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.PromotionOffer;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.List;
 
@@ -54,7 +54,7 @@ public class WithParam extends GeneralVariable {
         for (int i=0; i<params.length; i++) {
             Expression select = params[i].getSelectExpression();
             if (select != null) {
-                params[i].setSelectExpression(params[i].promote(offer));
+                params[i].setSelectExpression(select.promote(offer));
             }
         }
     }

@@ -23,9 +23,9 @@ public final class AtomicSequenceConverter extends UnaryExpression implements Ma
 
     /**
     * Constructor
-    * @param sequence: this must be a sequence of atomic values. This is not checked; a ClassCastException
+    * @param sequence this must be a sequence of atomic values. This is not checked; a ClassCastException
     * will occur if the precondition is not satisfied.
-    * @param requiredItemType: the item type to which all items in the sequence should be converted,
+    * @param requiredItemType the item type to which all items in the sequence should be converted,
     * using the rules for "cast as".
     */
 
@@ -65,6 +65,16 @@ public final class AtomicSequenceConverter extends UnaryExpression implements Ma
         } else {
             return this;
         }
+    }
+
+    /**
+     * Determine the special properties of this expression
+     * @return {@link StaticProperty#NON_CREATIVE}.
+     */
+
+    public int computeSpecialProperties() {
+        int p = super.computeSpecialProperties();
+        return p | StaticProperty.NON_CREATIVE;
     }
 
     /**

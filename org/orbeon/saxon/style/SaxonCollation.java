@@ -3,7 +3,7 @@ import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Loader;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.xpath.XPathException;
 

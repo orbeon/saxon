@@ -1,15 +1,15 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.TailExpression;
 import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.TailExpression;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.value.IntegerValue;
+import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.IntegerValue;
 import org.orbeon.saxon.value.NumericValue;
 import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.type.ItemType;
 
 /**
 * The XPath 2.0 remove() function
@@ -78,11 +78,9 @@ public class Remove extends SystemFunction {
         SequenceIterator base;
         int removePosition;
         int position = 0;
-        //Item nextItem = null;
         Item current = null;
 
-        public RemoveIterator(SequenceIterator base, int removePosition)
-        throws XPathException {
+        public RemoveIterator(SequenceIterator base, int removePosition) {
             this.base = base;
             this.removePosition = removePosition;
         }

@@ -1,17 +1,7 @@
 package org.orbeon.saxon.instruct;
 
-import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.expr.*;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.trace.InstructionInfo;
-import org.orbeon.saxon.trace.TraceListener;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.xpath.XPathException;
-
-import java.util.Iterator;
-import java.io.PrintStream;
 
 
 /**
@@ -31,16 +21,6 @@ public class TraceInstruction extends TraceWrapper {
     public TraceInstruction(Expression child, InstructionInfo details) {
         this.child = child;
         this.details = details;
-        adoptChildExpression(child);
-    }
-
-   /**
-     * Create a Trace instruction
-     * @param child the "real" instruction to be traced
-     */
-
-    public TraceInstruction(Expression child) {
-        this.child = child;
         adoptChildExpression(child);
     }
 

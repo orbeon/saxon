@@ -1,8 +1,8 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.ParameterSet;
 import org.orbeon.saxon.event.SequenceReceiver;
 import org.orbeon.saxon.instruct.LocalParam;
+import org.orbeon.saxon.instruct.ParameterSet;
 import org.orbeon.saxon.instruct.RegexIterator;
 import org.orbeon.saxon.instruct.Template;
 import org.orbeon.saxon.om.Item;
@@ -45,6 +45,12 @@ public interface XPathContext {
      */
 
     public XPathContextMinor newMinorContext();
+
+    /**
+     * Get the XSLT-specific part of the context
+     */
+
+    public XPathContextMajor.XSLTContext getXSLTContext();
 
     /**
      * Get the local (non-tunnel) parameters that were passed to the current function or template

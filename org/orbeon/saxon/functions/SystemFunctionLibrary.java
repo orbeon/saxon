@@ -1,14 +1,10 @@
 package org.orbeon.saxon.functions;
 
-import org.orbeon.saxon.functions.StandardFunction;
-import org.orbeon.saxon.functions.SystemFunction;
-import org.orbeon.saxon.functions.XSLTFunction;
-import org.orbeon.saxon.functions.FunctionLibrary;
-import org.orbeon.saxon.om.NamespaceConstant;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.xpath.StaticError;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * The SystemFunctionLibrary represents the collection of functions in the fn: namespace. That is, the
@@ -44,7 +40,7 @@ public class SystemFunctionLibrary implements FunctionLibrary {
 
     public boolean isAvailable(int fingerprint, String uri, String local, int arity) {
         if (uri.equals(NamespaceConstant.FN)) {
-            StandardFunction.Entry entry = StandardFunction.getFunction(local);
+            StandardFunction.Entry entry = StandardFunction.getFunction(local, arity);
             if (entry == null) {
                 return false;
             }
@@ -75,7 +71,7 @@ public class SystemFunctionLibrary implements FunctionLibrary {
     public Expression bind(int nameCode, String uri, String local, Expression[] staticArgs)
             throws XPathException {
         if (uri.equals(NamespaceConstant.FN)) {
-            StandardFunction.Entry entry = StandardFunction.getFunction(local);
+            StandardFunction.Entry entry = StandardFunction.getFunction(local, staticArgs.length);
             if (entry == null) {
                 throw new StaticError("Unknown system function " + local + "()");
             }

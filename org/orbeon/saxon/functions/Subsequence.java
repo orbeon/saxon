@@ -1,14 +1,12 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.PositionIterator;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.TailExpression;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.value.IntegerValue;
-import org.orbeon.saxon.value.NumericValue;
-import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.NumericValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * Implements the XPath 2.0 subsequence()  function
@@ -20,9 +18,6 @@ public class Subsequence extends SystemFunction {
     // Ideally, we would simply convert this at compile time to a filter expression.
     // Unfortunately, this is not always possible, because a filter expression changes
     // the focus for evaluating the filter expression, while this function does not.
-
-    //public final static int ITEM_AT = 0;
-    public final static int SUBSEQUENCE = 1;
 
     /**
     * Determine the data type of the items in the sequence

@@ -79,16 +79,20 @@ public abstract class StandardNames {
     public static final int XSL_WITH_PARAM = XSL + 60;
     public static final int XSL_WHEN = XSL + 61;
 
-    public static final int XSL_XPATH_DEFAULT_NAMESPACE = XSL + 100;
+    public static final int XSL_DEFAULT_COLLATION = XSL + 100;
     public static final int XSL_EXCLUDE_RESULT_PREFIXES = XSL + 101;
     public static final int XSL_EXTENSION_ELEMENT_PREFIXES = XSL + 102;
     public static final int XSL_INHERIT_NAMESPACES = XSL + 103;
     public static final int XSL_TYPE = XSL + 104;
     public static final int XSL_USE_ATTRIBUTE_SETS = XSL + 105;
-    public static final int XSL_VALIDATION = XSL + 106;
-    public static final int XSL_VERSION = XSL + 107;
+    public static final int XSL_USE_WHEN = XSL + 106;
+    public static final int XSL_VALIDATION = XSL + 107;
+    public static final int XSL_VERSION = XSL + 108;
+    public static final int XSL_XPATH_DEFAULT_NAMESPACE = XSL + 109;
 
     private static final String XSL_B = '{' + NamespaceConstant.XSLT + '}';
+    public static final String XSL_DEFAULT_COLLATION_CLARK =
+            XSL_B + "default-collation";
     public static final String XSL_INHERIT_NAMESPACES_CLARK =
             XSL_B + "inherit-namespaces";
     public static final String XSL_VERSION_CLARK =
@@ -118,7 +122,7 @@ public abstract class StandardNames {
     public static final String SAXON_EXPLAIN = SAXON_B + "explain";
     public static final String SAXON_INDENT_SPACES = SAXON_B + "indent-spaces";
     public static final String SAXON_NEXT_IN_CHAIN = SAXON_B + "next-in-chain";
-    public static final String SAXON_BYTE_ORDER_MARK = SAXON_B + "byte-order-mark";
+    //public static final String SAXON_BYTE_ORDER_MARK = SAXON_B + "byte-order-mark";
     public static final String SAXON_REQUIRE_WELL_FORMED = SAXON_B + "require-well-formed";
     public static final String SAXON_MEMO_FUNCTION = SAXON_B + "memo-function";
 
@@ -215,6 +219,7 @@ public abstract class StandardNames {
 
     public static final String ARCHIVE = "archive";
     public static final String AS = "as";
+    public static final String BYTE_ORDER_MARK = "byte-order-mark";    
     public static final String CASE_ORDER = "case-order";
     public static final String CDATA_SECTION_ELEMENTS = "cdata-section-elements";
     public static final String CHARACTER = "character";
@@ -226,6 +231,7 @@ public abstract class StandardNames {
     public static final String DECIMAL_SEPARATOR = "decimal-separator";
     public static final String DECOMPOSITION = "decomposition";
     public static final String DEFAULT = "default";
+    public static final String DEFAULT_COLLATION = "default-collation";
     public static final String DEFAULT_VALIDATION = "default-validation";
     public static final String DIGIT = "digit";
     public static final String DISABLE_OUTPUT_ESCAPING = "disable-output-escaping";
@@ -293,6 +299,7 @@ public abstract class StandardNames {
     public static final String USE = "use";
     public static final String USE_ATTRIBUTE_SETS = "use-attribute-sets";
     public static final String USE_CHARACTER_MAPS = "use-character-maps";
+    public static final String USE_WHEN = "use-when";
     public static final String VALIDATION = "validation";
     public static final String VALUE = "value";
     public static final String VERSION = "version";
@@ -318,7 +325,7 @@ public abstract class StandardNames {
     public static final int XS_ANY_URI         = XS +  17;
     public static final int XS_QNAME           = XS +  18;
     public static final int XS_NOTATION        = XS +  19;
-    public static final int XS_INTEGER                 = XS +  20;
+    public static final int XS_INTEGER         = XS +  20;
 
     // Note that any type code <= XS_INTEGER is considered to represent a
     // primitive type: see Type.isPrimitiveType()
@@ -503,12 +510,14 @@ public abstract class StandardNames {
 		bindXSLTName(XSL_WITH_PARAM, "with-param");
 		bindXSLTName(XSL_WHEN, "when");
 
+        bindXSLTName(XSL_DEFAULT_COLLATION, "default-collation");
         bindXSLTName(XSL_XPATH_DEFAULT_NAMESPACE, "xpath-default-namespace");
         bindXSLTName(XSL_EXCLUDE_RESULT_PREFIXES, "exclude-result-prefixes");
         bindXSLTName(XSL_EXTENSION_ELEMENT_PREFIXES, "extension-element-prefixes");
         bindXSLTName(XSL_INHERIT_NAMESPACES, "inherit-namespaces");
         bindXSLTName(XSL_TYPE, "type");
         bindXSLTName(XSL_USE_ATTRIBUTE_SETS, "use-attribute-sets");
+        bindXSLTName(XSL_USE_WHEN, "use-when");
         bindXSLTName(XSL_VALIDATION, "validation");
         bindXSLTName(XSL_VERSION, "version");
 

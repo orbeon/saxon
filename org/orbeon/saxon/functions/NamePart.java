@@ -1,7 +1,8 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.StaticProperty;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.value.QNameValue;
@@ -15,12 +16,12 @@ import org.orbeon.saxon.xpath.XPathException;
 
 public class NamePart extends SystemFunction {
 
-    public final static int NAME = 0;
-    public final static int LOCAL_NAME = 1;
-    public final static int NAMESPACE_URI = 2;
-    public final static int GENERATE_ID = 3;
-    public final static int DOCUMENT_URI = 4;
-    public final static int NODE_NAME = 6;
+    public static final int NAME = 0;
+    public static final int LOCAL_NAME = 1;
+    public static final int NAMESPACE_URI = 2;
+    public static final int GENERATE_ID = 3;
+    public static final int DOCUMENT_URI = 4;
+    public static final int NODE_NAME = 6;
 
     /**
     * Simplify and validate.
@@ -29,6 +30,21 @@ public class NamePart extends SystemFunction {
      public Expression simplify(StaticContext env) throws XPathException {
         useContextItemAsDefault();
         return simplifyArguments(env);
+    }
+
+    /**
+     * Determine the special properties of this expression. The generate-id()
+     * function is a special case: it is considered creative if its operand
+     * is creative, so that generate-id(f()) is not taken out of a loop
+     */
+
+    public int computeSpecialProperties() {
+        int p = super.computeSpecialProperties();
+        if (operation == GENERATE_ID) {
+            return p & ~StaticProperty.NON_CREATIVE;
+        } else {
+            return p;
+        }
     }
 
     /**
@@ -65,6 +81,9 @@ public class NamePart extends SystemFunction {
                 s = node.generateId();
                 break;
             case DOCUMENT_URI:
+                // TODO: the function should never return a relative URI; and it shouldn't return a value
+                // in the case of temporary trees, or any other document that can't be retrieved using the
+                // system ID.
                 s = node.getSystemId();
                 break;
             case NODE_NAME:

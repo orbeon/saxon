@@ -1,10 +1,11 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.StringTokenizer;
@@ -20,8 +21,20 @@ public class NormalizeSpace extends SystemFunction {
     */
 
      public Expression simplify(StaticContext env) throws XPathException {
-        useContextItemAsDefault();
         return simplifyArguments(env);
+    }
+
+    /**
+    * Pre-evaluate a function at compile time. Functions that do not allow
+    * pre-evaluation, or that need access to context information, can override this method.
+    */
+
+    public Expression preEvaluate(StaticContext env) throws XPathException {
+        if (argument.length == 0) {
+            return this;
+        } else {
+            return ExpressionTool.eagerEvaluate(this, null);
+        }
     }
 
     /**
@@ -29,9 +42,13 @@ public class NormalizeSpace extends SystemFunction {
     */
 
     public Item evaluateItem(XPathContext c) throws XPathException {
-        AtomicValue sv = (AtomicValue)argument[0].evaluateItem(c);
-        if (sv==null) return StringValue.EMPTY_STRING;
-        return new StringValue(normalize(sv.getStringValue()));
+        if (argument.length == 0) {
+            return new StringValue(normalize(c.getContextItem().getStringValue()));
+        } else {
+            AtomicValue sv = (AtomicValue)argument[0].evaluateItem(c);
+            if (sv==null) return StringValue.EMPTY_STRING;
+            return new StringValue(normalize(sv.getStringValue()));
+        }
     }
 
     /**
@@ -39,11 +56,13 @@ public class NormalizeSpace extends SystemFunction {
     */
 
     public static String normalize(String s) {
-        StringBuffer sb = new StringBuffer();
+        StringBuffer sb = new StringBuffer(s.length());
         StringTokenizer st = new StringTokenizer(s);
         while (st.hasMoreTokens()) {
             sb.append(st.nextToken());
-            if (st.hasMoreTokens()) sb.append(" ");
+            if (st.hasMoreTokens()) {
+                sb.append(' ');
+            }
         }
         return sb.toString();
     }

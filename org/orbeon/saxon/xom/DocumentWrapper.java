@@ -1,11 +1,11 @@
-package net.sf.saxon.xom;
+package org.orbeon.saxon.xom;
 
-import net.sf.saxon.Configuration;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.VirtualNode;
-import net.sf.saxon.type.Type;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.om.DocumentInfo;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.VirtualNode;
+import org.orbeon.saxon.type.Type;
 import nu.xom.Attribute;
 import nu.xom.Document;
 import nu.xom.Element;
@@ -19,7 +19,7 @@ import nu.xom.Node;
  * top-level element.
  * 
  * @author Michael H. Kay
- * @author Wolfgang Hoschek (ported net.sf.saxon.jdom to XOM)
+ * @author Wolfgang Hoschek (ported org.orbeon.saxon.jdom to XOM)
  */
 
 public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
@@ -125,7 +125,7 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
 	 */
 
 	public NodeInfo selectID(String id) {
-		// TODO: optimize by indexing with HashMap as in net.sf.saxon.tree.DocumentImpl
+		// TODO: optimize by indexing with HashMap as in org.orbeon.saxon.tree.DocumentImpl
 		Document doc = (Document) node;
 		return selectID(id, doc.getRootElement());
 	}

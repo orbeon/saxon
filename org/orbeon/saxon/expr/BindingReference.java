@@ -19,13 +19,6 @@ public interface BindingReference  {
     public void setStaticType(SequenceType type, Value constantValue, int properties);
 
     /**
-     * Set the variable name (used for diagnostics)
-     * @param variableName The lexical QName of the variable, as declared
-     */
-
-//    public void setVariableName(String variableName);
-
-    /**
     * Fix up this binding reference to a binding
     */
 

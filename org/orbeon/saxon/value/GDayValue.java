@@ -1,15 +1,15 @@
 package org.orbeon.saxon.value;
 
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
+import java.util.Calendar;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.Calendar;
 
 /**
  * Implementation of the xs:gDay data type

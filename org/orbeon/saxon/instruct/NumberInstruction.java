@@ -8,17 +8,19 @@ import org.orbeon.saxon.number.Numberer;
 import org.orbeon.saxon.number.Numberer_en;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.Pattern;
+import org.orbeon.saxon.type.AtomicType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.IntegerValue;
 import org.orbeon.saxon.value.NumericValue;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
-import java.util.*;
 import java.io.PrintStream;
+import java.util.*;
 
 /**
  * An xsl:number element in the stylesheet. Although this is an XSLT instruction, it is compiled
@@ -47,6 +49,7 @@ public class NumberInstruction extends ComputedExpression {
     private Numberer numberer = null;
     private HashMap nationalNumberers = null;
     private boolean hasVariablesInPatterns;
+    private boolean backwardsCompatible;
 
     private static Numberer defaultNumberer = new Numberer_en();
 
@@ -63,7 +66,8 @@ public class NumberInstruction extends ComputedExpression {
                              Expression lang,
                              NumberFormatter formatter,
                              Numberer numberer,
-                             boolean hasVariablesInPatterns) {
+                             boolean hasVariablesInPatterns,
+                             boolean backwardsCompatible) {
         this.select = select;
         this.level = level;
         this.count = count;
@@ -78,11 +82,15 @@ public class NumberInstruction extends ComputedExpression {
         this.formatter = formatter;
         this.numberer = numberer;
         this.hasVariablesInPatterns = hasVariablesInPatterns;
+        this.backwardsCompatible = backwardsCompatible;
 
         if (this.value != null && !Type.isSubType(this.value.getItemType(), Type.ANY_ATOMIC_TYPE)) {
-            this.value = new Atomizer(this.value);
+            this.value = new Atomizer(this.value, null);
         }
 
+        if (select != null) {
+            adoptChildExpression(select);
+        }
         if (value != null) {
             adoptChildExpression(value);
         }
@@ -158,6 +166,15 @@ public class NumberInstruction extends ComputedExpression {
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
         if (select != null) {
             select = select.analyze(env, contextItemType);
+        } else {
+            if (value==null) {
+                // we are numbering the context node
+                if (contextItemType instanceof AtomicType) {
+                    StaticError err = new StaticError("xsl:number requires the context item to be a node, but it is an atomic value");
+                    err.setIsTypeError(true);
+                    err.setErrorCode("XT0990");
+                }
+            }
         }
         if (value != null) {
             value = value.analyze(env, contextItemType);
@@ -244,6 +261,9 @@ public class NumberInstruction extends ComputedExpression {
                     } else {
                         num = NumberFn.convert(val);
                     }
+                    if (num.isNaN()) {
+                        throw new DynamicError("NaN");  // thrown to be caught
+                    }
                     num = num.round();
                     if (num.compareTo(IntegerValue.MAX_LONG) > 0) {
                         DynamicError e = new DynamicError("A number is too large to be formatted");
@@ -266,11 +286,18 @@ public class NumberInstruction extends ComputedExpression {
                     }
                     vec.add(new Long(i));
                 } catch (DynamicError err) {
-                    vec.add(val.getStringValue());
-                    recoverableError(err, context);
+                    if (backwardsCompatible) {
+                        vec.add("NaN");
+                    } else {
+                        vec.add(val.getStringValue());
+                        DynamicError e = new DynamicError("Cannot convert supplied value to an integer: " + err);
+                        recoverableError(e, context);
+                    }
                 }
             }
-
+            if (backwardsCompatible && vec.size()==0) {
+                vec.add("NaN");
+            }
         } else {
             NodeInfo source;
             if (select != null) {
@@ -280,6 +307,7 @@ public class NumberInstruction extends ComputedExpression {
                 if (!(item instanceof NodeInfo)) {
                     DynamicError err = new DynamicError("context item for xsl:number must be a node");
                     err.setErrorCode("XT0990");
+                    err.setIsTypeError(true);
                     err.setXPathContext(context);
                     recoverableError(err, context);
                     return null;     // error recovery action is to output nothing

@@ -1,15 +1,14 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.type.RegexTranslator;
+import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.type.RegexTranslator;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -100,7 +99,7 @@ public class Replace extends SystemFunction {
                         "The regular expression must not be one that matches a zero-length string", "FORX0003", c);
             }
         }
-        String res = re.matcher(arg0.getStringValue()).replaceAll(arg2.getStringValue());
+        String res = re.matcher(arg0.getStringValue()).replaceAll(replacement);
         return new StringValue(res);
     }
 

@@ -20,7 +20,6 @@ public final class ItemChecker extends UnaryExpression implements MappingFunctio
 
     private ItemType requiredItemType;
     private RoleLocator role;
-    private String errorCode;
 
     /**
     * Constructor
@@ -31,15 +30,6 @@ public final class ItemChecker extends UnaryExpression implements MappingFunctio
         this.requiredItemType = itemType;
         this.role = role;
         adoptChildExpression(sequence);
-    }
-
-    /**
-     * Set the error code to be used if the checking fails
-     * @param code the error code
-     */
-
-    public void setErrorCode(String code) {
-        this.errorCode = code;
     }
 
     /**
@@ -76,6 +66,7 @@ public final class ItemChecker extends UnaryExpression implements MappingFunctio
                                                  "; supplied value has type " +
                                                  operand.getItemType().toString(env.getNamePool());
                 StaticError err = new StaticError(message);
+                err.setErrorCode(role.getErrorCode());
                 err.setLocator(this);
                 err.setIsTypeError(true);
                 throw err;
@@ -116,14 +107,16 @@ public final class ItemChecker extends UnaryExpression implements MappingFunctio
 
     private void testConformance(Item item, XPathContext context) throws XPathException {
         if (!requiredItemType.matchesItem(item)) {
+            NamePool pool = context.getController().getNamePool();
             String message = "Required type of " + role.getMessage() +
-                                             " is " + requiredItemType.toString(context.getController().getNamePool()) +
+                                             " is " + requiredItemType.toString(pool) +
                                              "; supplied value has type " + Type.displayTypeName(item);
+            String errorCode = role.getErrorCode();
             if ("XP0050".equals(errorCode)) {
                 // error in "treat as" assertion
                 dynamicError(message, errorCode, context);
             } else {
-                typeError(message, context);
+                typeError(message, errorCode, context);
             }
         }
     }

@@ -1,11 +1,11 @@
 package org.orbeon.saxon.om;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.event.Stripper;
-import org.orbeon.saxon.pattern.NodeTest;
 import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.pattern.NodeTest;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.Configuration;
 
 
 /**
@@ -64,6 +64,13 @@ public class StrippedNode implements NodeInfo, VirtualNode {
         return node;
     }
 
+    /**
+     * Get the configuration
+     */
+
+    public Configuration getConfiguration() {
+        return node.getConfiguration();
+    }
 
     /**
      * Get the name pool for this node
@@ -87,8 +94,8 @@ public class StrippedNode implements NodeInfo, VirtualNode {
     * Get the typed value of the item
     */
 
-    public SequenceIterator getTypedValue(Configuration config) throws XPathException {
-        return node.getTypedValue(config);
+    public SequenceIterator getTypedValue() throws XPathException {
+        return node.getTypedValue();
     }
 
     /**

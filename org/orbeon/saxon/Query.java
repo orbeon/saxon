@@ -3,15 +3,21 @@ import org.orbeon.saxon.event.Builder;
 import org.orbeon.saxon.instruct.TerminationException;
 import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.query.*;
-import org.orbeon.saxon.trace.XQueryTraceListener;
+import org.orbeon.saxon.query.DynamicQueryContext;
+import org.orbeon.saxon.query.QueryResult;
+import org.orbeon.saxon.query.StaticQueryContext;
+import org.orbeon.saxon.query.XQueryExpression;
 import org.orbeon.saxon.trace.TraceListener;
+import org.orbeon.saxon.trace.XQueryTraceListener;
 import org.orbeon.saxon.value.UntypedAtomicValue;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 import org.xml.sax.InputSource;
 
-import javax.xml.transform.*;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Source;
+import javax.xml.transform.TransformerFactoryConfigurationError;
+import javax.xml.transform.URIResolver;
 import javax.xml.transform.sax.SAXSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.*;
@@ -330,11 +336,13 @@ public class Query {
                     line = err.getLocator().getLineNumber();
                     module = err.getLocator().getSystemId();
                 }
-                if (line == -1) {
-                    System.err.println("Failed to compile query: " + err.getMessage());
-                } else {
-                    System.err.println("Static error at line " + line + " of " + module + ':');
-                    System.err.println(err.getMessage());
+                if (!err.hasBeenReported()) {
+                    if (line == -1) {
+                        System.err.println("Failed to compile query: " + err.getMessage());
+                    } else {
+                        System.err.println("Static error at line " + line + " of " + module + ':');
+                        System.err.println(err.getMessage());
+                    }
                 }
                 throw new DynamicError(err);
             }

@@ -1,7 +1,6 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.Tokenizer;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.Token;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.IntegerValue;

@@ -1,15 +1,11 @@
 package org.orbeon.saxon.functions;
+import org.orbeon.saxon.Err;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.sort.DescendingComparer;
-import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.value.NumericValue;
-import org.orbeon.saxon.value.UntypedAtomicValue;
-import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.value.DoubleValue;
+import org.orbeon.saxon.value.*;
 import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.Err;
 
 import java.util.Comparator;
 
@@ -19,8 +15,8 @@ import java.util.Comparator;
 
 public class Minimax extends CollatingFunction {
 
-    public final static int MIN = 2;
-    public final static int MAX = 3;
+    public static final int MIN = 2;
+    public static final int MAX = 3;
 
     /**
     * Evaluate the function
@@ -38,6 +34,15 @@ public class Minimax extends CollatingFunction {
 
         AtomicValue min = (AtomicValue)iter.next();
         if (min == null) return null;
+        if (min instanceof UntypedAtomicValue) {
+            try {
+                min = new DoubleValue(Value.stringToNumber(min.getStringValue()));
+            } catch (NumberFormatException e) {
+                dynamicError("Failure converting " +
+                                                 Err.wrap(min.getStringValue()) +
+                                                 " to a number", context);
+            }
+        }
 
         while (true) {
             AtomicValue test = (AtomicValue)iter.next();
@@ -49,11 +54,10 @@ public class Minimax extends CollatingFunction {
                 } catch (NumberFormatException e) {
                     dynamicError("Failure converting " +
                                                      Err.wrap(test.getStringValue()) +
-                                                     " to a number", context);
+                                                     " to a number", "FORG0001", context);
                 }
             }
-            if (test2 instanceof NumericValue &&
-                    ((NumericValue)test2).isNaN()) {
+            if (test2 instanceof NumericValue && ((NumericValue)test2).isNaN()) {
                 // if there's a NaN in the sequence, return NaN
                 return test2;
             }
@@ -63,7 +67,7 @@ public class Minimax extends CollatingFunction {
                 }
             } catch (ClassCastException err) {
                 typeError("Cannot compare " + min.getItemType() +
-                                   " with " + test2.getItemType(), context);
+                                   " with " + test2.getItemType(), "FORG0007", context);
                 return null;
             }
         }

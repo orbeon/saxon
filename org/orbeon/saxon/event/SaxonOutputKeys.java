@@ -87,13 +87,13 @@ public class SaxonOutputKeys {
     public static final String NEXT_IN_CHAIN_BASE_URI = "{http://saxon.sf.net/}next-in-chain-base-uri";
 
     /**
-    * saxon:byte-order-mark = yes|no.
+    * byte-order-mark = yes|no.
     *
     * <p>Indicates whether UTF-8/UTF-16 output is to start with a byte order mark. Values are "yes" or "no",
     * default is "no"
     */
 
-    public static final String BYTE_ORDER_MARK = "{http://saxon.sf.net/}byte-order-mark";
+    public static final String BYTE_ORDER_MARK = "byte-order-mark";
 
     /**
     * saxon:require-well-formed = yes|no.
@@ -146,7 +146,7 @@ public class SaxonOutputKeys {
                 // no constraints
             } else if (key.equals(INDENT_SPACES)) {
                 if (value != null) {
-                    checkPositiveInteger(key, value);
+                    checkNonNegativeInteger(key, value);
                 }
             } else if (key.equals(INCLUDE_CONTENT_TYPE)) {
                 if (value != null) {
@@ -214,14 +214,14 @@ public class SaxonOutputKeys {
         return true;
     }
 
-    private static void checkPositiveInteger(String key, String value) throws DynamicError {
+    private static void checkNonNegativeInteger(String key, String value) throws DynamicError {
         try {
             int n = Integer.parseInt(value);
-            if (n < 1) {
-                throw new DynamicError("Value of " +  Err.wrap(key) + " must be a positive integer");
+            if (n < 0) {
+                throw new DynamicError("Value of " +  Err.wrap(key) + " must be a non-negative integer");
             }
         } catch (NumberFormatException err) {
-            throw new DynamicError("Value of " +  Err.wrap(key) + " must be a positive integer");
+            throw new DynamicError("Value of " +  Err.wrap(key) + " must be a non-negative integer");
         }
     }
 

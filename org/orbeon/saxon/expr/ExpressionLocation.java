@@ -1,6 +1,9 @@
 package org.orbeon.saxon.expr;
 
+import org.orbeon.saxon.event.LocationProvider;
 import org.orbeon.saxon.event.SaxonLocator;
+
+import javax.xml.transform.SourceLocator;
 
 /**
  * Class to hold details of the location of an expression.
@@ -8,6 +11,18 @@ import org.orbeon.saxon.event.SaxonLocator;
  */
 
 public class ExpressionLocation implements SaxonLocator {
+
+    public ExpressionLocation() {}
+
+    public ExpressionLocation(SourceLocator loc) {
+        systemId = loc.getSystemId();
+        lineNumber = loc.getLineNumber();
+    }
+
+    public ExpressionLocation(LocationProvider provider, int locationId) {
+        systemId = provider.getSystemId(locationId);
+        lineNumber = provider.getLineNumber(locationId);
+    }
 
     private String systemId;
 //    private String publicId;

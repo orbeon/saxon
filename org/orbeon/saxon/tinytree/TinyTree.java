@@ -1,15 +1,15 @@
-package net.sf.saxon.tinytree;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.event.ReceiverOptions;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.XMLChar;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.tree.LineNumberMap;
-import net.sf.saxon.tree.SystemIdMap;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.UntypedAtomicValue;
+package org.orbeon.saxon.tinytree;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.event.ReceiverOptions;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.XMLChar;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.tree.LineNumberMap;
+import org.orbeon.saxon.tree.SystemIdMap;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.UntypedAtomicValue;
 
 import java.util.ArrayList;
 

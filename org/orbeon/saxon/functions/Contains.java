@@ -2,9 +2,9 @@ package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.sort.CodepointCollator;
+import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.BooleanValue;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.xpath.XPathException;
 
 import java.text.CollationElementIterator;
@@ -19,11 +19,11 @@ import java.util.Comparator;
 
 public class Contains extends CollatingFunction {
 
-    public final static int CONTAINS = 0;
-    public final static int STARTSWITH = 1;
-    public final static int ENDSWITH = 2;
-    public final static int AFTER = 3;
-    public final static int BEFORE = 4;
+    public static final int CONTAINS = 0;
+    public static final int STARTSWITH = 1;
+    public static final int ENDSWITH = 2;
+    public static final int AFTER = 3;
+    public static final int BEFORE = 4;
 
     /**
     * Evaluate the function
@@ -159,19 +159,18 @@ public class Contains extends CollatingFunction {
             // matched first character, note the position of the possible match
             int start = s0.getOffset();
             if (collationStartsWith(s0, s1)) {
-                if (operation != ENDSWITH) {
-                    if (offsets != null) {
-                        offsets[0] = start-1;
-                        offsets[1] = s0.getOffset();
-                    }
-                    return true;
-                } else {
-                    // operation == ENDSWITH
+                if (operation == ENDSWITH) {
                     if (s0.next() == -1) {
                         // the match is at the end
                         return true;
                     }
                     // else ignore this match and keep looking
+                } else {
+                    if (offsets != null) {
+                        offsets[0] = start-1;
+                        offsets[1] = s0.getOffset();
+                    }
+                    return true;
                 }
             }
             // reset the position and try again

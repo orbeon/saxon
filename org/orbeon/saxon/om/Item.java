@@ -1,6 +1,5 @@
 package org.orbeon.saxon.om;
 import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.Configuration;
 
 /**
  * An Item is an object that can occur as a member of a sequence.
@@ -22,14 +21,12 @@ public interface Item  {
 
     /**
      * Get the typed value of the item
-     * @param config the configuration: this is needed because it provides access
-     * to schema information needed to interpret the type annotation
      * @return the typed value of the item. In general this will be a sequence
      * @throws XPathException where no typed value is available, e.g. for
      *     an element with complex content
      */
 
-    public SequenceIterator getTypedValue(Configuration config) throws XPathException;
+    public SequenceIterator getTypedValue() throws XPathException;
 
 
 }

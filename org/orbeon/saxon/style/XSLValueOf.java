@@ -2,8 +2,8 @@ package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.ValueOf;
+import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.pattern.NodeKindTest;
-import org.orbeon.saxon.tree.AttributeCollection;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.Cardinality;
@@ -73,7 +73,7 @@ public final class XSLValueOf extends XSLStringConstructor {
             } else if (disableAtt.equals("no")) {
                 disable = false;
             } else {
-                compileError("disable-output-escaping attribute must be either yes or no");
+                compileError("disable-output-escaping attribute must be either 'yes' or 'no'", "XT0020");
             }
         }
     }
@@ -89,7 +89,7 @@ public final class XSLValueOf extends XSLStringConstructor {
 
         if (separator == null && select != null && backwardsCompatibleModeIsEnabled()) {
             if (!Type.isSubType(select.getItemType(), Type.ANY_ATOMIC_TYPE)) {
-                select = new Atomizer(select);
+                select = new Atomizer(select, getStaticContext().getConfiguration());
             }
             if (Cardinality.allowsMany(select.getCardinality())) {
                 select = new FirstItemExpression(select);
@@ -107,8 +107,7 @@ public final class XSLValueOf extends XSLStringConstructor {
             }
         }
         ValueOf inst = new ValueOf(select, disable);
-        compileContent(exec, inst);
-        inst.setSeparator(separator);
+        compileContent(exec, inst, separator);
         ExpressionTool.makeParentReferences(inst);
         return inst;
     }

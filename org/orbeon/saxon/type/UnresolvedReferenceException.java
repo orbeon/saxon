@@ -1,4 +1,4 @@
-package net.sf.saxon.type;
+package org.orbeon.saxon.type;
 
 /**
  * This exception occurs when an attempt is made to dereference a reference from one

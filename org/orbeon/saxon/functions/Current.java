@@ -1,7 +1,7 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.xpath.XPathException;
@@ -19,7 +19,9 @@ public class Current extends SystemFunction implements XSLTFunction {
     */
 
     public int computeSpecialProperties() {
-        return StaticProperty.CONTEXT_DOCUMENT_NODESET | StaticProperty.ORDERED_NODESET;
+        return StaticProperty.CONTEXT_DOCUMENT_NODESET |
+                StaticProperty.ORDERED_NODESET |
+                StaticProperty.NON_CREATIVE;
     }
 
     /**

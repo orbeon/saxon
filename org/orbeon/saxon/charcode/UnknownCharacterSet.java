@@ -25,8 +25,8 @@ public class UnknownCharacterSet implements CharacterSet {
     private StringBuffer supplementary = new StringBuffer(2);
 
     //private final static byte UNKNOWN = 0;
-    private final static byte GOOD = 1;
-    private final static byte BAD = 2;
+    private static final byte GOOD = 1;
+    private static final byte BAD = 2;
 
     protected UnknownCharacterSet(Charset charset) {
         encoder = charset.newEncoder();

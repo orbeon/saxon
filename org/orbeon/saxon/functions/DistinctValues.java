@@ -1,12 +1,10 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.MappingFunction;
-import org.orbeon.saxon.expr.MappingIterator;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.sort.AtomicSortComparer;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.HashSet;
 
@@ -14,7 +12,7 @@ import java.util.HashSet;
 * The XPath 2.0 distinct-values() function
 */
 
-public class DistinctValues extends CollatingFunction implements MappingFunction {
+public class DistinctValues extends CollatingFunction {
 
     /**
     * Evaluate the function to return an iteration of selected values or nodes.
@@ -22,28 +20,7 @@ public class DistinctValues extends CollatingFunction implements MappingFunction
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
         SequenceIterator iter = argument[0].iterate(context);
-        Object[] info = new Object[2];
-        info[0] = new HashSet();
-        info[1] = getAtomicSortComparer(1, context);
-        return new MappingIterator(iter, this, null, info);
-    }
-
-    /**
-    * Mapping function. Maps a duplicate item to null (no item in the result) and any other item
-    * to itself. The general-purpose "info" object is in this case a pair of two objects, the HashSet
-    * used for the value lookup, and the AtomicComparer used to compare values.
-    */
-
-    public Object map(Item item, XPathContext context, Object info) throws XPathException {
-        HashSet lookup = (HashSet)((Object[])info)[0];
-        AtomicSortComparer comparer = (AtomicSortComparer)((Object[])info)[1];
-        AtomicSortComparer.ComparisonKey key = comparer.getComparisonKey((AtomicValue)item);
-        if (lookup.contains(key)) {
-            return null;
-        } else {
-            lookup.add(key);
-            return item;
-        }
+        return new DistinctIterator(iter, getAtomicSortComparer(1, context));
     }
 
     /**
@@ -55,6 +32,100 @@ public class DistinctValues extends CollatingFunction implements MappingFunction
 
     protected AtomicSortComparer getAtomicSortComparer(int arg, XPathContext context) throws XPathException {
         return new AtomicSortComparer(getCollator(arg, context, true));
+    }
+
+    /**
+     * Iterator class to return the distinct values in a sequence
+     */
+
+    public static class DistinctIterator implements SequenceIterator {
+
+        private SequenceIterator base;
+        private AtomicSortComparer comparer;
+        private int position;
+        private AtomicValue current;
+        private HashSet lookup = new HashSet(40);
+
+        /**
+         * Create an iterator over the distinct values in a sequence
+         * @param base the input sequence. This must return atomic values only.
+         * @param comparer The comparer used to obtain comparison keys from each value;
+         * these comparison keys are themselves compared using equals().
+         */
+
+        public DistinctIterator(SequenceIterator base, AtomicSortComparer comparer) {
+            this.base = base;
+            this.comparer = comparer;
+            position = 0;
+        }
+
+        /**
+         * Get the next item in the sequence. <BR>
+         *
+         * @return the next item, or null if there are no more items.
+         * @throws org.orbeon.saxon.xpath.XPathException
+         *          if an error occurs retrieving the next item
+         */
+
+        public Item next() throws XPathException {
+            while (true) {
+                AtomicValue nextBase = (AtomicValue)base.next();
+                if (nextBase==null) {
+                    current = null;
+                    return null;
+                }
+                AtomicSortComparer.ComparisonKey key = comparer.getComparisonKey(nextBase);
+                if (lookup.contains(key)) {
+                    continue;
+                } else {
+                    lookup.add(key);
+                    current = nextBase;
+                    position++;
+                    return nextBase;
+                }
+            }
+        }
+
+        /**
+         * Get the current value in the sequence (the one returned by the
+         * most recent call on next()). This will be null before the first
+         * call of next().
+         *
+         * @return the current item, the one most recently returned by a call on
+         *         next(); or null, if next() has not been called, or if the end
+         *         of the sequence has been reached.
+         */
+
+        public Item current() {
+            return current;
+        }
+
+        /**
+         * Get the current position. This will be zero before the first call
+         * on next(), otherwise it will be the number of times that next() has
+         * been called.
+         *
+         * @return the current position, the position of the item returned by the
+         *         most recent call of next()
+         */
+
+        public int position() {
+            return position;
+        }
+
+        /**
+         * Get another SequenceIterator that iterates over the same items as the original,
+         * but which is repositioned at the start of the sequence.
+         *
+         * @return a SequenceIterator that iterates over the same items,
+         *         positioned before the first item
+         * @throws org.orbeon.saxon.xpath.XPathException
+         *          if any error occurs
+         */
+
+        public SequenceIterator getAnother() throws XPathException {
+            return new DistinctIterator(base.getAnother(), comparer);
+        }
     }
 
 }

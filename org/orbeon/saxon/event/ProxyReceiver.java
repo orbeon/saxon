@@ -11,9 +11,13 @@ import org.orbeon.saxon.xpath.XPathException;
 public abstract class ProxyReceiver implements Receiver
 {
     protected Receiver baseReceiver;
-    protected Configuration config;
+    protected PipelineConfiguration pipelineConfig;
     protected String systemId;
-    protected LocationProvider locationProvider;
+    //protected LocationProvider locationProvider;
+
+    public PipelineConfiguration getPipelineConfiguration() {
+        return pipelineConfig;
+    }
 
     public void setSystemId(String systemId) {
         if (systemId != this.systemId) {
@@ -35,8 +39,8 @@ public abstract class ProxyReceiver implements Receiver
     public void setUnderlyingReceiver(Receiver receiver) {
         if (receiver != baseReceiver) {
             baseReceiver = receiver;
-            if (config != null) {
-                baseReceiver.setConfiguration(config);
+            if (pipelineConfig != null) {
+                baseReceiver.setPipelineConfiguration(pipelineConfig);
             }
         }
     }
@@ -50,21 +54,19 @@ public abstract class ProxyReceiver implements Receiver
     }
 
 
-	/**
-     * Set the name pool to be used for all name codes
-     */
 
-	public void setConfiguration(Configuration config) {
-        if (this.config != config) {
-            this.config = config;
+
+	public void setPipelineConfiguration(PipelineConfiguration config) {
+        if (this.pipelineConfig != config) {
+            this.pipelineConfig = config;
             if (baseReceiver!=null) {
-                baseReceiver.setConfiguration(config);
+                baseReceiver.setPipelineConfiguration(config);
             }
         }
 	}
 
     public Configuration getConfiguration() {
-        return config;
+        return pipelineConfig.getConfiguration();
     }
 
     /**
@@ -72,16 +74,16 @@ public abstract class ProxyReceiver implements Receiver
      */
 
     public NamePool getNamePool() {
-        return config.getNamePool();
+        return getConfiguration().getNamePool();
     }
 
     /**
-    * Start of document
+    * Start of event stream
     */
 
     public void open() throws XPathException {
         if (baseReceiver==null) {
-            throw new IllegalStateException("ProxyReceiver.startDocument(): no underlying emitter provided");
+            throw new IllegalStateException("ProxyReceiver.open(): no underlying emitter provided");
         }
         baseReceiver.open();
     }
@@ -120,7 +122,7 @@ public abstract class ProxyReceiver implements Receiver
     * Notify the start of an element
     * @param nameCode integer code identifying the name of the element within the name pool.
     * @param typeCode integer code identifying the element's type within the name pool.
-    * @param properties: for future use. Should be set to zero.
+    * @param properties properties of the element node
     */
 
     public void startElement(int nameCode, int typeCode, int locationId, int properties) throws XPathException {
@@ -233,23 +235,12 @@ public abstract class ProxyReceiver implements Receiver
         }
 	}
 
-	/**
-	* Set the Document Locator
-	*/
-
-	public void setDocumentLocator(LocationProvider locator) {
-        locationProvider = locator;
-        if (baseReceiver!=null) {
-            baseReceiver.setDocumentLocator(locator);
-        }
-	}
-
     /**
      * Get the Document Locator
      */
 
     public LocationProvider getDocumentLocator() {
-        return locationProvider;
+        return pipelineConfig.getLocationProvider();
     }
 }
 

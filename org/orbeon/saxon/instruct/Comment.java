@@ -1,15 +1,15 @@
 package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.event.SequenceReceiver;
 import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.pattern.NodeKindTest;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.event.SequenceReceiver;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -76,15 +76,14 @@ public final class Comment extends SimpleNodeConstructor {
             int hh = comment.indexOf("--");
             if (hh < 0) break;
             DynamicError err = new DynamicError("Invalid characters (--) in comment", this);
-            err.setErrorCode("XT0950");
-            // TODO: XQuery error code to be assigned (see also below)
+            err.setErrorCode((isXSLT(context) ? "XT0950" : "XQ0072"));
             err.setXPathContext(context);
             context.getController().recoverableError(err);
             comment = comment.substring(0, hh+1) + ' ' + comment.substring(hh+1);
         }
         if (comment.length()>0 && comment.charAt(comment.length()-1)=='-') {
             DynamicError err = new DynamicError("Invalid character (-) at end of comment", this);
-            err.setErrorCode("XT0950");
+            err.setErrorCode((isXSLT(context) ? "XT0950" : "XQ0072"));
             err.setXPathContext(context);
             context.getController().recoverableError(err);
             comment = comment + ' ';

@@ -3,7 +3,6 @@ import org.orbeon.saxon.om.AxisIteratorImpl;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.pattern.NodeTest;
-import org.orbeon.saxon.type.Type;
 
 /**
 * This class supports both the descendant:: and descendant-or-self:: axes, which are
@@ -14,71 +13,56 @@ import org.orbeon.saxon.type.Type;
 
 final class DescendantEnumeration extends AxisIteratorImpl {
 
-    private TinyDocumentImpl document;
+    private TinyTree tree;
     private TinyNodeImpl startNode;
     private boolean includeSelf;
     private int nextNodeNr;
     private int startDepth;
     private NodeTest test;
 
-    protected DescendantEnumeration(TinyDocumentImpl doc, TinyNodeImpl node,
-                                    NodeTest nodeTest, boolean includeSelf) {
-        document = doc;
+    /**
+     * Create an iterator over the descendant axis
+     * @param doc the containing TinyTree
+     * @param node the node whose descendants are required
+     * @param nodeTest test to be satisfied by each returned node
+     * @param includeSelf true if the start node is to be included
+     */
+
+    DescendantEnumeration(TinyTree doc, TinyNodeImpl node, NodeTest nodeTest, boolean includeSelf) {
+        tree = doc;
         startNode = node;
         this.includeSelf = includeSelf;
         test = nodeTest;
         nextNodeNr = node.nodeNr;
         startDepth = doc.depth[nextNodeNr];
-        if (includeSelf) {          // descendant-or-self:: axis
-            // no action
-        } else {                    // descendant:: axis
-            nextNodeNr++;
-            if (doc.depth[nextNodeNr] <= startDepth) {
-                nextNodeNr = -1;
-            }
-        }
-
-        // check if this matches the conditions
-        if (nextNodeNr >= 0 &&
-                nextNodeNr < doc.numberOfNodes &&
-                !nodeTest.matches(document.nodeKind[nextNodeNr],
-                              document.nameCode[nextNodeNr],
-                              (document.nodeKind[nextNodeNr] == Type.ELEMENT ?
-                                    document.getElementAnnotation(nextNodeNr) :
-                                    -1))) {
-            advance();
-            // TODO: no longer need to look ahead.
-        }
     }
 
     public Item next() {
-        if (nextNodeNr >= 0) {
+        if (position==0 && includeSelf && test.matches(startNode)) {
+            current = startNode;
             position++;
-            if (isAtomizing() && document.getTypeAnnotation()==-1) {
-                current = document.getUntypedAtomicValue(nextNodeNr);
-            } else {
-                current = document.getNode(nextNodeNr);
-            }
-            advance();
             return current;
-        } else {
-            return null;
         }
-    }
 
-    private void advance() {
         do {
             nextNodeNr++;
-            if (nextNodeNr >= document.numberOfNodes ||
-                document.depth[nextNodeNr] <= startDepth) {
+            if (tree.depth[nextNodeNr] <= startDepth) {
                 nextNodeNr = -1;
-                return;
+                current = null;
+                return null;
             }
-        } while (!test.matches(document.nodeKind[nextNodeNr],
-                                document.nameCode[nextNodeNr],
-                               (document.nodeKind[nextNodeNr] == Type.ELEMENT ?
-                                    document.getElementAnnotation(nextNodeNr) :
-                                    -1)));
+        } while (!test.matches(tree.nodeKind[nextNodeNr],
+                                tree.nameCode[nextNodeNr],
+                                tree.getElementAnnotation(nextNodeNr)));
+
+        position++;
+        if (isAtomizing() && tree.getElementAnnotation(nextNodeNr)==-1) {
+            current = tree.getUntypedAtomicValue(nextNodeNr);
+        } else {
+            current = tree.getNode(nextNodeNr);
+        }
+
+        return current;
     }
 
     /**
@@ -86,7 +70,7 @@ final class DescendantEnumeration extends AxisIteratorImpl {
     */
 
     public SequenceIterator getAnother() {
-        return new DescendantEnumeration(document, startNode, test, includeSelf);
+        return new DescendantEnumeration(tree, startNode, test, includeSelf);
     }
 }
 

@@ -1,16 +1,17 @@
 package org.orbeon.saxon;
 import org.orbeon.saxon.event.CommentStripper;
 import org.orbeon.saxon.event.ReceivingContentHandler;
+import org.orbeon.saxon.event.StartTagBuffer;
 import org.orbeon.saxon.style.StyleNodeFactory;
 import org.orbeon.saxon.style.StylesheetStripper;
+import org.orbeon.saxon.style.UseWhenFilter;
 import org.orbeon.saxon.tree.DocumentImpl;
 import org.orbeon.saxon.tree.TreeBuilder;
+import org.xml.sax.Locator;
 
 import javax.xml.transform.Templates;
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.sax.TemplatesHandler;
-
-import org.xml.sax.Locator;
 
 
 /**
@@ -36,22 +37,32 @@ public class TemplatesHandlerImpl extends ReceivingContentHandler implements Tem
 
     protected TemplatesHandlerImpl(Configuration config) {
 
-        setConfiguration(config);
+        setPipelineConfiguration(config.makePipelineConfiguration());
 
         nodeFactory = new StyleNodeFactory(config.getNamePool(), config.isAllowExternalFunctions());
 
-        StylesheetStripper styleStripper = new StylesheetStripper();
-        styleStripper.setStylesheetRules(config.getNamePool());
-
         builder = new TreeBuilder();
-        builder.setConfiguration(config);
+        builder.setPipelineConfiguration(getPipelineConfiguration());
         builder.setNodeFactory(nodeFactory);
         builder.setLineNumbering(true);
 
-        styleStripper.setUnderlyingReceiver(builder);
+        StartTagBuffer startTagBuffer = new StartTagBuffer();
+
+        UseWhenFilter useWhenFilter = new UseWhenFilter(startTagBuffer);
+        useWhenFilter.setUnderlyingReceiver(builder);
+        useWhenFilter.setPipelineConfiguration(getPipelineConfiguration());
+
+        startTagBuffer.setUnderlyingReceiver(useWhenFilter);
+        startTagBuffer.setPipelineConfiguration(getPipelineConfiguration());
+
+        StylesheetStripper styleStripper = new StylesheetStripper();
+        styleStripper.setStylesheetRules(config.getNamePool());
+        styleStripper.setUnderlyingReceiver(startTagBuffer);
+        styleStripper.setPipelineConfiguration(getPipelineConfiguration());
 
         CommentStripper commentStripper = new CommentStripper();
         commentStripper.setUnderlyingReceiver(styleStripper);
+        commentStripper.setPipelineConfiguration(getPipelineConfiguration());
 
         this.setReceiver(commentStripper);
 
@@ -63,7 +74,7 @@ public class TemplatesHandlerImpl extends ReceivingContentHandler implements Tem
 
     public Templates getTemplates() {
         if (templates==null) {
-            DocumentImpl doc = (DocumentImpl)builder.getCurrentDocument();
+            DocumentImpl doc = (DocumentImpl)builder.getCurrentRoot();
             if (doc==null) {
                 return null;
             }

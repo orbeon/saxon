@@ -15,7 +15,7 @@ import org.orbeon.saxon.pattern.NodeTest;
 
 final class SiblingEnumeration extends AxisIteratorImpl {
 
-    private TinyDocumentImpl document;
+    private TinyTree tree;
     private int nextNodeNr;
     private NodeTest test;
     private TinyNodeImpl startNode;
@@ -25,7 +25,7 @@ final class SiblingEnumeration extends AxisIteratorImpl {
 
     /**
      * Return an enumeration over children or siblings of the context node
-     * @param doc The Document node containing the context node
+     * @param doc The TinyTree containing the context node
      * @param node The context node, the start point for the iteration
      * @param nodeTest Test that the selected nodes must satisfy, or null indicating
      * that all nodes are selected
@@ -33,15 +33,14 @@ final class SiblingEnumeration extends AxisIteratorImpl {
      * if following siblings are required
      */
 
-    protected SiblingEnumeration(TinyDocumentImpl doc, TinyNodeImpl node,
+    SiblingEnumeration(TinyTree doc, TinyNodeImpl node,
                               NodeTest nodeTest, boolean getChildren) {
-        document = doc;
+        tree = doc;
         test = nodeTest;
         startNode = node;
         this.getChildren = getChildren;
         if (getChildren) {          // child:: axis
             parentNode = node;
-
             // move to first child
             // ASSERT: we don't invoke this code unless the node has children
             nextNodeNr = node.nodeNr + 1;
@@ -51,20 +50,20 @@ final class SiblingEnumeration extends AxisIteratorImpl {
             if (parentNode == null) {
                 nextNodeNr = -1;
             } else {
-
                 // move to next sibling
                 nextNodeNr = doc.next[node.nodeNr];
-                if (nextNodeNr < node.nodeNr) {         // *O*
-                    nextNodeNr = -1;                    // *O*
-                }                                       // *O*
+                if (nextNodeNr < node.nodeNr) {
+                    // if "next" pointer goes backwards, it's really an owner pointer from the last sibling
+                    nextNodeNr = -1;
+                }
             }
         }
 
         // check if this matches the conditions
         if (nextNodeNr >= 0 && nodeTest != null) {
-            if (!nodeTest.matches(document.nodeKind[nextNodeNr],
-                                  document.nameCode[nextNodeNr],
-                                  document.getElementAnnotation(nextNodeNr))) {
+            if (!nodeTest.matches(tree.nodeKind[nextNodeNr],
+                                  tree.nameCode[nextNodeNr],
+                                  tree.getElementAnnotation(nextNodeNr))) {
                 needToAdvance = true;
             }
         }
@@ -75,14 +74,14 @@ final class SiblingEnumeration extends AxisIteratorImpl {
         if (needToAdvance) {
             final int thisNode = nextNodeNr;
             if (test==null) {
-                nextNodeNr = document.next[nextNodeNr];
+                nextNodeNr = tree.next[nextNodeNr];
             } else {
                 do {
-                    nextNodeNr = document.next[nextNodeNr];
+                    nextNodeNr = tree.next[nextNodeNr];
                 } while ( nextNodeNr >= thisNode &&
-                        !test.matches(document.nodeKind[nextNodeNr],
-                                      document.nameCode[nextNodeNr],
-                                      document.getElementAnnotation(nextNodeNr)));
+                        !test.matches(tree.nodeKind[nextNodeNr],
+                                      tree.nameCode[nextNodeNr],
+                                      tree.getElementAnnotation(nextNodeNr)));
             }
 
             if (nextNodeNr < thisNode) {    // indicates we've found an owner pointer
@@ -99,13 +98,13 @@ final class SiblingEnumeration extends AxisIteratorImpl {
         position++;
 
         // if the caller only wants the atomized value, get it directly
-        // in the case where it's an atomic value
+        // in the case where it's an untyped atomic value
 
-        if (isAtomizing() && document.getElementAnnotation(nextNodeNr) == -1) {
-            current = document.getUntypedAtomicValue(nextNodeNr);
+        if (isAtomizing() && tree.getElementAnnotation(nextNodeNr) == -1) {
+            current = tree.getUntypedAtomicValue(nextNodeNr);
             return current;
         } else {
-            current = document.getNode(nextNodeNr);
+            current = tree.getNode(nextNodeNr);
             ((TinyNodeImpl)current).setParentNode(parentNode);
             return current;
         }
@@ -116,7 +115,7 @@ final class SiblingEnumeration extends AxisIteratorImpl {
     */
 
     public SequenceIterator getAnother() {
-        return new SiblingEnumeration(document, startNode, test, getChildren);
+        return new SiblingEnumeration(tree, startNode, test, getChildren);
     }
 
 }

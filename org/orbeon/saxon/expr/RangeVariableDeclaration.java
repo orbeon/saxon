@@ -1,5 +1,7 @@
 package org.orbeon.saxon.expr;
 
+import org.orbeon.saxon.instruct.UserFunction;
+import org.orbeon.saxon.instruct.UserFunctionParameter;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.SequenceType;
@@ -12,7 +14,8 @@ import java.util.List;
 /**
  * Represents the defining occurrence of a variable declared for local use
  * within an expression, for example the $x in "for $x in ...". This object is used
- * only at compile-time.
+ * only at compile-time. In XQuery (but not in XSLT) this class is also used to represent
+ * the formal arguments of a function.
  */
 
 public class RangeVariableDeclaration implements VariableDeclaration {
@@ -20,21 +23,39 @@ public class RangeVariableDeclaration implements VariableDeclaration {
     private int nameCode;
     private SequenceType requiredType;
     private String variableName;
-    private List references = new ArrayList();
+    private List references = new ArrayList(5);
 
+    /**
+     * Set the name of the variable, as a namepool name code
+     * @param nameCode
+     */
 
-    public void setNameCode(int fingerprint) {
-        this.nameCode = fingerprint;
+    public void setNameCode(int nameCode) {
+        this.nameCode = nameCode;
     }
+
+    /**
+     * Get the name of the variable, as a namepool name code
+     * @return the nameCode
+     */
 
     public int getNameCode() {
         return nameCode;
     }
 
+    /**
+     * Get the required type (declared type) of the variable
+     * @return the required type
+     */
+
     public SequenceType getRequiredType() {
         return requiredType;
     }
 
+    /**
+     * Set the required type (declared type) of the variable
+     * @param requiredType the required type
+     */
     public void setRequiredType(SequenceType requiredType) {
         this.requiredType = requiredType;
     }
@@ -49,6 +70,81 @@ public class RangeVariableDeclaration implements VariableDeclaration {
 
     public void registerReference(BindingReference ref) {
         references.add(ref);
+    }
+
+    public void setReferenceList(List references) {
+        this.references = references;
+    }
+
+    /**
+     * Determine how often the range variable is referenced. This is the number of times
+     * it is referenced at run-time: so a reference in a loop counts as "many".
+     * @param binding the variable binding
+     * @return the number of references. The only interesting values are 0, 1, and "many" (represented
+     * by any value >1).
+     */
+    public int getReferenceCount(Binding binding) {
+        return getReferenceCount(references, binding);
+    }
+
+    /**
+     * Determine how often a variable is referenced. This is the number of times
+     * it is referenced at run-time: so a reference in a loop counts as "many". This code
+     * currently handles local variables (Let expressions) and function parameters. It is
+     * not currently used for XSLT template parameters. It's not the end of the world if
+     * the answer is wrong (unless it's wrongly given as zero), but if wrongly returned as
+     * 1 then the variable will be repeatedly evaluated.
+     * @param references a list of references to a variable binding: each item in this list
+     * must be a VariableReference object
+     * @param binding the variable binding
+     * @return the number of references. The only interesting values are 0, 1, and "many" (represented
+     * by any value >1).
+     */
+
+    public static int getReferenceCount(List references, Binding binding) {
+        // remove any references to the variable that have been inlined
+        for (int i=references.size()-1; i>=0; i--) {
+            if (((VariableReference)references.get(i)).getBinding() == null) {
+                references.remove(i);
+            }
+        }
+        if (references.size() != 1) {
+            return references.size();
+        }
+        VariableReference ref = (VariableReference)references.get(0);
+        Expression child = ref;
+        Container parent = ref.getParentExpression();
+        int count = 0;
+        while (parent != null) {
+
+            if (parent instanceof ComputedExpression) {
+                // If the variable reference occurs in a subexpression that is evaluated repeatedly, for example
+                // in the predicate of a filter expression, then return 10, meaning "multiple references".
+                if (parent == binding) {
+                    return 1;
+                } else if (ExpressionTool.isRepeatedSubexpression((ComputedExpression)parent, child)) {
+                    return 10;
+                } else  {
+                    child = (ComputedExpression)parent;
+                    parent = child.getParentExpression();
+                    if (count++ > 100) {
+                        System.err.println("CYCLE!");
+                    }
+                }
+            } else if (parent instanceof UserFunction) {
+                UserFunctionParameter[] params = ((UserFunction)parent).getParameterDefinitions();
+                for (int p=0; p<params.length; p++) {
+                    if (params[p] == binding) {
+                        return 1;
+                    }
+                }
+                return 10;
+            } else {
+                // we should have found the binding by now, but we haven't - so just skip the optimization
+                return 10;
+            }
+        }
+        return 10;
     }
 
     public void fixupReferences(Binding binding) {

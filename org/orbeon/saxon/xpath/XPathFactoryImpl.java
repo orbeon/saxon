@@ -1,9 +1,9 @@
-package net.sf.saxon.xpath;
+package org.orbeon.saxon.xpath;
 
-import net.sf.saxon.Configuration;
-import net.sf.saxon.Loader;
-import net.sf.saxon.om.ExternalObjectModel;
-import net.sf.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.Loader;
+import org.orbeon.saxon.om.ExternalObjectModel;
+import org.orbeon.saxon.om.NamespaceConstant;
 
 import javax.xml.XMLConstants;
 import javax.xml.xpath.*;
@@ -101,9 +101,9 @@ public class XPathFactoryImpl extends XPathFactory {
 
         // Try to load the support classes for various object models, registering
         // them in the Configuration
-        String[] models = {"net.sf.saxon.dom.DOMObjectModel",
-                           "net.sf.saxon.jdom.JDOMObjectModel",
-                           "net.sf.saxon.xom.XOMObjectModel"};
+        String[] models = {"org.orbeon.saxon.dom.DOMObjectModel",
+                           "org.orbeon.saxon.jdom.JDOMObjectModel",
+                           "org.orbeon.saxon.xom.XOMObjectModel"};
 
         for (int i=0; i<models.length; i++) {
             try {

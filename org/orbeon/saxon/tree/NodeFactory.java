@@ -1,8 +1,7 @@
 package org.orbeon.saxon.tree;
-import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.event.LocationProvider;
-
-import org.xml.sax.Locator;
+import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.NodeInfo;
 
 
 /**

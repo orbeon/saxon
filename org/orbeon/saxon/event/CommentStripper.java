@@ -11,7 +11,7 @@ import org.orbeon.saxon.xpath.XPathException;
   
 public class CommentStripper extends ProxyReceiver {
 
-    private StringBuffer buffer = new StringBuffer();
+    private StringBuffer buffer = new StringBuffer(200);
 
     /**
     * Default constructor for use in subclasses
@@ -40,7 +40,7 @@ public class CommentStripper extends ProxyReceiver {
     */
 
     public void characters (CharSequence chars, int locationId, int properties) throws XPathException {
-        buffer.append(chars);
+        buffer.append(chars.toString());
     }
 
     /**

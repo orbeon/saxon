@@ -1,7 +1,9 @@
 package org.orbeon.saxon.style;
+
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.instruct.SimpleNodeConstructor;
 import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.instruct.SimpleContentConstructor;
+import org.orbeon.saxon.instruct.SimpleNodeConstructor;
 import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.om.AxisIterator;
 import org.orbeon.saxon.om.NodeInfo;
@@ -12,9 +14,9 @@ import org.orbeon.saxon.xpath.StaticError;
 import javax.xml.transform.TransformerConfigurationException;
 
 /**
-* Common superclass for XSLT elements whose content template produces a text
-* value: xsl:attribute, xsl:comment, and xsl:processing-instruction
-*/
+ * Common superclass for XSLT elements whose content template produces a text
+ * value: xsl:attribute, xsl:comment, and xsl:processing-instruction
+ */
 
 public abstract class XSLStringConstructor extends StyleElement {
 
@@ -22,30 +24,32 @@ public abstract class XSLStringConstructor extends StyleElement {
     protected Expression select = null;
 
     /**
-    * Determine whether this node is an instruction.
-    * @return true - it is an instruction
-    */
+     * Determine whether this node is an instruction.
+     *
+     * @return true - it is an instruction
+     */
 
     public boolean isInstruction() {
         return true;
     }
 
     /**
-    * Determine whether this type of element is allowed to contain a template-body
-    * @return true: yes, it may contain a template-body
-    */
+     * Determine whether this type of element is allowed to contain a template-body
+     *
+     * @return true: yes, it may contain a template-body
+     */
 
     public boolean mayContainSequenceConstructor() {
         return true;
     }
 
     public void validate() throws TransformerConfigurationException {
-        if (select!=null && hasChildNodes()) {
+        if (select != null && hasChildNodes()) {
             compileError("An " + getDisplayName() + " element with a select attribute must be empty");
         }
         AxisIterator kids = iterateAxis(Axis.CHILD);
         NodeInfo first = (NodeInfo)kids.next();
-        if (select==null) {
+        if (select == null) {
             if (first == null) {
                 // there are no child nodes and no select attribute
                 //stringValue = "";
@@ -56,62 +60,29 @@ public abstract class XSLStringConstructor extends StyleElement {
                     if (first.getNodeKind() == Type.TEXT) {
                         // it is a text node: optimize for this case
                         select = new StringValue(first.getStringValue());
-                    //} else if (first instanceof XSLValueOf) {
-                    //    // it is an xsl:value-of instruction: optimize this case
-                    //    // *** optimization removed: it doesn't handle value-of with separator, type conversion,
-                          // etc.
-                    //    XSLValueOf v = (XSLValueOf)first;
-                    //    valueExpression = v.getSelectExpression();
-                    //    if (v.getDisableOutputEscaping() && !(this instanceof XSLText)) {
-                    //        v.compileError("disable-output-escaping is not allowed for a non-text node");
-                    //    }
                     }
                 }
             }
-        } else {
-//            try {
-//                select = makeStringJoin(select);
-//            } catch (XPathException e) {
-//                compileError(e);
-//            }
         }
     }
 
-    protected void compileContent(Executable exec, SimpleNodeConstructor inst) throws TransformerConfigurationException {
-        if (select != null) {
-            try {
-                inst.setSelect(select);
-            } catch (StaticError err) {
-                compileError(err);
+    protected void compileContent(Executable exec, SimpleNodeConstructor inst, Expression separator) throws TransformerConfigurationException {
+        if (separator == null) {
+            separator = StringValue.SINGLE_SPACE;
+        }
+        try {
+            if (select != null) {
+                inst.setSelect(new SimpleContentConstructor(select, separator));
+            } else {
+                Expression content = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+                inst.setSelect(new SimpleContentConstructor(content, separator));
             }
-        } else {
-            compileChildren(exec, inst, true);
+        } catch (StaticError err) {
+            compileError(err);
         }
     }
 
-    /**
-    * Make a string-join expression that concatenates the string-values of items in
-    * a sequence with intervening spaces. This may be simplified later as a result
-    * of type-checking.
-    */
 
-//    private static Expression makeStringJoin(Expression exp) throws XPathException {
-//        if (!Type.isSubType(exp.getItemType(), Type.ANY_ATOMIC_TYPE)) {
-//            exp = new Atomizer(exp);
-//        }
-//        if (!Type.isSubType(exp.getItemType(), Type.STRING_TYPE)) {
-//            exp = new AtomicSequenceConverter(exp, Type.STRING_TYPE);
-//        }
-//        if (Cardinality.allowsMany(exp.getCardinality())) {
-//            StringJoin fn = (StringJoin)SystemFunction.makeSystemFunction("string-join");
-//            Expression[] args = new Expression[2];
-//            args[0] = exp;
-//            args[1] = new StringValue(" ");
-//            fn.setArguments(args);
-//            exp = fn;
-//        }
-//        return exp;
-//    }
 }
 
 //

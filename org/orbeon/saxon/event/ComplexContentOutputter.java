@@ -1,5 +1,5 @@
 package org.orbeon.saxon.event;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.expr.ExpressionLocation;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.AtomicValue;
@@ -25,14 +25,12 @@ import org.orbeon.saxon.xpath.XPathException;
 
 public class ComplexContentOutputter extends SequenceReceiver {
 
-	private Configuration config;
-    private NamePool namePool;
     private Receiver receiver;
             // the next receiver in the output pipeline
 
     private int pendingStartTag = -1;
     private boolean topLevel = true;
-    private boolean elementIsInNullNamespace = false;
+    private Boolean elementIsInNullNamespace;
     private int[] pendingAttCode = new int[20];
     private int[] pendingAttType = new int[20];
     private CharSequence[] pendingAttValue = new String[20];
@@ -50,16 +48,6 @@ public class ComplexContentOutputter extends SequenceReceiver {
                                         // set to true during error recovery only
     private int startElementProperties;
     private int startElementLocationId;
-
-
-	public void setConfiguration(Configuration config) {
-        this.config = config;
-	    namePool = config.getNamePool();
-	}
-
-    public Configuration getConfiguration() {
-        return config;
-    }
 
     public void setSystemId(String systemId) {}
 
@@ -86,10 +74,12 @@ public class ComplexContentOutputter extends SequenceReceiver {
 
     /**
      * Start of a document node.
-     * This event is ignored: we simply add the contained elements to the current document
     */
 
-    public void startDocument(int properties) throws XPathException { }
+    public void startDocument(int properties) throws XPathException {
+        receiver.startDocument(properties);
+        previousAtomic = false;
+    }
 
     /**
      * Notify the end of a document node
@@ -142,7 +132,7 @@ public class ComplexContentOutputter extends SequenceReceiver {
         pendingAttListSize = 0;
         pendingNSListSize = 0;
         pendingStartTag = nameCode;
-        elementIsInNullNamespace = (namePool.allocateNamespaceCode(pendingStartTag) & 0xffff) == 0;
+        elementIsInNullNamespace = null; // meaning not yet computed
         currentSimpleType = typeCode;
         previousAtomic = false;
     }
@@ -196,11 +186,17 @@ public class ComplexContentOutputter extends SequenceReceiver {
         // It is an error to output a namespace node for the default namespace if the element
         // itself is in the null namespace, as the resulting element could not be serialized
 
-        if ( elementIsInNullNamespace && ((nscode>>16) == 0) && ((nscode&0xffff)!=0)) {
-            DynamicError err = new DynamicError(
-                    "Cannot output a namespace node for the default namespace when the element is in no namespace");
-            err.setErrorCode("XT0440");
-            throw err;
+        if (((nscode>>16) == 0) && ((nscode&0xffff)!=0)) {
+            if (elementIsInNullNamespace == null) {
+                elementIsInNullNamespace = Boolean.valueOf(
+                        (getNamePool().allocateNamespaceCode(pendingStartTag) & 0xffff) == 0);
+            }
+            if (elementIsInNullNamespace.booleanValue()) {
+                DynamicError err = new DynamicError(
+                        "Cannot output a namespace node for the default namespace when the element is in no namespace");
+                err.setErrorCode("XT0440");
+                throw err;
+            }
         }
 
         // if it's not a duplicate namespace, add it to the list for this start tag
@@ -233,14 +229,18 @@ public class ComplexContentOutputter extends SequenceReceiver {
         if (suppressAttributes) return;
 
         if (pendingStartTag==-1) {
-            throw new NoOpenStartTagException(Type.ATTRIBUTE, topLevel);
+            DynamicError err = new NoOpenStartTagException(Type.ATTRIBUTE, topLevel);
+            err.setLocator(new ExpressionLocation(
+                    getPipelineConfiguration().getLocationProvider(),
+                    locationId));
+            throw err;
         }
 
         // if this is a duplicate attribute, overwrite the original, unless
         // the REJECT_DUPLICATES option is set.
 
         for (int a=0; a<pendingAttListSize; a++) {
-            if (pendingAttCode[a] == nameCode) {
+            if ((pendingAttCode[a] & 0xfffff) == (nameCode & 0xfffff)) {
                 if ((properties & ReceiverOptions.REJECT_DUPLICATES) == 0) {
                     pendingAttType[a] = typeCode;
                     pendingAttValue[a] = value;
@@ -249,7 +249,7 @@ public class ComplexContentOutputter extends SequenceReceiver {
                     return;
                 } else {
                     DynamicError err = new DynamicError("Duplicate attribute: " +
-                            namePool.getDisplayName(nameCode));
+                            getNamePool().getDisplayName(nameCode));
                     err.setErrorCode("XQ0025");
                     throw err;
                 }
@@ -294,6 +294,7 @@ public class ComplexContentOutputter extends SequenceReceiver {
 	*/
 
 	private int checkProposedPrefix(int nameCode, int seq) throws XPathException {
+        NamePool namePool = getNamePool();
 		int nscode = namePool.allocateNamespaceCode(nameCode);
 		            // TODO: can we ensure that the namespace code is already in the
 		            // namepool, allowing use of getNamespaceCode rather than
@@ -308,6 +309,7 @@ public class ComplexContentOutputter extends SequenceReceiver {
         			return nameCode;	// all is well
         		} else {
         			String prefix = getSubstitutePrefix(nscode, seq);
+
         			int newCode = namePool.allocate(
         								prefix,
         								namePool.getURI(nameCode),
@@ -330,7 +332,7 @@ public class ComplexContentOutputter extends SequenceReceiver {
     */
 
     private String getSubstitutePrefix(int nscode, int seq) {
-    	String prefix = namePool.getPrefixFromNamespaceCode(nscode);
+    	String prefix = getNamePool().getPrefixFromNamespaceCode(nscode);
         return prefix + '_' + seq;
     }
 

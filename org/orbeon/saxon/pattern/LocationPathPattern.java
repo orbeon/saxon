@@ -5,13 +5,14 @@ import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.om.SingletonIterator;
 import org.orbeon.saxon.style.ExpressionContext;
-import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.trace.Location;
 import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.BooleanValue;
 import org.orbeon.saxon.value.IntegerValue;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * A LocationPathPattern represents a path, for example of the form A/B/C... The components are represented
@@ -88,9 +89,21 @@ public final class LocationPathPattern extends Pattern {
 	        for (int i=numberOfFilters-1; i>=0; i--) {
 	            Expression filter = filters[i].simplify(env);
 	            filters[i] = filter;
-                if ((filter.getDependencies() & StaticProperty.DEPENDS_ON_CURRENT_ITEM) != 0) {
+                int dep = filter.getDependencies();
+                if ((dep & StaticProperty.DEPENDS_ON_CURRENT_ITEM) != 0) {
 	                usesCurrent = true;
 	            }
+                if ((dep & StaticProperty.DEPENDS_ON_CURRENT_GROUP) != 0) {
+                    String errorCode = "XT1060";
+                    String function = "current-group()";
+                    if (toString().indexOf("current-grouping-key") >= 0) {
+                        errorCode = "XT1070";
+                        function = "current-grouping-key()";
+                    }
+                    StaticError err = new StaticError("The " + function + " function cannot be used in a pattern");
+                    err.setErrorCode(errorCode);
+                    throw err;
+                }
 	        }
 	    }
 
@@ -189,15 +202,6 @@ public final class LocationPathPattern extends Pattern {
     * @return true if the pattern matches, else false
     */
 
-    // diagnostic version of method
-    public boolean matchesX(NodeInfo node, XPathContext context) throws XPathException {
-        System.err.println("Matching node " + node + " against LP pattern " + this);
-        System.err.println("Node types " + node.getNodeKind() + " / " + this.getNodeKind());
-        boolean b = matches(node, context);
-        System.err.println((b ? "matches" : "no match"));
-        return b;
-    }
-
     public boolean matches(NodeInfo node, XPathContext context) throws XPathException {
         return internalMatches(node, context);
         // At one time matches() and internalMatches() differed in the way they handled the current() function
@@ -219,10 +223,7 @@ public final class LocationPathPattern extends Pattern {
             NodeInfo par = node.getParent();
             if (par==null) return false;
             if (!parentPattern.internalMatches(par, context)) {
-                //System.err.println("No match against parent pattern");
                 return false;
-            } else {
-                //System.err.println("Matches against parent pattern");
             }
         }
 
@@ -271,6 +272,7 @@ public final class LocationPathPattern extends Pattern {
                     DynamicError err = new DynamicError("An error occurred matching pattern {" + toString() + "}: ", e);
                     err.setXPathContext(c2);
                     err.setErrorCode(e.getErrorCode());
+                    err.setLocator(this);
                     c2.getController().recoverableError(err);
                     return false;
                 }
@@ -292,6 +294,7 @@ public final class LocationPathPattern extends Pattern {
                     DynamicError err = new DynamicError("An error occurred matching pattern {" + toString() + "}: ", e);
                     err.setXPathContext(c2);
                     err.setErrorCode(e.getErrorCode());
+                    err.setLocator(this);
                     c2.getController().recoverableError(err);
                     return false;
                 }

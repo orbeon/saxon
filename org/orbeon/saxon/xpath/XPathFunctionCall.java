@@ -1,11 +1,11 @@
-package net.sf.saxon.xpath;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.Value;
+package org.orbeon.saxon.xpath;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.Value;
 
 import javax.xml.xpath.XPathFunction;
 import javax.xml.xpath.XPathFunctionException;

@@ -1,10 +1,10 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.instruct.Block;
 import org.orbeon.saxon.instruct.Choose;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.xpath.XPathException;
@@ -95,10 +95,11 @@ public class XSLIf extends StyleElement {
             // This can happen with expressions such as test="function-available('abc')".
             try {
                 if (test.effectiveBooleanValue(null)) {
-                    Block block = new Block();
-                    block.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
-                    compileChildren(exec, block, true);
-                    return block.simplify(getStaticContext());
+                    return compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+//                    Block block = new Block();
+//                    block.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
+//                    compileChildren(exec, block, true);
+//                    return block.simplify(getStaticContext());
                 } else {
                     return null;
                 }
@@ -107,12 +108,9 @@ public class XSLIf extends StyleElement {
             }
         }
 
-        Block b = new Block();
-        b.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
-        Expression action = b;
-        Expression[] children = compileChildren(exec, b, true);
-        if (children.length==1) {
-            action = children[0];
+        Expression action = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+        if (action == null) {
+            return null;
         }
         Expression[] conditions = {test};
         Expression[] actions = {action};

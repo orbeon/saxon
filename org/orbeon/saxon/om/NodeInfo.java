@@ -1,9 +1,10 @@
 package org.orbeon.saxon.om;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.Source;
-import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * A node in the XML parse tree representing an XML element, character content, or attribute.
@@ -147,6 +148,12 @@ public interface NodeInfo extends Source, Item {
 
     public String getDisplayName();
 
+    /**
+     * Get the configuration
+     */
+
+    public Configuration getConfiguration();
+
    /**
      * Get the NamePool that holds the namecode for this node
      * @return the namepool
@@ -272,8 +279,10 @@ public interface NodeInfo extends Source, Item {
      *     LOCAL_NAMESPACES, ALL_NAMESPACES
      * @param copyAnnotations indicates whether the type annotations
      *     of element and attribute nodes should be copied
-     * @param locationId Identifies the location of the instruction
-     *     that requested this copy. Pass zero if no other information is available
+     * @param locationId If non-zero, identifies the location of the instruction
+     *     that requested this copy. If zero, indicates that the location information
+     *     for the original node is to be copied; in this case the Receiver must be
+     *     a LocationCopier
      */
 
     public void copy(Receiver out, int whichNamespaces, boolean copyAnnotations, int locationId) throws XPathException;

@@ -1,17 +1,13 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.instruct.Block;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.om.Axis;
-import org.orbeon.saxon.om.AxisIterator;
-import org.orbeon.saxon.om.Navigator;
-import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.sort.SortExpression;
 import org.orbeon.saxon.sort.SortKeyDefinition;
-import org.orbeon.saxon.tree.AttributeCollection;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
@@ -113,8 +109,10 @@ public class XSLPerformSort extends StyleElement {
             ExpressionTool.makeParentReferences(sortedSequence);
             return sortedSequence;
         } else {
-            Block body = new Block();
-            compileChildren(exec, body, true);
+            Expression body = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+            if (body == null) {
+                body = EmptySequence.getInstance();
+            }
             try {
                 SortExpression sortedSequence =  new SortExpression(body.simplify(getStaticContext()), sortKeys);
                 ExpressionTool.makeParentReferences(sortedSequence);

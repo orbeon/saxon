@@ -1,10 +1,10 @@
-package net.sf.saxon.om;
+package org.orbeon.saxon.om;
 
-import net.sf.saxon.Configuration;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.pattern.AnyNodeTest;
-import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.pattern.AnyNodeTest;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * This class represents a node that is a virtual copy of another node: that is, it behaves as a node that's the
@@ -52,7 +52,7 @@ public class VirtualCopy implements NodeInfo {
      *
      * @return an integer identifying the kind of node. These integer values are the
      *         same as those used in the DOM
-     * @see net.sf.saxon.type.Type
+     * @see org.orbeon.saxon.type.Type
      */
 
     public int getNodeKind() {
@@ -232,7 +232,7 @@ public class VirtualCopy implements NodeInfo {
      * untyped, and attributes annotated as untypedAtomic.
      *
      * @return the type annotation of the node.
-     * @see net.sf.saxon.type.Type
+     * @see org.orbeon.saxon.type.Type
      */
 
     public int getTypeAnnotation() {
@@ -264,7 +264,7 @@ public class VirtualCopy implements NodeInfo {
      * Return an iteration over all the nodes reached by the given axis from this node
      *
      * @param axisNumber an integer identifying the axis; one of the constants
-     *                   defined in class net.sf.saxon.om.Axis
+     *                   defined in class org.orbeon.saxon.om.Axis
      * @return an AxisIterator that scans the nodes reached by the axis in
      *         turn.
      * @throws UnsupportedOperationException if the namespace axis is
@@ -281,7 +281,7 @@ public class VirtualCopy implements NodeInfo {
      * that match a given NodeTest
      *
      * @param axisNumber an integer identifying the axis; one of the constants
-     *                   defined in class net.sf.saxon.om.Axis
+     *                   defined in class org.orbeon.saxon.om.Axis
      * @param nodeTest   A pattern to be matched by the returned nodes; nodes
      *                   that do not match this pattern are not included in the result
      * @return a NodeEnumeration that scans the nodes reached by the axis in
@@ -399,7 +399,7 @@ public class VirtualCopy implements NodeInfo {
      *                        of element and attribute nodes should be copied
      * @param locationId      Identifies the location of the instruction
      *                        that requested this copy. Pass zero if no other information is available
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws org.orbeon.saxon.xpath.XPathException
      *
      */
 
@@ -439,7 +439,7 @@ public class VirtualCopy implements NodeInfo {
      * Get the typed value of the item
      *
      * @return the typed value of the item. In general this will be a sequence
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws org.orbeon.saxon.xpath.XPathException
      *          where no typed value is available, e.g. for
      *          an element with complex content
      */

@@ -1,22 +1,19 @@
 package org.orbeon.saxon;
 import org.orbeon.saxon.instruct.TerminationException;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import org.xml.sax.InputSource;
 
-
-import java.util.Date;
-import java.io.File;
-import java.io.ObjectOutputStream;
-import java.io.FileOutputStream;
-
-import javax.xml.transform.URIResolver;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.xpath.DynamicError;
-
-import javax.xml.transform.TransformerFactoryConfigurationError;
 import javax.xml.transform.Source;
 import javax.xml.transform.Templates;
+import javax.xml.transform.TransformerFactoryConfigurationError;
+import javax.xml.transform.URIResolver;
 import javax.xml.transform.sax.SAXSource;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.ObjectOutputStream;
+import java.util.Date;
 
 /**
  * This <B>Compile</B> class provides a command-line interface allowing a

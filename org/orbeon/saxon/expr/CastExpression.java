@@ -49,7 +49,7 @@ public final class CastExpression extends UnaryExpression  {
         SequenceType atomicType =
                 new SequenceType(Type.ANY_ATOMIC_TYPE, getCardinality());
 
-        RoleLocator role = new RoleLocator(RoleLocator.TYPE_OP, "cast as", 0);
+        RoleLocator role = new RoleLocator(RoleLocator.TYPE_OP, "cast as", 0, null);
         operand = TypeChecker.staticTypeCheck(operand, atomicType, false, role, env);
 
         if (Type.isSubType(operand.getItemType(), targetType)) {
@@ -83,6 +83,15 @@ public final class CastExpression extends UnaryExpression  {
         return targetType;
     }
 
+    /**
+     * Determine the special properties of this expression
+     * @return {@link StaticProperty#NON_CREATIVE}.
+     */
+
+    public int computeSpecialProperties() {
+        int p = super.computeSpecialProperties();
+        return p | StaticProperty.NON_CREATIVE;
+    }
 
     /**
     * Evaluate the expression

@@ -1,14 +1,14 @@
 package org.orbeon.saxon.trans;
 
 import org.orbeon.saxon.functions.FormatNumber2;
+import org.orbeon.saxon.xpath.StaticError;
 
-import java.text.DecimalFormatSymbols;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Iterator;
-import java.util.ArrayList;
-import javax.xml.transform.TransformerConfigurationException;
 import java.io.Serializable;
+import java.text.DecimalFormatSymbols;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 
 /**
   * DecimalFormatManager manages the collection of named and unnamed decimal formats
@@ -26,7 +26,7 @@ public class DecimalFormatManager implements Serializable {
     */
 
     public DecimalFormatManager() {
-        formatTable = new HashMap();
+        formatTable = new HashMap(10);
         DecimalFormatSymbols d = new DecimalFormatSymbols();
         setDefaults(d);
         defaultDFS = d;
@@ -55,17 +55,19 @@ public class DecimalFormatManager implements Serializable {
     * precedence
     */
 
-    public void setDefaultDecimalFormat(DecimalFormatSymbols dfs)
-    throws TransformerConfigurationException {
+    public void setDefaultDecimalFormat(DecimalFormatSymbols dfs, int precedence)
+    throws StaticError {
         if (!usingOriginalDefault) {
             if (!dfs.equals(defaultDFS)) {
-                throw new TransformerConfigurationException(
+                StaticError err = new StaticError(
                     "There are two conflicting definitions of the default decimal format");
+                err.setErrorCode("XT1290");
+                throw err;
             }
         }
         defaultDFS = dfs;
         usingOriginalDefault = false;
-        setNamedDecimalFormat("", "", dfs);
+        setNamedDecimalFormat("", "", dfs, precedence);
             // this is to trigger fixup of calls
     }
 
@@ -74,9 +76,9 @@ public class DecimalFormatManager implements Serializable {
     * to the "default default" decimal format
     */
 
-    public void fixupDefaultDefault() throws TransformerConfigurationException {
+    public void fixupDefaultDefault() throws StaticError {
         if (usingOriginalDefault) {
-            setNamedDecimalFormat("", "", defaultDFS);
+            setNamedDecimalFormat("", "", defaultDFS, -1000);
         }
     }
 
@@ -90,14 +92,15 @@ public class DecimalFormatManager implements Serializable {
 
     /**
     * Set a named decimal format.
-    * Note that it is an error to register the same decimal-format twice, even with different
-    * precedence, unless the values are equal
+    * Note that it is an error to register the same decimal-format twice, unless hte values are
+     * equal, or unless there is another of higher precedence. This method assumes that decimal-formats
+     * are registered in order of decreasing precedence
     * @param uri The URI of the name of the decimal format
     * @param localName The local part of the name of the decimal format
     */
 
-    public void setNamedDecimalFormat(String uri, String localName, DecimalFormatSymbols dfs)
-    throws TransformerConfigurationException {
+    public void setNamedDecimalFormat(String uri, String localName, DecimalFormatSymbols dfs, int precedence)
+    throws StaticError {
 		String dfskey = localName + '#' + uri;
 		Object o = formatTable.get(dfskey);
 		if (o != null) {
@@ -108,13 +111,23 @@ public class DecimalFormatManager implements Serializable {
     		        call.fixup(dfs);
     		    }
     		} else {
-            	DecimalFormatSymbols old = (DecimalFormatSymbols)o;
-                if (!dfs.equals(old)) {
-                    throw new TransformerConfigurationException("Duplicate declaration of decimal-format");
+                DecimalFormatInfo info = (DecimalFormatInfo)o;
+            	DecimalFormatSymbols old = info.dfs;
+                int oldPrecedence = info.precedence;
+                if (precedence < oldPrecedence) {
+                    return;
+                }
+                if (precedence==oldPrecedence && !dfs.equals(old)) {
+                    StaticError err = new StaticError("There are two conflicting definitions of the named decimal-format");
+                    err.setErrorCode("XT1290");
+                    throw err;
                 }
             }
         }
-        formatTable.put(dfskey, dfs);
+        DecimalFormatInfo dfi = new DecimalFormatInfo();
+        dfi.dfs = dfs;
+        dfi.precedence = precedence;
+        formatTable.put(dfskey, dfi);
     }
 
     /**
@@ -128,7 +141,7 @@ public class DecimalFormatManager implements Serializable {
         Object o = formatTable.get(dfskey);
         if (o == null) {
             // it's a forwards reference
-            List list = new ArrayList();
+            List list = new ArrayList(10);
             list.add(call);
             formatTable.put(dfskey, list);
         } else if (o instanceof List) {
@@ -137,7 +150,8 @@ public class DecimalFormatManager implements Serializable {
             list.add(call);
         } else {
             // it's a backwards reference
-            call.fixup((DecimalFormatSymbols)o);
+            DecimalFormatInfo dfi = (DecimalFormatInfo)o;
+            call.fixup(dfi.dfs);
         }
     }
 
@@ -151,7 +165,16 @@ public class DecimalFormatManager implements Serializable {
 
     public DecimalFormatSymbols getNamedDecimalFormat(String uri, String localName) {
 		String dfskey = localName + '#' + uri;
-        return (DecimalFormatSymbols)formatTable.get(dfskey);
+        DecimalFormatInfo dfi = ((DecimalFormatInfo)formatTable.get(dfskey));
+        if (dfi == null) {
+            return null;
+        }
+        return dfi.dfs;
+    }
+
+    private static class DecimalFormatInfo implements Serializable {
+        public DecimalFormatSymbols dfs;
+        public int precedence;
     }
 
 

@@ -1,8 +1,9 @@
 package org.orbeon.saxon.sort;
-import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.value.NumericValue;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.value.NumericValue;
+import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.xpath.XPathException;
+
 import java.util.Comparator;
 
 /**

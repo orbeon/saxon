@@ -65,7 +65,7 @@ public final class RestrictedStringValue extends StringValue {
             case Type.NAME:
                 // replace any colons by underscores and then test if it's a valid NCName
                 StringBuffer buff = new StringBuffer(value.length());
-                buff.append(value);
+                buff.append(value.toString());      // TODO: JDK 1.5 allows append(value)
                 for (int i = 0; i < buff.length(); i++) {
                     if (buff.charAt(i) == ':') {
                         buff.setCharAt(i, '_');

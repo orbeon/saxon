@@ -26,9 +26,9 @@ import javax.xml.transform.stream.StreamSource;
 
 public class Sender {
 
-    Configuration config;
-    public Sender (Configuration config) {
-        this.config = config;
+    PipelineConfiguration pipe;
+    public Sender (PipelineConfiguration pipe) {
+        this.pipe = pipe;
     }
 
     /**
@@ -57,10 +57,10 @@ public class Sender {
 
     public void send(Source source, Receiver receiver, boolean isFinal)
     throws XPathException {
-        receiver.setConfiguration(config);
+        receiver.setPipelineConfiguration(pipe);
         receiver.setSystemId(source.getSystemId());
 
-        int validation = (config.isSchemaValidation() ? Validation.STRICT : Validation.PRESERVE);
+        int validation = (pipe.getConfiguration().isSchemaValidation() ? Validation.STRICT : Validation.PRESERVE);
         if (isFinal) {
             // this ensures that the Validate command produces multiple error messages
             validation |= Validation.VALIDATE_OUTPUT;
@@ -77,10 +77,10 @@ public class Sender {
         if (source instanceof NodeInfo) {
             if ((validation & Validation.VALIDATION_MODE_MASK) != Validation.PRESERVE) {
                 try {
-                    config.getErrorListener().warning(
+                    pipe.getErrorListener().warning(
                             new TransformerException("Validation request ignored for a NodeInfo source"));
                 } catch (TransformerException e) {
-                    throw XPathException.wrap(e);
+                    throw DynamicError.makeDynamicError(e);
                 }
             }
             NodeInfo ns = (NodeInfo)source;
@@ -88,7 +88,7 @@ public class Sender {
             if (kind != Type.DOCUMENT && kind != Type.ELEMENT) {
                 throw new IllegalArgumentException("Sender can only handle document or element nodes");
             }
-            sendDocumentInfo(ns, receiver, config.getNamePool());
+            sendDocumentInfo(ns, receiver, pipe.getConfiguration().getNamePool());
 
         } else if (source instanceof SAXSource) {
             sendSAXSource((SAXSource)source, receiver, validation);
@@ -105,7 +105,7 @@ public class Sender {
                 InputSource is = new InputSource(url);
                 is.setCharacterStream(ss.getReader());
                 is.setByteStream(ss.getInputStream());
-                SAXSource sax = new SAXSource(config.getSourceParser(), is);
+                SAXSource sax = new SAXSource(pipe.getConfiguration().getSourceParser(), is);
                 sax.setSystemId(source.getSystemId());
                 sendSAXSource(sax, receiver, validation);
 //            }
@@ -130,20 +130,22 @@ public class Sender {
     private void sendDOMSource(DOMSource source, Receiver receiver, int validation)
     throws XPathException {
         Node startNode = source.getNode();
+        Configuration config = pipe.getConfiguration();
+        NamePool pool = config.getNamePool();
         if (startNode instanceof DocumentInfo) {
-            sendDocumentInfo((DocumentInfo)startNode, receiver, config.getNamePool());
+            sendDocumentInfo((DocumentInfo)startNode, receiver, pool);
         } else {
             if ((validation & Validation.VALIDATION_MODE_MASK) != Validation.PRESERVE) {
                 // Add a document validator to the pipeline
                 receiver = config.getDocumentValidator(receiver,
                                                    source.getSystemId(),
-                                                   config.getNamePool(),
+                                                   pool,
                                                    validation);
             }
             DOMSender driver = new DOMSender();
             driver.setStartNode(startNode);
             driver.setReceiver(receiver);
-            driver.setNamePool(config.getNamePool());
+            driver.setPipelineConfiguration(pipe);
             driver.setSystemId(source.getSystemId());
             driver.send();
         }
@@ -156,13 +158,13 @@ public class Sender {
             SAXSource ss = new SAXSource();
             ss.setInputSource(source.getInputSource());
             ss.setSystemId(source.getSystemId());
-            parser = config.getSourceParser();
+            parser = pipe.getConfiguration().getSourceParser();
             ss.setXMLReader(parser);
             source = ss;
         }
 
         if (parser.getErrorHandler()==null) {
-            parser.setErrorHandler(new StandardErrorHandler(config.getErrorListener()));
+            parser.setErrorHandler(new StandardErrorHandler(pipe.getErrorListener()));
         }
 
 		try {
@@ -187,6 +189,7 @@ public class Sender {
 
         if ((validation & Validation.VALIDATION_MODE_MASK) != Validation.PRESERVE) {
             // Add a document validator to the pipeline
+            Configuration config = pipe.getConfiguration();
             receiver = config.getDocumentValidator(receiver,
                                                    source.getSystemId(),
                                                    config.getNamePool(),
@@ -195,7 +198,7 @@ public class Sender {
 
         ReceivingContentHandler ce = new ReceivingContentHandler();
         ce.setReceiver(receiver);
-        ce.setConfiguration(config);
+        ce.setPipelineConfiguration(pipe);
         parser.setContentHandler(ce);
 	    parser.setDTDHandler(ce);
 
@@ -211,6 +214,8 @@ public class Sender {
             Exception nested = err.getException();
             if (nested instanceof XPathException) {
                 throw (XPathException)nested;
+            } else if (nested instanceof RuntimeException) {
+                throw (RuntimeException)nested;
             } else {
                 throw new DynamicError(err);
             }

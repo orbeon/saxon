@@ -1,8 +1,8 @@
 package org.orbeon.saxon.instruct;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * Handler for local xsl:variable elements in stylesheet. Not used in XQuery. <br>
@@ -16,7 +16,7 @@ public class LocalVariable extends GeneralVariable {
 
     public TailCall processLeavingTail(XPathContext context) throws XPathException {
         context.setLocalVariable(getSlotNumber(),
-                ExpressionTool.lazyEvaluate(getSelectExpression(), context));
+                ExpressionTool.lazyEvaluate(getSelectExpression(), context, true));
         return null;
     }
 

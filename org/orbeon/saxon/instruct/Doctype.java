@@ -1,19 +1,16 @@
 package org.orbeon.saxon.instruct;
 
 import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.event.ReceiverOptions;
 import org.orbeon.saxon.event.SequenceReceiver;
-import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.expr.PromotionOffer;
+import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.tinytree.TinyBuilder;
-
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -21,14 +18,50 @@ import java.io.PrintStream;
  * A saxon:doctype element in the stylesheet.
  */
 
-public class Doctype extends InstructionWithChildren {
+public class Doctype extends Instruction {
 
+    private Expression content;
+
+    public Doctype(Expression content) {
+        this.content = content;
+    }
     /**
-     * Get the name of this instruction for diagnostic and tracing purposes
+     * Simplify an expression. This performs any static optimization (by rewriting the expression
+     * as a different expression). The default implementation does nothing.
+     * @return the simplified expression
+     * @throws org.orbeon.saxon.xpath.XPathException
+     *          if an error is discovered during expression rewriting
      */
 
-    public int getInstructionNameCode() {
-        return StandardNames.SAXON_DOCTYPE;
+    public Expression simplify(StaticContext env) throws XPathException {
+        content = content.simplify(env);
+        return this;
+    }
+
+    /**
+     * Perform static analysis of an expression and its subexpressions.
+     * <p/>
+     * <p>This checks statically that the operands of the expression have
+     * the correct type; if necessary it generates code to do run-time type checking or type
+     * conversion. A static type error is reported only if execution cannot possibly succeed, that
+     * is, if a run-time type error is inevitable. The call may return a modified form of the expression.</p>
+     * <p/>
+     * <p>This method is called after all references to functions and variables have been resolved
+     * to the declaration of the function or variable. However, the types of such functions and
+     * variables will only be accurately known if they have been explicitly declared.</p>
+     *
+     * @param env the static context of the expression
+     * @return the original expression, rewritten to perform necessary
+     *         run-time type checks, and to perform other type-related
+     *         optimizations
+     * @throws org.orbeon.saxon.xpath.XPathException
+     *          if an error is discovered during this phase
+     *          (typically a type error)
+     */
+
+    public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
+        content = content.analyze(env, contextItemType);
+        return this;
     }
 
     /**
@@ -38,23 +71,40 @@ public class Doctype extends InstructionWithChildren {
      */
 
     protected void promoteInst(PromotionOffer offer) throws XPathException {
+        content = content.promote(offer);
+    }
+    /**
+     * Determine whether this instruction creates new nodes.
+     * This implementation returns true.
+     */
+
+    public final boolean createsNewNodes() {
+        return true;
     }
 
+    /**
+     * Get the name of this instruction for diagnostic and tracing purposes
+     */
 
-    public TailCall processLeavingTail(XPathContext context) throws XPathException {
+    public int getInstructionNameCode() {
+        return StandardNames.SAXON_DOCTYPE;
+    }
+
+     public TailCall processLeavingTail(XPathContext context) throws XPathException {
         Controller controller = context.getController();
         XPathContext c2 = context.newMinorContext();
         c2.setOrigin(this);
         SequenceReceiver out = c2.getReceiver();
         TinyBuilder builder = new TinyBuilder();
         Receiver receiver = builder;
-        receiver.setConfiguration(controller.getConfiguration());
+        receiver.setPipelineConfiguration(controller.makePipelineConfiguration());
         receiver.open();
-
+        receiver.startDocument(0);
         c2.changeOutputDestination(null, receiver, false, Validation.PRESERVE, null);
-        processChildren(c2);
+        content.process(c2);
+        receiver.endDocument();
         receiver.close();
-        DocumentInfo dtdRoot = builder.getCurrentDocument();
+        DocumentInfo dtdRoot = (DocumentInfo)builder.getCurrentRoot();
 
         SequenceIterator children = dtdRoot.iterateAxis(Axis.CHILD);
         NodeInfo docType = (NodeInfo) children.next();
@@ -73,12 +123,12 @@ public class Doctype extends InstructionWithChildren {
             throw e;
         }
 
-        write(out, "<!DOCTYPE " + name + " ");
+        write(out, "<!DOCTYPE " + name + ' ');
         if (system != null) {
             if (publicid != null) {
-                write(out, "PUBLIC \"" + publicid + "\" \"" + system + "\"");
+                write(out, "PUBLIC \"" + publicid + "\" \"" + system + '\"');
             } else {
-                write(out, "SYSTEM \"" + system + "\"");
+                write(out, "SYSTEM \"" + system + '\"');
             }
         }
 
@@ -107,7 +157,7 @@ public class Doctype extends InstructionWithChildren {
                     e.setXPathContext(context);
                     throw e;
                 }
-                write(out, "\n  <!ELEMENT " + elname + " " + content + ">");
+                write(out, "\n  <!ELEMENT " + elname + ' ' + content + '>');
 
             } else if (localname.equals("attlist")) {
                 String elname = Navigator.getAttributeValue(child, "", "element");
@@ -116,7 +166,7 @@ public class Doctype extends InstructionWithChildren {
                     e.setXPathContext(context);
                     throw e;
                 }
-                write(out, "\n  <!ATTLIST " + elname + " ");
+                write(out, "\n  <!ATTLIST " + elname + ' ');
 
                 SequenceIterator attributes = child.iterateAxis(Axis.CHILD);
                 while (true) {
@@ -145,7 +195,7 @@ public class Doctype extends InstructionWithChildren {
                             e.setXPathContext(context);
                             throw e;
                         }
-                        write(out, "\n    " + atname + " " + type + " " + value);
+                        write(out, "\n    " + atname + ' ' + type + ' ' + value);
                     } else {
                         DynamicError e = new DynamicError("Unrecognized element within dtd:attlist");
                         e.setXPathContext(context);
@@ -174,7 +224,7 @@ public class Doctype extends InstructionWithChildren {
                 if ("yes".equals(parameter)) {
                     write(out, "% ");
                 }
-                write(out, entname + " ");
+                write(out, entname + ' ');
                 if (esystem != null) {
                     if (epublicid != null) {
                         write(out, "PUBLIC \"" + epublicid + "\" \"" + esystem + "\" ");
@@ -183,7 +233,7 @@ public class Doctype extends InstructionWithChildren {
                     }
                 }
                 if (notation != null) {
-                    write(out, "NDATA " + notation + " ");
+                    write(out, "NDATA " + notation + ' ');
                 }
 
                 SequenceIterator contents = child.iterateAxis(Axis.CHILD);
@@ -214,7 +264,7 @@ public class Doctype extends InstructionWithChildren {
                 if (npublicid != null) {
                     write(out, " PUBLIC \"" + npublicid + "\" ");
                     if (nsystem != null) {
-                        write(out, "\"" + nsystem + "\" ");
+                        write(out, '\"' + nsystem + "\" ");
                     }
                 } else {
                     write(out, " SYSTEM \"" + nsystem + "\" ");
@@ -230,7 +280,6 @@ public class Doctype extends InstructionWithChildren {
 
         if (openSquare) {
             write(out, "\n]");
-            openSquare = false;
         }
         write(out, ">\n");
 

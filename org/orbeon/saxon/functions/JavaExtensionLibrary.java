@@ -3,11 +3,13 @@ package org.orbeon.saxon.functions;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Loader;
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.NamespaceConstant;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.type.ExternalObjectType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.*;
@@ -16,6 +18,7 @@ import org.orbeon.saxon.xpath.XPathException;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import javax.xml.namespace.QName;
 import java.io.PrintStream;
 import java.lang.reflect.*;
 import java.math.BigDecimal;
@@ -34,7 +37,7 @@ import java.util.List;
  * driven and partly algorithmic), and maps the local name of the function to the
  * Java method, constructor, or field within the class. If the Java methods are
  * polymorphic, then it tries to select the appropriate method based on the static types
- * of the supplied arguments. Binding is done entirely an XPath compilation time.
+ * of the supplied arguments. Binding is done entirely at XPath compilation time.
  */
 
 public class JavaExtensionLibrary implements FunctionLibrary {
@@ -452,6 +455,13 @@ public class JavaExtensionLibrary implements FunctionLibrary {
         }
         AccessibleObject method = getBestFit(candidateMethods, staticArgs);
         if (method == null) {
+            if (candidateMethods.size() > 1) {
+                // There was more than one candidate method, and we can't decide which to use.
+                // This may be because insufficient type information is available at this stage.
+                // Return an UnresolvedExtensionFunction, and try to resolve it later when more
+                // type information is known.
+                return new UnresolvedExtensionFunction(nameCode, theClass, candidateMethods, staticArgs);
+            }
             return null;
         } else {
             ExtensionFunctionFactory factory = config.getExtensionFunctionFactory();
@@ -705,6 +715,13 @@ public class JavaExtensionLibrary implements FunctionLibrary {
                 } else {
                     return -1;
                 }
+            } else if (itemType instanceof ExternalObjectType) {
+                Class ext = ((ExternalObjectType)itemType).getJavaClass();
+                if (required.isAssignableFrom(ext)) {
+                    return 10;
+                } else {
+                    return -1;
+                }
             } else {
                 int primitiveType = itemType.getPrimitiveType();
                 return atomicConversionPreference(primitiveType, required);
@@ -806,6 +823,7 @@ public class JavaExtensionLibrary implements FunctionLibrary {
                 return -1;
             case Type.QNAME:
                 if (required.isAssignableFrom(QNameValue.class)) return 50;
+                if (required.isAssignableFrom(QName.class)) return 51;
                 return -1;
             case Type.BASE64_BINARY:
                 if (required.isAssignableFrom(Base64BinaryValue.class)) return 50;
@@ -862,6 +880,54 @@ public class JavaExtensionLibrary implements FunctionLibrary {
         }
     }
 
+    /**
+     * Inner class representing an unresolved extension function call. This arises when there is insufficient
+     * static type information available at the time the function call is parsed to determine which of several
+     * candidate Java methods to invoke. The function call cannot be executed; it must be resolved to an
+     * actual Java method during the analysis phase.
+     */
+
+    private class UnresolvedExtensionFunction extends CompileTimeFunction {
+
+        List candidateMethods;
+        int nameCode;
+        Class theClass;
+
+
+        public UnresolvedExtensionFunction(int nameCode, Class theClass, List candidateMethods, Expression[] staticArgs) {
+            setArguments(staticArgs);
+            this.nameCode = nameCode;
+            this.theClass = theClass;
+            this.candidateMethods = candidateMethods;
+        }
+
+        /**
+         * Type-check the expression. This also calls preEvaluate() to evaluate the function
+         * if all the arguments are constant; functions that do not require this behavior
+         * can override the preEvaluate method.
+         */
+
+        public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
+            for (int i=0; i<argument.length; i++) {
+                Expression exp = argument[i].analyze(env, contextItemType);
+                if (exp != argument[i]) {
+                    adoptChildExpression(exp);
+                    argument[i] = exp;
+                }
+            }
+            AccessibleObject method = getBestFit(candidateMethods, argument);
+            if (method == null) {
+                StaticError err = new StaticError("There is more than one method matching the function call " +
+                        config.getNamePool().getDisplayName(nameCode) +
+                        ", and there is insufficient type information to determine which one should be used");
+                err.setLocator(this);
+                throw err;
+            } else {
+                ExtensionFunctionFactory factory = config.getExtensionFunctionFactory();
+                return factory.makeExtensionFunctionCall(nameCode, theClass, method, argument);
+            }
+        }
+    }
 
 }
 

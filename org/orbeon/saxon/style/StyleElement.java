@@ -1,16 +1,19 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.Configuration;
+
+import org.orbeon.saxon.Err;
 import org.orbeon.saxon.PreparedStylesheet;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.instruct.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.*;
+import org.orbeon.saxon.sort.CodepointCollator;
 import org.orbeon.saxon.sort.SortKeyDefinition;
 import org.orbeon.saxon.trace.InstructionInfo;
 import org.orbeon.saxon.trace.Location;
 import org.orbeon.saxon.tree.ElementWithAttributes;
 import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.DecimalValue;
+import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.SequenceType;
 import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.xpath.DynamicError;
@@ -18,6 +21,8 @@ import org.orbeon.saxon.xpath.StaticError;
 import org.orbeon.saxon.xpath.XPathException;
 import org.xml.sax.Locator;
 
+import javax.xml.namespace.QName;
+import javax.xml.transform.SourceLocator;
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
 import java.math.BigDecimal;
@@ -27,11 +32,11 @@ import java.util.List;
 import java.util.StringTokenizer;
 
 /**
-* Abstract superclass for all element nodes in the stylesheet. <BR>
-* Note: this class implements Locator. The element
-* retains information about its own location in the stylesheet, which is useful when
-* an XSL error is found.
-*/
+ * Abstract superclass for all element nodes in the stylesheet. <BR>
+ * Note: this class implements Locator. The element
+ * retains information about its own location in the stylesheet, which is useful when
+ * an XSL error is found.
+ */
 
 public abstract class StyleElement extends ElementWithAttributes
         implements Locator, Container, InstructionInfo {
@@ -40,15 +45,16 @@ public abstract class StyleElement extends ElementWithAttributes
     private short[] excludedNamespaces = null;		// a list of URI codes
     protected BigDecimal version = null;
     protected StaticContext staticContext = null;
-    protected TransformerConfigurationException validationError = null;
+    protected StaticError validationError = null;
     protected int reportingCircumstances = REPORT_ALWAYS;
     protected String defaultXPathNamespace = null;
+    protected String defaultCollationName = null;
     private int lineNumber;     // maintained here because it's more efficient
-                                // than using the lineNumberMap
+    // than using the lineNumberMap
     private boolean explaining = false;
-                                // true if saxon:explain="yes"
+    // true if saxon:explain="yes"
     private int objectNameCode = -1;
-                                // for instructions that define an XSLT named object, the name of that object
+    // for instructions that define an XSLT named object, the name of that object
 
     // Conditions under which an error is to be reported
 
@@ -57,43 +63,38 @@ public abstract class StyleElement extends ElementWithAttributes
     public static final int REPORT_IF_INSTANTIATED = 3;
 
     /**
-    * Constructor
-    */
+     * Constructor
+     */
 
-    public StyleElement() {}
+    public StyleElement() {
+    }
 
     public Executable getExecutable() {
         return getPrincipalStylesheet().getExecutable();
     }
 
     /**
-    * Get the namepool to be used at run-time, this namepool holds the names used in
-    * all XPath expressions and patterns
-    */
+     * Get the namepool to be used at run-time, this namepool holds the names used in
+     * all XPath expressions and patterns
+     */
 
     public NamePool getTargetNamePool() {
         return getPrincipalStylesheet().getTargetNamePool();
     }
 
     /**
-    * Get the configuration
-    */
-
-    protected Configuration getConfiguration() {
-        return getPreparedStylesheet().getConfiguration();
-    }
-
-    /**
      * Get the static context for expressions on this element
+     *
      * @return the static context
      */
 
     public StaticContext getStaticContext() {
-        if (staticContext==null) {
+        if (staticContext == null) {
             staticContext = new ExpressionContext(this);
         }
         return staticContext;
     }
+
     public int getLineNumber() {
         return lineNumber;
     }
@@ -103,11 +104,11 @@ public abstract class StyleElement extends ElementWithAttributes
     }
 
     /**
-    * Make this node a substitute for a temporary one previously added to the tree. See
-    * StyleNodeFactory for details. "A node like the other one in all things but its class".
-    * Note that at this stage, the node will not yet be known to its parent, though it will
-    * contain a reference to its parent; and it will have no children.
-    */
+     * Make this node a substitute for a temporary one previously added to the tree. See
+     * StyleNodeFactory for details. "A node like the other one in all things but its class".
+     * Note that at this stage, the node will not yet be known to its parent, though it will
+     * contain a reference to its parent; and it will have no children.
+     */
 
     public void substituteFor(StyleElement temp) {
         this.parent = temp.parent;
@@ -125,23 +126,19 @@ public abstract class StyleElement extends ElementWithAttributes
         this.lineNumber = temp.lineNumber;
     }
 
-	/**
-	* Set a validation error
-	*/
+    /**
+     * Set a validation error
+     */
 
-	protected void setValidationError(TransformerException reason,
-	                                  int circumstances) {
-	    if (reason instanceof TransformerConfigurationException) {
-		    validationError = (TransformerConfigurationException)reason;
-		} else {
-		    validationError = new TransformerConfigurationException(reason);
-		}
-		reportingCircumstances = circumstances;
-	}
+    protected void setValidationError(TransformerException reason,
+                                      int circumstances) {
+        validationError = StaticError.makeStaticError(reason);
+        reportingCircumstances = circumstances;
+    }
 
     /**
-    * Determine whether this node is an instruction. The default implementation says it isn't.
-    */
+     * Determine whether this node is an instruction. The default implementation says it isn't.
+     */
 
     public boolean isInstruction() {
         return false;
@@ -153,6 +150,7 @@ public abstract class StyleElement extends ElementWithAttributes
      * that we don't know, it might be anything. Returns null in the case of an element
      * such as xsl:sort or xsl:variable that can appear in a sequence constructor but
      * contributes nothing to the result sequence.
+     *
      * @return the item type returned
      */
 
@@ -162,6 +160,7 @@ public abstract class StyleElement extends ElementWithAttributes
 
     /**
      * Get the most general type of item returned by the children of this instruction
+     *
      * @return the lowest common supertype of the item types returned by the children
      */
 
@@ -181,65 +180,67 @@ public abstract class StyleElement extends ElementWithAttributes
             } else {
                 t = Type.getCommonSuperType(t, NodeKindTest.TEXT);
             }
-            if (t==AnyItemType.getInstance()) {
+            if (t == AnyItemType.getInstance()) {
                 return t;       // no point looking any further
             }
         }
     }
+
     /**
      * Mark tail-recursive calls on templates and functions.
      * For most instructions, this does nothing.
-    */
+     */
 
     public void markTailCalls() {
         // no-op
     }
 
     /**
-    * Determine whether this type of element is allowed to contain a sequence constructor
-    */
+     * Determine whether this type of element is allowed to contain a sequence constructor
+     */
 
     public boolean mayContainSequenceConstructor() {
         return false;
     }
 
     /**
-    * Determine whether this type of element is allowed to contain an xsl:fallback
+     * Determine whether this type of element is allowed to contain an xsl:fallback
      * instruction
-    */
+     */
 
     public boolean mayContainFallback() {
         return mayContainSequenceConstructor();
     }
 
-	/**
-	* Get the containing XSLStylesheet element
-	*/
+    /**
+     * Get the containing XSLStylesheet element
+     */
 
-	public XSLStylesheet getContainingStylesheet() {
-		NodeInfo next = this;
-		while (!(next instanceof XSLStylesheet)) {
-			next = next.getParent();
-		}
-		return (XSLStylesheet)next;
-	}
+    public XSLStylesheet getContainingStylesheet() {
+        NodeInfo next = this;
+        while (!(next instanceof XSLStylesheet)) {
+            next = next.getParent();
+        }
+        return (XSLStylesheet)next;
+    }
 
     /**
-    * Get the import precedence of this stylesheet element.
-    */
+     * Get the import precedence of this stylesheet element.
+     */
 
     public int getPrecedence() {
         return getContainingStylesheet().getPrecedence();
     }
 
     /**
-    * Get the URI for a namespace prefix using the in-scope namespaces for
-    * this element in the stylesheet
-    * @param prefix The namespace prefix: may be the empty string
-    * @param useDefault True if the default namespace is to be used when the
-    * prefix is "".
-    * @throws NamespaceException if the prefix is not declared
-    */
+     * Get the URI for a namespace prefix using the in-scope namespaces for
+     * this element in the stylesheet
+     *
+     * @param prefix     The namespace prefix: may be the empty string
+     * @param useDefault True if the default namespace is to be used when the
+     *                   prefix is "".
+     * @throws NamespaceException if the prefix is not declared
+     */
 
     public String getURIForPrefix(String prefix, boolean useDefault) throws NamespaceException {
         if ("".equals(prefix) && !useDefault) {
@@ -254,26 +255,27 @@ public abstract class StyleElement extends ElementWithAttributes
      * Make a NameCode, using this Element as the context for namespace resolution, and
      * registering the code in the namepool. If the name is unprefixed, the
      * default namespace is <b>not</b> used.
+     *
      * @param qname The name as written, in the form "[prefix:]localname". The name must have
-     * already been validated as a syntactically-correct QName.
-     * @throws XPathException if the qname is not a lexically-valid QName, or if the name
-     * is in a reserved namespace.
+     *              already been validated as a syntactically-correct QName.
+     * @throws XPathException     if the qname is not a lexically-valid QName, or if the name
+     *                            is in a reserved namespace.
      * @throws NamespaceException if the prefix of the qname has not been declared
-    */
+     */
 
     public final int makeNameCode(String qname)
-    throws XPathException, NamespaceException {
+            throws XPathException, NamespaceException {
 
-		NamePool namePool = getTargetNamePool();
+        NamePool namePool = getTargetNamePool();
         String[] parts;
         try {
             parts = Name.getQNameParts(qname);
         } catch (QNameException err) {
             throw new StaticError(err.getMessage());
         }
-		String prefix = parts[0];
+        String prefix = parts[0];
         if ("".equals(prefix)) {
-			return namePool.allocate(prefix, (short)0, qname);
+            return namePool.allocate(prefix, (short)0, qname);
 
         } else {
 
@@ -283,33 +285,33 @@ public abstract class StyleElement extends ElementWithAttributes
                 err.setErrorCode("XT0080");
                 throw err;
             }
-			return namePool.allocate(prefix, uri, parts[1]);
+            return namePool.allocate(prefix, uri, parts[1]);
         }
 
-	}
+    }
 
     /**
-    * Make a NamespaceContext object representing the list of in-scope namespaces. The NamePool
-    * used for numeric codes in the NamespaceContext will be the target name pool.
-    */
+     * Make a NamespaceContext object representing the list of in-scope namespaces. The NamePool
+     * used for numeric codes in the NamespaceContext will be the target name pool.
+     */
 
-    public NamespaceContext makeNamespaceContext() {
+    public SavedNamespaceContext makeNamespaceContext() {
         // Get the namespace codes relative to the stylesheet namepool
         int[] oldCodes = getNamespaceCodes();
         int[] newCodes = new int[oldCodes.length];
         NamePool oldPool = getNamePool();
         NamePool newPool = getTargetNamePool();
-        for (int i=0; i<oldCodes.length; i++) {
+        for (int i = 0; i < oldCodes.length; i++) {
             String prefix = oldPool.getPrefixFromNamespaceCode(oldCodes[i]);
             String uri = oldPool.getURIFromNamespaceCode(oldCodes[i]);
             newCodes[i] = newPool.allocateNamespaceCode(prefix, uri);
         }
-        return new NamespaceContext(newCodes, newPool);
+        return new SavedNamespaceContext(newCodes, newPool);
     }
 
     /**
-    * Process the attributes of this element and all its children
-    */
+     * Process the attributes of this element and all its children
+     */
 
     public void processAllAttributes() throws TransformerConfigurationException {
         staticContext = new ExpressionContext(this);
@@ -337,83 +339,88 @@ public abstract class StyleElement extends ElementWithAttributes
     }
 
     /**
-    * Process the attribute list for the element. This is a wrapper method that calls
-    * prepareAttributes (provided in the subclass) and traps any exceptions
-    */
+     * Process the attribute list for the element. This is a wrapper method that calls
+     * prepareAttributes (provided in the subclass) and traps any exceptions
+     */
 
     public final void processAttributes() throws TransformerConfigurationException {
         try {
             prepareAttributes();
         } catch (TransformerConfigurationException err) {
-        	if (forwardsCompatibleModeIsEnabled()) {
-        		setValidationError(err, REPORT_IF_INSTANTIATED);
-        	} else {
-            	compileError(err);
+            if (forwardsCompatibleModeIsEnabled()) {
+                setValidationError(err, REPORT_IF_INSTANTIATED);
+            } else {
+                compileError(err);
             }
         }
     }
 
     /**
-    * Check whether an unknown attribute is permitted.
-    * @param nc The name code of the attribute name
-    */
+     * Check whether an unknown attribute is permitted.
+     *
+     * @param nc The name code of the attribute name
+     */
 
     protected void checkUnknownAttribute(int nc) throws TransformerConfigurationException {
 
-    	String attributeURI = getNamePool().getURI(nc);
-    	String elementURI = getURI();
+        String attributeURI = getNamePool().getURI(nc);
+        String elementURI = getURI();
         String clarkName = getNamePool().getClarkName(nc);
 
         if (clarkName.equals(StandardNames.SAXON_EXPLAIN)) {
             explaining = "yes".equals(getAttributeValue(nc & 0xfffff));
         }
 
-    	if (forwardsCompatibleModeIsEnabled()) {
-    		// then unknown attributes are permitted and ignored
-    		return;
-    	}
+        if (forwardsCompatibleModeIsEnabled()) {
+            // then unknown attributes are permitted and ignored
+            return;
+        }
 
-    	// allow xsl:extension-element-prefixes etc on an extension element
+        // allow xsl:extension-element-prefixes etc on an extension element
 
-    	if (isInstruction() &&
-    		 clarkName.startsWith('{' + NamespaceConstant.XSLT) &&
-    		 !(elementURI.equals(NamespaceConstant.XSLT)) &&
-    		 (clarkName.endsWith("}xpath-default-namespace" ) ||
-    		  clarkName.endsWith("}extension-element-prefixes") ||
-    		  clarkName.endsWith("}exclude-result-prefixes") ||
-    		  clarkName.endsWith("}version"))) {
-    		return;
-    	}
+        if (isInstruction() &&
+                clarkName.startsWith('{' + NamespaceConstant.XSLT) &&
+                !(elementURI.equals(NamespaceConstant.XSLT)) &&
+                (clarkName.endsWith("}default-collation") ||
+                clarkName.endsWith("}xpath-default-namespace") ||
+                clarkName.endsWith("}extension-element-prefixes") ||
+                clarkName.endsWith("}exclude-result-prefixes") ||
+                clarkName.endsWith("}version") ||
+                clarkName.endsWith("}use-when"))) {
+            return;
+        }
 
-    	// allow standard attributes on an XSLT element
+        // allow standard attributes on an XSLT element
 
-    	if (elementURI.equals(NamespaceConstant.XSLT) &&
-    		 (clarkName == StandardNames.XPATH_DEFAULT_NAMESPACE ||
-    		  clarkName == StandardNames.EXTENSION_ELEMENT_PREFIXES ||
-    		  clarkName == StandardNames.EXCLUDE_RESULT_PREFIXES ||
-    		  clarkName == StandardNames.VERSION)) {
-    		return;
-    	}
+        if (elementURI.equals(NamespaceConstant.XSLT) &&
+                (clarkName == StandardNames.DEFAULT_COLLATION ||
+                clarkName == StandardNames.XPATH_DEFAULT_NAMESPACE ||
+                clarkName == StandardNames.EXTENSION_ELEMENT_PREFIXES ||
+                clarkName == StandardNames.EXCLUDE_RESULT_PREFIXES ||
+                clarkName == StandardNames.VERSION ||
+                clarkName == StandardNames.USE_WHEN)) {
+            return;
+        }
 
-    	if ("".equals(attributeURI) || NamespaceConstant.XSLT.equals(attributeURI)) {
-			compileError("Attribute {" + getNamePool().getDisplayName(nc) +
-				 "} is not allowed on this element");
+        if ("".equals(attributeURI) || NamespaceConstant.XSLT.equals(attributeURI)) {
+            compileError("Attribute " + Err.wrap(getNamePool().getDisplayName(nc), Err.ATTRIBUTE) +
+                    " is not allowed on element " + Err.wrap(getDisplayName(), Err.ELEMENT), "XT0010");
         }
     }
 
 
     /**
-    * Set the attribute list for the element. This is called to process the attributes (note
-    * the distinction from processAttributes in the superclass).
-    * Must be supplied in a subclass
-    */
+     * Set the attribute list for the element. This is called to process the attributes (note
+     * the distinction from processAttributes in the superclass).
+     * Must be supplied in a subclass
+     */
 
     public abstract void prepareAttributes() throws TransformerConfigurationException;
 
     /**
      * Find the last child instruction of this instruction. Returns null if
      * there are no child instructions, or if the last child is a text node.
-    */
+     */
 
     protected StyleElement getLastChildInstruction() {
         StyleElement last = null;
@@ -431,19 +438,19 @@ public abstract class StyleElement extends ElementWithAttributes
         }
     }
 
-	/**
-	* Make an expression in the context of this stylesheet element
-	*/
+    /**
+     * Make an expression in the context of this stylesheet element
+     */
 
-	public Expression makeExpression(String expression)
-	throws TransformerConfigurationException {
-	    try {
-    		Expression exp = ExpressionTool.make(expression,
-                                       staticContext,
-                                       0, Token.EOF,
-                                       getLineNumber());
+    public Expression makeExpression(String expression)
+            throws TransformerConfigurationException {
+        try {
+            Expression exp = ExpressionTool.make(expression,
+                    staticContext,
+                    0, Token.EOF,
+                    getLineNumber());
             return exp;
-        } catch(XPathException err) {
+        } catch (XPathException err) {
             err.setLocator(this);
             if (!forwardsCompatibleModeIsEnabled()) {
                 compileError(err);
@@ -455,97 +462,99 @@ public abstract class StyleElement extends ElementWithAttributes
             erexp.setParentExpression(this);
             return erexp;
         }
-	}
+    }
 
-	/**
-	* Make a pattern in the context of this stylesheet element
-	*/
+    /**
+     * Make a pattern in the context of this stylesheet element
+     */
 
-	public Pattern makePattern(String pattern)
-	throws TransformerConfigurationException {
-	    try {
-		    return Pattern.make(pattern, staticContext, getPrincipalStylesheet().getExecutable());
-        } catch(XPathException err) {
+    public Pattern makePattern(String pattern)
+            throws TransformerConfigurationException {
+        try {
+            return Pattern.make(pattern, staticContext, getPrincipalStylesheet().getExecutable());
+        } catch (XPathException err) {
             compileError(err);
             return new NodeTestPattern(AnyNodeTest.getInstance());
         }
-	}
+    }
 
-	/**
-	* Make an attribute value template in the context of this stylesheet element
-	*/
+    /**
+     * Make an attribute value template in the context of this stylesheet element
+     */
 
-	public Expression makeAttributeValueTemplate(String expression)
-	throws TransformerConfigurationException {
-	    try {
-		    return AttributeValueTemplate.make(expression + (char)0, 0, (char)0, getLineNumber(), staticContext);
-        } catch(XPathException err) {
+    public Expression makeAttributeValueTemplate(String expression)
+            throws TransformerConfigurationException {
+        try {
+            return AttributeValueTemplate.make(expression + (char)0, 0, (char)0, getLineNumber(), staticContext);
+        } catch (XPathException err) {
             compileError(err);
             return new StringValue(expression);
         }
-	}
+    }
 
     /**
-    * Process an attribute whose value is a SequenceType
-    */
+     * Process an attribute whose value is a SequenceType
+     */
 
     public SequenceType makeSequenceType(String sequenceType)
-    throws TransformerConfigurationException {
+            throws TransformerConfigurationException {
         getStaticContext();
-	    try {
-	        ExpressionParser parser = new ExpressionParser();
-    		return parser.parseSequenceType(sequenceType, staticContext);
-        } catch(XPathException err) {
+        try {
+            ExpressionParser parser = new ExpressionParser();
+            return parser.parseSequenceType(sequenceType, staticContext);
+        } catch (XPathException err) {
             compileError(err);
-            // recovery path after reporting an error, e.g. undeclared namespace prefix
+// recovery path after reporting an error, e.g. undeclared namespace prefix
             return SequenceType.ANY_SEQUENCE;
         }
-	}
+    }
 
     /**
-    * Process the [xsl:]extension-element-prefixes attribute if there is one
-    * @param nc the Clark name  of the attribute required
-    */
+     * Process the [xsl:]extension-element-prefixes attribute if there is one
+     *
+     * @param nc the Clark name  of the attribute required
+     */
 
     protected void processExtensionElementAttribute(String nc)
-    throws TransformerConfigurationException {
+            throws TransformerConfigurationException {
         String ext = getAttributeValue(nc);
-        if (ext!=null) {
-        	// go round twice, once to count the values and next to add them to the array
-        	int count = 0;
+        if (ext != null) {
+            // go round twice, once to count the values and next to add them to the array
+            int count = 0;
             StringTokenizer st1 = new StringTokenizer(ext);
             while (st1.hasMoreTokens()) {
                 st1.nextToken();
                 count++;
             }
-			extensionNamespaces = new short[count];
-			count = 0;
+            extensionNamespaces = new short[count];
+            count = 0;
             StringTokenizer st2 = new StringTokenizer(ext);
             while (st2.hasMoreTokens()) {
                 String s = st2.nextToken();
                 if ("#default".equals(s)) {
-                	s = "";
+                    s = "";
                 }
                 try {
                     short uriCode = getURICodeForPrefix(s);
                     extensionNamespaces[count++] = uriCode;
                 } catch (NamespaceException err) {
                     extensionNamespaces = null;
-                    compileError(err.getMessage());
+                    compileError(err.getMessage(), "XT0280");
                 }
             }
         }
     }
 
     /**
-    * Process the [xsl:]exclude-result-prefixes attribute if there is one
-    * @param nc the Clark name of the attribute required
-    */
+     * Process the [xsl:]exclude-result-prefixes attribute if there is one
+     *
+     * @param nc the Clark name of the attribute required
+     */
 
     protected void processExcludedNamespaces(String nc)
-    throws TransformerConfigurationException {
+            throws TransformerConfigurationException {
         String ext = getAttributeValue(nc);
-        if (ext!=null) {
+        if (ext != null) {
             if ("#all".equals(ext.trim())) {
                 int[] codes = getNamespaceCodes();
                 excludedNamespaces = new short[codes.length];
@@ -568,14 +577,14 @@ public abstract class StyleElement extends ElementWithAttributes
                     if ("#default".equals(s)) {
                         s = "";
                     } else if ("#all".equals(s)) {
-                        compileError("In exclude-result-prefixes, cannot mix #all with other values");
+                        compileError("In exclude-result-prefixes, cannot mix #all with other values", "XT0020");
                     }
                     try {
                         short uriCode = getURICodeForPrefix(s);
                         excludedNamespaces[count++] = uriCode;
                     } catch (NamespaceException err) {
                         excludedNamespaces = null;
-                        compileError(err.getMessage());
+                        compileError(err.getMessage(), "XT0280");
                     }
                 }
             }
@@ -583,13 +592,14 @@ public abstract class StyleElement extends ElementWithAttributes
     }
 
     /**
-    * Process the [xsl:]version attribute if there is one
-    * @param nc the Clark name of the attribute required
-    */
+     * Process the [xsl:]version attribute if there is one
+     *
+     * @param nc the Clark name of the attribute required
+     */
 
     protected void processVersionAttribute(String nc) throws TransformerConfigurationException {
         String v = getAttributeValue(nc);
-        if (v!=null) {
+        if (v != null) {
             try {
                 version = new DecimalValue(v).getValue();
             } catch (XPathException err) {
@@ -599,12 +609,12 @@ public abstract class StyleElement extends ElementWithAttributes
     }
 
     /**
-    * Get the numeric value of the version number on this element,
-    * or inherited from its ancestors
-    */
+     * Get the numeric value of the version number on this element,
+     * or inherited from its ancestors
+     */
 
     public BigDecimal getVersion() {
-        if (version==null) {
+        if (version == null) {
             NodeInfo node = (NodeInfo)getParentNode();
             if (node instanceof StyleElement) {
                 version = ((StyleElement)node).getVersion();
@@ -616,46 +626,95 @@ public abstract class StyleElement extends ElementWithAttributes
     }
 
     /**
-    * Determine whether forwards-compatible mode is enabled for this element
-    */
+     * Determine whether forwards-compatible mode is enabled for this element
+     */
 
     public boolean forwardsCompatibleModeIsEnabled() {
         return getVersion().compareTo(BigDecimal.valueOf(2)) > 0;
     }
 
     /**
-    * Determine whether backwards-compatible mode is enabled for this element
-    */
+     * Determine whether backwards-compatible mode is enabled for this element
+     */
 
     public boolean backwardsCompatibleModeIsEnabled() {
         return getVersion().compareTo(BigDecimal.valueOf(2)) < 0;
     }
 
     /**
-    * Check whether a particular extension element namespace is defined on this node.
-    * This checks this node only, not the ancestor nodes.
-    * The implementation checks whether the prefix is included in the
-    * [xsl:]extension-element-prefixes attribute.
-    * @param uriCode the namespace URI code being tested
-    */
+     * Process the [xsl:]default-xpath-namespace attribute if there is one
+     *
+     * @param nc the Clark name of the attribute required
+     */
+
+    protected void processDefaultCollationAttribute(String nc) throws TransformerConfigurationException {
+        String v = getAttributeValue(nc);
+        if (v != null) {
+            StringTokenizer st = new StringTokenizer(v);
+            while (st.hasMoreTokens()) {
+                String uri = st.nextToken();
+                if (uri.equals(NamespaceConstant.CodepointCollationURI)) {
+                    defaultCollationName = uri;
+                    return;
+                } else if (uri.startsWith("http://saxon.sf.net/")) {
+                    defaultCollationName = uri;
+                    return;
+                } else if (getPrincipalStylesheet().getExecutable().getNamedCollation(uri) != null) {
+                    defaultCollationName = uri;
+                    return;
+                }
+                // if not recognized, try the next URI in order
+            }
+            compileError("No recognized collation URI found in default-collation attribute", "XT0125");
+        }
+    }
+
+    /**
+     * Get the default collation for this element
+     */
+
+    protected String getDefaultCollationName() {
+        StyleElement e = this;
+        while (true) {
+            if (e.defaultCollationName != null) {
+                return e.defaultCollationName;
+            }
+            NodeInfo p = e.getParent();
+            if (!(p instanceof StyleElement)) {
+                break;
+            }
+            e = (StyleElement)p;
+        }
+        return getPrincipalStylesheet().getDefaultCollationName();
+    }
+
+    /**
+     * Check whether a particular extension element namespace is defined on this node.
+     * This checks this node only, not the ancestor nodes.
+     * The implementation checks whether the prefix is included in the
+     * [xsl:]extension-element-prefixes attribute.
+     *
+     * @param uriCode the namespace URI code being tested
+     */
 
     protected boolean definesExtensionElement(short uriCode) {
-    	if (extensionNamespaces==null) {
-    		return false;
-    	}
-    	for (int i=0; i<extensionNamespaces.length; i++) {
-    		if (extensionNamespaces[i] == uriCode) {
-    			return true;
-    		}
-    	}
+        if (extensionNamespaces == null) {
+            return false;
+        }
+        for (int i = 0; i < extensionNamespaces.length; i++) {
+            if (extensionNamespaces[i] == uriCode) {
+                return true;
+            }
+        }
         return false;
     }
 
     /**
-    * Check whether a namespace uri defines an extension element. This checks whether the
-    * namespace is defined as an extension namespace on this or any ancestor node.
-    * @param uriCode the namespace URI code being tested
-    */
+     * Check whether a namespace uri defines an extension element. This checks whether the
+     * namespace is defined as an extension namespace on this or any ancestor node.
+     *
+     * @param uriCode the namespace URI code being tested
+     */
 
     public boolean isExtensionNamespace(short uriCode) {
         NodeInfo anc = this;
@@ -669,33 +728,39 @@ public abstract class StyleElement extends ElementWithAttributes
     }
 
     /**
-    * Check whether this node excludes a particular namespace from the result.
-    * This method checks this node only, not the ancestor nodes.
-    * @param uriCode the code of the namespace URI being tested
-    */
+     * Check whether this node excludes a particular namespace from the result.
+     * This method checks this node only, not the ancestor nodes.
+     *
+     * @param uriCode the code of the namespace URI being tested
+     */
 
     protected boolean definesExcludedNamespace(short uriCode) {
-    	if (excludedNamespaces==null) {
-    		return false;
-    	}
-    	for (int i=0; i<excludedNamespaces.length; i++) {
-    		if (excludedNamespaces[i] == uriCode) {
-    			return true;
-    		}
-    	}
+        if (excludedNamespaces == null) {
+            return false;
+        }
+        for (int i = 0; i < excludedNamespaces.length; i++) {
+            if (excludedNamespaces[i] == uriCode) {
+                return true;
+            }
+        }
         return false;
     }
 
     /**
-    * Check whether a namespace uri defines an namespace excluded from the result.
-    * This checks whether the namespace is defined as an excluded namespace on this
-    * or any ancestor node.
-    * @param uriCode the code of the namespace URI being tested
-    */
+     * Check whether a namespace uri defines an namespace excluded from the result.
+     * This checks whether the namespace is defined as an excluded namespace on this
+     * or any ancestor node.
+     *
+     * @param uriCode the code of the namespace URI being tested
+     */
 
     public boolean isExcludedNamespace(short uriCode) {
-		if (uriCode==NamespaceConstant.XSLT_CODE) return true;
-        if (isExtensionNamespace(uriCode)) return true;
+        if (uriCode == NamespaceConstant.XSLT_CODE) {
+            return true;
+        }
+        if (isExtensionNamespace(uriCode)) {
+            return true;
+        }
         NodeInfo anc = this;
         while (anc instanceof StyleElement) {
             if (((StyleElement)anc).definesExcludedNamespace(uriCode)) {
@@ -707,20 +772,21 @@ public abstract class StyleElement extends ElementWithAttributes
     }
 
     /**
-    * Process the [xsl:]default-xpath-namespace attribute if there is one
-    * @param nc the Clark name of the attribute required
-    */
+     * Process the [xsl:]default-xpath-namespace attribute if there is one
+     *
+     * @param nc the Clark name of the attribute required
+     */
 
     protected void processDefaultXPathNamespaceAttribute(String nc) throws TransformerConfigurationException {
         String v = getAttributeValue(nc);
-        if (v!=null) {
+        if (v != null) {
             defaultXPathNamespace = v;
         }
     }
 
     /**
-    * Get the default XPath namespace code applicable to this element
-    */
+     * Get the default XPath namespace code applicable to this element
+     */
 
     protected short getDefaultXPathNamespace() {
         NodeInfo anc = this;
@@ -732,15 +798,17 @@ public abstract class StyleElement extends ElementWithAttributes
             anc = anc.getParent();
         }
         return NamespaceConstant.NULL_CODE;
-                // indicates that the default namespace is the null namespace
+        // indicates that the default namespace is the null namespace
     }
 
     /**
      * Get the Schema type definition for a type named in the stylesheet (in a
      * "type" attribute).
-     * @throws TransformerConfigurationException if the type is not declared in an
-     * imported schema, or is not a built-in type
-    */
+     *
+     * @throws TransformerConfigurationException
+     *          if the type is not declared in an
+     *          imported schema, or is not a built-in type
+     */
 
     public SchemaType getSchemaType(String typeAtt) throws TransformerConfigurationException {
         try {
@@ -759,23 +827,21 @@ public abstract class StyleElement extends ElementWithAttributes
             int nameCode = getTargetNamePool().allocate(parts[0], uri, lname);
             if (uri.equals(NamespaceConstant.SCHEMA)) {
                 SchemaType t = BuiltInSchemaFactory.getSchemaType(StandardNames.getFingerprint(uri, lname));
-                if (t==null) {
+                if (t == null) {
                     compileError("Unknown built-in type " + typeAtt);
                     return null;
                 }
-                t.setFingerprint(nameCode & 0xfffff);
                 return t;
             } else if (uri.equals(NamespaceConstant.XDT)) {
                 ItemType t = Type.getBuiltInItemType(uri, lname);
-                if (t==null) {
+                if (t == null) {
                     if ("untyped".equals(lname)) {
                         compileError("Cannot validate a node as 'untyped'");
                     } else {
                         compileError("Unknown built-in type " + typeAtt);
                     }
                 }
-                ((SimpleType)t).setFingerprint(nameCode & 0xfffff);
-                return (SimpleType)t;
+                return (BuiltInAtomicType)t;
             }
 
             // not a built-in type: look in the imported schemas
@@ -791,7 +857,7 @@ public abstract class StyleElement extends ElementWithAttributes
             return stype;
 
         } catch (NamespaceException err) {
-            compileError("Namespace prefix for type annotation is undeclared");
+            compileError("Namespace prefix for type annotation is undeclared", "XT0280");
         } catch (QNameException err) {
             compileError("Invalid type name. " + err.getMessage());
         }
@@ -811,27 +877,29 @@ public abstract class StyleElement extends ElementWithAttributes
     }
 
     /**
-    * Check that the stylesheet element is valid. This is called once for each element, after
-    * the entire tree has been built. As well as validation, it can perform first-time
-    * initialisation. The default implementation does nothing; it is normally overriden
-    * in subclasses.
-    */
+     * Check that the stylesheet element is valid. This is called once for each element, after
+     * the entire tree has been built. As well as validation, it can perform first-time
+     * initialisation. The default implementation does nothing; it is normally overriden
+     * in subclasses.
+     */
 
-    public void validate() throws TransformerConfigurationException {}
+    public void validate() throws TransformerConfigurationException {
+    }
 
     /**
      * Hook to allow additional validation of a parent element immediately after its
      * children have been validated.
      */
 
-    public void postValidate() throws TransformerConfigurationException {}
+    public void postValidate() throws TransformerConfigurationException {
+    }
 
     /**
-    * Type-check an expression. This is called to check each expression while the containing
-    * instruction is being validated. It is not just a static type-check, it also adds code
-    * to perform any necessary run-time type checking and/or conversion. It also allocates slot numbers
+     * Type-check an expression. This is called to check each expression while the containing
+     * instruction is being validated. It is not just a static type-check, it also adds code
+     * to perform any necessary run-time type checking and/or conversion. It also allocates slot numbers
      * for range variables declared within the expression.
-    */
+     */
 
     // TODO: we're doing two stages of type-checking, often redundantly: one at the level of individual XPath
     // expressions, one at the function/template level. We can't do it all at the function/template level because
@@ -844,13 +912,16 @@ public abstract class StyleElement extends ElementWithAttributes
             ((ComputedExpression)exp).setParentExpression(this);
             // temporary, until the instruction is compiled
         }
-        if (exp==null) return null;
+        if (exp == null) {
+            return null;
+        }
         try {
             exp = exp.analyze(staticContext, Type.ITEM_TYPE);
             if (explaining) {
                 System.err.println("Attribute '" + name + "' of element '" + getDisplayName() + "' at line " + getLineNumber() + ':');
                 System.err.println("Static type: " + new SequenceType(exp.getItemType(), exp.getCardinality()));
-                System.err.println("Optimized expression tree:"); exp.display(10, getNamePool(), System.err);
+                System.err.println("Optimized expression tree:");
+                exp.display(10, getNamePool(), System.err);
             }
             if (getConfiguration().getTraceListener() != null) {
                 InstructionDetails details = new InstructionDetails();
@@ -887,12 +958,13 @@ public abstract class StyleElement extends ElementWithAttributes
 
     /**
      * Allocate slots in the local stack frame to range variables used in an XPath expression
+     *
      * @param exp the XPath expression for which slots are to be allocated
      */
 
     public void allocateSlots(Expression exp) {
         SlotManager slotManager = getContainingSlotManager();
-        if (slotManager==null) {
+        if (slotManager == null) {
             // this expression is not part of an XSLT procedure, so it needs
             // its own stack frame to contain its variables.
             // TODO: can this still happen? It originally handled situations like range variables in the
@@ -913,13 +985,15 @@ public abstract class StyleElement extends ElementWithAttributes
     }
 
     /**
-    * Type-check a pattern. This is called to check each pattern while the containing
-    * instruction is being validated. It is not just a static type-check, it also adds code
-    * to perform any necessary run-time type checking and/or conversion.
-    */
+     * Type-check a pattern. This is called to check each pattern while the containing
+     * instruction is being validated. It is not just a static type-check, it also adds code
+     * to perform any necessary run-time type checking and/or conversion.
+     */
 
     public Pattern typeCheck(String name, Pattern pat) throws TransformerConfigurationException {
-        if (pat==null) return null;
+        if (pat == null) {
+            return null;
+        }
         try {
             return pat.typeCheck(staticContext, Type.NODE_TYPE);
             // TODO: do a more specific check where possible
@@ -936,9 +1010,9 @@ public abstract class StyleElement extends ElementWithAttributes
     }
 
     /**
-    * Fix up references from XPath expressions. Overridden for function declarations
-    * and variable declarations
-    */
+     * Fix up references from XPath expressions. Overridden for function declarations
+     * and variable declarations
+     */
 
     public void fixupReferences() throws TransformerConfigurationException {
         AxisIterator kids = iterateAxis(Axis.CHILD);
@@ -955,9 +1029,10 @@ public abstract class StyleElement extends ElementWithAttributes
 
     /**
      * Get the SlotManager for the containing Procedure definition
+     *
      * @return the SlotManager associated with the containing Function, Template, etc,
-     * or null if there is no such containing Function, Template etc.
-    */
+     *         or null if there is no such containing Function, Template etc.
+     */
 
     public SlotManager getContainingSlotManager() {
         NodeInfo node = this;
@@ -970,43 +1045,42 @@ public abstract class StyleElement extends ElementWithAttributes
                     return null;
                 }
             }
-            node=next;
+            node = next;
         }
     }
 
 
     /**
-    * Recursive walk through the stylesheet to validate all nodes
-    */
+     * Recursive walk through the stylesheet to validate all nodes
+     */
 
     public void validateSubtree() throws TransformerConfigurationException {
-        if (validationError!=null) {
+        if (validationError != null) {
             if (reportingCircumstances == REPORT_ALWAYS) {
                 compileError(validationError);
             } else if (reportingCircumstances == REPORT_UNLESS_FORWARDS_COMPATIBLE
-                          && !forwardsCompatibleModeIsEnabled()) {
+                    && !forwardsCompatibleModeIsEnabled()) {
                 compileError(validationError);
             }
-        } //else {
-            try {
-                validate();
-            } catch (TransformerConfigurationException err) {
-            	if (forwardsCompatibleModeIsEnabled()) {
-            		setValidationError(err, REPORT_IF_INSTANTIATED);
-            	} else {
-                	compileError(err);
-                }
+        }
+        try {
+            validate();
+        } catch (TransformerConfigurationException err) {
+            if (forwardsCompatibleModeIsEnabled()) {
+                setValidationError(err, REPORT_IF_INSTANTIATED);
+            } else {
+                compileError(err);
             }
+        }
 
-            validateChildren();
-            postValidate();
-        //}
+        validateChildren();
+        postValidate();
     }
 
     /**
-    * Validate the children of this node, recursively. Overridden for top-level
-    * data elements.
-    */
+     * Validate the children of this node, recursively. Overridden for top-level
+     * data elements.
+     */
 
     protected void validateChildren() throws TransformerConfigurationException {
         AxisIterator kids = iterateAxis(Axis.CHILD);
@@ -1023,58 +1097,58 @@ public abstract class StyleElement extends ElementWithAttributes
         }
         if (lastChild instanceof XSLVariable &&
                 !(this instanceof XSLStylesheet)) {
-            lastChild.compileWarning(
-                    "A variable with no following sibling instructions has no effect");
+            lastChild.compileWarning("A variable with no following sibling instructions has no effect");
         }
     }
 
     /**
-    * Default preprocessing method does nothing. It is implemented for those top-level elements
-    * that can be evaluated before the source document is available, for example xsl:key,
-    * xsl:attribute-set, xsl:template, xsl:decimal-format
-    */
-
-    //public void preprocess() throws TransformerConfigurationException {}
-
-    /**
-    * Get the principal XSLStylesheet node. This gets the principal style sheet, i.e. the
-    * one originally loaded, that forms the root of the import/include tree
-    */
+     * Get the principal XSLStylesheet node. This gets the principal style sheet, i.e. the
+     * one originally loaded, that forms the root of the import/include tree
+     */
 
     protected XSLStylesheet getPrincipalStylesheet() {
         XSLStylesheet sheet = getContainingStylesheet();
         while (true) {
             XSLStylesheet next = sheet.getImporter();
-            if (next==null) return sheet;
+            if (next == null) {
+                return sheet;
+            }
             sheet = next;
         }
     }
 
     /**
-    * Get the PreparedStylesheet object.
-    * @return the PreparedStylesheet to which this stylesheet element belongs
-    */
+     * Get the PreparedStylesheet object.
+     *
+     * @return the PreparedStylesheet to which this stylesheet element belongs
+     */
 
     public PreparedStylesheet getPreparedStylesheet() {
         return getPrincipalStylesheet().getPreparedStylesheet();
     }
 
     /**
-    * Check that the stylesheet element is within a sequence constructor
-    * @throws TransformerConfigurationException if not within a sequence constructor
-    */
+     * Check that the stylesheet element is within a sequence constructor
+     *
+     * @throws TransformerConfigurationException
+     *          if not within a sequence constructor
+     */
 
     public void checkWithinTemplate() throws TransformerConfigurationException {
+        // TODO: restructure this check: we should check that elements have valid children, not that they have
+        // valid parents.
         StyleElement parent = (StyleElement)getParentNode();
         if (!parent.mayContainSequenceConstructor()) {
-            compileError("Element must be used only within a sequence constructor");
+            compileError("Element must be used only within a sequence constructor", "XT0010");
         }
     }
 
     /**
      * Check that among the children of this element, any xsl:sort elements precede any other elements
+     *
      * @param sortRequired true if there must be at least one xsl:sort element
-     * @throws TransformerConfigurationException if invalid
+     * @throws TransformerConfigurationException
+     *          if invalid
      */
 
     protected void checkSortComesFirst(boolean sortRequired) throws TransformerConfigurationException {
@@ -1088,11 +1162,12 @@ public abstract class StyleElement extends ElementWithAttributes
             }
             if (child instanceof XSLSort) {
                 if (nonSortFound) {
-                    ((XSLSort)child).compileError("Within " + getDisplayName() + ", xsl:sort elements must come before other instructions");
+                    ((XSLSort)child).compileError("Within " + getDisplayName() +
+                            ", xsl:sort elements must come before other instructions", "XT0010");
                 }
                 sortFound = true;
             } else if (child.getNodeKind() == Type.TEXT) {
-                    // with xml:space=preserve, white space nodes may still be there
+                // with xml:space=preserve, white space nodes may still be there
                 if (!Navigator.isWhite(child.getStringValue())) {
                     nonSortFound = true;
                 }
@@ -1101,25 +1176,32 @@ public abstract class StyleElement extends ElementWithAttributes
             }
         }
         if (sortRequired && !sortFound) {
-            compileError(getDisplayName() + " must have at least one xsl:sort child");
+            compileError(getDisplayName() + " must have at least one xsl:sort child", "XT0010");
         }
     }
 
     /**
-    * Convenience method to check that the stylesheet element is at the top level
-    * @throws TransformerConfigurationException if not at top level
-    */
+     * Convenience method to check that the stylesheet element is at the top level
+     *
+     * @throws TransformerConfigurationException
+     *          if not at top level
+     */
 
     public void checkTopLevel(String errorCode) throws TransformerConfigurationException {
+        if (errorCode == null) {
+            errorCode = "XT0010";
+        }
         if (!(getParentNode() instanceof XSLStylesheet)) {
-            compileError("Element must only be used at top level of stylesheet", errorCode);
+            compileError("Element must be used only at top level of stylesheet", errorCode);
         }
     }
 
     /**
-    * Convenience method to check that the stylesheet element is empty
-    * @throws TransformerConfigurationException if it is not empty
-    */
+     * Convenience method to check that the stylesheet element is empty
+     *
+     * @throws TransformerConfigurationException
+     *          if it is not empty
+     */
 
     public void checkEmpty() throws TransformerConfigurationException {
         if (hasChildNodes()) {
@@ -1128,85 +1210,189 @@ public abstract class StyleElement extends ElementWithAttributes
     }
 
     /**
-    * Convenience method to report the absence of a mandatory attribute
-    * @throws TransformerConfigurationException if the attribute is missing
-    */
+     * Convenience method to report the absence of a mandatory attribute
+     *
+     * @throws TransformerConfigurationException
+     *          if the attribute is missing
+     */
 
     public void reportAbsence(String attribute)
-    throws TransformerConfigurationException {
+            throws TransformerConfigurationException {
         compileError("Element must have a \"" + attribute + "\" attribute", "XT0010");
     }
 
 
     /**
-    * Compile the instruction on the stylesheet tree into an executable instruction
-    * for use at run-time.
-    * @return either an Instruction, or null. The value null is returned when compiling an instruction
-     * that returns a no-op, or when compiling a top-level object such as an xsl:template that compiles
-     * into something other than an instruction.
-    */
+     * Compile the instruction on the stylesheet tree into an executable instruction
+     * for use at run-time.
+     *
+     * @return either a ComputedExpression, or null. The value null is returned when compiling an instruction
+     *         that returns a no-op, or when compiling a top-level object such as an xsl:template that compiles
+     *         into something other than an instruction.
+     */
 
     public abstract Expression compile(Executable exec) throws TransformerConfigurationException;
 
     /**
-    * Compile the children of this instruction on the stylesheet tree, adding the
-    * subordinate instructions to the parent instruction on the execution tree.
+     * Compile the children of this instruction on the stylesheet tree, adding the
+     * subordinate instructions to the parent instruction on the execution tree.
+     *
      * @return the array of children
-    */
+     */
 
-    public Expression[] compileChildren(Executable exec, InstructionWithChildren inst, boolean includeParams)
+//    public Expression[] compileChildren(Executable exec, InstructionWithChildren inst, boolean includeParams)
+//            throws TransformerConfigurationException {
+//
+//        inst.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
+//
+//        List list = new ArrayList(10);
+//        AxisIterator kids = iterateAxis(Axis.CHILD);
+//        while (true) {
+//            NodeInfo node = (NodeInfo)kids.next();
+//            if (node == null) {
+//                break;
+//            }
+//            if (node.getNodeKind() == Type.TEXT) {
+//                // handle literal text nodes by generating an xsl:text instruction
+//                Text text = new Text(false);
+//                try {
+//                    text.setSelect(new StringValue(node.getStringValue()));
+//                } catch (XPathException e) {
+//                    compileError(e);
+//                }
+//                text.setLocationId(allocateLocationId(getSystemId(), node.getLineNumber()));
+//                text.setParentExpression(inst);
+//                list.add(text);
+//
+//            } else if (node instanceof StyleElement) {
+//                StyleElement snode = (StyleElement)node;
+//                if (snode.validationError != null) {
+//                    fallbackProcessing(exec, snode, list);
+//                } else {
+//                    Expression child = snode.compile(exec);
+//                    if (child instanceof Instruction) {
+//                        Instruction childi = (Instruction)child;
+//                        childi.setLocationId(allocateLocationId(getSystemId(), snode.getLineNumber()));
+//                        childi.setParentExpression(inst);
+//                    }
+//                    if (child != null) {
+//                        if (getConfiguration().getTraceListener() != null) {
+//                            TraceWrapper trace = makeTraceInstruction(snode, child);
+//                            trace.setParentExpression(inst);
+//                            child = trace;
+//                        }
+//                        if (includeParams || !(node instanceof XSLParam)) {
+//                            list.add(child);
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//        Expression[] array = new Expression[list.size()];
+//        array = (Expression[])list.toArray(array);
+//        inst.setChildren(array);
+//        return array;
+//    }
+
+    /**
+     * Compile the children of this instruction on the stylesheet tree, adding the
+     * subordinate instructions to the parent instruction on the execution tree.
+     *
+     * @return the array of children
+     */
+
+    public Expression compileSequenceConstructor(Executable exec, AxisIterator iter, boolean includeParams)
             throws TransformerConfigurationException {
 
-        inst.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
-
-        List list = new ArrayList(10);
-        AxisIterator kids = iterateAxis(Axis.CHILD);
-	    while (true) {
-            NodeInfo node = (NodeInfo)kids.next();
-            if (node == null) {
-                break;
+        int lineNumber = getLineNumber();
+        NodeInfo node = (NodeInfo)iter.next();
+        if (node == null) {
+            return null;
+        }
+        if (node instanceof StyleElement) {
+            lineNumber = node.getLineNumber();  // this is to get a line number for the next text node
+        }
+        if (node.getNodeKind() == Type.TEXT) {
+            // handle literal text nodes by generating an xsl:value-of instruction
+            ValueOf text = new ValueOf(new StringValue(node.getStringValue()), false);
+//            try {
+//                text.setSelect(new StringValue(node.getStringValue()));
+//            } catch (XPathException e) {
+//                compileError(e);
+//            }
+            text.setLocationId(allocateLocationId(getSystemId(), lineNumber));
+            Expression tail = compileSequenceConstructor(exec, iter, includeParams);
+            if (tail == null) {
+                return text;
+            } else {
+                AppendExpression e = new AppendExpression(text, Token.COMMA, tail);
+                e.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
+                return e;
             }
-    		if (node.getNodeKind() == Type.TEXT) {
-    		    // handle literal text nodes by generating an xsl:text instruction
-    		    Text text = new Text(false);
-                try {
-                    text.setSelect(new StringValue(node.getStringValue()));
-                } catch (XPathException e) {
-                    compileError(e);
-                }
-                text.setLocationId(allocateLocationId(getSystemId(), node.getLineNumber()));
-                text.setParentExpression(inst);
-    		    list.add(text);
 
-    		} else if (node instanceof StyleElement) {
-    		    StyleElement snode = (StyleElement)node;
-    		    if (snode.validationError != null) {
-    		    	fallbackProcessing(exec, snode, list);
-    		    } else {
-    		        Expression child = snode.compile(exec);
-    		        if (child instanceof Instruction) {
-                        Instruction childi = (Instruction)child;
-                        childi.setLocationId(allocateLocationId(getSystemId(), snode.getLineNumber()));
-                        childi.setParentExpression(inst);
-                    }
-                    if (child != null) {
+        } else if (node instanceof XSLVariable) {
+            Expression var = ((XSLVariable)node).newCompile(exec);
+            if (var == null) {
+                // this can happen if the variable declaration is redundant
+                return compileSequenceConstructor(exec, iter, includeParams);
+            } else {
+                LocalVariable lv = (LocalVariable)var;
+                Expression tail = compileSequenceConstructor(exec, iter, includeParams);
+                if (tail == null) {
+                    // If there are no instructions following xsl:variable, the variable can be ignored
+                    // TODO: issue a warning that the variable is ignored
+                    return null;
+                } else {
+                    LetExpression let = new LetExpression();
+                    RangeVariableDeclaration rvar = new RangeVariableDeclaration();
+                    rvar.setRequiredType(lv.getRequiredType());
+                    rvar.setNameCode(lv.getNameCode());
+                    rvar.setVariableName(lv.getVariableName());
+                    rvar.setReferenceList(((XSLVariable)node).getReferenceList());
+                    let.setVariableDeclaration(rvar);
+                    let.setSequence(lv.getSelectExpression());
+                    let.setSlotNumber(lv.getSlotNumber());
+                    let.setAction(tail);
+                    ((XSLVariable)node).fixupBinding(let);
+                    let.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
+                    return let;
+                }
+            }
+
+
+        } else if (node instanceof StyleElement) {
+            StyleElement snode = (StyleElement)node;
+            if (snode.validationError != null) {
+                return fallbackProcessing(exec, snode);
+
+            } else {
+                Expression child = snode.compile(exec);
+                if (child instanceof ComputedExpression) {
+                    ComputedExpression childi = (ComputedExpression)child;
+                    childi.setLocationId(allocateLocationId(getSystemId(), snode.getLineNumber()));
+                }
+                if (child != null) {
+                    if (includeParams || !(node instanceof XSLParam)) {
                         if (getConfiguration().getTraceListener() != null) {
                             TraceWrapper trace = makeTraceInstruction(snode, child);
-                            trace.setParentExpression(inst);
                             child = trace;
                         }
-                        if (includeParams || !(node instanceof XSLParam)) {
-                            list.add(child);
-                        }
                     }
-        		}
-    		}
-	    }
-	    Expression[] array = new Expression[list.size()];
-        array = (Expression[])list.toArray(array);
-	    inst.setChildren(array);
-        return array;
-	}
+                }
+                Expression tail = compileSequenceConstructor(exec, iter, includeParams);
+                if (tail == null) {
+                    return child;
+                } else if (child == null) {
+                    return tail;
+                } else {
+                    AppendExpression e = new AppendExpression(child, Token.COMMA, tail);
+                    e.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
+                    return e;
+                }
+            }
+        }
+        return null;
+    }
 
     /**
      * Create a trace instruction to wrap a real instruction
@@ -1224,18 +1410,17 @@ public abstract class StyleElement extends ElementWithAttributes
     }
 
     /**
-	 * Perform fallback processing. Generate fallback code for an extension
+     * Perform fallback processing. Generate fallback code for an extension
      * instruction that is not recognized by the implementation.
+     *
      * @param instruction The unknown extension instruction
-     * @param list a List to be populated with instructions. The method
-     * creates one Block instruction for each xsl:fallback found.
-	*/
+     */
 
-	protected void fallbackProcessing(Executable exec, StyleElement instruction, List list)
-	throws TransformerConfigurationException {
+    protected Expression fallbackProcessing(Executable exec, StyleElement instruction)
+            throws TransformerConfigurationException {
         // process any xsl:fallback children; if there are none,
         // generate code to report the original failure reason
-        boolean foundFallback = false;
+        Expression fallback = null;
         AxisIterator kids = instruction.iterateAxis(Axis.CHILD);
         while (true) {
             NodeInfo child = (NodeInfo)kids.next();
@@ -1243,26 +1428,29 @@ public abstract class StyleElement extends ElementWithAttributes
                 break;
             }
             if (child instanceof XSLFallback) {
-                foundFallback = true;
-                Block fallback = new Block();
-                fallback.setLocationId(allocateLocationId(getSystemId(), child.getLineNumber()));
-                ((XSLFallback)child).compileChildren(exec, fallback, true);
-                try {
-                    list.add(fallback.simplify(getStaticContext()));
-                } catch (XPathException e) {
-                    compileError(e);
+                //fallback.setLocationId(allocateLocationId(getSystemId(), child.getLineNumber()));
+                //((XSLFallback)child).compileChildren(exec, fallback, true);
+                Expression b = ((XSLFallback)child).compileSequenceConstructor(exec, child.iterateAxis(Axis.CHILD), true);
+                if (b == null) {
+                    b = EmptySequence.getInstance();
+                }
+                if (fallback == null) {
+                    fallback = b;
+                } else {
+                    fallback = new AppendExpression(fallback, Token.COMMA,  b);
                 }
             }
         }
-
-        if (!foundFallback) {
-            DeferredError deferred = new DeferredError(instruction.validationError);
+        if (fallback != null) {
+            return fallback;
+        } else {
+            DeferredError deferred = new DeferredError(instruction.getNameCode(), instruction.validationError);
             deferred.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
             deferred.setParentExpression(this);
-            list.add(deferred);
+            return deferred;
         }
 
-	}
+    }
 
     /**
      * Allocate a location identifier
@@ -1273,17 +1461,18 @@ public abstract class StyleElement extends ElementWithAttributes
     }
 
     /**
-    * Construct sort keys for a SortedIterator
+     * Construct sort keys for a SortedIterator
+     *
      * @return an array of SortKeyDefinition objects if there are any sort keys;
-     * or null if there are none.
-    */
+     *         or null if there are none.
+     */
 
     protected SortKeyDefinition[] makeSortKeys() {
         // handle sort keys if any
 
         int numberOfSortKeys = 0;
         AxisIterator kids = iterateAxis(Axis.CHILD);
-        while(true) {
+        while (true) {
             Item child = kids.next();
             if (child == null) {
                 break;
@@ -1296,10 +1485,10 @@ public abstract class StyleElement extends ElementWithAttributes
         if (numberOfSortKeys > 0) {
             SortKeyDefinition[] keys = new SortKeyDefinition[numberOfSortKeys];
             kids = iterateAxis(Axis.CHILD);
-            int k=0;
-            while(true) {
+            int k = 0;
+            while (true) {
                 NodeInfo child = (NodeInfo)kids.next();
-                if (child==null) {
+                if (child == null) {
                     break;
                 }
                 if (child instanceof XSLSort) {
@@ -1314,17 +1503,18 @@ public abstract class StyleElement extends ElementWithAttributes
     }
 
     /**
-    * Get the list of attribute-sets associated with this element.
-    * This is used for xsl:element, xsl:copy, xsl:attribute-set, and on literal
-    * result elements
-    * @param use: the original value of the [xsl:]use-attribute-sets attribute
-    * @param list: an empty list to hold the list of XSLAttributeSet elements in the stylesheet tree.
-    * Or null, if these are not required.
-    * @return an array of AttributeList instructions representing the compiled attribute sets
-    */
+     * Get the list of attribute-sets associated with this element.
+     * This is used for xsl:element, xsl:copy, xsl:attribute-set, and on literal
+     * result elements
+     *
+     * @param use  the original value of the [xsl:]use-attribute-sets attribute
+     * @param list an empty list to hold the list of XSLAttributeSet elements in the stylesheet tree.
+     *              Or null, if these are not required.
+     * @return an array of AttributeList instructions representing the compiled attribute sets
+     */
 
     protected AttributeSet[] getAttributeSets(String use, List list)
-    throws TransformerConfigurationException {
+            throws TransformerConfigurationException {
 
         if (list == null) {
             list = new ArrayList(4);
@@ -1351,7 +1541,7 @@ public abstract class StyleElement extends ElementWithAttributes
             // search for the named attribute set, using all of them if there are several with the
             // same name
 
-            for (int i=0; i<toplevel.size(); i++) {
+            for (int i = 0; i < toplevel.size(); i++) {
                 if (toplevel.get(i) instanceof XSLAttributeSet) {
                     XSLAttributeSet t = (XSLAttributeSet)toplevel.get(i);
                     if (t.getAttributeSetFingerprint() == fprint) {
@@ -1367,7 +1557,7 @@ public abstract class StyleElement extends ElementWithAttributes
         }
 
         AttributeSet[] array = new AttributeSet[list.size()];
-        for (int i=0; i<list.size(); i++) {
+        for (int i = 0; i < list.size(); i++) {
             XSLAttributeSet aset = (XSLAttributeSet)list.get(i);
             aset.incrementReferenceCount();
             array[i] = aset.getInstruction();
@@ -1376,12 +1566,13 @@ public abstract class StyleElement extends ElementWithAttributes
     }
 
     /**
-    * Get the list of xsl:with-param elements for a calling element (apply-templates,
-    * call-template, apply-imports, next-match). This method can be used to get either
+     * Get the list of xsl:with-param elements for a calling element (apply-templates,
+     * call-template, apply-imports, next-match). This method can be used to get either
      * the tunnel parameters, or the non-tunnel parameters.
+     *
      * @param tunnel true if the tunnel="yes" parameters are wanted, false to get
-     * the non-tunnel parameters
-    */
+     *               the non-tunnel parameters
+     */
 
     protected WithParam[] getWithParamInstructions(Executable exec, boolean tunnel) throws TransformerConfigurationException {
         int count = 0;
@@ -1417,20 +1608,20 @@ public abstract class StyleElement extends ElementWithAttributes
     }
 
     /**
-    * Construct an exception with diagnostic information
-    */
+     * Construct an exception with diagnostic information
+     */
 
     protected void compileError(TransformerException error)
-    throws TransformerConfigurationException {
+            throws TransformerConfigurationException {
 
         // Set the location of the error if there is not current location information,
         // or if the current location information is local to the XPath expression
-        if (error.getLocator()==null || error.getLocator() instanceof ExpressionLocation) {
+        if (error.getLocator() == null || error.getLocator() instanceof ExpressionLocation) {
             error.setLocator(this);
         }
         PreparedStylesheet pss = getPreparedStylesheet();
         try {
-            if (pss==null) {
+            if (pss == null) {
                 // it is null before the stylesheet has been fully built
                 throw error;
             } else {
@@ -1450,7 +1641,7 @@ public abstract class StyleElement extends ElementWithAttributes
     }
 
     protected void compileError(String message)
-    throws TransformerConfigurationException {
+            throws TransformerConfigurationException {
         StaticError tce = new StaticError(message);
         tce.setLocator(this);
         compileError(tce);
@@ -1458,82 +1649,97 @@ public abstract class StyleElement extends ElementWithAttributes
 
     /**
      * Compile time error, specifying an error code
-     * @param message the error message
+     *
+     * @param message   the error message
      * @param errorCode the error code. May be null if not known or not defined
      * @throws TransformerConfigurationException
+     *
      */
-    protected void compileError(String message, String errorCode)
-    throws TransformerConfigurationException {
+    protected void compileError(String message, QName errorCode)
+            throws TransformerConfigurationException {
         StaticError tce = new StaticError(message);
         tce.setErrorCode(errorCode);
         tce.setLocator(this);
         compileError(tce);
     }
 
+    protected void compileError(String message, String errorCode) throws TransformerConfigurationException {
+        compileError(message, new QName(NamespaceConstant.ERR, errorCode, "err"));
+    }
+
     protected void compileWarning(String message)
-    throws TransformerConfigurationException {
+            throws TransformerConfigurationException {
         TransformerConfigurationException tce =
-            new TransformerConfigurationException(message);
+                new TransformerConfigurationException(message);
         tce.setLocator(this);
         PreparedStylesheet pss = getPreparedStylesheet();
-        if (pss!=null) {
+        if (pss != null) {
             pss.reportWarning(tce);
         }
     }
 
     /**
-    * Construct an exception with diagnostic information
-    */
+     * Construct an exception with diagnostic information
+     */
 
     protected void issueWarning(TransformerException error) {
-        if (error.getLocator()==null) {
+        if (error.getLocator() == null) {
             error.setLocator(this);
         }
         PreparedStylesheet pss = getPreparedStylesheet();
-        if (pss!=null) {
+        if (pss != null) {
             // it is null before the stylesheet has been fully built - ignore it
             pss.reportWarning(error);
         }
     }
 
-    protected void issueWarning(String message) {
+    protected void issueWarning(String message, SourceLocator locator) {
         TransformerConfigurationException tce =
-            new TransformerConfigurationException(message);
-        tce.setLocator(this);
+                new TransformerConfigurationException(message);
+        if (locator == null) {
+            tce.setLocator(this);
+        } else {
+            tce.setLocator(locator);
+        }
         issueWarning(tce);
     }
 
     /**
-    * Test whether this is a top-level element
-    */
+     * Test whether this is a top-level element
+     */
 
     public boolean isTopLevel() {
         return (getParentNode() instanceof XSLStylesheet);
     }
 
     /**
-    * Bind a variable used in this element to the compiled form of the XSLVariable element in which it is
-    * declared
-    * @param fingerprint The fingerprint of the name of the variable
-    * @return the XSLVariableDeclaration (that is, an xsl:variable or xsl:param instruction) for the variable
-    * @throws org.orbeon.saxon.xpath.StaticError if the variable has not been declared
-    */
+     * Bind a variable used in this element to the compiled form of the XSLVariable element in which it is
+     * declared
+     *
+     * @param fingerprint The fingerprint of the name of the variable
+     * @return the XSLVariableDeclaration (that is, an xsl:variable or xsl:param instruction) for the variable
+     * @throws org.orbeon.saxon.xpath.StaticError if the variable has not been declared
+     */
 
     public XSLVariableDeclaration bindVariable(int fingerprint) throws StaticError {
         XSLVariableDeclaration binding = getVariableBinding(fingerprint);
-        if (binding==null) {
-            throw new StaticError("Variable " + getTargetNamePool().getDisplayName(fingerprint) + " has not been declared");
+        if (binding == null) {
+            StaticError err = new StaticError("Variable " + getTargetNamePool().getDisplayName(fingerprint) +
+                    " has not been declared");
+            err.setErrorCode("XP0008");
+            throw err;
         }
         return binding;
     }
 
     /**
-    * Bind a variable used in this element to the declaration in the stylesheet
-    * @param fprint The absolute name of the variable (prefixed by namespace URI)
-    * @return the XSLVariableDeclaration, or null if it has not been declared
-    */
+     * Bind a variable used in this element to the declaration in the stylesheet
+     *
+     * @param fprint The absolute name of the variable (prefixed by namespace URI)
+     * @return the XSLVariableDeclaration, or null if it has not been declared
+     */
 
-    public XSLVariableDeclaration getVariableBinding(int fprint) {
+    private XSLVariableDeclaration getVariableBinding(int fprint) {
         NodeInfo curr = this;
         NodeInfo prev = this;
 
@@ -1544,6 +1750,10 @@ public abstract class StyleElement extends ElementWithAttributes
                 curr = (NodeInfo)preceding.next();
                 while (curr == null) {
                     curr = prev.getParent();
+                    while (curr instanceof XSLFallback) {
+                        // a local variable is not visible within a sibling xsl:fallback element
+                        curr = curr.getParent();
+                    }
                     prev = curr;
                     if (curr.getParent() instanceof XSLStylesheet) {
                         break;   // top level
@@ -1551,10 +1761,12 @@ public abstract class StyleElement extends ElementWithAttributes
                     preceding = curr.iterateAxis(Axis.PRECEDING_SIBLING);
                     curr = (NodeInfo)preceding.next();
                 }
-                if (curr.getParent() instanceof XSLStylesheet) break;
+                if (curr.getParent() instanceof XSLStylesheet) {
+                    break;
+                }
                 if (curr instanceof XSLVariableDeclaration) {
                     XSLVariableDeclaration var = (XSLVariableDeclaration)curr;
-                    if (var.getVariableFingerprint()==fprint) {
+                    if (var.getVariableFingerprint() == fprint) {
                         return var;
                     }
                 }
@@ -1570,21 +1782,22 @@ public abstract class StyleElement extends ElementWithAttributes
     }
 
     /**
-    * List the variables that are in scope for this stylesheet element.
-    * Designed for a debugger, not used by the processor.
-    * @return two Enumeration of Strings, the global ones [0] and the local ones [1]
-    */
+     * List the variables that are in scope for this stylesheet element.
+     * Designed for a debugger, not used by the processor.
+     * @return two Enumeration of Strings, the global ones [0] and the local ones [1]
+     */
 
 
 
     /**
-    * Get a FunctionCall declared using an xsl:function element in the stylesheet
-    * @param fingerprint the fingerprint of the name of the function
-    * @param arity the number of arguments in the function call. The value -1
-    * indicates that any arity will do (this is used to support the function-available() function).
-    * @return the XSLFunction object representing the function declaration
-     * in the stylesheet, or null if no such function is defined.
-    */
+     * Get a FunctionCall declared using an xsl:function element in the stylesheet
+     *
+     * @param fingerprint the fingerprint of the name of the function
+     * @param arity       the number of arguments in the function call. The value -1
+     *                    indicates that any arity will do (this is used to support the function-available() function).
+     * @return the XSLFunction object representing the function declaration
+     *         in the stylesheet, or null if no such function is defined.
+     */
 
     public XSLFunction getStylesheetFunction(int fingerprint, int arity) {
 
@@ -1592,11 +1805,11 @@ public abstract class StyleElement extends ElementWithAttributes
 
         XSLStylesheet root = getPrincipalStylesheet();
         List toplevel = root.getTopLevel();
-        for (int i=toplevel.size()-1; i>=0; i--) {
+        for (int i = toplevel.size() - 1; i >= 0; i--) {
             Object child = toplevel.get(i);
             if (child instanceof XSLFunction &&
                     ((XSLFunction)child).getFunctionFingerprint() == fingerprint &&
-                    (arity==-1 || ((XSLFunction)child).getNumberOfArguments() == arity)) {
+                    (arity == -1 || ((XSLFunction)child).getNumberOfArguments() == arity)) {
                 XSLFunction func = (XSLFunction)child;
                 return func;
             }
@@ -1623,15 +1836,6 @@ public abstract class StyleElement extends ElementWithAttributes
     }
 
     /**
-     * Get a description of the instruction for use in error messages. For an XSLT instruction this
-     * will be the display name
-     */
-
-//    public String getDescription(NamePool pool) {
-//        return getDisplayName();
-//    }
-
-    /**
      * Get a name identifying the object of the expression, for example a function name, template name,
      * variable name, key name, element name, etc. This is used only where the name is known statically.
      * If there is no name, the value will be -1.
@@ -1648,7 +1852,7 @@ public abstract class StyleElement extends ElementWithAttributes
      */
 
     public int getObjectFingerprint() {
-        return (objectNameCode == -1 ? -1 : objectNameCode&0xfffff);
+        return (objectNameCode == -1 ? -1 : objectNameCode & 0xfffff);
     }
 
     /**
@@ -1664,7 +1868,7 @@ public abstract class StyleElement extends ElementWithAttributes
      */
 
     public NamespaceResolver getNamespaceResolver() {
-        return makeNamespaceContext() ;
+        return makeNamespaceContext();
     }
 
     /**
@@ -1672,8 +1876,9 @@ public abstract class StyleElement extends ElementWithAttributes
      * {@link InstructionInfo} interface for run-time tracing and debugging. The properties
      * available include all the attributes of the source instruction (named by the attribute name):
      * these are all provided as string values.
+     *
      * @param name The name of the required property
-     * @return  The value of the requested property, or null if the property is not available
+     * @return The value of the requested property, or null if the property is not available
      */
 
     public Object getProperty(String name) {
@@ -1692,7 +1897,9 @@ public abstract class StyleElement extends ElementWithAttributes
         AxisIterator it = iterateAxis(Axis.ATTRIBUTE);
         while (true) {
             NodeInfo a = (NodeInfo)it.next();
-            if (a==null) break;
+            if (a == null) {
+                break;
+            }
             list.add(pool.getClarkName(a.getNameCode()));
         }
         return list.iterator();
@@ -1723,5 +1930,4 @@ public abstract class StyleElement extends ElementWithAttributes
 // Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
 //
 // Contributor(s):
-// Portions marked "e.g." are from Edwin Glaser (edwin@pannenleiter.de)
 //

@@ -13,10 +13,11 @@ public abstract class TreatExpression {
     */
 
     public static Expression make(Expression sequence, SequenceType type) {
-        RoleLocator role = new RoleLocator(RoleLocator.TYPE_OP, "treat as", 0);
+        RoleLocator role = new RoleLocator(RoleLocator.TYPE_OP, "treat as", 0, null);
+        role.setErrorCode("XT0570");
         Expression e = new CardinalityChecker(sequence, type.getCardinality(), role);
         ItemChecker checker = new ItemChecker(e, type.getPrimaryType(), role);
-        checker.setErrorCode("XP0050");
+        //role.setErrorCode("XP0050");
         return checker;
     }
 

@@ -1,5 +1,5 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.value.Value;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.value.Value;
 
 /**
  * A ParameterSet is a set of parameters supplied when calling a template.

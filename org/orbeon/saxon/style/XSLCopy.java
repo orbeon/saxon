@@ -1,14 +1,15 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.instruct.Instruction;
-import org.orbeon.saxon.instruct.Copy;
-import org.orbeon.saxon.instruct.AttributeSet;
-import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.tree.AttributeCollection;
-import org.orbeon.saxon.om.Validation;
-import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.instruct.AttributeSet;
+import org.orbeon.saxon.instruct.Copy;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.om.Validation;
+import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.value.EmptySequence;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -77,24 +78,24 @@ public class XSLCopy extends StyleElement {
             } else if (copyNamespacesAtt.equals("no")) {
                 copyNamespaces = false;
             } else {
-                compileError("Value of copy-namespaces must be 'yes' or 'no'");
+                compileError("Value of copy-namespaces must be 'yes' or 'no'", "XT0020");
             }
         }
 
         if (typeAtt != null && validationAtt != null) {
-            compileError("The type and validation attributes must not both be specified");
+            compileError("The type and validation attributes must not both be specified", "XT1505");
         }
 
         if (validationAtt != null) {
             validationAction = Validation.getCode(validationAtt);
             if (validationAction != Validation.STRIP && !getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("To perform validation, a schema-aware XSLT processor is needed");
+                compileError("To perform validation, a schema-aware XSLT processor is needed", "XT1660");
             }
         }
         if (typeAtt != null) {
             schemaType = getSchemaType(typeAtt);
             if (!getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("The type attribute is available only with a schema-aware XSLT processor");
+                compileError("The type attribute is available only with a schema-aware XSLT processor", "XT1660");
             }
         }
         if (inheritAtt != null) {
@@ -103,7 +104,7 @@ public class XSLCopy extends StyleElement {
             } else if (inheritAtt.equals("no")) {
                 inheritNamespaces = false;
             } else {
-                compileError("The inherit-namespaces attribute has permitted values (yes, no)");
+                compileError("The inherit-namespaces attribute has permitted values (yes, no)", "XT0020");
             }
         }
     }
@@ -121,7 +122,11 @@ public class XSLCopy extends StyleElement {
                              inheritNamespaces,
                              schemaType,
                              validationAction);
-        compileChildren(exec, inst, true);
+        Expression b = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+        if (b == null) {
+            b = EmptySequence.getInstance();
+        }
+        inst.setContent(b);
         ExpressionTool.makeParentReferences(inst);
         return inst;
     }

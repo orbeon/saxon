@@ -4,7 +4,7 @@ import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * Binding is a interface used to represent the run-time properties and methods
-* associated with a variable: specifically, methods to get the name, type, and value
+* associated with a variable: specifically, a method to get the value
 * of the variable.
 */
 

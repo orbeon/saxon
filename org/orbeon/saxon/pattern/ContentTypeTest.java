@@ -71,12 +71,16 @@ public class ContentTypeTest extends NodeTest {
             return false;
         }
 
-        SchemaType type = config.getSchemaType(annotation & 0xfffff).getBaseType();
-        while (type != null) {
-            if (type.getFingerprint() == requiredType) {
-                return true;
+        try {
+            SchemaType type = config.getSchemaType(annotation & 0xfffff).getBaseType();
+            while (type != null) {
+                if (type.getFingerprint() == requiredType) {
+                    return true;
+                }
+                type = type.getBaseType();
             }
-            type = type.getBaseType();
+        } catch (UnresolvedReferenceException e) {
+            throw new IllegalStateException(e.getMessage());
         }
         return false;
     }

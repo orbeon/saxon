@@ -1,13 +1,12 @@
 package org.orbeon.saxon.instruct;
-import org.orbeon.saxon.expr.*;
-import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.SingletonIterator;
 import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.trace.InstructionInfo;
-import org.orbeon.saxon.trace.Location;
-import org.orbeon.saxon.om.SingletonIterator;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * Handler for global variables in a stylesheet or query. <br>
@@ -42,12 +41,6 @@ public class GlobalVariable extends GeneralVariable implements Container {
 
         // This code is not used. A global variable is not really an instruction, although
         // it is modelled as such, and it will be evaluated using the evaluateVariable() call
-
-//        Bindery b = context.getController().getBindery();
-//        if (!b.isEvaluated(this)) {                 // don't evaluate a global variable twice
-//            Value value = getSelectValue(context);
-//            b.defineGlobalVariable(this, value);
-//        }
         return null;
     }
 
@@ -91,17 +84,19 @@ public class GlobalVariable extends GeneralVariable implements Container {
 
             try {
                 b.setExecuting(this, true);
-                //XPathContext c2 = controller.setGlobalContext();
                 Value value = getSelectValue(context);
                 b.defineGlobalVariable(this, value);
                 b.setExecuting(this, false);
                 return value;
 
             } catch (XPathException err) {
+                b.setExecuting(this, false);
                 if (err instanceof XPathException.Circularity) {
                     DynamicError e = new DynamicError("Circular definition of variable " + getVariableName());
                     e.setXPathContext(context);
                     e.setErrorCode("XT0640");
+                    // Detect it more quickly the next time (in a pattern, the error is recoverable)
+                    select = new ErrorExpression(e);
                     throw e;
                 } else {
                     throw err;

@@ -1,16 +1,18 @@
 package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.trace.TraceListener;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.xpath.XPathException;
 
-import java.util.Iterator;
 import java.io.PrintStream;
+import java.util.Iterator;
 
 
 /**
@@ -36,12 +38,31 @@ public class ForEach extends Instruction implements MappingFunction {
     }
 
     /**
+     * Get the action expression (the content of the for-each)
+     */
+
+    public Expression getActionExpression() {
+        return action;
+    }
+
+    /**
     * Determine the data type of the items returned by this expression
     * @return the data type
     */
 
     public final ItemType getItemType() {
         return action.getItemType();
+    }
+
+    /**
+     * Determine whether this instruction creates new nodes.
+     * This implementation returns true if the "action" creates new nodes.
+     * (Nodes created by the condition can't contribute to the result).
+     */
+
+    public final boolean createsNewNodes() {
+        int props = action.getSpecialProperties();
+        return ((props & StaticProperty.NON_CREATIVE) == 0);
     }
 
     /**
@@ -82,7 +103,29 @@ public class ForEach extends Instruction implements MappingFunction {
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
         select = select.analyze(env, contextItemType);
         action = action.analyze(env, select.getItemType());
-        return this;
+        if (select instanceof EmptySequence) {
+            return EmptySequence.getInstance();
+        }
+        if (action instanceof EmptySequence) {
+            return EmptySequence.getInstance();
+        }
+
+        // If any subexpressions within the body of the for-each are not dependent on the focus,
+        // promote them: this causes them to be evaluated once, outside the for-each loop
+
+        PromotionOffer offer = new PromotionOffer();
+        offer.action = PromotionOffer.FOCUS_INDEPENDENT;
+        offer.promoteDocumentDependent = (select.getSpecialProperties() & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0;
+        offer.promoteXSLTFunctions = false;
+        offer.containingExpression = this;
+        action = action.promote(offer);
+
+        if (offer.containingExpression instanceof LetExpression) {
+            // TODO: get all the extractable sub-expressions in one pass, to avoid unnecessary repetition.
+            offer.containingExpression = offer.containingExpression.analyze(env, contextItemType);
+        }
+
+        return offer.containingExpression;
     }
 
     /**
@@ -125,6 +168,28 @@ public class ForEach extends Instruction implements MappingFunction {
     public Iterator iterateSubExpressions() {
         return new PairIterator(select, action);
     }
+
+    /**
+     * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
+     * This method indicates which of these methods is provided. This implementation provides both iterate() and
+     * process() methods natively.
+     */
+
+    public int getImplementationMethod() {
+        return ITERATE_METHOD | PROCESS_METHOD;
+    }
+
+    /**
+     * Check that any elements and attributes constructed or returned by this expression are acceptable
+     * in the content model of a given complex type. It's always OK to say yes, since the check will be
+     * repeated at run-time. The process of checking element and attribute constructors against the content
+     * model of a complex type also registers the type of content expected of those constructors, so the
+     * static validation can continue recursively.
+     */
+
+    public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException {
+        action.checkPermittedContents(parentType, env, false);
+    }    
 
     public TailCall processLeavingTail(XPathContext context) throws XPathException {
         Controller controller = context.getController();

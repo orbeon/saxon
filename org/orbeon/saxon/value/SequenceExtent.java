@@ -1,17 +1,12 @@
 package org.orbeon.saxon.value;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.StaticProperty;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.om.ArrayIterator;
-import org.orbeon.saxon.om.ReverseArrayIterator;
-import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.om.AxisIterator;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.AnyItemType;
-import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.type.AnyItemType;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.List;
 
@@ -107,6 +102,21 @@ public final class SequenceExtent extends SequenceValue {
 
     public SequenceExtent materialize() throws XPathException {
         return this;
+    }
+
+    /**
+     * Simplify this SequenceExtent
+     */
+
+    public Value simplify() {
+        int n = getLength();
+        if (n == 0) {
+            return EmptySequence.getInstance();
+        } else if (n == 1) {
+            return Value.asValue(itemAt(0));
+        } else {
+            return this;
+        }
     }
 
     /**

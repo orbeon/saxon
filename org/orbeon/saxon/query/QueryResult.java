@@ -1,26 +1,22 @@
 package org.orbeon.saxon.query;
 
-import org.orbeon.saxon.event.DocumentSender;
-import org.orbeon.saxon.event.NamespaceReducer;
-import org.orbeon.saxon.event.Receiver;
-import org.orbeon.saxon.event.ResultWrapper;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.event.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.tinytree.TinyBuilder;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.value.QNameValue;
-
-import javax.xml.transform.Result;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Result;
 import javax.xml.transform.stream.StreamResult;
-import java.util.Properties;
 import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
-import java.io.PrintWriter;
 import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
+import java.util.Properties;
 
 /**
  * This utility class takes the result sequence produced by a query, and wraps it as
@@ -44,15 +40,17 @@ public class QueryResult {
 
     public static DocumentInfo wrap(SequenceIterator iterator, Configuration config) throws XPathException {
         NamePool pool = config.getNamePool();
+        PipelineConfiguration pipe = config.makePipelineConfiguration();
         TinyBuilder builder = new TinyBuilder();
 
         NamespaceReducer reducer = new NamespaceReducer();
         reducer.setUnderlyingReceiver(builder);
         Receiver tree = reducer;
 
-        tree.setConfiguration(config);
-        builder.setConfiguration(config);
+        tree.setPipelineConfiguration(pipe);
+        builder.setPipelineConfiguration(pipe);
         tree.open();
+        tree.startDocument(0);
 
         int resultSequence = pool.allocate("result", RESULT_NS, "sequence");
         int resultDocument = pool.allocate("result", RESULT_NS, "document");
@@ -130,8 +128,9 @@ public class QueryResult {
 
         }
         tree.endElement();
+        tree.endDocument();
         tree.close();
-        return builder.getCurrentDocument();
+        return (DocumentInfo)builder.getCurrentRoot();
     }
 
     /**
@@ -146,17 +145,18 @@ public class QueryResult {
 
     public static void serialize(NodeInfo node, Result destination, Properties outputProperties, Configuration config)
     throws XPathException {
+        PipelineConfiguration pipe = config.makePipelineConfiguration();
         int type = node.getNodeKind();
         if (type==Type.DOCUMENT || type==Type.ELEMENT) {
             DocumentSender sender = new DocumentSender(node);
             Receiver receiver =
                     ResultWrapper.getReceiver(destination,
-                                              config,
+                                              pipe,
                                               outputProperties,
                                               null);
             NamespaceReducer reducer = new NamespaceReducer();
             reducer.setUnderlyingReceiver(receiver);
-            reducer.setConfiguration(config);
+            reducer.setPipelineConfiguration(pipe);
             sender.send(reducer);
         } else {
             throw new DynamicError("Node to be serialized must be a Document or Element node");

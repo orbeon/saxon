@@ -1,9 +1,7 @@
 package org.orbeon.saxon.sort;
 import org.orbeon.saxon.Loader;
-import org.orbeon.saxon.xpath.XPathException;
-
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.net.URI;
 import java.net.URISyntaxException;

@@ -3,9 +3,8 @@ import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * Implement the fn:doc() function - a simplified form of the Document function
@@ -16,8 +15,10 @@ public class Doc extends SystemFunction {
     private String expressionBaseURI = null;
 
     public void checkArguments(StaticContext env) throws XPathException {
-        super.checkArguments(env);
-        expressionBaseURI = env.getBaseURI();
+        if (expressionBaseURI == null) {
+            super.checkArguments(env);
+            expressionBaseURI = env.getBaseURI();
+        }
     }
 
     /**
@@ -37,19 +38,12 @@ public class Doc extends SystemFunction {
         Item item = Document.makeDoc(href, expressionBaseURI, context);
         if (item==null) {
             // we failed to read the document
-            dynamicError("Failed to load document " + href, context);
+            dynamicError("Failed to load document " + href, "FODC0005", context);
             return null;
         }
         return item;
     }
-
-
-
 }
-
-
-
-
 
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");

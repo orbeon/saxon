@@ -27,6 +27,7 @@ public abstract class CalendarValue extends AtomicValue implements Comparable {
      */
 
     public SecondsDurationValue subtract(CalendarValue other) throws XPathException {
+        // TODO: use implicit timezone where necessary
         long t1 = calendar.getTimeInMillis();
         long t2 = other.calendar.getTimeInMillis();
         long diff = (t1 - t2);

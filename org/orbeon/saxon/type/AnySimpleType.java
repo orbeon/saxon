@@ -1,11 +1,11 @@
-package net.sf.saxon.type;
+package org.orbeon.saxon.type;
 
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.om.*;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.value.UntypedAtomicValue;
-import net.sf.saxon.value.Whitespace;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.value.UntypedAtomicValue;
+import org.orbeon.saxon.value.Whitespace;
 
 /**
  * This class has a singleton instance which represents the XML Schema built-in type xs:anySimpleType
@@ -189,7 +189,7 @@ public final class AnySimpleType implements SimpleType, ValidSchemaType {
      *                 in the content of values. Can supply null, in which case any namespace-sensitive content
      *                 will be rejected.
      * @return an iterator over the atomic sequence comprising the typed value. The objects
-     *         returned by this SequenceIterator will all be of type {@link net.sf.saxon.value.AtomicValue}
+     *         returned by this SequenceIterator will all be of type {@link org.orbeon.saxon.value.AtomicValue}
      */
 
     public SequenceIterator getTypedValue(CharSequence value, NamespaceResolver resolver) {
@@ -255,8 +255,8 @@ public final class AnySimpleType implements SimpleType, ValidSchemaType {
     /**
      * Determine how values of this simple type are whitespace-normalized.
      *
-     * @return one of {@link net.sf.saxon.value.Whitespace#PRESERVE}, {@link net.sf.saxon.value.Whitespace#COLLAPSE},
-     *         {@link net.sf.saxon.value.Whitespace#REPLACE}.
+     * @return one of {@link org.orbeon.saxon.value.Whitespace#PRESERVE}, {@link org.orbeon.saxon.value.Whitespace#COLLAPSE},
+     *         {@link org.orbeon.saxon.value.Whitespace#REPLACE}.
      */
 
     public int getWhitespaceAction() {
@@ -313,8 +313,8 @@ public final class AnySimpleType implements SimpleType, ValidSchemaType {
      * type.
      *
      * @param expression the expression that delivers the content
-     * @param kind       the node kind whose content is being delivered: {@link net.sf.saxon.type.Type.ELEMENT},
-     *                   {@link net.sf.saxon.type.Type.ATTRIBUTE}, or {@link net.sf.saxon.type.Type.DOCUMENT}
+     * @param kind       the node kind whose content is being delivered: {@link org.orbeon.saxon.type.Type.ELEMENT},
+     *                   {@link org.orbeon.saxon.type.Type.ATTRIBUTE}, or {@link org.orbeon.saxon.type.Type.DOCUMENT}
      * @param env
      */
 

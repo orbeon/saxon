@@ -25,7 +25,7 @@ public class ReceivingContentHandler
         implements ContentHandler, LexicalHandler, DTDHandler, SaxonLocator
 {
     private NamePool pool;
-    private Configuration config;
+    private PipelineConfiguration pipe;
     private Receiver receiver;
     private boolean inDTD = false;	// true while processing the DTD
     private Locator locator;        // a SAX Locator
@@ -53,13 +53,19 @@ public class ReceivingContentHandler
 		receiver = e;
 	}
 
-    public void setConfiguration(Configuration config) {
-        this.config = config;
-        this.pool = config.getNamePool();
+    public void setPipelineConfiguration(PipelineConfiguration pipe) {
+        this.pipe = pipe;
+        pipe.setLocationProvider(this);
+        this.pool = pipe.getConfiguration().getNamePool();
+
+    }
+
+    public PipelineConfiguration getPipelineConfiguration() {
+        return pipe;
     }
 
     public Configuration getConfiguration() {
-        return config;
+        return pipe.getConfiguration();
     }
 
     /**
@@ -71,9 +77,10 @@ public class ReceivingContentHandler
         try {
             used = 0;
             namespacesUsed = 0;
-            receiver.setDocumentLocator(this);
-            receiver.setConfiguration(config);
+            pipe.setLocationProvider(this);
+            receiver.setPipelineConfiguration(pipe);
             receiver.open();
+            receiver.startDocument(0);
         } catch (XPathException err) {
             throw new SAXException(err);
         }
@@ -86,6 +93,7 @@ public class ReceivingContentHandler
     public void endDocument () throws SAXException {
         try {
             flush();
+            receiver.endDocument();
             receiver.close();
         } catch (ValidationException err) {
             err.setLocator(locator);
@@ -149,7 +157,7 @@ public class ReceivingContentHandler
     		    int attCode = getNameCode(atts.getURI(a), atts.getLocalName(a), atts.getQName(a));
     		    String type = atts.getType(a);
     		    int typeCode = -1;
-                if (config.isRetainDTDAttributeTypes()) {
+                if (getConfiguration().isRetainDTDAttributeTypes()) {
                     if (type.equals("CDATA")) {
                         // no action
                     } else if (type.equals("ID")) {
@@ -190,6 +198,7 @@ public class ReceivingContentHandler
     }
 
     private int getNameCode(String uri, String localname, String rawname) throws SAXException {
+        // System.err.println("URI=" + uri + " local=" + " raw=" + rawname);
         // The XML parser isn't required to report the rawname (qname), though most of them do.
         // If none is provided, we give up
         if (rawname.equals("")) {

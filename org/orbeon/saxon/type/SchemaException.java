@@ -59,26 +59,6 @@ public class SchemaException extends TransformerConfigurationException {
         super(message, exception);
     }
 
-    /**
-     * Wrap a supplied exception to produce a SchemaException
-     */
-
-    public static SchemaException wrap(Exception e) {
-        if (e instanceof SchemaException) {
-            return (SchemaException)e;
-        } else if (e instanceof XPathException) {
-            Throwable e0 = ((XPathException)e).getException();
-            if (e0 instanceof SchemaException) {
-                return (SchemaException)e0;
-            } else if (e0 instanceof java.io.IOException) {
-                return new SchemaException((Exception)e0);
-            } else {
-                return new SchemaException(e);
-            }
-        } else {
-            return new SchemaException(e);
-        }
-    }
 }
 
 //

@@ -1,5 +1,4 @@
 package org.orbeon.saxon.instruct;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.DynamicError;
 
 /**

@@ -1,21 +1,20 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.TypeChecker;
-import org.orbeon.saxon.expr.RoleLocator;
 import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.RoleLocator;
+import org.orbeon.saxon.expr.TypeChecker;
 import org.orbeon.saxon.functions.Matches;
 import org.orbeon.saxon.instruct.AnalyzeString;
-import org.orbeon.saxon.instruct.Block;
 import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.om.AxisIterator;
 import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.om.Axis;
-import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.RegexTranslator;
 import org.orbeon.saxon.value.SequenceType;
 import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.RegexTranslator;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.regex.Pattern;
@@ -105,16 +104,19 @@ public class XSLAnalyzeString extends StyleElement {
             try {
                 jflags = Matches.setFlags(((StringValue)flags).getStringValue());
             } catch (XPathException err) {
-                compileError("Invalid value of flags attribute: " + err);
+                compileError("Invalid value of flags attribute: " + err, "XT1145");
             }
             try {
                 String javaRegex = RegexTranslator.translate(
                         ((StringValue)regex).getStringValue(), true);
                 pattern = Pattern.compile(javaRegex, jflags);
+                if (pattern.matcher("").matches()) {
+                    compileError("The regular expression must not be one that matches a zero-length string", "XT1150");
+                }
             } catch (RegexTranslator.RegexSyntaxException err) {
-                compileError("Error in regular expression: " + err);
+                compileError("Error in regular expression: " + err, "XT1140");
             } catch (PatternSyntaxException err) {
-                compileError("Error in regular expression: " + err);
+                compileError("Error in regular expression: " + err, "XT1140");
             }
         }
 
@@ -133,22 +135,23 @@ public class XSLAnalyzeString extends StyleElement {
                 boolean b = curr.getLocalPart().equals("matching-substring");
                 if (b) {
                     if (matching!=null) {
-                        compileError("xsl:matching-substring element must only appear once");
+                        compileError("xsl:matching-substring element must only appear once", "XT0010");
                     }
                     matching = (StyleElement)curr;
                 } else {
                     if (nonMatching!=null) {
-                        compileError("xsl:non-matching-substring element must only appear once");
+                        compileError("xsl:non-matching-substring element must only appear once", "XT0010");
                     }
                     nonMatching = (StyleElement)curr;
                 }
             } else {
-                compileError("Only xsl:matching-substring and xsl:non-matching-substring are allowed here");
+                compileError("Only xsl:matching-substring and xsl:non-matching-substring are allowed here", "XT0010");
             }
         }
 
         if (matching==null && nonMatching==null) {
-            compileError("At least one xsl:matching-substring or xsl:non-matching-substring element must be present");
+            compileError("At least one xsl:matching-substring or xsl:non-matching-substring element must be present",
+                    "XT1130");
         }
 
         select = typeCheck("select", select);
@@ -157,15 +160,15 @@ public class XSLAnalyzeString extends StyleElement {
 
         try {
             RoleLocator role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:analyze-string/select", 0);
+                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:analyze-string/select", 0, null);
             select = TypeChecker.staticTypeCheck(select, SequenceType.SINGLE_STRING, false, role, getStaticContext());
 
             role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:analyze-string/regex", 0);
+                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:analyze-string/regex", 0, null);
             regex = TypeChecker.staticTypeCheck(regex, SequenceType.SINGLE_STRING, false, role, getStaticContext());
 
             role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:analyze-string/flags", 0);
+                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:analyze-string/flags", 0, null);
             flags = TypeChecker.staticTypeCheck(flags, SequenceType.SINGLE_STRING, false, role, getStaticContext());
         } catch (XPathException err) {
             compileError(err);
@@ -174,18 +177,14 @@ public class XSLAnalyzeString extends StyleElement {
     }
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {
-        Block matchingBlock = null;
+        Expression matchingBlock = null;
         if (matching != null) {
-            matchingBlock = new Block();
-            matchingBlock.setLocationId(allocateLocationId(getSystemId(), matching.getLineNumber()));
-            matching.compileChildren(exec, matchingBlock, true);
+            matchingBlock = matching.compileSequenceConstructor(exec, matching.iterateAxis(Axis.CHILD), false);
         }
 
-        Block nonMatchingBlock = null;
+        Expression nonMatchingBlock = null;
         if (nonMatching != null) {
-            nonMatchingBlock = new Block();
-            nonMatchingBlock.setLocationId(allocateLocationId(getSystemId(), nonMatching.getLineNumber()));
-            nonMatching.compileChildren(exec, nonMatchingBlock, true);
+            nonMatchingBlock = nonMatching.compileSequenceConstructor(exec, nonMatching.iterateAxis(Axis.CHILD), false);
         }
 
         try {

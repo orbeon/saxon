@@ -1,12 +1,12 @@
 package org.orbeon.saxon.functions;
+import org.orbeon.saxon.Err;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.Err;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -20,8 +20,10 @@ public class UnparsedText extends SystemFunction implements XSLTFunction {
     String expressionBaseURI = null;
 
     public void checkArguments(StaticContext env) throws XPathException {
-        super.checkArguments(env);
-        expressionBaseURI = env.getBaseURI();
+        if (expressionBaseURI == null) {
+            super.checkArguments(env);
+            expressionBaseURI = env.getBaseURI();
+        }
     }
 
 

@@ -10,6 +10,7 @@ import org.orbeon.saxon.xpath.XPathException;
 * functions; the run-time type checking is done as part of the function call mechanism
 */
 
+// TODO: the only problem with implementing the functions this way is that the wrong error codes are produced.
 
 public class TreatFn extends SystemFunction {
 

@@ -1,13 +1,13 @@
 package org.orbeon.saxon.sort;
 
+import org.orbeon.saxon.expr.LastPositionFinder;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.XPathContextMajor;
-import org.orbeon.saxon.expr.LastPositionFinder;
-import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.trace.InstructionInfoProvider;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * A SortedGroupIterator is a modified SortedIterator. It sorts a sequence of groups,

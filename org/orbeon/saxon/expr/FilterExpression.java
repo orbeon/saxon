@@ -12,8 +12,8 @@ import org.orbeon.saxon.value.*;
 import org.orbeon.saxon.xpath.StaticError;
 import org.orbeon.saxon.xpath.XPathException;
 
-import java.util.Iterator;
 import java.io.PrintStream;
+import java.util.Iterator;
 
 /**
 * A FilterExpression contains a base expression and a filter predicate, which may be an
@@ -226,7 +226,7 @@ public final class FilterExpression extends ComputedExpression {
             return in;
         }
         Expression[] args = {in};
-        FunctionCall fn = SystemFunction.makeSystemFunction("boolean", namePool);
+        FunctionCall fn = SystemFunction.makeSystemFunction("boolean", 1, namePool);
         fn.setArguments(args);
         return fn;
     }

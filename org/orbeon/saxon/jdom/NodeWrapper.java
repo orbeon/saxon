@@ -1,15 +1,15 @@
 package org.orbeon.saxon.jdom;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.AnyNodeTest;
 import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.UntypedAtomicValue;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.xpath.XPathException;
 import org.jdom.*;
 
-import org.orbeon.saxon.xpath.XPathException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -103,6 +103,14 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 
 
     /**
+     * Get the configuration
+     */
+
+    public Configuration getConfiguration() {
+        return docWrapper.getConfiguration();
+    }
+
+    /**
      * Get the name pool for this node
      * @return the NamePool
      */
@@ -124,7 +132,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     * Get the typed value of the item
     */
 
-    public SequenceIterator getTypedValue(Configuration config) {
+    public SequenceIterator getTypedValue() {
         return SingletonIterator.makeIterator(new UntypedAtomicValue(getStringValue()));
     }
 

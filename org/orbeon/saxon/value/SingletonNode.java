@@ -1,17 +1,12 @@
 package org.orbeon.saxon.value;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.Navigator;
-import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.om.SingletonIterator;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.AnyNodeTest;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -92,7 +87,8 @@ public class SingletonNode extends Value {
     */
 
     public int getSpecialProperties() {
-        return StaticProperty.ORDERED_NODESET;
+        return StaticProperty.ORDERED_NODESET |
+                StaticProperty.NON_CREATIVE;
     }
 
     /**

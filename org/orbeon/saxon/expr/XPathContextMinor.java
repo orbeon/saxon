@@ -1,15 +1,11 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.ParameterSet;
 import org.orbeon.saxon.event.*;
 import org.orbeon.saxon.instruct.LocalParam;
-import org.orbeon.saxon.instruct.LocationMap;
+import org.orbeon.saxon.instruct.ParameterSet;
 import org.orbeon.saxon.instruct.RegexIterator;
 import org.orbeon.saxon.instruct.Template;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.LookaheadIterator;
-import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.om.Validation;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.sort.CodepointCollator;
 import org.orbeon.saxon.sort.CollationFactory;
 import org.orbeon.saxon.sort.GroupIterator;
@@ -84,6 +80,14 @@ public class XPathContextMinor implements XPathContext {
         XPathContextMajor c = new XPathContextMajor(this.getController());
         c.setCaller(this);
         return c;
+    }
+
+    /**
+     * Get the XSLT-specific part of the context
+     */
+
+    public XPathContextMajor.XSLTContext getXSLTContext() {
+        return getCaller().getXSLTContext();
     }
 
     /**
@@ -260,7 +264,7 @@ public class XPathContextMinor implements XPathContext {
     */
 
     public Comparator getCollation(String name) throws XPathException {
-        if (name.equals(CodepointCollator.URI)) {
+        if (name.equals(NamespaceConstant.CodepointCollationURI)) {
             return CodepointCollator.getInstance();
         }
         Comparator collation = null;
@@ -349,23 +353,23 @@ public class XPathContextMinor implements XPathContext {
         } else {
             isTemporaryDestination = true;
         }
+        PipelineConfiguration pipe = controller.makePipelineConfiguration();
         ComplexContentOutputter out = new ComplexContentOutputter();
-        out.setConfiguration(controller.getConfiguration());
-        LocationMap locationMap = controller.getExecutable().getLocationMap();
-        out.setDocumentLocator(locationMap);
+        out.setPipelineConfiguration(pipe);
+
         if (props == null) {
             props = new Properties();
         }
 
+
         Receiver receiver = ResultWrapper.getReceiver(
                                             result,
-                                            controller.getConfiguration(),
+                                            pipe,
                                             props,
                                             controller.getExecutable().getCharacterMapIndex());
 
         // add a validator to the pipeline if required
 
-        receiver.setDocumentLocator(controller.getExecutable().getLocationMap());
         if (schemaType != null) {
             try {
                 getController().getErrorListener().warning(
@@ -377,14 +381,13 @@ public class XPathContextMinor implements XPathContext {
         receiver = controller.getConfiguration().getDocumentValidator(
                 receiver, receiver.getSystemId(), controller.getNamePool(), validation
         );
-        receiver.setDocumentLocator(locationMap);
+        //receiver.getPipelineConfiguration().setLocationProvider(locationMap);
 
 		// add a filter to remove duplicate namespaces
 
 		NamespaceReducer ne = new NamespaceReducer();
 		ne.setUnderlyingReceiver(receiver);
-		ne.setConfiguration(controller.getConfiguration());
-        ne.setDocumentLocator(locationMap);
+		ne.setPipelineConfiguration(pipe);
 		out.setReceiver(ne);
 
         out.open();

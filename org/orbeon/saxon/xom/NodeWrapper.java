@@ -1,13 +1,13 @@
-package net.sf.saxon.xom;
+package org.orbeon.saxon.xom;
 
-import net.sf.saxon.Configuration;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.om.*;
-import net.sf.saxon.pattern.AnyNodeTest;
-import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.UntypedAtomicValue;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.AnyNodeTest;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.UntypedAtomicValue;
+import org.orbeon.saxon.xpath.XPathException;
 import nu.xom.*;
 
 import java.util.HashMap;
@@ -21,7 +21,7 @@ import java.util.Iterator;
  * XOM nodes.
  *
  * @author Michael H. Kay
- * @author Wolfgang Hoschek (ported net.sf.saxon.jdom to XOM)
+ * @author Wolfgang Hoschek (ported org.orbeon.saxon.jdom to XOM)
  */
 
 public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
@@ -163,7 +163,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 	 *
 	 * @return -1 (there is no type annotation)
 	 * @return the type annotation of the node.
-	 * @see net.sf.saxon.type.Type
+	 * @see org.orbeon.saxon.type.Type
 	 */
 
 	public int getTypeAnnotation() {
@@ -271,7 +271,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 	 * fingerprint: two nodes with the same fingerprint have the same local name
 	 * and namespace URI.
 	 *
-	 * @see net.sf.saxon.om.NamePool#allocate allocate
+	 * @see org.orbeon.saxon.om.NamePool#allocate allocate
 	 */
 
 	public int getNameCode() {
@@ -295,7 +295,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 	 */
 
 	public int getFingerprint() {
-		// same as in net.sf.saxon.dom.NodeWrapper as advised by Michael Kay
+		// same as in org.orbeon.saxon.dom.NodeWrapper as advised by Michael Kay
 		int nc = getNameCode();
 		if (nc == -1) { return -1; }
 		return nc & 0xfffff;

@@ -1,8 +1,8 @@
 package org.orbeon.saxon.sort;
 
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.om.ListIterator;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.ListIterator;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.pattern.Pattern;
@@ -22,7 +22,8 @@ public class GroupEndingIterator implements GroupIterator {
 
     private SequenceIterator population;
     private Pattern endPattern;
-    private XPathContext context;
+    private XPathContext baseContext;
+    private XPathContext runningContext;
     private List currentMembers;
     private Item next;
     private Item current = null;
@@ -33,18 +34,20 @@ public class GroupEndingIterator implements GroupIterator {
     throws XPathException {
         this.population = population;
         this.endPattern = endPattern;
-        this.context = context;
+        baseContext = context;
+        runningContext = context.newMinorContext();
+        runningContext.setCurrentIterator(population);
         // the first item in the population always starts a new group
         next = population.next();
      }
 
      private void advance() throws XPathException {
-         currentMembers = new ArrayList();
+         currentMembers = new ArrayList(20);
          currentMembers.add(current);
 
          next = current;
          while (next != null) {
-             if (endPattern.matches((NodeInfo)next, context)) {
+             if (endPattern.matches((NodeInfo)next, runningContext)) {
                  next = population.next();
                  if (next != null) {
                      break;
@@ -86,8 +89,7 @@ public class GroupEndingIterator implements GroupIterator {
      }
 
     public SequenceIterator getAnother() throws XPathException {
-        return new GroupEndingIterator(population, endPattern,
-                context);
+        return new GroupEndingIterator(population.getAnother(), endPattern, baseContext);
     }
 
 

@@ -2,8 +2,6 @@ package org.orbeon.saxon;
 import javax.xml.transform.Result;
 import javax.xml.transform.TransformerException;
 
-import org.orbeon.saxon.xpath.XPathException;
-
 
 /**
 * This interface defines an OutputURIResolver. This is a counterpart to the JAXP

@@ -1,28 +1,22 @@
 package org.orbeon.saxon;
 import org.orbeon.saxon.event.Builder;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.value.UntypedAtomicValue;
-import org.orbeon.saxon.trace.TraceListener;
 import org.orbeon.saxon.instruct.TerminationException;
-
-import org.xml.sax.InputSource;
-
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.ObjectInputStream;
-import java.net.URI;
-import java.net.URISyntaxException;
-
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trace.TraceListener;
+import org.orbeon.saxon.value.UntypedAtomicValue;
 import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.xml.sax.InputSource;
 
 import javax.xml.transform.*;
 import javax.xml.transform.sax.SAXSource;
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
+import java.io.File;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
 
 /**
  * This <B>Transform</B> class is the entry point to the Saxon XSLT Processor. This
@@ -86,9 +80,8 @@ public class Transform {
 
         String sourceFileName = null;
         String styleFileName = null;
-        //File sourceFile = null;
         File outputFile = null;
-        ArrayList parameterList = new ArrayList();
+        ArrayList parameterList = new ArrayList(20);
         String outputFileName = null;
         String initialMode = null;
         String initialTemplate = null;
@@ -150,9 +143,17 @@ public class Transform {
                     else if (args[i].equals("-l")) {
                         factory.setAttribute(
                             FeatureKeys.LINE_NUMBERING,
-                            new Boolean(true));
+                                Boolean.valueOf(true));
                         i++;
                     }
+
+                    else if (args[i].equals("-novw")) {
+                        factory.setAttribute(
+                            FeatureKeys.VERSION_WARNING,
+                                Boolean.valueOf(false));
+                        i++;
+                    }
+
 
                     else if (args[i].equals("-u")) {
                         useURLs = true;
@@ -161,8 +162,8 @@ public class Transform {
 
                     else if (args[i].equals("-v")) {
                         factory.setAttribute(
-                            FeatureKeys.DTD_VALIDATION,
-                            new Boolean(true));
+                                FeatureKeys.DTD_VALIDATION,
+                                Boolean.valueOf(true));
                         dtdValidation = true;
                         i++;
                     }
@@ -170,8 +171,8 @@ public class Transform {
                     else if (args[i].equals("-vw")) {
                        if (schemaAware) {
                             factory.setAttribute(
-                                FeatureKeys.VALIDATION_WARNINGS,
-                                new Boolean(true));
+                                    FeatureKeys.VALIDATION_WARNINGS,
+                                    Boolean.valueOf(true));
                         } else {
                             quit("The -vw option requires a schema-aware processor", 2);
                         }
@@ -181,8 +182,8 @@ public class Transform {
                     else if (args[i].equals("-val")) {
                         if (schemaAware) {
                             factory.setAttribute(
-                                FeatureKeys.SCHEMA_VALIDATION,
-                                new Boolean(true));
+                                    FeatureKeys.SCHEMA_VALIDATION,
+                                    Boolean.valueOf(true));
                         } else {
                             quit("The -val option requires a schema-aware processor", 2);
                         }
@@ -193,8 +194,8 @@ public class Transform {
                         System.err.println(config.getProductTitle());
                         System.err.println("Java version " + System.getProperty("java.version"));
                         factory.setAttribute(
-                            FeatureKeys.TIMING,
-                            new Boolean(true));
+                                FeatureKeys.TIMING,
+                                Boolean.valueOf(true));
 
                         //Loader.setTracing(true);
                         showTime = true;
@@ -314,7 +315,7 @@ public class Transform {
                         i++;
                         factory.setAttribute(
                                 FeatureKeys.ALLOW_EXTERNAL_FUNCTIONS,
-                                new Boolean(false));
+                                Boolean.valueOf(false));
                     }
 
                     else if (args[i].equals("-?")) {
@@ -427,18 +428,10 @@ public class Transform {
 
                 if (precompiled) {
                     try {
-                        ObjectInputStream ois = new ObjectInputStream(new FileInputStream(styleFileName));
-                        sheet = (PreparedStylesheet)ois.readObject();
-                        ois.close();
-                        NamePool compiledNamePool = sheet.getTargetNamePool();
-                        sheet.setConfiguration(config);
-                        sheet.getExecutable().setConfiguration(config);
-                        config.setNamePool(compiledNamePool);
-                        NamePool.setDefaultNamePool(compiledNamePool);
+                        sheet = PreparedStylesheet.loadCompiledStylesheet(config, styleFileName);
                         if (showTime) {
                             long endTime = (new Date()).getTime();
                             System.err.println("Stylesheet loading time: " + (endTime-startTime) + " milliseconds");
-                            startTime = endTime;
                         }
                     } catch (Exception err) {
                         err.printStackTrace();
@@ -448,7 +441,6 @@ public class Transform {
                     if (showTime) {
                         long endTime = (new Date()).getTime();
                         System.err.println("Stylesheet compilation time: " + (endTime-startTime) + " milliseconds");
-                        startTime = endTime;
                     }
                 }
 
@@ -516,7 +508,7 @@ public class Transform {
 
     public static List loadDocuments(String sourceFileName, boolean useURLs, Configuration config, boolean useSAXSource)
     throws TransformerException {
-        List result = new ArrayList();
+        List result = new ArrayList(20);
         Source sourceInput;
         if (useURLs || sourceFileName.startsWith("http:") || sourceFileName.startsWith("file:")) {
             sourceInput = config.getURIResolver().resolve(sourceFileName, null);
@@ -590,7 +582,7 @@ public class Transform {
             } catch (XPathException err) {
                 failures++;
                 System.err.println("While processing " + localName +
-                     ": " + err.getMessage() + "\n");
+                     ": " + err.getMessage() + '\n');
             }
         }
         if (failures>0) {
@@ -686,7 +678,6 @@ public class Transform {
         if (showTime) {
             long endTime = (new Date()).getTime();
             System.err.println("Execution time: " + (endTime-startTime) + " milliseconds");
-            startTime = endTime;
         }
     }
 
@@ -718,7 +709,7 @@ public class Transform {
                 processFile(source, sheet, outputFile, parameterList, initialMode);
             } catch (XPathException err) {
                 failures++;
-                System.err.println("While processing " + localName + ": " + err.getMessage() + "\n");
+                System.err.println("While processing " + localName + ": " + err.getMessage() + '\n');
             }
         }
         if (failures>0) {
@@ -770,6 +761,9 @@ public class Transform {
     		if (initialMode!=null) {
                 ((Controller)instance).setInitialMode(initialMode);
             }
+            if (outputFile==null) {
+                ((Controller)instance).setBaseOutputURI(new File(System.getProperty("user.dir")).toURI().toString());
+            }
             Result result =
                 (outputFile==null ?
                     new StreamResult(System.out) :
@@ -787,7 +781,6 @@ public class Transform {
             if (showTime) {
                 long endTime = (new Date()).getTime();
                 System.err.println("Execution time: " + (endTime-startTime) + " milliseconds");
-                startTime = endTime;
             }
         }
     }
@@ -837,7 +830,6 @@ public class Transform {
             if (showTime) {
                 long endTime = (new Date()).getTime();
                 System.err.println("Execution time: " + (endTime-startTime) + " milliseconds");
-                startTime = endTime;
             }
         }
     }
@@ -890,6 +882,7 @@ public class Transform {
         System.err.println("  -l              Retain line numbers in source document tree");
         System.err.println("  -o filename     Send output to named file or directory");
         System.err.println("  -m classname    Use specified Emitter class for xsl:message output");
+        System.err.println("  -novw           Suppress warning when running with an XSLT 1.0 stylesheet");        
         System.err.println("  -r classname    Use specified URIResolver class");
         System.err.println("  -t              Display version and timing information");
         System.err.println("  -T              Set standard TraceListener");

@@ -1,6 +1,5 @@
 package org.orbeon.saxon.pattern;
 import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 
 /**

@@ -1,6 +1,6 @@
-package net.sf.saxon.om;
+package org.orbeon.saxon.om;
 
-import net.sf.saxon.Configuration;
+import org.orbeon.saxon.Configuration;
 
 /**
  * This interface must be implemented by any third-party object model that can

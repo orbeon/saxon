@@ -1,7 +1,7 @@
 package org.orbeon.saxon.functions;
 
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.Serializable;
 

@@ -1,10 +1,10 @@
 package org.orbeon.saxon.sort;
-import org.orbeon.saxon.value.*;
 import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.*;
 
-import java.util.Comparator;
-import java.text.Collator;
 import java.text.CollationKey;
+import java.text.Collator;
+import java.util.Comparator;
 
 /**
  * A Comparator used for comparing atomic values of arbitrary item types. It encapsulates
@@ -48,11 +48,11 @@ public class AtomicSortComparer implements Comparator, java.io.Serializable {
     public int compare(Object a, Object b) {
 
         // System.err.println("Comparing " + a.getClass() + "(" + a + ") with " + b.getClass() + "(" + b + ") using " + collator);
-        if (a instanceof DerivedAtomicValue) {
-            a = ((DerivedAtomicValue)a).getPrimitiveValue();
+        if (a instanceof AtomicValue && !((AtomicValue)a).hasBuiltInType()) {
+            a = ((AtomicValue)a).getPrimitiveValue();
         }
-        if (b instanceof DerivedAtomicValue) {
-            b = ((DerivedAtomicValue)b).getPrimitiveValue();
+        if (b instanceof AtomicValue && !((AtomicValue)b).hasBuiltInType()) {
+            b = ((AtomicValue)b).getPrimitiveValue();
         }
         if (a instanceof UntypedAtomicValue) {
             return ((UntypedAtomicValue)a).compareTo(b, collator);

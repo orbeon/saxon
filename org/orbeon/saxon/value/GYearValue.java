@@ -1,16 +1,16 @@
 package org.orbeon.saxon.value;
 
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Implementation of the xs:gYear data type

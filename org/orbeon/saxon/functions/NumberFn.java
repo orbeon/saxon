@@ -1,21 +1,18 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.MappingFunction;
 import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.value.DoubleValue;
-import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.value.BooleanValue;
-import org.orbeon.saxon.value.NumericValue;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.*;
 import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * Implements the XPath number() function
  */
 
-public class NumberFn extends SystemFunction {
+public class NumberFn extends SystemFunction implements MappingFunction {
 
     /**
     * Simplify and validate.
@@ -69,6 +66,14 @@ public class NumberFn extends SystemFunction {
         }
     }
 
+    /**
+     * Mapping function for use when converting a sequence of atomic values to doubles
+     * using the rules of the number() function
+     */
+
+    public Object map(Item item, XPathContext context, Object info) throws XPathException {
+        return convert((AtomicValue)item);
+    }
 }
 
 //

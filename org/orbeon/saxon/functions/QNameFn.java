@@ -3,8 +3,8 @@ import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.Name;
 import org.orbeon.saxon.om.QNameException;
-import org.orbeon.saxon.value.QNameValue;
 import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.QNameValue;
 import org.orbeon.saxon.xpath.XPathException;
 
 
@@ -13,8 +13,6 @@ import org.orbeon.saxon.xpath.XPathException;
 */
 
 public class QNameFn extends SystemFunction {
-
-    public static final int EXPAND      = 1;
 
     /**
     * Evaluate the expression
@@ -35,7 +33,7 @@ public class QNameFn extends SystemFunction {
             String[] parts = Name.getQNameParts(lex);
             return new QNameValue(parts[0], uri, parts[1]);
         } catch (QNameException e) {
-            dynamicError(e.getMessage(), context);
+            dynamicError(e.getMessage(), "FOCA0002", context);
             return null;
         }
     }

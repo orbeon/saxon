@@ -1,13 +1,12 @@
 package org.orbeon.saxon.style;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.instruct.CopyOf;
-import org.orbeon.saxon.instruct.Instruction;
 import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.Validation;
 import org.orbeon.saxon.type.SchemaType;
-import org.orbeon.saxon.tree.AttributeCollection;
-import org.orbeon.saxon.Configuration;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -70,29 +69,29 @@ public final class XSLCopyOf extends StyleElement {
             } else if (copyNamespacesAtt.equals("no")) {
                 copyNamespaces = false;
             } else {
-                compileError("Value of copy-namespaces must be 'yes' or 'no'");
+                compileError("Value of copy-namespaces must be 'yes' or 'no'", "XT0020");
             }
         }
 
         if (validationAtt!=null) {
             validation = Validation.getCode(validationAtt);
             if (validation != Validation.STRIP && !getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("To perform validation, a schema-aware XSLT processor is needed");
+                compileError("To perform validation, a schema-aware XSLT processor is needed", "XT1660");
             }
             if (validation == Validation.INVALID) {
-                compileError("invalid value of validation attribute");
+                compileError("invalid value of validation attribute", "XT0020");
             }
         }
 
         if (typeAtt!=null) {
             schemaType = getSchemaType(typeAtt);
             if (!getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("The type attribute is available only with a schema-aware XSLT processor");
+                compileError("The type attribute is available only with a schema-aware XSLT processor", "XT1660");
             }
         }
 
         if (typeAtt != null && validationAtt != null) {
-            compileError("The validation and type attributes are mutually exclusive");
+            compileError("The validation and type attributes are mutually exclusive", "XT1505");
         }
     }
 
@@ -102,7 +101,7 @@ public final class XSLCopyOf extends StyleElement {
         select = typeCheck("select", select);
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) {
         CopyOf inst = new CopyOf(select, copyNamespaces, validation, schemaType);
         ExpressionTool.makeParentReferences(inst);
         return inst;

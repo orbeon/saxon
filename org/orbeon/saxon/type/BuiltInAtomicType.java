@@ -1,15 +1,15 @@
-package net.sf.saxon.type;
+package org.orbeon.saxon.type;
 
-import net.sf.saxon.Err;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.functions.NormalizeSpace;
-import net.sf.saxon.instruct.ValueOf;
-import net.sf.saxon.om.*;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Err;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.functions.NormalizeSpace;
+import org.orbeon.saxon.instruct.ValueOf;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.Serializable;
 
@@ -499,7 +499,7 @@ public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializa
      *
      * @param node the node whose typed value is required
      * @return an iterator over the items making up the typed value of this node. The objects
-     *         returned by this SequenceIterator will all be of type {@link net.sf.saxon.value.AtomicValue}
+     *         returned by this SequenceIterator will all be of type {@link org.orbeon.saxon.value.AtomicValue}
      */
 
     public final SequenceIterator getTypedValue(NodeInfo node)
@@ -520,7 +520,7 @@ public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializa
      *                 in the content of values. Can supply null, in which case any namespace-sensitive content
      *                 will be rejected.
      * @return an iterator over the atomic sequence comprising the typed value. The objects
-     *         returned by this SequenceIterator will all be of type {@link net.sf.saxon.value.AtomicValue}
+     *         returned by this SequenceIterator will all be of type {@link org.orbeon.saxon.value.AtomicValue}
      */
 
     public SequenceIterator getTypedValue(CharSequence value, NamespaceResolver resolver)
@@ -549,7 +549,7 @@ public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializa
      *                     is used. This value is checked against the pattern facet (if any)
      * @param throwError   true if an exception is to be thrown when the value is
      *                     invalid (if false, the method returns null instead)
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws org.orbeon.saxon.xpath.XPathException
      *          if the value is invalid
      */
 
@@ -566,7 +566,7 @@ public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializa
      * @param kind       the node kind whose content is being delivered: {@link Type.ELEMENT},
      *                   {@link Type.ATTRIBUTE}, or {@link Type.DOCUMENT}
      * @param env
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws org.orbeon.saxon.xpath.XPathException
      *          if the expression will never deliver a value of the correct type
      */
 
@@ -581,7 +581,7 @@ public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializa
      * @param expression the expression that delivers the content
      * @param kind       the node kind whose content is being delivered: {@link Type.ELEMENT},
      *                   {@link Type.ATTRIBUTE}, or {@link Type.DOCUMENT}
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws org.orbeon.saxon.xpath.XPathException
      *          if the expression will never deliver a value of the correct type
      */
 

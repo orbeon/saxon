@@ -1,6 +1,6 @@
-package net.sf.saxon.event;
+package org.orbeon.saxon.event;
 
-import net.sf.saxon.Configuration;
+import org.orbeon.saxon.Configuration;
 import org.w3c.dom.ls.LSResourceResolver;
 
 import javax.xml.transform.ErrorListener;

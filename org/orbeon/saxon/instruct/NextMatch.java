@@ -1,15 +1,13 @@
 package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.ParameterSet;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.trans.Mode;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.XPathContextMajor;
-
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.Mode;
 import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * An xsl:next-match element in the stylesheet
@@ -17,7 +15,8 @@ import org.orbeon.saxon.xpath.DynamicError;
 
 public class NextMatch extends ApplyImports {
 
-    public NextMatch() {
+    public NextMatch(boolean backwardsCompatible) {
+        super(backwardsCompatible);
     }
 
     /**
@@ -45,6 +44,9 @@ public class NextMatch extends ApplyImports {
             throw e;
         }
         Mode mode = context.getCurrentMode();
+        if (mode == null) {
+            mode = controller.getRuleManager().getMode(Mode.DEFAULT_MODE);
+        }
         if (context.getCurrentIterator()==null) {
             DynamicError e = new DynamicError("There is no context item");
             e.setXPathContext(context);
@@ -62,7 +64,7 @@ public class NextMatch extends ApplyImports {
         Template nh = controller.getRuleManager().getNextMatchHandler(node, mode, currentTemplate, context);
 
 		if (nh==null) {             // use the default action for the node
-            ApplyTemplates.defaultAction(node, params, tunnels, context);
+            ApplyTemplates.defaultAction(node, params, tunnels, context, false);
         } else {
             XPathContextMajor c2 = context.newContext();
             c2.setOrigin(this);

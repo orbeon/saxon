@@ -4,13 +4,12 @@ import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.pattern.AnyNodeTest;
 import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.xpath.XPathException;
 
 
 /**
-* This class supports fuction get-namespace-uri-for-prefix()
+* This class supports the function namespace-uri-for-prefix()
 */
 
 public class NamespaceForPrefix extends SystemFunction {

@@ -1,27 +1,29 @@
 package org.orbeon.saxon.instruct;
+
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.ContentTypeTest;
+import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.type.SchemaType;
-import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.QNameValue;
 import org.orbeon.saxon.value.SequenceType;
 import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.StaticError;
 import org.orbeon.saxon.xpath.XPathException;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Iterator;
 
 
 /**
-* An instruction representing xsl:element element in the stylesheet.
-*/
+ * An instruction representing xsl:element element in the stylesheet.
+ */
 
 public class Element extends ElementCreator {
 
@@ -29,39 +31,56 @@ public class Element extends ElementCreator {
     private Expression namespace = null;
     private NamespaceResolver nsContext;
     private boolean allowNameAsQName;
+    private ItemType itemType;
 
     /**
      * Create an instruction that creates a new element node
-     * @param elementName Expression that evaluates to produce the name of the
-     * element node as a lexical QName
-     * @param namespace Expression that evaluates to produce the namespace URI of
-     * the element node. Set to null if the namespace is to be deduced from the prefix
-     * of the elementName.
-     * @param nsContext Saved copy of the static namespace context for the instruction.
-     * Can be set to null if namespace is supplied.
+     *
+     * @param elementName      Expression that evaluates to produce the name of the
+     *                         element node as a lexical QName
+     * @param namespace        Expression that evaluates to produce the namespace URI of
+     *                         the element node. Set to null if the namespace is to be deduced from the prefix
+     *                         of the elementName.
+     * @param nsContext        Saved copy of the static namespace context for the instruction.
+     *                         Can be set to null if namespace is supplied.
      * @param useAttributeSets Array of attribute sets to be expanded
-     * @param schemaType The required schema type for the content
+     * @param schemaType       The required schema type for the content
      */
-    public Element( Expression elementName,
-                    Expression namespace,
-                    NamespaceResolver nsContext,
-                    AttributeSet[] useAttributeSets,
-                    SchemaType schemaType,
-                    int validation) {
+    public Element(Expression elementName,
+                   Expression namespace,
+                   NamespaceResolver nsContext,
+                   AttributeSet[] useAttributeSets,
+                   SchemaType schemaType,
+                   int validation,
+                   boolean inheritNamespaces) {
         this.elementName = elementName;
         this.namespace = namespace;
         this.nsContext = nsContext;
         this.useAttributeSets = useAttributeSets;
         this.schemaType = schemaType;
         this.validation = validation;
+        this.inheritNamespaces = inheritNamespaces;
     }
 
-     public Expression simplify(StaticContext env) throws XPathException {
+    public Expression simplify(StaticContext env) throws XPathException {
         elementName = elementName.simplify(env);
-        if (namespace!=null) {
+        if (namespace != null) {
             namespace = namespace.simplify(env);
         }
-        allowNameAsQName = (env.getConfiguration().getHostLanguage() ==Configuration.XQUERY);
+        Configuration config = env.getConfiguration();
+        allowNameAsQName = (config.getHostLanguage() == Configuration.XQUERY);
+
+        if (schemaType != null) {
+            itemType = new ContentTypeTest(Type.ELEMENT, schemaType, config);
+        } else if (validation == Validation.STRIP || !config.isSchemaAware(Configuration.XML_SCHEMA)) {
+            itemType = new ContentTypeTest(Type.ELEMENT,
+                    BuiltInSchemaFactory.getSchemaType(StandardNames.XDT_UNTYPED),
+                    config);
+        } else {
+            // paradoxically, we know less about the type if validation="strict" is specified!
+            // We know that it won't be untyped, but we have no way of representing that.
+            itemType = NodeKindTest.ELEMENT;
+        }
         return super.simplify(env);
     }
 
@@ -69,33 +88,40 @@ public class Element extends ElementCreator {
         elementName = elementName.analyze(env, contextItemType);
 
         RoleLocator role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "element/name", 0);
+                new RoleLocator(RoleLocator.INSTRUCTION, "element/name", 0, null);
 
         if (allowNameAsQName) {
             // Can only happen in XQuery
-            elementName = TypeChecker.staticTypeCheck(
-                    elementName, SequenceType.SINGLE_ITEM, false, role, env);
+            elementName = TypeChecker.staticTypeCheck(elementName, SequenceType.SINGLE_ITEM, false, role, env);
         } else {
-            elementName = TypeChecker.staticTypeCheck(
-                    elementName, SequenceType.SINGLE_STRING, false, role, env);
+            elementName = TypeChecker.staticTypeCheck(elementName, SequenceType.SINGLE_STRING, false, role, env);
         }
         if (namespace != null) {
             namespace = namespace.analyze(env, contextItemType);
 
-            role = new RoleLocator(RoleLocator.INSTRUCTION, "element/namespace", 0);
-            namespace = TypeChecker.staticTypeCheck(
-                    namespace, SequenceType.SINGLE_STRING, false, role, env);
+            role = new RoleLocator(RoleLocator.INSTRUCTION, "element/namespace", 0, null);
+            namespace = TypeChecker.staticTypeCheck(namespace, SequenceType.SINGLE_STRING, false, role, env);
         }
         super.analyze(env, contextItemType);
         return this;
     }
 
+    /**
+     * Get the item type of the value returned by this instruction
+     *
+     * @return the item type
+     */
+
+    public ItemType getItemType() {
+        if (itemType == null) {
+            return super.getItemType();
+        }
+        return itemType;
+    }
 
     public Iterator iterateSubExpressions() {
         ArrayList list = new ArrayList(8);
-        if (children != null) {
-            list.addAll(Arrays.asList(children));
-        }
+        list.add(content);
         list.add(elementName);
         if (namespace != null) {
             list.add(namespace);
@@ -111,9 +137,9 @@ public class Element extends ElementCreator {
      * advantage. This method is always called at compile time.
      *
      * @param offer details of the offer, for example the offer to move
-     *     expressions that don't depend on the context to an outer level in
-     *     the containing expression
-     * @exception XPathException if any error is detected
+     *              expressions that don't depend on the context to an outer level in
+     *              the containing expression
+     * @throws XPathException if any error is detected
      */
 
     protected void promoteInst(PromotionOffer offer) throws XPathException {
@@ -125,8 +151,36 @@ public class Element extends ElementCreator {
     }
 
     /**
+     * Check that any elements and attributes constructed or returned by this expression are acceptable
+     * in the content model of a given complex type. It's always OK to say yes, since the check will be
+     * repeated at run-time. The process of checking element and attribute constructors against the content
+     * model of a complex type also registers the type of content expected of those constructors, so the
+     * static validation can continue recursively.
+     */
+
+    public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException {
+        if (parentType instanceof SimpleType) {
+            StaticError err = new StaticError(
+                    "Elements are not permitted here: the containing element has the simple type " + parentType.getDescription());
+            err.setIsTypeError(true);
+            err.setLocator(this);
+            throw err;
+        } else if (((ComplexType)parentType).isSimpleContent()) {
+            StaticError err = new StaticError(
+                    "Elements are not permitted here: the containing element has a complex type with simple content");
+            err.setIsTypeError(true);
+            err.setLocator(this);
+            throw err;
+        }
+        // NOTE: we could in principle check that if all the elements permitted in the content of the parentType
+        // themselves have a simple type (not uncommon, perhaps) then this element must not have element content.
+    }
+
+
+    /**
      * Callback from the superclass ElementCreator to get the nameCode
      * for the element name
+     *
      * @param context The evaluation context (not used)
      * @return the name code for the element name
      */
@@ -141,7 +195,7 @@ public class Element extends ElementCreator {
         String localName;
         String uri;
 
-            // name needs to be evaluated at run-time
+        // name needs to be evaluated at run-time
         Item nameValue = elementName.evaluateItem(context);
         if (nameValue instanceof StringValue) {
             // this will always be the case in XSLT
@@ -152,7 +206,7 @@ public class Element extends ElementCreator {
                 localName = parts[1];
             } catch (QNameException err) {
                 DynamicError err1 = new DynamicError("Invalid element name. " + err.getMessage(), this);
-                err1.setErrorCode("XT0820");
+                err1.setErrorCode((isXSLT(context) ? "XT0820" : "XQ0074"));
                 err1.setXPathContext(context);
                 context.getController().recoverableError(err1);
                 return -1;
@@ -170,21 +224,22 @@ public class Element extends ElementCreator {
             }
         } else {
             DynamicError err = new DynamicError("Computed element name has incorrect type");
-            err.setErrorCode("XT0820");
+            err.setErrorCode((isXSLT(context) ? "XT0820" : "XP0006"));
+            err.setIsTypeError(true);
             err.setXPathContext(context);
             context.getController().recoverableError(err);
             return -1;
         }
 
-        if (namespace==null) {
+        if (namespace == null) {
             uri = nsContext.getURIForPrefix(prefix, true);
-            if (uri==null) {
+            if (uri == null) {
                 DynamicError err = new DynamicError("Undeclared prefix in element name: " + prefix, this);
-                err.setErrorCode("XT0830");
+                err.setErrorCode((isXSLT(context) ? "XT0830" : "XQ0074"));
                 err.setXPathContext(context);
                 context.getController().recoverableError(err);
                 return -1;
-  		    }
+            }
 
         } else {
             uri = namespace.evaluateAsString(context);
@@ -205,19 +260,20 @@ public class Element extends ElementCreator {
 
     /**
      * Callback to output namespace nodes for the new element.
+     *
      * @param context The execution context
-     * @param out the Receiver where the namespace nodes are to be written
+     * @param out     the Receiver where the namespace nodes are to be written
      * @throws XPathException
      */
     protected void outputNamespaceNodes(XPathContext context, Receiver out)
-    throws XPathException {
+            throws XPathException {
         // do nothing
     }
 
 
     /**
-    * Get the name of this instruction for diagnostic and tracing purposes
-    */
+     * Get the name of this instruction for diagnostic and tracing purposes
+     */
 
     public int getInstructionNameCode() {
         return StandardNames.XSL_ELEMENT;
@@ -229,13 +285,10 @@ public class Element extends ElementCreator {
 
     public void display(int level, NamePool pool, PrintStream out) {
         out.println(ExpressionTool.indent(level) + "element ");
-        out.println(ExpressionTool.indent(level+1) + "name");
-        elementName.display(level+2, pool, out);
-        if (children.length==0) {
-            out.println(ExpressionTool.indent(level+1) + "empty content");
-        } else {
-            InstructionWithChildren.displayChildren(children, level+1, pool, out);
-        }
+        out.println(ExpressionTool.indent(level + 1) + "name");
+        elementName.display(level + 2, pool, out);
+        out.println(ExpressionTool.indent(level + 1) + "content");
+        content.display(level + 1, pool, out);
     }
 }
 

@@ -1,8 +1,6 @@
 package org.orbeon.saxon.event;
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.tinytree.TinyBuilder;
-import org.orbeon.saxon.tinytree.TinyDocumentImpl;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.EmptySequence;
@@ -11,7 +9,6 @@ import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
-import java.util.List;
 
 
 /**
@@ -34,14 +31,11 @@ import java.util.List;
 
 public final class SequenceOutputter extends SequenceReceiver {
 
-    private List list;
-    private Configuration config;
-    private NamePool namePool;
+    private ArrayList list;
     private String systemId;
     private Receiver tree = null;
     private TinyBuilder builder = null;
-    private int elementLevel = 0;
-    private int documentLevel = 0;
+    private int level = 0;
     private boolean inStartTag = false;
 
     /**
@@ -49,33 +43,12 @@ public final class SequenceOutputter extends SequenceReceiver {
     */
 
 	public SequenceOutputter() {
-	    //System.err.println("new SequenceOutputter");
-	    this.list = new ArrayList();
+	    this.list = new ArrayList(50);
 	}
 
-    /**
-    * Set the name pool. This method must be called before startDocument() is called.
-    * @param config the configuration. The name pool held by this configuration
-    * must contain all the name codes that are passed across this interface.
-    */
-
-    public void setConfiguration(Configuration config) {
-        this.config = config;
-        namePool = config.getNamePool();
-    }
-
-    /**
-    * Get the name pool
-    * @return the Name Pool that was supplied using the setConfiguration() method
-    */
-
-    public NamePool getNamePool() {
-        return namePool;
-    }
-
-    public Configuration getConfiguration() {
-        return config;
-    }
+	public SequenceOutputter(int estimatedSize) {
+	    this.list = new ArrayList(estimatedSize);
+	}
 
     /**
     * Set the system ID
@@ -96,12 +69,13 @@ public final class SequenceOutputter extends SequenceReceiver {
     }
 
     /**
-    * Notify the start of the document. This event is notified once, before any other events.
-    * This implementation does nothing.
-    */
+     * Determine whether there are any open document or element nodes in the output
+     */
 
-    public final void open() throws XPathException {
+    public boolean hasOpenNodes() {
+        return level != 0;
     }
+
 
     private static final int[] treeSizeParameters = {50, 10, 5, 200};
 
@@ -111,30 +85,36 @@ public final class SequenceOutputter extends SequenceReceiver {
 
     public void startDocument(int properties) throws XPathException {
         if (tree==null) {
-            builder = new TinyBuilder();
-            builder.setConfiguration(config);
-            builder.setSizeParameters(treeSizeParameters);
-
-            NamespaceReducer reducer = new NamespaceReducer();
-            reducer.setUnderlyingReceiver(builder);
-            reducer.setConfiguration(config);
-
-            ComplexContentOutputter complex = new ComplexContentOutputter();
-            complex.setConfiguration(config);
-            complex.setReceiver(reducer);
-            complex.setDocumentLocator(locator);
-            tree = complex;
-
-            tree.setSystemId(systemId);
-            tree.setConfiguration(config);
-            tree.open();
-            tree.startDocument(properties);
-        } else {
-            // ignore the event, other than to make a note that the corresponding endDocument should also
-            // be ignored
+            createTree();
         }
-        documentLevel++;
+        if (level==0) {
+            tree.startDocument(properties);
+            level++;
+        }
+    }
 
+    /**
+     * Create a TinyTree to hold a document or element node.
+     * @throws XPathException
+     */
+
+    private void createTree() throws XPathException {
+        builder = new TinyBuilder();
+        builder.setPipelineConfiguration(getPipelineConfiguration());
+        builder.setSizeParameters(treeSizeParameters);
+
+        NamespaceReducer reducer = new NamespaceReducer();
+        reducer.setUnderlyingReceiver(builder);
+        reducer.setPipelineConfiguration(getPipelineConfiguration());
+
+        ComplexContentOutputter complex = new ComplexContentOutputter();
+        complex.setPipelineConfiguration(getPipelineConfiguration());
+        complex.setReceiver(reducer);
+        tree = complex;
+
+        tree.setSystemId(systemId);
+        tree.setPipelineConfiguration(getPipelineConfiguration());
+        tree.open();
     }
 
     /**
@@ -142,13 +122,12 @@ public final class SequenceOutputter extends SequenceReceiver {
      */
 
     public void endDocument() throws XPathException {
-        documentLevel--;
-        if (documentLevel==0) {
+        if (--level == 0) {
             tree.endDocument();
-            tree.close();
-            DocumentInfo doc = builder.getCurrentDocument();
-            tree = null;
-            builder = null;
+            //tree.close();
+            DocumentInfo doc = (DocumentInfo)builder.getCurrentRoot();
+            //tree = null;
+            //builder = null;
             // add the constructed document to the result sequence
             append(doc, 0);
         }
@@ -169,33 +148,11 @@ public final class SequenceOutputter extends SequenceReceiver {
         }
 
         if (tree==null) {
-
-            documentLevel = 0;
-            builder = new TinyBuilder();
-            builder.setConfiguration(config);
-            builder.setSizeParameters(treeSizeParameters);
-            builder.setDocumentLocator(locator);
-
-            NamespaceReducer reducer = new NamespaceReducer();
-            reducer.setUnderlyingReceiver(builder);
-            reducer.setConfiguration(config);
-            reducer.setDocumentLocator(locator);
-
-            ComplexContentOutputter complex = new ComplexContentOutputter();
-            complex.setConfiguration(config);
-            complex.setReceiver(reducer);
-            complex.setDocumentLocator(locator);
-            tree = complex;
-
-            tree.setSystemId(systemId);
-            tree.setConfiguration(config);
-            tree.open();
-            tree.startElement(nameCode, typeCode, locationId, properties);
-        } else {
-            tree.startElement(nameCode, typeCode, locationId, properties);
+            createTree();
         }
-        elementLevel++;
-        //System.err.println("level = " + level);
+
+        tree.startElement(nameCode, typeCode, locationId, properties);
+        level++;
         inStartTag = true;
         previousAtomic = false;
     }
@@ -205,26 +162,13 @@ public final class SequenceOutputter extends SequenceReceiver {
     */
 
     public void endElement() throws XPathException {
-        if (inStartTag) startContent();
-        elementLevel--;
-        //System.err.println("level = " + level);
-        if (elementLevel==0 && documentLevel==0) {
-            tree.endElement();
-            tree.close();
-            DocumentInfo doc = builder.getCurrentDocument();
-            tree = null;
-            builder = null;
-            SequenceIterator iter = doc.iterateAxis(Axis.CHILD);
-            //if (iter.hasNext()) {
-                // always true
-            NodeInfo element = (NodeInfo)iter.next();
-            // mark the element as the effective root of the tree
-            ((TinyDocumentImpl)doc).setRootNode(element);
-            // add the constructed element to the result sequence
+        if (inStartTag) {
+            startContent();
+        }
+        tree.endElement();
+        if (--level == 0) {
+            NodeInfo element = builder.getCurrentRoot();
             append(element, 0);
-            //}
-        } else {
-            tree.endElement();
         }
         previousAtomic = false;
     }
@@ -243,8 +187,9 @@ public final class SequenceOutputter extends SequenceReceiver {
 
     public void namespace(int nscode, int properties)
     throws XPathException {
-        if (tree == null) {
-            Orphan o = new Orphan(namePool);
+        if (level == 0) {
+            NamePool namePool = getNamePool();
+            Orphan o = new Orphan(getConfiguration());
             o.setNodeKind(Type.NAMESPACE);
             o.setNameCode(namePool.allocate("", "", namePool.getPrefixFromNamespaceCode(nscode)));
             o.setStringValue(namePool.getURIFromNamespaceCode(nscode));
@@ -269,9 +214,8 @@ public final class SequenceOutputter extends SequenceReceiver {
 
     public void attribute(int nameCode, int typeCode, CharSequence value, int locationId, int properties)
     throws XPathException {
-        //System.err.println("Attribute " + value + " tree=" + tree + " namePool =" + namePool );
-        if (tree == null) {
-            Orphan o = new Orphan(namePool);
+        if (level == 0) {
+            Orphan o = new Orphan(getConfiguration());
             o.setNodeKind(Type.ATTRIBUTE);
             o.setNameCode(nameCode);
             o.setStringValue(value);
@@ -303,12 +247,11 @@ public final class SequenceOutputter extends SequenceReceiver {
     */
 
     public void characters(CharSequence s, int locationId, int properties) throws XPathException {
-        //System.err.println("Characters " + s + " tree=" + tree);
         if (inStartTag) {
             startContent();
         }
-        if (tree == null) {
-            Orphan o = new Orphan(namePool);
+        if (level == 0) {
+            Orphan o = new Orphan(getConfiguration());
             o.setNodeKind(Type.TEXT);
             o.setStringValue(s);
             append(o, locationId);
@@ -323,9 +266,11 @@ public final class SequenceOutputter extends SequenceReceiver {
     */
 
     public void comment(CharSequence comment, int locationId, int properties) throws XPathException {
-        if (inStartTag) startContent();
-        if (tree == null) {
-            Orphan o = new Orphan(namePool);
+        if (inStartTag) {
+            startContent();
+        }
+        if (level == 0) {
+            Orphan o = new Orphan(getConfiguration());
             o.setNodeKind(Type.COMMENT);
             o.setStringValue(comment);
             append(o, locationId);
@@ -341,10 +286,12 @@ public final class SequenceOutputter extends SequenceReceiver {
     */
 
     public void processingInstruction(String target, CharSequence data, int locationId, int properties) throws XPathException {
-        if (inStartTag) startContent();
-        if (tree == null) {
-            Orphan o = new Orphan(namePool);
-            o.setNameCode(namePool.allocate("", "", target));
+        if (inStartTag) {
+            startContent();
+        }
+        if (level == 0) {
+            Orphan o = new Orphan(getConfiguration());
+            o.setNameCode(getNamePool().allocate("", "", target));
             o.setNodeKind(Type.PROCESSING_INSTRUCTION);
             o.setStringValue(data);
             append(o, locationId);
@@ -358,7 +305,7 @@ public final class SequenceOutputter extends SequenceReceiver {
     * Close the output
     */
 
-    public void close() throws XPathException {
+    public void close() {
         previousAtomic = false;
     }
 
@@ -380,7 +327,7 @@ public final class SequenceOutputter extends SequenceReceiver {
         }
         previousAtomic = (item instanceof AtomicValue);
 
-        if (tree==null) {
+        if (level==0) {
             list.add(item);
         } else {
             if (item instanceof AtomicValue) {
@@ -408,6 +355,26 @@ public final class SequenceOutputter extends SequenceReceiver {
     }
 
     /**
+     * Get an iterator over the sequence of items that has been constructed
+     */
+
+    public SequenceIterator iterate() {
+        if (list.size() == 0) {
+            return EmptyIterator.getInstance();
+        } else {
+            return new ListIterator(list);
+        }
+    }
+
+    /**
+     * Get the list containing the sequence of items
+     */
+
+    public ArrayList getList() {
+        return list;
+    }
+
+    /**
      * Get the first item in the sequence that has been built
      */
 
@@ -416,6 +383,18 @@ public final class SequenceOutputter extends SequenceReceiver {
             return null;
         } else {
             return (Item)list.get(0);
+        }
+    }
+
+    /**
+     * Get the last item in the sequence that has been built, and remove it
+     */
+
+    public Item popLastItem() {
+        if (list.size() == 0) {
+            return null;
+        } else {
+            return (Item)list.remove(list.size()-1);
         }
     }
 

@@ -36,7 +36,7 @@ import java.util.Properties;
 
 public abstract class Emitter implements Result, Receiver
 {
-    protected Configuration config;
+    protected PipelineConfiguration pipelineConfig;
     protected NamePool namePool;
     protected String systemId;
     protected StreamResult streamResult;
@@ -49,17 +49,25 @@ public abstract class Emitter implements Result, Receiver
 	* Set the namePool in which all name codes can be found
 	*/
 
-	public void setConfiguration(Configuration config) {
-	    this.config = config;
-        this.namePool = config.getNamePool();
+	public void setPipelineConfiguration(PipelineConfiguration config) {
+	    this.pipelineConfig = config;
+        this.namePool = config.getConfiguration().getNamePool();
 	}
 
 	/**
-	* Get the namepool used for this document
+	* Get the pipeline configuration used for this document
+	*/
+
+	public PipelineConfiguration getPipelineConfiguration() {
+		return pipelineConfig;
+	}
+
+	/**
+	* Get the configuration used for this document
 	*/
 
 	public Configuration getConfiguration() {
-		return config;
+		return pipelineConfig.getConfiguration();
 	}
 
 	/**
@@ -228,23 +236,6 @@ public abstract class Emitter implements Result, Receiver
 
     public OutputStream getOutputStream() {
         return outputStream;
-    }
-
-    /**
-    * Set locator, to identify position in the document. Used only when supplying
-    * input from a parser.
-    */
-
-    public void setDocumentLocator(LocationProvider locator) {
-        //
-    }
-
-    /**
-     * Get the Document Locator
-     */
-
-    public LocationProvider getDocumentLocator() {
-        return null;
     }
 
     /**

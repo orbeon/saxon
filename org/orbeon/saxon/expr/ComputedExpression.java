@@ -9,8 +9,9 @@ import org.orbeon.saxon.om.SingletonIterator;
 import org.orbeon.saxon.trace.InstructionInfo;
 import org.orbeon.saxon.trace.InstructionInfoProvider;
 import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.Cardinality;
-import org.orbeon.saxon.value.DerivedAtomicValue;
 import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.xpath.XPathException;
@@ -119,6 +120,13 @@ public abstract class ComputedExpression
      */
 
     public int getLineNumber() {
+        if (locationId == -1) {
+            if (parentExpression != null) {
+                return parentExpression.getLineNumber();
+            } else {
+                return -1;
+            }
+        }
         return locationId & 0xfffff;
     }
 
@@ -241,7 +249,7 @@ public abstract class ComputedExpression
 
     protected abstract int computeCardinality();
 
-    protected int computeSpecialProperties() {
+    public int computeSpecialProperties() {
         return 0;
     }
 
@@ -262,7 +270,6 @@ public abstract class ComputedExpression
             computeStaticProperties();
         }
         return staticProperties & StaticProperty.CARDINALITY_MASK;
-        //return StaticProperty.CARDINALITY_ALLOWS_ZERO_OR_MORE;
     }
 
 
@@ -332,6 +339,18 @@ public abstract class ComputedExpression
     }
 
     /**
+     * Check that any elements and attributes constructed or returned by this expression are acceptable
+     * in the content model of a given complex type. It's always OK to say yes, since the check will be
+     * repeated at run-time. The process of checking element and attribute constructors against the content
+     * model of a complex type also registers the type of content expected of those constructors, so the
+     * static validation can continue recursively.
+     */
+
+    public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException {
+        return;
+    }
+
+    /**
      * Mark tail-recursive calls on stylesheet functions. For most expressions, this does nothing.
      *
      * @return true if a tail recursive call was found and if this call
@@ -379,9 +398,9 @@ public abstract class ComputedExpression
      */
 
     public String evaluateAsString(XPathContext context) throws XPathException {
-        Object o = evaluateItem(context);
-        if (o instanceof DerivedAtomicValue) {
-            o = ((DerivedAtomicValue) o).getPrimitiveValue();
+        Item o = evaluateItem(context);
+        if (o instanceof AtomicValue && !((AtomicValue)o).hasBuiltInType()) {
+            o = ((AtomicValue) o).getPrimitiveValue();
         }
         StringValue value = (StringValue) o;  // the ClassCastException is deliberate
         if (value == null) return "";
@@ -436,23 +455,24 @@ public abstract class ComputedExpression
 
     public void process(XPathContext context) throws XPathException {
         int m = getImplementationMethod();
-        switch (m) {
-            case EVALUATE_METHOD:
-                Item item = evaluateItem(context);
+
+        if ((m & EVALUATE_METHOD) != 0) {
+            Item item = evaluateItem(context);
+            // Need to cater for it being a tailcall returned from a function
+            Instruction.appendItem(item, context.getReceiver(), locationId);
+
+        } else if ((m & ITERATE_METHOD) != 0) {
+
+            SequenceIterator iter = iterate(context);
+            while (true) {
+                Item it = iter.next();
+                if (it == null) break;
                 // Need to cater for it being a tailcall returned from a function
-                Instruction.appendItem(item, context.getReceiver(), locationId);
-                break;
-            case ITERATE_METHOD:
-                SequenceIterator iter = iterate(context);
-                while (true) {
-                    Item it = iter.next();
-                    if (it == null) break;
-                    // Need to cater for it being a tailcall returned from a function
-                    Instruction.appendItem(it, context.getReceiver(), locationId);
-                }
-                break;
-            case PROCESS_METHOD:
-                dynamicError("process() is not implemented in the subclass " + this.getClass(), context);
+                Instruction.appendItem(it, context.getReceiver(), locationId);
+            }
+
+        } else {
+            dynamicError("process() is not implemented in the subclass " + this.getClass(), context);
         }
     }
 
@@ -485,6 +505,18 @@ public abstract class ComputedExpression
     protected void typeError(String message, XPathContext context) throws DynamicError {
         DynamicError e = new DynamicError(message, getSourceLocator());
         e.setIsTypeError(true);
+        e.setXPathContext(context);
+        throw e;
+    }
+
+    /**
+     * Method used in subclasses to signal a runtime type error
+     */
+
+    protected void typeError(String message, String errorCode, XPathContext context) throws DynamicError {
+        DynamicError e = new DynamicError(message, getSourceLocator());
+        e.setIsTypeError(true);
+        e.setErrorCode(errorCode);
         e.setXPathContext(context);
         throw e;
     }

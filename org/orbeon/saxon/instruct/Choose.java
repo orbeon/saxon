@@ -4,17 +4,19 @@ import org.orbeon.saxon.om.EmptyIterator;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.XPathException;
 
-import java.util.Iterator;
-import java.util.ArrayList;
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Iterator;
 
 /**
  * Compiled representation of an xsl:choose or xsl:if element in the stylesheet.
+ * Also used for typeswitch in XQuery.
 */
 
 public class Choose extends Instruction {
@@ -116,6 +118,22 @@ public class Choose extends Instruction {
     }
 
     /**
+     * Determine whether this instruction creates new nodes.
+     * This implementation returns true if any of the "actions" creates new nodes.
+     * (Nodes created by the conditions can't contribute to the result).
+     */
+
+    public final boolean createsNewNodes() {
+        for (int i=1; i<actions.length; i++) {
+            int props = actions[i].getSpecialProperties();
+            if ((props & StaticProperty.NON_CREATIVE) == 0) {
+                return true;
+            };
+        }
+        return false;
+    }
+
+    /**
      * Get all the XPath expressions associated with this instruction
      * (in XSLT terms, the expression present on attributes of the instruction,
      * as distinct from the child instructions in a sequence construction)
@@ -140,11 +158,25 @@ public class Choose extends Instruction {
 
     protected void promoteInst(PromotionOffer offer) throws XPathException {
         for (int i=0; i<conditions.length; i++) {
-            conditions[i].promote(offer);
+            conditions[i] = conditions[i].promote(offer);
         }
         for (int i=0; i<actions.length; i++) {
-            actions[i].promote(offer);
+            actions[i] = actions[i].promote(offer);
         }
+    }
+
+    /**
+     * Check that any elements and attributes constructed or returned by this expression are acceptable
+     * in the content model of a given complex type. It's always OK to say yes, since the check will be
+     * repeated at run-time. The process of checking element and attribute constructors against the content
+     * model of a complex type also registers the type of content expected of those constructors, so the
+     * static validation can continue recursively.
+     */
+
+    public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException {
+        for (int i=0; i<actions.length; i++) {
+            actions[i].checkPermittedContents(parentType, env, whole);
+        }        
     }
 
     /**

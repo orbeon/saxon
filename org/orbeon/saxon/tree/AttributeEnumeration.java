@@ -1,11 +1,7 @@
 package org.orbeon.saxon.tree;
-import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.om.AxisIteratorImpl;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.LookaheadIterator;
-import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.NameTest;
+import org.orbeon.saxon.pattern.NodeTest;
 import org.orbeon.saxon.type.Type;
 
 /**

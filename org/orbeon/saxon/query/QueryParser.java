@@ -2,21 +2,26 @@ package org.orbeon.saxon.query;
 
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Err;
-import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.event.PipelineConfiguration;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.functions.*;
 import org.orbeon.saxon.instruct.*;
 import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.CombinedNodeTest;
+import org.orbeon.saxon.pattern.ContentTypeTest;
+import org.orbeon.saxon.pattern.NodeTest;
 import org.orbeon.saxon.sort.FixedSortKeyDefinition;
 import org.orbeon.saxon.sort.TupleExpression;
 import org.orbeon.saxon.sort.TupleSorter;
 import org.orbeon.saxon.style.AttributeValueTemplate;
 import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.*;
 import org.orbeon.saxon.xpath.StaticError;
 import org.orbeon.saxon.xpath.XPathException;
 
+import javax.xml.namespace.QName;
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
 import java.util.*;
@@ -35,6 +40,17 @@ public class QueryParser extends ExpressionParser {
     private int errorCount = 0;
 
     protected Executable executable;
+
+    private boolean foundInheritNamespaces = false;
+    private boolean foundXmlSpaceDeclaration = false;
+    private boolean foundOrderingDeclaration = false;
+    private boolean foundEmptyOrderingDeclaration = false;
+    private boolean foundDefaultCollation = false;
+    private boolean foundConstructionDeclaration = false;
+    private boolean foundDefaultFunctionNamespace = false;
+    private boolean foundDefaultElementNamespace = false;
+
+    public Set importedModules = new HashSet(5);
 
     /**
      * Create an XQueryExpression
@@ -58,14 +74,16 @@ public class QueryParser extends ExpressionParser {
             docInstruction = (DocumentInstr) exp;
         } else {
             docInstruction = new DocumentInstr(false, null, staticContext.getSystemId());
-            makeContentConstructor(exp, docInstruction, 1);
+            docInstruction.setContent(exp);
+            setLocation(docInstruction, 1);
+            //makeContentConstructor(exp, docInstruction, 1);
         }
         queryExp.setDocumentInstruction(docInstruction);
 
         // Make the function library that's available at run-time (e.g. for saxon:evaluate()). This includes
         // all user-defined functions regardless of which module they are in
 
-        FunctionLibrary userlib = executable.getFunctionLibrary();
+        FunctionLibrary userlib = exec.getFunctionLibrary();
         FunctionLibraryList lib = new FunctionLibraryList();
         lib.addFunctionLibrary(new SystemFunctionLibrary(config, false));
         lib.addFunctionLibrary(config.getVendorFunctionLibrary());
@@ -74,7 +92,7 @@ public class QueryParser extends ExpressionParser {
             lib.addFunctionLibrary(new JavaExtensionLibrary(config));
         }
         lib.addFunctionLibrary(userlib);
-        executable.setFunctionLibrary(lib);
+        exec.setFunctionLibrary(lib);
 
         return queryExp;
     }
@@ -133,6 +151,7 @@ public class QueryParser extends ExpressionParser {
                 env.fixupGlobalFunctions();
             } catch (XPathException err) {
                 try {
+                    errorCount++;
                     env.getConfiguration().getErrorListener().fatalError(err);
                 } catch (TransformerException err2) {
                     if (err2 instanceof XPathException) {
@@ -174,10 +193,17 @@ public class QueryParser extends ExpressionParser {
         parseVersionDeclaration();
         parseModuleDeclaration();
         parseProlog();
+        if (t.currentToken != Token.EOF) {
+            grumble("Unrecognized content found after the variable and function declarations in a library module");
+        }
         if (errorCount == 0) {
             env.bindUnboundFunctionCalls();
             env.fixupGlobalVariables(env.getExecutable().getGlobalVariableMap());
-            env.fixupGlobalFunctions();
+            try {
+                env.fixupGlobalFunctions();
+            } catch (XPathException err) {
+                throw err.makeStatic();
+            }
         }
         if (errorCount != 0) {
             throw new StaticError("Query parsing failed");
@@ -185,14 +211,14 @@ public class QueryParser extends ExpressionParser {
     }
 
     /**
-     * Report a parsing error
+     * Report a static error
      *
      * @param message the error message
      * @exception org.orbeon.saxon.xpath.StaticError always thrown: an exception containing the
      *     supplied message
      */
 
-    protected void grumble(String message) throws StaticError {
+    protected void grumble(String message, QName errorCode) throws StaticError {
         errorCount++;
         String s = t.recentText();
         int line = t.getLineNumber();
@@ -201,8 +227,9 @@ public class QueryParser extends ExpressionParser {
         lineInfo += (module == null ? "" : "of " + module + ' ');
         String prefix = getLanguage() + " syntax error " + lineInfo +
                 (message.startsWith("...") ? "near" : "in") +
-                " `" + s + "`:\n    ";
+                " #" + s + "#:\n    ";
         XPathException exception = new StaticError(prefix + message);
+        exception.setErrorCode(errorCode);
         try {
             env.getConfiguration().getErrorListener().fatalError(exception);
         } catch (TransformerException err) {
@@ -224,9 +251,16 @@ public class QueryParser extends ExpressionParser {
             nextToken();
             expect(Token.STRING_LITERAL);
             if (!("1.0".equals(t.currentTokenValue))) {
-                grumble("XQuery version must be 1.0");
+                grumble("XQuery version must be 1.0", "XQ0031");
             }
             nextToken();
+            if ("encoding".equals(t.currentTokenValue)) {
+                nextToken();
+                expect(Token.STRING_LITERAL);
+                String encoding = t.currentTokenValue;
+                // TODO: make use of the encoding information
+                nextToken();
+            }
             expect(Token.SEMICOLON);
             nextToken();
         }
@@ -243,6 +277,7 @@ public class QueryParser extends ExpressionParser {
         nextToken();
         expect(Token.NAME);
         String prefix = t.currentTokenValue;
+        checkProhibitedPrefixes(prefix);
         nextToken();
         expect(Token.EQUALS);
         nextToken();
@@ -251,7 +286,7 @@ public class QueryParser extends ExpressionParser {
         nextToken();
         expect(Token.SEMICOLON);
         nextToken();
-        ((StaticQueryContext) env).declarePassiveNamespace(prefix, uri);
+        ((StaticQueryContext) env).declarePassiveNamespace(prefix, uri, true);
         ((StaticQueryContext) env).setModuleNamespace(uri);
     }
 
@@ -271,7 +306,7 @@ public class QueryParser extends ExpressionParser {
                 if (t.currentToken == Token.MODULE_NAMESPACE) {
                     String uri = ((StaticQueryContext) env).getModuleNamespace();
                     if (uri == null) {
-                        grumble("Module declaration should not be used in a main module");
+                        grumble("Module declaration must not be used in a main module");
                     } else {
                         grumble("Module declaration appears more than once");
                     }
@@ -311,6 +346,11 @@ public class QueryParser extends ExpressionParser {
                         grumble("'declare ordering' must appear earlier in the query prolog");
                     }
                     parseOrderingDeclaration();
+                } else if (t.currentToken == Token.DECLARE_INHERIT_NAMESPACES) {
+                    if (!allowSetters) {
+                        grumble("'declare inherit-namespaces' must appear earlier in the query prolog");
+                    }
+                    parseInheritNamespacesDeclaration();
                 } else if (t.currentToken == Token.DECLARE_BASEURI) {
                     if (!allowSetters) {
                         grumble("'declare base-uri' must appear earlier in the query prolog");
@@ -339,6 +379,9 @@ public class QueryParser extends ExpressionParser {
                 expect(Token.SEMICOLON);
                 nextToken();
             } catch (StaticError err) {
+                if (!err.hasBeenReported()) {
+                    grumble(err.getMessage(), err.getErrorCode());
+                }
                 // we've reported an error, attempt to recover by skipping to the
                 // next semicolon
                 while (t.currentToken != Token.SEMICOLON) {
@@ -358,6 +401,10 @@ public class QueryParser extends ExpressionParser {
 
     private void parseDefaultCollation() throws StaticError {
         // <"default" "collation"> StringLiteral
+        if (foundDefaultCollation) {
+            grumble("default collation appears more than once", "XQ0038");
+        }
+        foundDefaultCollation = true;
         nextToken();
         expect(Token.STRING_LITERAL);
         String uri = t.currentTokenValue;
@@ -373,6 +420,10 @@ public class QueryParser extends ExpressionParser {
      * parse "declare default order empty (least|greatest)"
      */
     private void parseDefaultOrder() throws StaticError {
+        if (foundEmptyOrderingDeclaration) {
+            grumble("default ordering declaration appears more than once", "XQ0069");
+        }
+        foundEmptyOrderingDeclaration = true;
         nextToken();
         if (!isKeyword("empty")) {
             grumble("After 'declare default order', expected keyword 'empty'");
@@ -395,6 +446,10 @@ public class QueryParser extends ExpressionParser {
      */
 
     private void parseXmlSpaceDeclaration() throws StaticError {
+        if (foundXmlSpaceDeclaration) {
+            grumble("'declare xmlspace' appears more than once", "XQ0038");
+        }
+        foundXmlSpaceDeclaration = true;
         nextToken();
         expect(Token.NAME);
         if ("preserve".equals(t.currentTokenValue)) {
@@ -414,6 +469,10 @@ public class QueryParser extends ExpressionParser {
      */
 
     private void parseOrderingDeclaration() throws StaticError {
+        if (foundOrderingDeclaration) {
+            grumble("ordering mode declaration appears more than once", "XQ0065");
+        }
+        foundOrderingDeclaration = true;
         nextToken();
         expect(Token.NAME);
         if ("ordered".equals(t.currentTokenValue)) {
@@ -421,7 +480,30 @@ public class QueryParser extends ExpressionParser {
         } else if ("unordered".equals(t.currentTokenValue)) {
             // no action
         } else {
-            grumble("ordering must be 'ordered' or 'unordered'");
+            grumble("ordering mode must be 'ordered' or 'unordered'");
+        }
+        nextToken();
+    }
+
+    /**
+     * Parse the "declare inherit-namespaces" declaration.
+     * Syntax: <"declare" "inherit-namespaces"> ("yes" | "no")
+     * @throws org.orbeon.saxon.xpath.StaticError
+     */
+
+    private void parseInheritNamespacesDeclaration() throws StaticError {
+        if (foundInheritNamespaces) {
+            grumble("declare inherit-namespaces appears more than once", "XQ0055");
+        }
+        foundInheritNamespaces = true;
+        nextToken();
+        expect(Token.NAME);
+        if ("yes".equals(t.currentTokenValue)) {
+            ((StaticQueryContext)env).setInheritNamespaces(true);
+        } else if ("no".equals(t.currentTokenValue)) {
+            ((StaticQueryContext)env).setInheritNamespaces(false);
+        } else {
+            grumble("inherit-namespaces must be 'yes' or 'no'");
         }
         nextToken();
     }
@@ -434,6 +516,10 @@ public class QueryParser extends ExpressionParser {
      */
 
     private void parseConstructionDeclaration() throws StaticError {
+        if (foundConstructionDeclaration) {
+            grumble("declare construction appears more than once", "XQ0067");
+        }
+        foundConstructionDeclaration = true;
         nextToken();
         expect(Token.NAME);
         int val;
@@ -457,7 +543,7 @@ public class QueryParser extends ExpressionParser {
 
     private void parseSchemaImport() throws StaticError {
         if (!env.getConfiguration().isSchemaAware(Configuration.XQUERY)) {
-            grumble("To import a schema, you need the schema-aware version of Saxon");
+            grumble("To import a schema, you need the schema-aware version of Saxon", "XQ0009");
         }
         String prefix = null;
         String namespaceURI = null;
@@ -467,6 +553,7 @@ public class QueryParser extends ExpressionParser {
             nextToken();
             expect(Token.NAME);
             prefix = t.currentTokenValue;
+            checkProhibitedPrefixes(prefix);
             nextToken();
             expect(Token.EQUALS);
             nextToken();
@@ -497,10 +584,13 @@ public class QueryParser extends ExpressionParser {
             grumble("After 'import schema', expected 'namespace', 'default', or a string-literal");
         }
         if (prefix != null) {
+            if (namespaceURI==null || "".equals(namespaceURI)) {
+                grumble("A prefix cannot be bound to the null namespace", "XQ0057");
+            }
             if ("".equals(prefix)) {
                 ((StaticQueryContext) env).setDefaultElementNamespace(namespaceURI);
             } else {
-                ((StaticQueryContext) env).declarePassiveNamespace(prefix, namespaceURI);
+                ((StaticQueryContext) env).declarePassiveNamespace(prefix, namespaceURI, true);
             }
         }
 
@@ -510,12 +600,13 @@ public class QueryParser extends ExpressionParser {
         if (config.getSchema(namespaceURI) == null) {
             if (locationURI != null) {
                 try {
-                    namespaceURI = config.readSchema(env.getBaseURI(), locationURI, namespaceURI);
+                    PipelineConfiguration pipe = config.makePipelineConfiguration();
+                    namespaceURI = config.readSchema(pipe, env.getBaseURI(), locationURI, namespaceURI);
                 } catch (TransformerConfigurationException err) {
-                    grumble("Error in schema. " + err.getMessage());
+                    grumble("Error in schema. " + err.getMessage(), "XQ0059");
                 }
             } else {
-                grumble("Unable to locate requested schema");
+                grumble("Unable to locate requested schema", "XQ0059");
             }
         }
         ((StaticQueryContext) env).addImportedSchema(namespaceURI);
@@ -523,53 +614,79 @@ public class QueryParser extends ExpressionParser {
 
     /**
      * Parse (and expand) the module import declaration.
-     * Syntax: <"import" "module" ("namespace" NCName "=")? uri ("at" uri)? ";"
+     * Syntax: <"import" "module" ("namespace" NCName "=")? uri ("at" uri ("," uri)*)? ";"
      */
 
     private void parseModuleImport() throws StaticError {
         StaticQueryContext thisModule = (StaticQueryContext) env;
         String prefix = null;
         String moduleURI = null;
-        String locationURI = null;
+        List locationURIs = new ArrayList(5);
         nextToken();
         if (t.currentToken == Token.NAME && t.currentTokenValue == "namespace") {
             nextToken();
             expect(Token.NAME);
             prefix = t.currentTokenValue;
+            checkProhibitedPrefixes(prefix);
             nextToken();
             expect(Token.EQUALS);
             nextToken();
         }
         if (t.currentToken == Token.STRING_LITERAL) {
             moduleURI = t.currentTokenValue;
+            if (importedModules.contains(moduleURI)) {
+                grumble("Two 'import module' declarations specify the same module namespace", "XQ0047");
+            }
+            importedModules.add(moduleURI);
             nextToken();
             if (isKeyword("at")) {
-                nextToken();
-                expect(Token.STRING_LITERAL);
-                locationURI = t.currentTokenValue;
-                nextToken();
-                // TODO: the syntax now allows a list of locations
+                do {
+                    nextToken();
+                    expect(Token.STRING_LITERAL);
+                    locationURIs.add(t.currentTokenValue);
+                    nextToken();
+                } while (t.currentToken == Token.COMMA);
             }
         } else {
             grumble("After 'import module', expected 'namespace' or a string-literal");
         }
         if (prefix != null) {
-            thisModule.declarePassiveNamespace(prefix, moduleURI);
+            thisModule.declarePassiveNamespace(prefix, moduleURI, true);
         }
         String thisModuleNS = thisModule.getModuleNamespace();
         if (thisModuleNS != null && thisModuleNS.equals(moduleURI)) {
-            grumble("A module cannot import itself");
-        }
-        StaticQueryContext importedModule;
-        try {
-            importedModule = thisModule.loadModule(moduleURI, locationURI);
-        } catch (XPathException err) {
-            grumble(err.getMessage());
-            return;
+            grumble("A module cannot import its own namespace", "XQ0056");
         }
 
-        // Do the importing
+        // No location information given: import all the modules known to be in this namespace (if any)
 
+        if (locationURIs.size() == 0) {
+            List modules = executable.getQueryLibraryModules(moduleURI);
+            if (modules == null) {
+                grumble("Cannot locate a library module with this module namespace", "XQ0059");
+            } else {
+                for (int m=0; m<modules.size(); m++) {
+                    importModuleContents(((StaticQueryContext)modules.get(m)), thisModule);
+                }
+            }
+        }
+
+        // One or more locations given: import modules from all these locations
+
+        for (int m=0; m<locationURIs.size(); m++) {
+            StaticQueryContext importedModule = thisModule.loadModule(moduleURI, (String)locationURIs.get(m));
+            importModuleContents(importedModule, thisModule);
+        }
+    }
+
+    /**
+     * Import the functions and variables from an imported module into this module
+     * @param importedModule the imported module
+     * @param thisModule thus module
+     * @throws StaticError
+     */
+
+    private void importModuleContents(StaticQueryContext importedModule, StaticQueryContext thisModule) throws StaticError {
         short ns = importedModule.getModuleNamespaceCode();
         NamePool pool = env.getNamePool();
         Iterator it = importedModule.getFunctionDefinitions();
@@ -578,15 +695,74 @@ public class QueryParser extends ExpressionParser {
             // don't import functions transitively
             if (pool.getURICode(def.getFunctionFingerprint()) == ns) {
                 thisModule.declareFunction(def);
+                checkImportedType(def.getResultType(), def);
+                for (int i=0; i<def.getNumberOfArguments(); i++) {
+                    SequenceType argType = def.getArgumentTypes()[i];
+                    checkImportedType(argType, def);
+                }
             }
         }
         it = importedModule.getVariableDeclarations();
         while (it.hasNext()) {
-            VariableDeclaration def = (VariableDeclaration) it.next();
+            GlobalVariableDefinition def = (GlobalVariableDefinition) it.next();
             // don't import variables transitively
             if (pool.getURICode(def.getNameCode()) == ns) {
                 thisModule.declareVariable(def);
+                checkImportedType(def.getRequiredType(), def);
             }
+        }
+    }
+
+    /**
+     * Check that a SequenceType used in the definition of an imported variable or function
+     * is available in the importing module
+     */
+
+    private void checkImportedType(SequenceType importedType, Object declaration) throws StaticError {
+        ItemType type = importedType.getPrimaryType();
+        if (type instanceof AnyItemType) {
+            return;
+        }
+        if (type instanceof AtomicType) {
+            int f = ((AtomicType)type).getFingerprint();
+            checkSchemaNamespaceImported(f, declaration);
+                // TODO: the module import may come before the schema import
+        } else if (type instanceof ContentTypeTest) {
+            SchemaType annotation = ((ContentTypeTest)type).getSchemaType();
+            int f = annotation.getFingerprint();
+            checkSchemaNamespaceImported(f, declaration);
+        } else if (type instanceof CombinedNodeTest) {
+            NodeTest[] tests = ((CombinedNodeTest)type).getComponentNodeTests();
+            for (int i=0; i<tests.length; i++) {
+                SequenceType st = new SequenceType(tests[1], StaticProperty.EXACTLY_ONE);
+                checkImportedType(st, declaration);
+            }
+        }
+    }
+
+    /**
+     * Check that the namespace of a given name is the namespace of an imported schema
+     */
+
+    private void checkSchemaNamespaceImported(int fingerprint, Object declaration) throws StaticError {
+        String uri = env.getNamePool().getURI(fingerprint);
+        if (uri.equals(NamespaceConstant.SCHEMA)) {
+            return;
+        } else if (uri.equals(NamespaceConstant.XDT)) {
+            return;
+        } if (env.isImportedSchema(uri)) {
+            return;   // schema namespace is imported in this module
+        } else {
+            String msg = "Schema component " + env.getNamePool().getDisplayName(fingerprint) + " used in ";
+            if (declaration instanceof GlobalVariableDefinition) {
+                msg += "declaration of imported variable " +
+                        env.getNamePool().getDisplayName(((GlobalVariableDefinition)declaration).getNameCode());
+            } else {
+                msg += "signature of imported function " +
+                        env.getNamePool().getDisplayName(((XQueryFunction)declaration).getNameCode());
+            }
+            msg += " is not declared in any schema imported by this query module";
+            grumble(msg, "XQ0036");
         }
     }
 
@@ -598,7 +774,7 @@ public class QueryParser extends ExpressionParser {
 
     private void parseBaseURIDeclaration() throws StaticError {
         if (haveSeenBaseURI) {
-            grumble("Base URI Declaration may only appear once");
+            grumble("Base URI Declaration may only appear once", "XQ0032");
         }
         haveSeenBaseURI = true;
         nextToken();
@@ -617,6 +793,10 @@ public class QueryParser extends ExpressionParser {
      */
 
     private void parseDefaultFunctionNamespace() throws StaticError {
+        if (foundDefaultFunctionNamespace) {
+            grumble("default function namespace appears more than once", "XQ0066");
+        }
+        foundDefaultFunctionNamespace = true;
         nextToken();
         expect(Token.NAME);
         if (!"namespace".equals(t.currentTokenValue)) {
@@ -625,6 +805,9 @@ public class QueryParser extends ExpressionParser {
         nextToken();
         expect(Token.STRING_LITERAL);
         String uri = t.currentTokenValue;
+        if (uri.equals("")) {
+            grumble("The default function namespace must not be a zero-length string", "XQ0063");
+        }
         ((StaticQueryContext) env).setDefaultFunctionNamespace(uri);
         nextToken();
     }
@@ -636,6 +819,10 @@ public class QueryParser extends ExpressionParser {
      */
 
     private void parseDefaultElementNamespace() throws StaticError {
+        if (foundDefaultElementNamespace) {
+            grumble("default element namespace appears more than once", "XQ0066");
+        }
+        foundDefaultElementNamespace = true;
         nextToken();
         expect(Token.NAME);
         if (!"namespace".equals(t.currentTokenValue)) {
@@ -661,6 +848,7 @@ public class QueryParser extends ExpressionParser {
         if (!XMLChar.isValidNCName(prefix)) {
             grumble("Invalid namespace prefix " + Err.wrap(prefix));
         }
+        checkProhibitedPrefixes(prefix);
         nextToken();
         expect(Token.EQUALS);
         nextToken();
@@ -669,8 +857,20 @@ public class QueryParser extends ExpressionParser {
         if ("".equals(uri)) {
             grumble("A namespace URI cannot be empty");
         }
-        ((StaticQueryContext) env).declarePassiveNamespace(prefix, uri);
+        ((StaticQueryContext) env).declarePassiveNamespace(prefix, uri, true);
         nextToken();
+    }
+
+    /**
+     * Check that a namespace prefix is not a prohibited prefix (xml or xmlns)
+     * @param prefix the prefix to be tested
+     * @throws StaticError if the prefix is prohibited
+     */
+
+    private void checkProhibitedPrefixes(String prefix) throws StaticError {
+        if ("xml".equals(prefix) || "xmlns".equals(prefix)) {
+            grumble("The namespace prefix " + Err.wrap(prefix) + " cannot be redeclared", "XQ0070");
+        }
     }
 
     /**
@@ -699,6 +899,12 @@ public class QueryParser extends ExpressionParser {
         int varNameCode = makeNameCode(t.currentTokenValue, false);
         int varFingerprint = varNameCode & 0xfffff;
         var.setNameCode(varFingerprint);
+
+        String uri = env.getNamePool().getURI(varNameCode);
+        String moduleURI = ((StaticQueryContext)env).getModuleNamespace();
+        if (moduleURI != null && !moduleURI.equals(uri)) {
+            grumble("A variable declared in a library module must be in the module namespace", "XQ0048");
+        }
 
         nextToken();
         SequenceType requiredType = SequenceType.ANY_SEQUENCE;
@@ -782,7 +988,7 @@ public class QueryParser extends ExpressionParser {
         try {
             qenv.declareVariable(var);
         } catch (XPathException e) {
-            grumble(e.getMessage());
+            grumble(e.getMessage(), e.getErrorCode());
         }
     }
 
@@ -803,11 +1009,23 @@ public class QueryParser extends ExpressionParser {
         expect(Token.FUNCTION);
 
         if (t.currentTokenValue.indexOf(':') < 0) {
-            grumble("Saxon requires user-defined functions to have a namespace prefix");
+            grumble("A user-defined function must be in a namespace", "XQ0060");
+        }
+
+        int fnc = makeNameCode(t.currentTokenValue, false);
+        String uri = env.getNamePool().getURI(fnc);
+
+        String moduleURI = ((StaticQueryContext)env).getModuleNamespace();
+        if (moduleURI != null && !moduleURI.equals(uri)) {
+            grumble("A function in a library module must be in the module namespace", "XQ0048");
+        }
+
+        if (NamespaceConstant.isReservedInQuery(uri)) {
+            grumble("The function name " + t.currentTokenValue + " is in a reserved namespace", "XQ0045");
         }
 
         XQueryFunction func = new XQueryFunction();
-        func.setNameCode(makeNameCode(t.currentTokenValue, false));
+        func.setNameCode(fnc);
         func.arguments = new ArrayList(8);
         func.resultType = SequenceType.ANY_SEQUENCE;
         func.body = null;
@@ -830,7 +1048,7 @@ public class QueryParser extends ExpressionParser {
             int fingerprint = nameCode & 0xfffff;
             Integer f = new Integer(fingerprint);
             if (paramNames.contains(f)) {
-                grumble("Duplicate parameter name " + Err.wrap(t.currentTokenValue, Err.VARIABLE));
+                grumble("Duplicate parameter name " + Err.wrap(t.currentTokenValue, Err.VARIABLE), "XQ0039");
             }
             paramNames.add(f);
             SequenceType paramType = SequenceType.ANY_SEQUENCE;
@@ -872,18 +1090,15 @@ public class QueryParser extends ExpressionParser {
             expect(Token.RCURLY);
             lookAhead();  // must be done manually after an RCURLY
         }
-        for (int i = 0; i < func.arguments.size(); i++) {
+        UserFunctionParameter[] params = func.getParameterDefinitions();
+        for (int i = 0; i < params.length; i++) {
             undeclareRangeVariable();
         }
         t.setState(Tokenizer.DEFAULT_STATE);
         nextToken();
 
         StaticQueryContext qenv = (StaticQueryContext) env;
-        if (qenv.getModuleNamespace() != null &&
-                env.getNamePool().getURICode(func.getFunctionFingerprint()) != qenv.getModuleNamespaceCode()) {
-            grumble("Function " + Err.wrap(env.getNamePool().getDisplayName(func.getNameCode()), Err.FUNCTION) +
-                    " is not defined in the module namespace");
-        }
+
         try {
             qenv.declareFunction(func);
         } catch (XPathException e) {
@@ -962,14 +1177,7 @@ public class QueryParser extends ExpressionParser {
         Expression action = parseExprSingle();
         action = makeTracer(returnOffset, action, Location.RETURN_EXPRESSION, -1);
 
-        // if there is a "where" condition, we implement this by wrapping an if/then/else
-        // around the "return" expression. No clever optimization yet!
 
-        if (whereCondition != null) {
-            action = new IfExpression(whereCondition, action, EmptySequence.getInstance());
-            action = makeTracer(whereOffset, action, Location.WHERE_CLAUSE, -1);
-            setLocation(action);
-        }
 
         // If there is an order by clause, we modify the "return" expression so that it
         // returns a tuple containing the actual return value, plus the value of
@@ -990,7 +1198,7 @@ public class QueryParser extends ExpressionParser {
                                     ((SortSpec) sortSpecList.get(i)).sortKey,
                                     SequenceType.OPTIONAL_ATOMIC,
                                     false,
-                                    new RoleLocator(RoleLocator.ORDER_BY, "FLWR", i), env);
+                                    new RoleLocator(RoleLocator.ORDER_BY, "FLWR", i, null), env);
                     exp.setExpression(i + 1, sk);
                 } catch (XPathException err) {
                     grumble(err.getMessage());
@@ -998,6 +1206,15 @@ public class QueryParser extends ExpressionParser {
             }
             action = exp;
         }
+
+        // if there is a "where" condition, we implement this by wrapping an if/then/else
+        // around the "return" expression. No clever optimization yet!
+
+        if (whereCondition != null) {
+            action = new IfExpression(whereCondition, action, EmptySequence.getInstance());
+            action = makeTracer(whereOffset, action, Location.WHERE_CLAUSE, -1);
+            setLocation(action);
+        }        
 
         for (int i = clauseList.size() - 1; i >= 0; i--) {
             Object clause = clauseList.get(i);
@@ -1191,6 +1408,31 @@ public class QueryParser extends ExpressionParser {
             clause.value = parseExprSingle();
             declareRangeVariable(v);
         } while (t.currentToken == Token.COMMA);
+    }
+
+    /**
+    * Make a string-join expression that concatenates the string-values of items in
+    * a sequence with intervening spaces. This may be simplified later as a result
+    * of type-checking.
+    */
+
+    public static Expression makeStringJoin(Expression exp, StaticContext env) {
+
+        exp = new Atomizer(exp, env.getConfiguration());
+        ItemType t = exp.getItemType();
+        if (t != Type.STRING_TYPE && t != Type.UNTYPED_ATOMIC_TYPE) {
+            exp = new AtomicSequenceConverter(exp, Type.STRING_TYPE);
+        }
+
+		StringJoin fn = (StringJoin)SystemFunction.makeSystemFunction("string-join", 2, env.getNamePool());
+		Expression[] args = new Expression[2];
+		args[0] = exp;
+		args[1] = new StringValue(" ");
+		fn.setArguments(args);
+        if (exp instanceof ComputedExpression) {
+            fn.setLocationId(((ComputedExpression)exp).getLocationId());
+        }
+		return fn;
     }
 
     private static class LetClause {
@@ -1442,9 +1684,6 @@ public class QueryParser extends ExpressionParser {
         }
         nextToken();
 
-//        ((StaticQueryContext) env).pushValidationMode(mode);
-//        ((StaticQueryContext) env).pushValidationContext(context);
-
         Expression exp = parseExpression();
         if (exp instanceof ElementCreator) {
             ((ElementCreator)exp).setValidationMode(mode);
@@ -1460,74 +1699,20 @@ public class QueryParser extends ExpressionParser {
                         exp,
                         SequenceType.SINGLE_NODE,
                         false,
-                        new RoleLocator(RoleLocator.TYPE_OP, "validate", 0), env);
+                        new RoleLocator(RoleLocator.TYPE_OP, "validate", 0, null), env);
             } catch (XPathException err) {
                 grumble(err.getMessage());
             }
             exp = new CopyOf(exp, true, mode, null);
             setLocation(exp);
             ((CopyOf)exp).setRequireDocumentOrElement(true);
-            //((CopyOf)exp).setValidationContext(context);
         }
 
         expect(Token.RCURLY);
         t.lookAhead();      // always done manually after an RCURLY
         nextToken();
-//        ((StaticQueryContext) env).popValidationMode();
-//        ((StaticQueryContext) env).popValidationContext();
         return makeTracer(offset, exp, Location.VALIDATE_EXPRESSION, -1);
     }
-
-    /**
-     * Parse a validation context.
-     * Syntax ( qname | type(qname) ) ( '/' qname )*
-     */
-
-//    public ValidationContext parseValidationContext() throws XPathException.Static {
-//        ValidationContext context = GlobalValidationContext.getInstance();
-//        Configuration config = env.getConfiguration();
-//        int fingerprint = -1;
-//        boolean isType = false;
-//        if (t.currentToken == Token.TYPETEST) {
-//            isType = true;
-//            nextToken();
-//            expect(Token.NAME);
-//            fingerprint = makeNameCode(t.currentTokenValue, true) & 0xfffff;
-//            nextToken();
-//            expect(Token.RPAR);
-//        } else {
-//            fingerprint = makeNameCode(t.currentTokenValue, true) & 0xfffff;
-//        }
-//
-//        while (true) {
-//            try {
-//                context = config.getContainedValidationContext(context, fingerprint, isType);
-//            } catch (XPathException err) {
-//                grumble(err.getMessage());
-//                return null;
-//            }
-//            isType = false;
-//            if (context.isVoidValidationContext()) {
-//                grumble("Element " + Err.wrap(t.currentTokenValue, Err.ELEMENT) +
-//                        " cannot be used as validation context: element is undefined or has simple content");
-//            }
-//            if (t.currentToken == Token.KEYWORD_CURLY) {
-//                break;
-//            } else {
-//                nextToken();
-//                if (t.currentToken == Token.LCURLY) {
-//                    break;
-//                } else if (t.currentToken == Token.SLASH) {
-//                    nextToken();
-//                    fingerprint = makeNameCode(t.currentTokenValue, true) & 0xfffff;
-//                } else {
-//                    grumble("expected '/' or '{'");
-//                    return null;
-//                }
-//            }
-//        }
-//        return context;
-//    }
 
     /**
      * Parse a node constructor. This is allowed only in XQuery. This method handles
@@ -1565,7 +1750,9 @@ public class QueryParser extends ExpressionParser {
                     lookAhead();  // must be done manually after an RCURLY
                     nextToken();
                     DocumentInstr doc = new DocumentInstr(false, null, env.getBaseURI());
-                    makeContentConstructor(content, doc, offset);
+                    doc.setContent(content);
+                    setLocation(doc, offset);
+                    //makeContentConstructor(content, doc, offset);
                     return doc;
 
                 } else if ("element".equals(nodeKind)) {
@@ -1610,20 +1797,30 @@ public class QueryParser extends ExpressionParser {
                         inst = new FixedElement(nameCode,
                                 ((StaticQueryContext) env).getActiveNamespaceCodes(),
                                 null,
-                                false,
+                                ((StaticQueryContext) env).isInheritNamespaces(),
                                 null,
                                 ((StaticQueryContext) env).getConstructionMode());
-                        setLocation(inst);
-                        makeContentConstructor(content, (InstructionWithChildren) inst, offset);
+                        if (content == null) {
+                            content = EmptySequence.getInstance();
+                        }
+                        ((FixedElement)inst).setContent(content);
+                        setLocation(inst, offset);
+                        //makeContentConstructor(content, (InstructionWithChildren) inst, offset);
                         return makeTracer(offset, inst,Location.LITERAL_RESULT_ELEMENT, nameCode);
                     } else {
                         // it really is a computed element constructor: save the namespace context
                         inst = new Element(name, null,
                                 env.getNamespaceResolver(),
                                 null, null,
-                                ((StaticQueryContext) env).getConstructionMode());
+                                ((StaticQueryContext) env).getConstructionMode(),
+                                ((StaticQueryContext) env).isInheritNamespaces());
                         setLocation(inst);
-                        makeContentConstructor(content, (InstructionWithChildren) inst, offset);
+                        if (content == null) {
+                            content = EmptySequence.getInstance();
+                        }
+                        ((Element)inst).setContent(content);
+                        setLocation(inst, offset);
+                        //makeContentConstructor(content, (InstructionWithChildren) inst, offset);
                         return makeTracer(offset, inst, StandardNames.XSL_ELEMENT, -1);
                     }
 
@@ -1734,11 +1931,15 @@ public class QueryParser extends ExpressionParser {
                 FixedElement el2 = new FixedElement(nameCode,
                         ((StaticQueryContext) env).getActiveNamespaceCodes(),
                         null,
-                        false,
+                        ((StaticQueryContext) env).isInheritNamespaces(),
                         null,
                         ((StaticQueryContext) env).getConstructionMode());
-                setLocation(el2);
-                makeContentConstructor(content, el2, offset);
+                setLocation(el2, offset);
+                if (content == null) {
+                    content = EmptySequence.getInstance();
+                }
+                el2.setContent(content);
+                //makeContentConstructor(content, el2, offset);
                 return makeTracer(offset, el2, Location.LITERAL_RESULT_ELEMENT, nameCode);
             case Token.ATTRIBUTE_QNAME:
                 int attNameCode = makeNameCode(t.currentTokenValue, false);
@@ -1803,19 +2004,19 @@ public class QueryParser extends ExpressionParser {
      * @param inst The element-construction instruction (Element or FixedElement)
      * @param offset the character position in the query
      */
-    private void makeContentConstructor(Expression content, InstructionWithChildren inst, int offset) {
-        if (content == null) {
-            inst.setChildren(null);
-        } else if (content instanceof AppendExpression) {
-            List instructions = new ArrayList(10);
-            convertAppendExpression((AppendExpression) content, instructions);
-            inst.setChildren((Expression[]) instructions.toArray(new Expression[instructions.size()]));
-        } else {
-            Expression children[] = {content};
-            inst.setChildren(children);
-        }
-        setLocation(inst, offset);
-    }
+//    private void makeContentConstructor(Expression content, InstructionWithChildren inst, int offset) {
+//        if (content == null) {
+//            inst.setChildren(null);
+//        } else if (content instanceof AppendExpression) {
+//            List instructions = new ArrayList(10);
+//            convertAppendExpression((AppendExpression) content, instructions);
+//            inst.setChildren((Expression[]) instructions.toArray(new Expression[instructions.size()]));
+//        } else {
+//            Expression children[] = {content};
+//            inst.setChildren(children);
+//        }
+//        setLocation(inst, offset);
+//    }
 
     /**
      * Convert an append expression into an equivalent sequence of instructions
@@ -1882,6 +2083,12 @@ public class QueryParser extends ExpressionParser {
         setLocation(exp, offset);
         return exp;
     }
+
+    /**
+     * Parse a direct element constructor
+     * @return the expression representing the constructor
+     * @throws StaticError
+     */
 
     private Expression parseDirectElementConstructor() throws StaticError {
         int offset = t.inputOffset - 1;
@@ -1954,7 +2161,7 @@ public class QueryParser extends ExpressionParser {
             }
             if ("xmlns".equals(attName) || attName.startsWith("xmlns:")) {
                 if (rval.indexOf('{') >= 0) {
-                    grumble("Namespace URI must be a constant value");
+                    grumble("Namespace URI must be a constant value", "XQ0022");
                 }
                 String prefix, uri;
                 if ("xmlns".equals(attName)) {
@@ -1962,6 +2169,11 @@ public class QueryParser extends ExpressionParser {
                     uri = rval;
                 } else {
                     prefix = attName.substring(6);
+                    if (prefix.equals("xml")) {
+                        grumble("Cannot redeclare the XML namespace", "XQ0070");
+                    } else if (prefix.equals("xmlns")) {
+                        grumble("Cannot use xmlns as a namespace prefix", "XQ0070");
+                    }
                     uri = rval;
                     if ("".equals(uri)) {
                         grumble("Namespace URI must not be empty");
@@ -1970,8 +2182,17 @@ public class QueryParser extends ExpressionParser {
                 namespaceCount++;
                 ((StaticQueryContext) env).declareActiveNamespace(prefix, uri);
             }
+            if (attributes.get(attName) != null) {
+                if ("xmlns".equals(attName) || attName.startsWith("xmlns:")) {
+                    grumble("Duplicate namespace declaration " + attName, "XQ0071");
+                } else {
+                    grumble("Duplicate attribute name " + attName, "XQ0040");
+                    // TODO: if two attributes have the same expanded name but different prefixes,
+                    // we are detecting a dynamic error whereas the spec requires a static error.
+                    // See test qxmp914err.
+                }
+            }
             AttributeDetails a = new AttributeDetails();
-            a.name = attName;
             a.value = val;
             a.startOffset = attOffset;
             attributes.put(attName, a);
@@ -1993,7 +2214,7 @@ public class QueryParser extends ExpressionParser {
                 elNameCode,
                 ((StaticQueryContext) env).getActiveNamespaceCodes(),
                 null,
-                false,
+                ((StaticQueryContext) env).isInheritNamespaces(),
                 null,
                 validationMode);
 
@@ -2009,6 +2230,12 @@ public class QueryParser extends ExpressionParser {
 
             if ("xmlns".equals(attName) || attName.startsWith("xmlns:")) {
                 // do nothing
+            } else if (scanOnly) {
+                // This means we are prescanning an attribute constructor, and we found a nested attribute
+                // constructor, which we have prescanned; we now don't want to re-process the nested attribute
+                // constructor because it might depend on things like variables declared in the containing
+                // attribute constructor, and in any case we're going to come back to it again later.
+                // See test qxmp180
             } else {
                 int attNameCode = 0;
                 String attNamespace;
@@ -2062,7 +2289,9 @@ public class QueryParser extends ExpressionParser {
             }
             elk[i] = (Expression) contents.get(i);
         }
-        elInst.setChildren(elk);
+        Block block = new Block();
+        block.setChildren(elk);
+        elInst.setContent(block);
 
         // reset the in-scope namespaces to what they were before
 
@@ -2143,7 +2372,7 @@ public class QueryParser extends ExpressionParser {
                     exp = exp.simplify(env);
                 }
                 last = parser.getTokenizer().currentTokenStartOffset + 1;
-                components.add(AttributeValueTemplate.makeStringJoin(exp, env.getNamePool()));
+                components.add(makeStringJoin(exp, env));
 
             } else {
                 throw new IllegalStateException("Internal error parsing AVT");
@@ -2171,7 +2400,7 @@ public class QueryParser extends ExpressionParser {
 
         // otherwise, return an expression that concatenates the components
 
-        Concat fn = (Concat) SystemFunction.makeSystemFunction("concat", env.getNamePool());
+        Concat fn = (Concat) SystemFunction.makeSystemFunction("concat", components.size(), env.getNamePool());
         Expression[] args = new Expression[components.size()];
         components.toArray(args);
         fn.setArguments(args);
@@ -2198,6 +2427,7 @@ public class QueryParser extends ExpressionParser {
      */
     private void readElementContent(String startTag, List components) throws StaticError {
         try {
+            boolean afterRightCurly = false;
             while (true) {
                 // read all the components of the element value
                 StringBuffer text = new StringBuffer(10);
@@ -2226,6 +2456,7 @@ public class QueryParser extends ExpressionParser {
                     } else {
                         text.append(c);
                     }
+                    afterRightCurly = false;
                 }
                 if (text.length() > 0 &&
                         (containsEntities | preserveSpace | !Navigator.isWhite(text))) {
@@ -2234,7 +2465,6 @@ public class QueryParser extends ExpressionParser {
                     components.add(inst);
                 }
                 if (c == '<') {
-                    // c == '<'
                     Expression exp = parsePseudoXML(true);
                     // An end tag can appear here, and is returned as a string value
                     if (exp instanceof StringValue) {
@@ -2248,8 +2478,15 @@ public class QueryParser extends ExpressionParser {
                     } else {
                         components.add(exp);
                     }
+                    afterRightCurly = false;
                 } else {
                     // we read an '{' indicating an enclosed expression
+                    if (afterRightCurly) {
+                        // Add a zero-length text node, to prevent {"a"}{"b"} generating an intervening space (qxmp132)
+                        ValueOf inst = new ValueOf(new StringValue(""), false);
+                        setLocation(inst);
+                        components.add(inst);
+                    }
                     t.unreadChar();
                     t.setState(Tokenizer.DEFAULT_STATE);
                     lookAhead();
@@ -2257,10 +2494,7 @@ public class QueryParser extends ExpressionParser {
                     Expression exp = parseExpression();
                     components.add(exp);
                     expect(Token.RCURLY);
-                    // Add a zero-length text node, to prevent {"a"}{"b"} generating an intervening space (qxmp132)
-                    ValueOf inst = new ValueOf(new StringValue(""), false);
-                    setLocation(inst);
-                    components.add(inst);
+                    afterRightCurly = true;
                 }
             }
         } catch (StringIndexOutOfBoundsException err) {
@@ -2365,17 +2599,21 @@ public class QueryParser extends ExpressionParser {
      */
 
     private Expression stringify(Expression exp) {
-        exp = new Atomizer(exp);
-        exp = new AtomicSequenceConverter(exp, Type.STRING_TYPE);
-
-        StringJoin fn = (StringJoin) SystemFunction.makeSystemFunction("string-join",
-                executable.getConfiguration().getNamePool());
-        Expression[] args = new Expression[2];
-        args[0] = exp;
-        args[1] = new StringValue(" ");
-        fn.setArguments(args);
-        setLocation(fn);
-        return fn;
+        return new SimpleContentConstructor(exp, StringValue.SINGLE_SPACE);
+//        exp = new Atomizer(exp, env.getConfiguration());
+//        ItemType t = exp.getItemType();
+//        if (t != Type.STRING_TYPE && t != Type.UNTYPED_ATOMIC_TYPE) {
+//            exp = new AtomicSequenceConverter(exp, Type.STRING_TYPE);
+//        }
+//
+//        StringJoin fn = (StringJoin) SystemFunction.makeSystemFunction("string-join", 2,
+//                env.getConfiguration().getNamePool());
+//        Expression[] args = new Expression[2];
+//        args[0] = exp;
+//        args[1] = new StringValue(" ");
+//        fn.setArguments(args);
+//        setLocation(fn);
+//        return fn;
     }
 
     /**
@@ -2550,7 +2788,6 @@ public class QueryParser extends ExpressionParser {
     }
 
     private static class AttributeDetails {
-        String name;
         String value;
         int startOffset;
     }

@@ -1,17 +1,18 @@
 package org.orbeon.saxon.sort;
 
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.LastPositionFinder;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.ListIterator;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.trace.Location;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.trace.Location;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 
 /**
@@ -29,7 +30,7 @@ import java.util.List;
  * current group is available via the getCurrentGroupingKey() method.</p>
  */
 
-public class GroupByIterator implements GroupIterator {
+public class GroupByIterator implements GroupIterator, LastPositionFinder {
 
     // The implementation of group-by is not pipelined. All the items in the population
     // are read at the start, their grouping keys are calculated, and the groups are formed
@@ -47,15 +48,15 @@ public class GroupByIterator implements GroupIterator {
     // Main data structure holds one entry for each group. The entry is also an ArrayList,
     // which contains the Items that are members of the group, in population order.
     // The groups are arranged in order of first appearance within the population.
-    private ArrayList groups = new ArrayList();
+    private ArrayList groups = new ArrayList(40);
 
     // This parallel structure identifies the grouping key for each group. The list
     // corresponds one-to-one with the list of groups.
-    private ArrayList groupKeys = new ArrayList();
+    private ArrayList groupKeys = new ArrayList(40);
 
     // For convenience (so that we can use a standard ArrayListIterator) we define
     // another parallel array holding the initial items of each group.
-    private ArrayList initialItems = new ArrayList();
+    private ArrayList initialItems = new ArrayList(40);
 
     // An AtomicSortComparer is used to do the comparisons
     private AtomicSortComparer comparer;
@@ -88,7 +89,7 @@ public class GroupByIterator implements GroupIterator {
      */
 
     private void buildIndexedGroups() throws XPathException {
-        HashMap index = new HashMap();
+        HashMap index = new HashMap(40);
         XPathContext c2 = keyContext.newMinorContext();
         c2.setCurrentIterator(population);
         c2.setOriginatingConstructType(Location.GROUPING_KEY);
@@ -107,7 +108,7 @@ public class GroupByIterator implements GroupIterator {
                 AtomicSortComparer.ComparisonKey comparisonKey = comparer.getComparisonKey(key);
                 ArrayList g = (ArrayList) index.get(comparisonKey);
                 if (g == null) {
-                    ArrayList newGroup = new ArrayList();
+                    ArrayList newGroup = new ArrayList(20);
                     newGroup.add(item);
                     groups.add(newGroup);
                     groupKeys.add(key);
@@ -129,7 +130,6 @@ public class GroupByIterator implements GroupIterator {
                 firstKey = false;
             }
         }
-        //controller.setCurrentIterator(savedIterator);
     }
 
     /**
@@ -180,10 +180,16 @@ public class GroupByIterator implements GroupIterator {
     public SequenceIterator getAnother() throws XPathException {
         XPathContext c2 = keyContext.newMinorContext();
         c2.setOriginatingConstructType(Location.GROUPING_KEY);
-        return new GroupByIterator(population, keyExpression, c2, collator);
+        return new GroupByIterator(population.getAnother(), keyExpression, c2, collator);
     }
 
+    /**
+     * Get the last position (that is, the number of groups)
+     */
 
+    public int getLastPosition() throws XPathException {
+        return groups.size();
+    }
 
 }
 

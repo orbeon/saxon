@@ -1,19 +1,19 @@
-package net.sf.saxon.xpath;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.expr.Atomizer;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.XPathContextMajor;
-import net.sf.saxon.functions.NumberFn;
-import net.sf.saxon.instruct.SlotManager;
-import net.sf.saxon.om.*;
-import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.sort.FixedSortKeyDefinition;
-import net.sf.saxon.sort.SortedIterator;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.DoubleValue;
-import net.sf.saxon.value.NumericValue;
-import net.sf.saxon.value.SequenceExtent;
+package org.orbeon.saxon.xpath;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.expr.Atomizer;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.XPathContextMajor;
+import org.orbeon.saxon.functions.NumberFn;
+import org.orbeon.saxon.instruct.SlotManager;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.sort.FixedSortKeyDefinition;
+import org.orbeon.saxon.sort.SortedIterator;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.DoubleValue;
+import org.orbeon.saxon.value.NumericValue;
+import org.orbeon.saxon.value.SequenceExtent;
 import org.xml.sax.InputSource;
 
 import javax.xml.namespace.QName;
@@ -90,10 +90,10 @@ public class XPathExpressionImpl implements XPathExpression {
 
     /**
     * Execute a prepared XPath expression, returning the results as a List. The context
-     * node must have been set previously using {@link #setContextNode(net.sf.saxon.om.NodeInfo)}.
+     * node must have been set previously using {@link #setContextNode(org.orbeon.saxon.om.NodeInfo)}.
     * @return The results of the expression, as a List. The List represents the sequence
     * of items returned by the expression. Each item in the list will either be an instance
-    * of net.sf.saxon.om.NodeInfo, representing a node, or a Java object representing an atomic value.
+    * of org.orbeon.saxon.om.NodeInfo, representing a node, or a Java object representing an atomic value.
     * For the types of Java object that may be returned, see {@link #evaluate(Object, javax.xml.namespace.QName)}
      * with the second argument set to NODESET.
     */
@@ -110,7 +110,7 @@ public class XPathExpressionImpl implements XPathExpression {
     * Execute a prepared XPath expression, returning the first item in the result.
     * This is useful where it is known that the expression will only return
     * a singleton value (for example, a single node, or a boolean). The context node
-     * must be set previously using {@link #setContextNode(net.sf.saxon.om.NodeInfo)}.
+     * must be set previously using {@link #setContextNode(org.orbeon.saxon.om.NodeInfo)}.
     * @return The first item in the sequence returned by the expression. If the expression
     * returns an empty sequence, this method returns null. Otherwise, it returns the first
     * item in the result sequence, represented as a Java object using the same mapping as for

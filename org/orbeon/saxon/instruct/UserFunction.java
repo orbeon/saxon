@@ -1,17 +1,20 @@
 package org.orbeon.saxon.instruct;
 
 import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.UserFunctionCall;
+import org.orbeon.saxon.expr.XPathContextMajor;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.trace.InstructionInfo;
 import org.orbeon.saxon.trace.InstructionInfoProvider;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.HashMap;
@@ -31,7 +34,7 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
 
     private int functionNameCode;
     private boolean memoFunction = false;
-    private SequenceType[] argumentTypes;
+    private UserFunctionParameter[] parameterDefinitions;
     private SequenceType resultType;
     private transient InstructionDetails details = null;
 
@@ -41,29 +44,16 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
         setBody(body);
     };
 
-    public void setArgumentTypes(SequenceType[] argumentTypes) {
-        this.argumentTypes = argumentTypes;
+    public void setParameterDefinitions(UserFunctionParameter[] params) {
+        this.parameterDefinitions = params;
+    }
+
+    public UserFunctionParameter[] getParameterDefinitions() {
+        return parameterDefinitions;
     }
 
     public void setResultType(SequenceType resultType) {
         this.resultType = resultType;
-    }
-
-    /**
-     * Get the name of the function, as a namepool fingerprint
-     * @return the fingerprint of the function name
-     */
-
-    public int getFunctionFingerprint() {
-        return getFunctionNameCode() & 0xfffff;
-    }
-
-    /**
-     * Get the display name of the function (a lexical QName), for diagnostics
-     */
-
-    public String getFunctionDisplayName(NamePool pool) {
-        return pool.getDisplayName(getFunctionNameCode());
     }
 
     /**
@@ -76,13 +66,13 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
     }
 
     /**
-     * Get the required types of the arguments to this function, as an array
-     * @return an array of SequenceType objects, one for each formal argument,
-     * indicating the required type of the argument
+     * Get the required types of an argument to this function
+     * @param n identifies the argument in question, starting at 0
+     * @return a SequenceType object, indicating the required type of the argument
      */
 
-    public SequenceType[] getArgumentTypes() {
-        return argumentTypes;
+    public SequenceType getArgumentType(int n) {
+        return parameterDefinitions[n].getRequiredType();
     }
 
     /**
@@ -91,7 +81,7 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
      */
 
     public int getNumberOfArguments() {
-        return argumentTypes.length;
+        return parameterDefinitions.length;
     }
 
     /**
@@ -155,10 +145,7 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
         context.setStackFrame(getStackFrameMap(), actualArgs);
         Value result;
         try {
-            result = ExpressionTool.eagerEvaluate(getBody(), context);
-            //TODO: lazy evaluation currently doesn't work here. (E.g. tour.xq). Find out why not.
-            // -- what happens is that evaluation of an operand to an arithmetic expression finds itself
-            // handed a UserFunctionCall.FunctionCallPackage, which it doesn't know what to do with.
+            result = ExpressionTool.lazyEvaluate(getBody(), context, false);
         } catch (XPathException err) {
             err.setLocator(this);
             throw err;

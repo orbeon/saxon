@@ -1,7 +1,7 @@
-package net.sf.saxon.om;
+package org.orbeon.saxon.om;
 
-import net.sf.saxon.event.LocationProvider;
-import net.sf.saxon.style.StandardNames;
+import org.orbeon.saxon.event.LocationProvider;
+import org.orbeon.saxon.style.StandardNames;
 import org.xml.sax.Attributes;
 
 
@@ -56,7 +56,7 @@ public final class AttributeCollection implements Attributes {
 
     /**
      * Add an attribute to an attribute list. The parameters correspond
-     * to the parameters of the {@link net.sf.saxon.event.Receiver#attribute(int, int, CharSequence, int, int)}
+     * to the parameters of the {@link org.orbeon.saxon.event.Receiver#attribute(int, int, CharSequence, int, int)}
      * method. There is no check that the name of the attribute is distinct from other attributes
      * already in the collection: this check must be made by the caller.
      *
@@ -92,7 +92,7 @@ public final class AttributeCollection implements Attributes {
 
     /**
      * Set (overwrite) an attribute in the attribute list. The parameters correspond
-     * to the parameters of the {@link net.sf.saxon.event.Receiver#attribute(int, int, CharSequence, int, int)}
+     * to the parameters of the {@link org.orbeon.saxon.event.Receiver#attribute(int, int, CharSequence, int, int)}
      * method.
      * @param index Identifies the entry to be replaced
      * @param nameCode Integer representing the attribute name.
@@ -191,7 +191,7 @@ public final class AttributeCollection implements Attributes {
      * Get the locationID of an attribute (by position)
      * @param index The position of the attribute in the list.
      * @return The location identifier of the attribute. This can be supplied
-     * to a {@link net.sf.saxon.event.LocationProvider} in order to obtain the
+     * to a {@link org.orbeon.saxon.event.LocationProvider} in order to obtain the
      * actual system identifier and line number of the relevant location
      */
 
@@ -242,8 +242,8 @@ public final class AttributeCollection implements Attributes {
      * Get the properties of an attribute (by position)
      * @param index The position of the attribute in the list.
      * @return The properties of the attribute. This is a set
-     * of bit-settings defined in class {@link net.sf.saxon.event.ReceiverOptions}. The
-     * most interesting of these is {{@link net.sf.saxon.event.ReceiverOptions#DEFAULTED_ATTRIBUTE},
+     * of bit-settings defined in class {@link org.orbeon.saxon.event.ReceiverOptions}. The
+     * most interesting of these is {{@link org.orbeon.saxon.event.ReceiverOptions#DEFAULTED_ATTRIBUTE},
      * which indicates an attribute that was added to an element as a result of schema validation.
      */
 

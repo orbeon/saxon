@@ -1,4 +1,4 @@
-package net.sf.saxon.sort;
+package org.orbeon.saxon.sort;
 
 /*
 Copyright ? 1999 CERN - European Organization for Nuclear Research.

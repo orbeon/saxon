@@ -1,5 +1,5 @@
 package org.orbeon.saxon.sort;
-import org.orbeon.saxon.xpath.XPathException;
+
 
 
 /**

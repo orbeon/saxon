@@ -4,8 +4,8 @@ import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.type.*;
 
-import java.util.Set;
 import java.io.Serializable;
+import java.util.Set;
 
 /**
   * A NodeTest is a simple kind of pattern that enables a context-free test of whether

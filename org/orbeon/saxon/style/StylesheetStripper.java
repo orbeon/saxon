@@ -3,8 +3,6 @@ import org.orbeon.saxon.event.Stripper;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NamespaceConstant;
 import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.om.Navigator;
-
 import org.orbeon.saxon.xpath.XPathException;
 
 /**
@@ -97,12 +95,8 @@ public class StylesheetStripper extends Stripper
     * Handle a text node
     */
 
-    public void characters (CharSequence chars, int locationId, int properties) throws XPathException
-    {
-
-
+    public void characters (CharSequence chars, int locationId, int properties) throws XPathException {
         // assume adjacent chunks of text are already concatenated
-
         super.characters(chars, locationId, properties);
     }
 

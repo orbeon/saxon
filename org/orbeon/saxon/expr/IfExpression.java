@@ -3,15 +3,16 @@ import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.BooleanValue;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.xpath.XPathException;
 
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Iterator;
-import java.io.PrintStream;
 
 
 /**
@@ -36,6 +37,28 @@ public class IfExpression extends ComputedExpression {
         adoptChildExpression(condition);
         adoptChildExpression(thenExp);
         adoptChildExpression(elseExp);
+    }
+
+    public Expression getCondition() {
+        return condition;
+    }
+
+    public Expression getThenExpression() {
+        return thenExp;
+    }
+
+    public Expression getElseExpression() {
+        return elseExp;
+    }
+
+    public void setCondition(Expression exp) {
+        condition = exp;
+        adoptChildExpression(exp);
+    }
+
+    public void setThenExpression(Expression exp) {
+        thenExp = exp;
+        adoptChildExpression(exp);
     }
 
     /**
@@ -105,13 +128,6 @@ public class IfExpression extends ComputedExpression {
     * Get the immediate subexpressions of this expression
     */
 
-//    public Expression[] getSubExpressions() {
-//        Expression[] exp = new Expression[3];
-//        exp[0] = condition;
-//        exp[1] = thenExp;
-//        exp[2] = elseExp;
-//        return exp;
-//    }
     public Iterator iterateSubExpressions() {
         ArrayList a = new ArrayList(3);
         a.add(condition);
@@ -129,6 +145,19 @@ public class IfExpression extends ComputedExpression {
         boolean b = ExpressionTool.markTailFunctionCalls(elseExp);
         return a || b;
     }
+
+    /**
+     * Check that any elements and attributes constructed or returned by this expression are acceptable
+     * in the content model of a given complex type. It's always OK to say yes, since the check will be
+     * repeated at run-time. The process of checking element and attribute constructors against the content
+     * model of a complex type also registers the type of content expected of those constructors, so the
+     * static validation can continue recursively.
+     */
+
+    public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException {
+        thenExp.checkPermittedContents(parentType, env, whole);
+        elseExp.checkPermittedContents(parentType, env, whole);
+    } 
 
     /**
     * Evaluate the conditional expression in a given context

@@ -3,7 +3,6 @@ import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.om.AxisIterator;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.type.SchemaType;
 
 /**
   * A DocumentNodeTest implements the test document-node(element(~,~))

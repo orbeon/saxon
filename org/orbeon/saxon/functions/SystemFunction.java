@@ -1,12 +1,13 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.*;
-import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.xpath.StaticError;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NamespaceConstant;
-import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.AnyItemType;
+import org.orbeon.saxon.type.AtomicType;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -26,8 +27,8 @@ public abstract class SystemFunction extends FunctionCall {
     * exists, or null if the function is unknown.
     */
 
-    public static FunctionCall makeSystemFunction(String name, NamePool pool) {
-        StandardFunction.Entry entry = StandardFunction.getFunction(name);
+    public static FunctionCall makeSystemFunction(String name, int arity, NamePool pool) {
+        StandardFunction.Entry entry = StandardFunction.getFunction(name, arity);
         if (entry==null) {
             return null;
         }
@@ -35,11 +36,11 @@ public abstract class SystemFunction extends FunctionCall {
         try {
             SystemFunction f = (SystemFunction)functionClass.newInstance();
             f.setDetails(entry);
-            if (name.startsWith("saxon")) {
-                f.setFunctionNameCode(pool.allocate("saxon", NamespaceConstant.SAXON, name.substring(6)));
-            } else {
+            //if (name.startsWith("saxon")) {
+            //    f.setFunctionNameCode(pool.allocate("saxon", NamespaceConstant.SAXON, name.substring(6)));
+            //} else {
                 f.setFunctionNameCode(pool.allocate("", NamespaceConstant.FN, name));
-            }
+            //}
             return f;
         } catch (IllegalAccessException err) {
             return null;
@@ -89,7 +90,7 @@ public abstract class SystemFunction extends FunctionCall {
     */
 
     private void checkArgument(int arg, StaticContext env) throws XPathException {
-        RoleLocator role = new RoleLocator(RoleLocator.FUNCTION, getDisplayName(env.getNamePool()), arg);
+        RoleLocator role = new RoleLocator(RoleLocator.FUNCTION, new Integer(getFunctionNameCode()), arg, env.getNamePool());
         argument[arg] = TypeChecker.staticTypeCheck(
                                 argument[arg],
                                 getRequiredType(arg),
@@ -138,6 +139,29 @@ public abstract class SystemFunction extends FunctionCall {
     }
 
     /**
+     * Determine the special properties of this expression. The general rule
+     * is that a system function call is non-creative if its return type is
+     * atomic, or if all its arguments are non-creative. This is overridden
+     * for the generate-id() function, which is considered creative if
+     * its operand is creative (because the result depends on the
+     * identity of the operand)
+     */
+
+    public int computeSpecialProperties() {
+        int p = super.computeSpecialProperties();
+        if (getItemType() instanceof AtomicType) {
+            return p | StaticProperty.NON_CREATIVE;
+        }
+        for (int i=0; i<argument.length; i++) {
+            if ((argument[i].getSpecialProperties() & StaticProperty.NON_CREATIVE) != 0) {
+                // the argument is creative
+                return p;
+            }
+        }
+        return p | StaticProperty.NON_CREATIVE;
+    }
+
+    /**
     * Set "." as the default value for the first and only argument. Called from subclasses.
     */
 
@@ -174,7 +198,7 @@ public abstract class SystemFunction extends FunctionCall {
         rootExpression.setParentExpression(this);
         newArgs[pos] = rootExpression;
         argument = newArgs;
-        setDetails(StandardFunction.getFunction(augmentedName));
+        setDetails(StandardFunction.getFunction(augmentedName, newArgs.length));
     }
 
     /**

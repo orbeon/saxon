@@ -1,9 +1,9 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.Name;
-import org.orbeon.saxon.om.QNameException;
-import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.value.DateTimeValue;
+import org.orbeon.saxon.value.DateValue;
+import org.orbeon.saxon.value.TimeValue;
 import org.orbeon.saxon.xpath.XPathException;
 
 
@@ -19,13 +19,7 @@ public class DateTimeConstructor extends SystemFunction {
 
     public Item evaluateItem(XPathContext context) throws XPathException {
         DateValue arg0 = (DateValue)argument[0].evaluateItem(context);
-        if (arg0==null) {
-            return null;
-        }
         TimeValue arg1 = (TimeValue)argument[1].evaluateItem(context);
-        if (arg1==null) {
-            return null;
-        }
         return new DateTimeValue(arg0, arg1);
     }
 

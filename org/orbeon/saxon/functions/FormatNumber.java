@@ -12,8 +12,8 @@ import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.NumericValue;
 import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;

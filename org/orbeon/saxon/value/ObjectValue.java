@@ -1,15 +1,11 @@
 package org.orbeon.saxon.value;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.type.ExternalObjectType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.DynamicError;
-
-import java.io.PrintStream;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 /**
@@ -118,7 +114,7 @@ public class ObjectValue extends AtomicValue {
             return this;
         } else if (target==boolean.class || target==Boolean.class) {
             BooleanValue bval = (BooleanValue)convert(Type.BOOLEAN, null);
-            return new Boolean(bval.getBooleanValue());
+            return Boolean.valueOf(bval.getBooleanValue());
         } else if (target==String.class || target==CharSequence.class) {
             return getStringValue();
         } else if (target==double.class || target==Double.class) {

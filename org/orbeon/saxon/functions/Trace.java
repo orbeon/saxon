@@ -1,15 +1,15 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.trace.TraceListener;
-import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.instruct.InstructionDetails;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.trace.TraceListener;
+import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * This class supports the XPath 2.0 function trace().

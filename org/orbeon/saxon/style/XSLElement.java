@@ -1,16 +1,15 @@
 package org.orbeon.saxon.style;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.instruct.*;
-import org.orbeon.saxon.om.Name;
-import org.orbeon.saxon.om.NamespaceException;
-import org.orbeon.saxon.om.QNameException;
-import org.orbeon.saxon.om.Validation;
-import org.orbeon.saxon.om.NamespaceResolver;
+import org.orbeon.saxon.instruct.AttributeSet;
+import org.orbeon.saxon.instruct.Element;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.instruct.FixedElement;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.type.SchemaType;
-import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.Configuration;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -97,11 +96,11 @@ public class XSLElement extends StyleElement {
         if (validationAtt!=null) {
             validation = Validation.getCode(validationAtt);
             if (validation != Validation.STRIP && !getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("To perform validation, a schema-aware XSLT processor is needed");
+                compileError("To perform validation, a schema-aware XSLT processor is needed", "XT1660");
             }
             if (validation == Validation.INVALID) {
                 compileError("Invalid value for validation attribute. " +
-                             "Permitted values are (strict, lax, preserve, strip)");
+                             "Permitted values are (strict, lax, preserve, strip)", "XT0020");
             }
         } else {
             validation = getContainingStylesheet().getDefaultValidation();
@@ -109,13 +108,13 @@ public class XSLElement extends StyleElement {
 
         if (typeAtt!=null) {
             if (!getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("The type attribute is available only with a schema-aware XSLT processor");
+                compileError("The type attribute is available only with a schema-aware XSLT processor", "XT1660");
             }
             schemaType = getSchemaType(typeAtt);
         }
 
         if (typeAtt != null && validationAtt != null) {
-            compileError("validation and type attributes are mutually exclusive");
+            compileError("The validation and type attributes are mutually exclusive", "XT1505");
         }
 
         if (inheritAtt != null) {
@@ -124,7 +123,7 @@ public class XSLElement extends StyleElement {
             } else if (inheritAtt.equals("no")) {
                 inheritNamespaces = false;
             } else {
-                compileError("The inherit-namespaces attribute has permitted values (yes, no)");
+                compileError("The inherit-namespaces attribute has permitted values (yes, no)", "XT0020");
             }
         }
     }
@@ -165,7 +164,7 @@ public class XSLElement extends StyleElement {
                 try {
           		    nsuri = getURIForPrefix(parts[0], true);
           		} catch (NamespaceException err) {
-          		    compileError(err.getMessage());
+          		    compileError(err.getMessage(), "XT0280");
           		    return null;
           		}
             }
@@ -177,7 +176,11 @@ public class XSLElement extends StyleElement {
                                                      inheritNamespaces,
                                                      schemaType,
                                                      validation);
-                compileChildren(exec, inst, true);
+                Expression b = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+                if (b == null) {
+                    b = EmptySequence.getInstance();
+                }
+                inst.setContent(b);
                 ExpressionTool.makeParentReferences(inst);
                 return inst;
             }
@@ -191,12 +194,17 @@ public class XSLElement extends StyleElement {
         }
 
         Element inst = new Element( elementName,
-                                        namespace,
-                                        nsContext,
-                                        attributeSets,
-                                        schemaType,
-                                        validation);
-        compileChildren(exec, inst, true);
+                                    namespace,
+                                    nsContext,
+                                    attributeSets,
+                                    schemaType,
+                                    validation,
+                                    inheritNamespaces);
+        Expression b = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+        if (b == null) {
+            b = EmptySequence.getInstance();
+        }
+        inst.setContent(b);
         ExpressionTool.makeParentReferences(inst);
         return inst;
     }

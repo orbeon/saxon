@@ -3,14 +3,14 @@ import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
-import javax.xml.transform.TransformerException;
+import java.io.PrintStream;
 import java.util.Collections;
 import java.util.Iterator;
-import java.io.PrintStream;
 
 /**
 * This instruction throws an error which was detected at compile time but is not to be
@@ -19,14 +19,24 @@ import java.io.PrintStream;
 
 public class DeferredError extends Instruction {
 
-    private TransformerException error;
+    private StaticError error;
+    private int nameCode;
 
-    public DeferredError(TransformerException error) {
+    public DeferredError(int nameCode, StaticError error) {
         if (error==null) {
             throw new NullPointerException("Deferred Error: no error value supplied");
         }
         this.error = error;
+        this.nameCode = nameCode;
     }
+
+    /**
+    * Get the namecode of the instruction for use in diagnostics
+    */
+
+    public int getInstructionNameCode() {
+        return nameCode;
+    };
 
     /**
      * Simplify an expression. This performs any static optimization (by rewriting the expression
@@ -85,7 +95,7 @@ public class DeferredError extends Instruction {
     }
 
     public TailCall processLeavingTail(XPathContext context) throws XPathException {
-        throw XPathException.wrap(error);
+        throw DynamicError.makeDynamicError(error);
     }
 
     /**
@@ -104,11 +114,7 @@ public class DeferredError extends Instruction {
      */
 
     public Item evaluateItem(XPathContext context) throws XPathException {
-        if (error instanceof XPathException) {
-            throw (XPathException)error;
-        } else {
-            throw new DynamicError(error);
-        }
+        throw DynamicError.makeDynamicError(error);
     }
 
     /**

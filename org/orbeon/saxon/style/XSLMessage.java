@@ -1,12 +1,15 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.instruct.Instruction;
-import org.orbeon.saxon.instruct.Message;
-import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.tree.AttributeCollection;
-import org.orbeon.saxon.expr.ComputedExpression;
+import org.orbeon.saxon.expr.AppendExpression;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.Token;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.instruct.Message;
+import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.EmptySequence;
+
 import javax.xml.transform.TransformerConfigurationException;
 
 
@@ -68,7 +71,7 @@ public final class XSLMessage extends StyleElement {
         if (terminate instanceof StringValue) {
             String t = ((StringValue)terminate).getStringValue();
             if (!(t.equals("yes") || t.equals("no"))) {
-                compileError("terminate must be 'yes' or 'no'");
+                compileError("terminate must be 'yes' or 'no'", "XT0020");
             }
         }
     }
@@ -81,9 +84,19 @@ public final class XSLMessage extends StyleElement {
         terminate = typeCheck("terminate", terminate);
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws TransformerConfigurationException {        
+        Expression b = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+        if (b != null) {
+            if (select == null) {
+                select = b;
+            } else {
+                select = new AppendExpression(select, Token.COMMA, b);
+            }
+        }
+        if (select == null) {
+            select = new StringValue("xsl:message (no content)");
+        }
         Message inst = new Message(select, terminate);
-        compileChildren(exec, inst, true);
         ExpressionTool.makeParentReferences(inst);
         return inst;
     }

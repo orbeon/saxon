@@ -3,11 +3,11 @@ import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.EmptyIterator;
-import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.pattern.NoNodeTest;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 

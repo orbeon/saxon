@@ -12,6 +12,7 @@ import org.orbeon.saxon.value.AtomicValue;
 import java.io.Serializable;
 import java.util.Set;
 
+
 /**
  * This class contains static information about types and methods for constructing type codes.
  * The class is never instantiated.
@@ -57,6 +58,10 @@ public abstract class Type implements Serializable {
      * Item type representing a namespace node
      */
     public static final short NAMESPACE = 13;
+    /**
+     * Dummy node kind used in the tiny tree to mark the end of the tree
+     */
+    public static final short STOPPER = 11;
 
     /**
      * An item type that matches any node
@@ -320,82 +325,85 @@ public abstract class Type implements Serializable {
      */
     public static final int DAY_TIME_DURATION = StandardNames.XDT_DAY_TIME_DURATION;
 
-    public static final AtomicType UNTYPED_ATOMIC_TYPE =  (AtomicType)
+    public static final BuiltInAtomicType UNTYPED_ATOMIC_TYPE =  (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XDT_UNTYPED_ATOMIC);
 
-    public static final AtomicType ANY_ATOMIC_TYPE = (AtomicType)
+    public static final BuiltInAtomicType ANY_ATOMIC_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XDT_ANY_ATOMIC_TYPE);
 
-    public static final AtomicType YEAR_MONTH_DURATION_TYPE = (AtomicType)
+    public static final BuiltInAtomicType YEAR_MONTH_DURATION_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XDT_YEAR_MONTH_DURATION);
 
-    public static final AtomicType DAY_TIME_DURATION_TYPE = (AtomicType)
+    public static final BuiltInAtomicType DAY_TIME_DURATION_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XDT_DAY_TIME_DURATION);
 
-    public static final AtomicType STRING_TYPE = (AtomicType)
+    public static final BuiltInAtomicType STRING_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_STRING);
 
-    public static final AtomicType BOOLEAN_TYPE = (AtomicType)
+    public static final BuiltInAtomicType BOOLEAN_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_BOOLEAN);
 
-    public static final AtomicType DECIMAL_TYPE = (AtomicType)
+    public static final BuiltInAtomicType DECIMAL_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_DECIMAL);
 
-    public static final AtomicType FLOAT_TYPE = (AtomicType)
+    public static final BuiltInAtomicType FLOAT_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_FLOAT);
 
-    public static final AtomicType DOUBLE_TYPE = (AtomicType)
+    public static final BuiltInAtomicType DOUBLE_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_DOUBLE);
 
-    public static final AtomicType DURATION_TYPE = (AtomicType)
+    public static final BuiltInAtomicType DURATION_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_DURATION);
 
-    public static final AtomicType DATE_TIME_TYPE = (AtomicType)
+    public static final BuiltInAtomicType DATE_TIME_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_DATE_TIME);
 
-    public static final AtomicType TIME_TYPE = (AtomicType)
+    public static final BuiltInAtomicType TIME_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_TIME);
 
-    public static final AtomicType DATE_TYPE = (AtomicType)
+    public static final BuiltInAtomicType DATE_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_DATE);
 
-    public static final AtomicType G_YEAR_MONTH_TYPE = (AtomicType)
+    public static final BuiltInAtomicType G_YEAR_MONTH_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_G_YEAR_MONTH);
 
-    public static final AtomicType G_YEAR_TYPE = (AtomicType)
+    public static final BuiltInAtomicType G_YEAR_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_G_YEAR);
 
-    public static final AtomicType G_MONTH_DAY_TYPE = (AtomicType)
+    public static final BuiltInAtomicType G_MONTH_DAY_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_G_MONTH_DAY);
 
-    public static final AtomicType G_DAY_TYPE = (AtomicType)
+    public static final BuiltInAtomicType G_DAY_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_G_DAY);
 
-    public static final AtomicType G_MONTH_TYPE = (AtomicType)
+    public static final BuiltInAtomicType G_MONTH_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_G_MONTH);
 
-    public static final AtomicType HEX_BINARY_TYPE = (AtomicType)
+    public static final BuiltInAtomicType HEX_BINARY_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_HEX_BINARY);
 
-    public static final AtomicType BASE64_BINARY_TYPE = (AtomicType)
+    public static final BuiltInAtomicType BASE64_BINARY_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_BASE64_BINARY);
 
-    public static final AtomicType ANY_URI_TYPE = (AtomicType)
+    public static final BuiltInAtomicType ANY_URI_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_ANY_URI);
 
-    public static final AtomicType QNAME_TYPE = (AtomicType)
+    public static final BuiltInAtomicType QNAME_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_QNAME);
 
-    public static final AtomicType NOTATION_TYPE = (AtomicType)
+    public static final BuiltInAtomicType NOTATION_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_NOTATION);
 
-    public static final AtomicType INTEGER_TYPE = (AtomicType)
+    public static final BuiltInAtomicType INTEGER_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_INTEGER);
 
-    public static final AtomicType ID_TYPE = (AtomicType)
+    public static final BuiltInAtomicType ID_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_ID);
 
-    public static final AtomicType NUMBER_TYPE = (AtomicType)
+    public static final BuiltInAtomicType NCNAME_TYPE = (BuiltInAtomicType)
+        BuiltInSchemaFactory.getSchemaType(StandardNames.XS_NCNAME);    
+
+    public static final BuiltInAtomicType NUMBER_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XDT_NUMERIC);
             // TODO: actually, the number type is anonymous?
 
@@ -466,13 +474,6 @@ public abstract class Type implements Serializable {
     public static boolean isSubType(ItemType subtype, ItemType supertype) {
         int relation = relationship(subtype, supertype);
         return (relation==SAME_TYPE || relation==SUBSUMED_BY);
-//        if (subtype==null) return false;
-//        if (subtype.isSameType(supertype)) return true;
-//        if (supertype instanceof AnyItemType) return true;
-//        if (subtype instanceof AnyItemType) return false;
-//        if (subtype instanceof NoNodeTest) return true;
-//                    // an empty sequence can satisfy any required item type
-//        return isSubType(subtype.getSuperType(), supertype);
     }
 
     /**
@@ -601,7 +602,12 @@ public abstract class Type implements Serializable {
                     } else if (n2.containsAll(n1)) {
                         nodeNameRelationship = SUBSUMED_BY;
                     } else {
-                        nodeNameRelationship = OVERLAPS;
+                        n2.retainAll(n1);
+                        if (n2.size() == 0) {
+                            nodeNameRelationship = DISJOINT;
+                        } else {
+                            nodeNameRelationship = OVERLAPS;
+                        }
                     }
 
                     // now find the relationship between the content types allowed
@@ -620,7 +626,7 @@ public abstract class Type implements Serializable {
                     } else {
                         SchemaType s1 = ((NodeTest)t1).getContentType();
                         SchemaType s2 = ((NodeTest)t2).getContentType();
-                        contentRelationship = s1.relationshipTo(s2);
+                        contentRelationship = schemaTypeRelationship(s1, s2);
                     }
 
                     // now analyse the three different relationsships
@@ -651,34 +657,40 @@ public abstract class Type implements Serializable {
     }
 
     /**
-     * Get the inverse of a relationship between two types
-     * @param r the relationship of type t1 to t2
-     * @return the relationship of type t2 to t1
+     * Get the relationship of two schema types to each other
      */
 
-    public static int inverseRelationship(int r) {
-        switch (r) {
-            case SAME_TYPE: return SAME_TYPE;
-            case SUBSUMES: return SUBSUMED_BY;
-            case SUBSUMED_BY: return SUBSUMES;
-            case OVERLAPS: return OVERLAPS;
-            case DISJOINT: return DISJOINT;
-            default: throw new IllegalArgumentException();
+    public static int schemaTypeRelationship(SchemaType s1, SchemaType s2) {
+        if (s1.isSameType(s2)) {
+            return SAME_TYPE;
         }
-    }
-    /**
-     * Determine whether type A is numerically promotable to type B, for example
-     * xs:integer is promotable to xs:double
-     */
-
-    public static boolean isPromotable(ItemType sourceType, ItemType targetType) {
-        if (isSubType(sourceType, DECIMAL_TYPE)) {
-            return (targetType==FLOAT_TYPE || targetType==DOUBLE_TYPE);
+        if (s1 instanceof AnyType) {
+            return SUBSUMES;
         }
-        if (isSubType(sourceType, FLOAT_TYPE)) {
-            return (targetType==DOUBLE_TYPE);
+        if (s2 instanceof AnyType) {
+            return SUBSUMED_BY;
         }
-        return false;
+        SchemaType t1 = s1;
+        while (true) {
+            t1 = t1.getKnownBaseType();
+            if (t1 == null) {
+                break;
+            }
+            if (t1.isSameType(s2)) {
+                return SUBSUMED_BY;
+            }
+        }
+        SchemaType t2 = s2;
+        while (true) {
+            t2 = t2.getKnownBaseType();
+            if (t2 == null) {
+                break;
+            }
+            if (t2.isSameType(s2)) {
+                return SUBSUMES;
+            }
+        }
+        return DISJOINT;
     }
 
     /**

@@ -1,16 +1,14 @@
 package org.orbeon.saxon.trans;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.instruct.Template;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.pattern.Pattern;
 import org.orbeon.saxon.pattern.UnionPattern;
-import org.orbeon.saxon.om.NodeInfo;
-
 import org.orbeon.saxon.xpath.XPathException;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.io.Serializable;
 
 /**
   * <B>RuleManager</B> maintains a set of template rules, one set for each mode
@@ -37,7 +35,7 @@ public class RuleManager implements Serializable {
     */
 
     public void resetHandlers() {
-        defaultMode = new Mode();
+        defaultMode = new Mode(true);
         modes = new HashMap();
     }
 
@@ -55,7 +53,7 @@ public class RuleManager implements Serializable {
         }
         if (modeNameCode==Mode.ALL_MODES) {
             if (omniMode==null) {
-                omniMode = new Mode();
+                omniMode = new Mode(false);
             }
             return omniMode;
         }
@@ -63,7 +61,6 @@ public class RuleManager implements Serializable {
         Mode m = (Mode)modes.get(modekey);
         if (m==null) {
             m = new Mode(omniMode);
-            m.setModeNameCode(modeNameCode);
             modes.put(modekey, m);
             // when creating a specific mode, copy all the rules currently held
             // in the omniMode, as these apply to all modes

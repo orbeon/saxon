@@ -1,12 +1,11 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.functions.Position;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.pattern.ContentTypeTest;
-import org.orbeon.saxon.type.AtomicType;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.SchemaType;
-import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.xpath.XPathException;
 
@@ -15,14 +14,27 @@ import org.orbeon.saxon.xpath.XPathException;
 * maps a sequence by replacing nodes with their typed values
 */
 
-public final class Atomizer extends UnaryExpression implements MappingFunction {
+public final class Atomizer extends UnaryExpression {
+
+    private boolean untyped;    //set to true if it is known that the nodes being atomized will be untyped
 
     /**
     * Constructor
+     * @param sequence the sequence to be atomized
+     * @param config the Configuration. Used only for optimization, may be null. Atomization is faster if
+     * it is known in advance that all nodes will be untyped.
     */
 
-    public Atomizer(Expression sequence) {
+    public Atomizer(Expression sequence, Configuration config) {
         super(sequence);
+        if (sequence instanceof Position) {
+            System.err.println("WHY?");
+        }
+        if (config == null) {
+            untyped = false;
+        } else {
+            untyped = !config.isSchemaAware(Configuration.XML_SCHEMA);
+        }
     }
 
     /**
@@ -30,6 +42,9 @@ public final class Atomizer extends UnaryExpression implements MappingFunction {
     */
 
      public Expression simplify(StaticContext env) throws XPathException {
+        if (!env.getConfiguration().isSchemaAware(Configuration.XML_SCHEMA)) {
+            untyped = true;
+        };
         operand = operand.simplify(env);
         if (operand instanceof AtomicValue) {
             return operand;
@@ -55,11 +70,25 @@ public final class Atomizer extends UnaryExpression implements MappingFunction {
     */
 
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
+        if (!env.getConfiguration().isSchemaAware(Configuration.XML_SCHEMA)) {
+            untyped = true;
+        };
         operand = operand.analyze(env, contextItemType);
+        resetStaticProperties();
         if (Type.isSubType(operand.getItemType(), Type.ANY_ATOMIC_TYPE)) {
             return operand;
         }
         return this;
+    }
+
+    /**
+     * Determine the special properties of this expression
+     * @return {@link StaticProperty#NON_CREATIVE}.
+     */
+
+    public int computeSpecialProperties() {
+        int p = super.computeSpecialProperties();
+        return p | StaticProperty.NON_CREATIVE;
     }
 
     /**
@@ -71,7 +100,7 @@ public final class Atomizer extends UnaryExpression implements MappingFunction {
         if (base instanceof AtomizableIterator) {
             ((AtomizableIterator)base).setIsAtomizing(true);
         }
-        return new MappingIterator(base, this, null, context.getController().getConfiguration());
+        return new MappingIterator(base, AtomizingFunction.getInstance(), null, null);
     }
 
     /**
@@ -85,7 +114,7 @@ public final class Atomizer extends UnaryExpression implements MappingFunction {
             return null;
         }
         if (i instanceof NodeInfo) {
-            SequenceIterator it = i.getTypedValue(context.getController().getConfiguration());
+            SequenceIterator it = i.getTypedValue();
             return it.next();
         } else {
             return i;
@@ -96,32 +125,53 @@ public final class Atomizer extends UnaryExpression implements MappingFunction {
     * Implement the mapping function
     */
 
-    public Object map(Item item, XPathContext context, Object info) throws XPathException {
-        if (item instanceof NodeInfo) {
-            return item.getTypedValue((Configuration)info);
-        } else {
-            return item;
+    public static class AtomizingFunction implements MappingFunction {
+
+        private AtomizingFunction(){};
+
+        private static final AtomizingFunction theInstance = new AtomizingFunction();
+
+        public static AtomizingFunction getInstance() {
+            return theInstance;
+        }
+
+        public Object map(Item item, XPathContext context, Object info) throws XPathException {
+            if (item instanceof NodeInfo) {
+                return item.getTypedValue();
+            } else {
+                return item;
+            }
         }
     }
 
     /**
     * Determine the data type of the items returned by the expression, if possible
-    * @return a value such as Type.STRING, Type.BOOLEAN, Type.NUMBER, Type.NODE,
-    * or Type.ITEM (meaning not known in advance)
+    * @return a value such as Type.STRING, Type.BOOLEAN, Type.NUMBER. For this class, the
+     * result is always an atomic type, but it might be more specific.
     */
 
 	public ItemType getItemType() {
         ItemType in = operand.getItemType();
-        if (Type.isSubType(in, Type.ANY_ATOMIC_TYPE)) {
+        if (in instanceof AtomicType) {
             return in;
         }
-        if (in instanceof ContentTypeTest) {
-            SchemaType schemaType = ((ContentTypeTest)in).getSchemaType();
-            if (schemaType instanceof AtomicType) {
-                // TODO: could do better, e.g. with list types, mixed content elements, etc
-                return (AtomicType)schemaType;
+        if (in instanceof NodeTest && untyped) {
+            return Type.UNTYPED_ATOMIC_TYPE;    // TODO: some node kinds have a typed value of string?
+        }
+        if (in instanceof NodeTest) {
+            SchemaType schemaType = ((NodeTest)in).getContentType();
+            if (schemaType instanceof SimpleType) {
+                return ((SimpleType)schemaType).getCommonAtomicType();
+            } else if (((ComplexType)schemaType).isSimpleContent()) {
+                try {
+                    return ((ComplexType)schemaType).getSimpleContentType().getCommonAtomicType();
+                } catch (ValidationException e) {
+                    return Type.UNTYPED_ATOMIC_TYPE;
+                }
+            } else {
+                // if a complex type with complex content can be atomized at all, it will return untypedAtomic values
+                return Type.UNTYPED_ATOMIC_TYPE;
             }
-
         }
 	    return Type.ANY_ATOMIC_TYPE;
 	}
@@ -131,8 +181,25 @@ public final class Atomizer extends UnaryExpression implements MappingFunction {
 	*/
 
 	public int computeCardinality() {
-        return StaticProperty.ALLOWS_ZERO_OR_MORE;
-        // TODO: this is where we need schema information...
+        if (untyped) {
+            return operand.getCardinality();
+        } else {
+            if (Cardinality.allowsMany(operand.getCardinality())) {
+                return StaticProperty.ALLOWS_ZERO_OR_MORE;
+            }
+            ItemType in = operand.getItemType();
+            if (in instanceof AtomicType) {
+                return operand.getCardinality();
+            }
+            if (in instanceof NodeTest) {
+                SchemaType schemaType = ((NodeTest)in).getContentType();
+                if (schemaType instanceof AtomicType) {
+                    // can return at most one atomic value per node
+                    return operand.getCardinality();
+                }
+            }
+            return StaticProperty.ALLOWS_ZERO_OR_MORE;
+        }
 	}
 
     /**

@@ -5,17 +5,17 @@ import org.orbeon.saxon.expr.TypeChecker;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.GeneralVariable;
-import org.orbeon.saxon.instruct.TailCall;
 import org.orbeon.saxon.instruct.InstructionDetails;
+import org.orbeon.saxon.instruct.TailCall;
+import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.Name;
 import org.orbeon.saxon.om.Navigator;
 import org.orbeon.saxon.style.XSLGeneralVariable;
-import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.trace.Location;
 import org.orbeon.saxon.value.SequenceType;
 import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.trace.InstructionInfo;
-import org.orbeon.saxon.trace.Location;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -84,7 +84,7 @@ public class SQLColumn extends XSLGeneralVariable {
         select = typeCheck("select", select);
         try {
             RoleLocator role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "sql:column/select", 0);
+                new RoleLocator(RoleLocator.INSTRUCTION, "sql:column/select", 0, null);
             select = TypeChecker.staticTypeCheck(select,
                         SequenceType.SINGLE_ATOMIC,
                         false, role, getStaticContext());

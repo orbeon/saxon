@@ -2,9 +2,9 @@ package org.orbeon.saxon.tree;
 import org.orbeon.saxon.event.Builder;
 import org.orbeon.saxon.event.LocationProvider;
 import org.orbeon.saxon.event.ReceiverOptions;
+import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.xpath.XPathException;
 
@@ -70,16 +70,16 @@ public class TreeBuilder extends Builder
         started = true;
 
         DocumentImpl doc;
-        if (currentDocument==null) {
+        if (currentRoot==null) {
             // normal case
             doc = new DocumentImpl();
-            currentDocument = doc;
+            currentRoot = doc;
         } else {
             // document node supplied by user
-            if (!(currentDocument instanceof DocumentImpl)) {
-                throw new DynamicError("Root node supplied is of wrong type");
+            if (!(currentRoot instanceof DocumentImpl)) {
+                throw new DynamicError("Document node supplied is of wrong kind");
             }
-            doc = (DocumentImpl)currentDocument;
+            doc = (DocumentImpl)currentRoot;
             if (doc.getFirstChild()!=null) {
                 throw new DynamicError("Supplied document is not empty");
             }
@@ -97,7 +97,7 @@ public class TreeBuilder extends Builder
         if (lineNumbering) {
             doc.setLineNumbering();
         }
-
+                                                                     
         super.open();
     }
 
@@ -163,11 +163,11 @@ public class TreeBuilder extends Builder
         if (attributes==null) {
             attributes = new AttributeCollection(namePool);
         }
-        String attType = "CDATA";
-        if (typeCode == Type.ID || (properties & ReceiverOptions.DTD_ID_ATTRIBUTE) != 0) {
-            attType = "ID";
-        }
-        attributes.addAttribute(nameCode, attType, value.toString());
+//        String attType = "CDATA";
+//        if (typeCode == Type.ID || (properties & ReceiverOptions.DTD_ID_ATTRIBUTE) != 0) {
+//            attType = "ID";
+//        }
+        attributes.addAttribute(nameCode, typeCode, value.toString(), locationId, properties);
     }
 
     public void startContent() throws XPathException {
@@ -187,7 +187,7 @@ public class TreeBuilder extends Builder
                                                         attributes,
                                                         namespaces,
                                                         namespacesUsed,
-                                                        locator,
+                                                        pipe.getLocationProvider(),
                                                         pendingLocationId,
                                                         nextNodeNumber++);
 
@@ -261,6 +261,7 @@ public class TreeBuilder extends Builder
     	int nameCode = namePool.allocate("", "", name);
         ProcInstImpl pi = new ProcInstImpl(nameCode, remainder.toString());
         currentNode.addChild(pi, size[depth]++);
+        LocationProvider locator = pipe.getLocationProvider();
         if (locator!=null) {
             pi.setLocation(locator.getSystemId(locationId),
                            locator.getLineNumber(locationId));
@@ -293,7 +294,7 @@ public class TreeBuilder extends Builder
     */
 
     public void setUnparsedEntity(String name, String uri, String publicId) {
-        ((DocumentImpl)currentDocument).setUnparsedEntity(name, uri, publicId);
+        ((DocumentImpl)currentRoot).setUnparsedEntity(name, uri, publicId);
     }
 
 

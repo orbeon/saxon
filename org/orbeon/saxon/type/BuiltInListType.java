@@ -1,13 +1,13 @@
-package net.sf.saxon.type;
+package org.orbeon.saxon.type;
 
-import net.sf.saxon.expr.*;
-import net.sf.saxon.functions.NormalizeSpace;
-import net.sf.saxon.om.*;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.value.Whitespace;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.functions.NormalizeSpace;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.Whitespace;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.Serializable;
 
@@ -25,8 +25,8 @@ public class BuiltInListType implements ListType, ValidSchemaType, MappingFuncti
     /**
      * Determine how values of this simple type are whitespace-normalized.
      *
-     * @return one of {@link net.sf.saxon.value.Whitespace#PRESERVE}, {@link net.sf.saxon.value.Whitespace#COLLAPSE},
-     *         {@link net.sf.saxon.value.Whitespace#REPLACE}.
+     * @return one of {@link org.orbeon.saxon.value.Whitespace#PRESERVE}, {@link org.orbeon.saxon.value.Whitespace#COLLAPSE},
+     *         {@link org.orbeon.saxon.value.Whitespace#REPLACE}.
      */
 
     public int getWhitespaceAction() {
@@ -197,7 +197,7 @@ public class BuiltInListType implements ListType, ValidSchemaType, MappingFuncti
      *
      * @param node the node whose typed value is required
      * @return a SequenceIterator over the atomic values making up the typed value of the specified
-     *         node. The objects returned by this iterator are of type {@link net.sf.saxon.value.AtomicValue}
+     *         node. The objects returned by this iterator are of type {@link org.orbeon.saxon.value.AtomicValue}
      */
 
     public SequenceIterator getTypedValue(NodeInfo node) throws XPathException {
@@ -326,7 +326,7 @@ public class BuiltInListType implements ListType, ValidSchemaType, MappingFuncti
      * @param kind       the node kind whose content is being delivered: {@link Type.ELEMENT},
      *                   {@link Type.ATTRIBUTE}, or {@link Type.DOCUMENT}
      * @param env
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws org.orbeon.saxon.xpath.XPathException
      *          if the expression will never deliver a value of the correct type
      */
 
@@ -376,7 +376,7 @@ public class BuiltInListType implements ListType, ValidSchemaType, MappingFuncti
      * The typed value of a list-valued node is obtained by tokenizing the string value and
      * applying a mapping function to the sequence of tokens.
      * This method implements the mapping function. It is for internal use only.
-     * For details see {@link net.sf.saxon.expr.MappingFunction}
+     * For details see {@link org.orbeon.saxon.expr.MappingFunction}
     */
 
     public Object map(Item item, XPathContext context, Object info) throws XPathException {

@@ -14,9 +14,9 @@ abstract class TinyParentNodeImpl extends TinyNodeImpl {
     * Determine if the node has children.
     */
 
-    public boolean hasChildNodes() {
-        return (nodeNr+1 < document.numberOfNodes &&
-                document.depth[nodeNr+1] > document.depth[nodeNr]);
+    public final boolean hasChildNodes() {
+        return (nodeNr+1 < tree.numberOfNodes &&
+                tree.depth[nodeNr+1] > tree.depth[nodeNr]);
     }
 
     /**
@@ -25,22 +25,22 @@ abstract class TinyParentNodeImpl extends TinyNodeImpl {
     * @return the accumulated character content of the element, including descendant elements.
     */
 
-    public String getStringValue() {
-        int level = document.depth[nodeNr];
+    public final String getStringValue() {
+        int level = tree.depth[nodeNr];
         StringBuffer sb = null;
 
         // note, we can't rely on the value being contiguously stored because of whitespace
         // nodes: the data for these may still be present.
 
         int next = nodeNr+1;
-        while (next < document.numberOfNodes && document.depth[next] > level) {
-            if (document.nodeKind[next]==Type.TEXT) {
+        while (next < tree.numberOfNodes && tree.depth[next] > level) {
+            if (tree.nodeKind[next]==Type.TEXT) {
                 if (sb==null) {
-                    sb = new StringBuffer();
+                    sb = new StringBuffer(200);
                 }
-                int length = document.beta[next];
-                int start = document.alpha[next];
-                sb.append(document.charBuffer, start, length);
+                int length = tree.beta[next];
+                int start = tree.alpha[next];
+                sb.append(tree.charBuffer, start, length);
             }
             next++;
         }

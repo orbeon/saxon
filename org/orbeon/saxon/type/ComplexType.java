@@ -5,13 +5,7 @@ package org.orbeon.saxon.type;
  * In the non-schema-aware version of the Saxon product, the only complex type encountered is xs:anyType.
  */
 
-public interface ComplexType {
-
-    /**
-     * The base type that this type is derived from.
-     * @return the base type
-     */
-    public SchemaType getBaseType();
+public interface ComplexType extends SchemaType {
 
     /**
      * Test whether this complex type has been marked as abstract.
@@ -47,7 +41,7 @@ public interface ComplexType {
      * Otherwise, returns null.
      */
 
-    public SimpleType getSimpleContentType();
+    public SimpleType getSimpleContentType() throws ValidationException;
 
     /**
 	 * Test whether this complex type is derived by restriction
@@ -68,7 +62,7 @@ public interface ComplexType {
      * @return true if empty content is valid
      */
 
-    public boolean isEmptiable() throws SchemaException;
+    public boolean isEmptiable() throws SchemaException, ValidationException;
 
     /**
      * Test whether this complex type allows mixed content
@@ -76,6 +70,50 @@ public interface ComplexType {
      */
 
     public boolean isMixedContent();
+
+    /**
+     * Test whether this complex type subsumes another complex type. The algorithm
+     * used is as published by Thompson and Tobin, XML Europe 2003.
+     * @param sub the other type (the type that is derived by restriction, validly or otherwise)
+     * @return null indicating that this type does indeed subsume the other; or a string indicating
+     * why it doesn't.
+     */
+
+    public String subsumes(ComplexType sub) throws ValidationException;
+
+    /**
+     * Find an element particle within this complex type definition having a given element name
+     * (identified by fingerprint), and return the schema type associated with that element particle.
+     * If there is no such particle, return null. If the fingerprint matches an element wildcard,
+     * return the type of the global element declaration with the given name if one exists, or AnyType
+     * if none exists and lax validation is permitted by the wildcard.
+     * @param fingerprint Identifies the name of the child element within this content model
+     */
+
+    public SchemaType getElementParticleType(int fingerprint) throws SchemaException, ValidationException;
+
+    /**
+     * Find an element particle within this complex type definition having a given element name
+     * (identified by fingerprint), and return the cardinality associated with that element particle,
+     * that is, the number of times the element can occur within this complex type. The value is one of
+     * {@link org.orbeon.saxon.expr.StaticProperty.EXACTLY_ONE}, {@link org.orbeon.saxon.expr.StaticProperty.ALLOWS_ZERO_OR_ONE},
+     * {@link org.orbeon.saxon.expr.StaticProperty.ALLOWS_ZERO_OR_MORE}, {@link org.orbeon.saxon.expr.StaticProperty.ALLOWS_ONE_OR_MORE},
+     * If there is no such particle, return zero.
+     * @param fingerprint Identifies the name of the child element within this content model
+     */
+
+    public int getElementParticleCardinality(int fingerprint) throws SchemaException, ValidationException;    
+
+    /**
+     * Find an attribute use within this complex type definition having a given attribute name
+     * (identified by fingerprint), and return the schema type associated with that attribute.
+     * If there is no such attribute use, return null. If the fingerprint matches an attribute wildcard,
+     * return the type of the global attribute declaration with the given name if one exists, or AnySimpleType
+     * if none exists and lax validation is permitted by the wildcard.
+     * @param fingerprint Identifies the name of the child element within this content model
+     */
+
+    public SchemaType getAttributeUseType(int fingerprint) throws SchemaException, ValidationException;
 
 }
 

@@ -20,16 +20,13 @@ import java.util.Comparator;
 /**
 * GeneralComparison: a boolean expression that compares two expressions
 * for equals, not-equals, greater-than or less-than. This implements the operators
-* =, !=, <, >, etc.
+* =, !=, <, >, etc. This implementation is not used when in backwards-compatible mode
 */
 
 public class GeneralComparison extends BinaryExpression {
 
     protected int singletonOperator;
     protected AtomicComparer comparer;
-    protected boolean backwardsCompatible = false;
-
-    // TODO: collations don't survive compilation
 
     /**
     * Create a relational expression identifying the two operands and the operator
@@ -58,8 +55,6 @@ public class GeneralComparison extends BinaryExpression {
 
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
 
-        backwardsCompatible = env.isInBackwardsCompatibleMode();
-
         operand0 = operand0.analyze(env, contextItemType);
         operand1 = operand1.analyze(env, contextItemType);
 
@@ -68,18 +63,12 @@ public class GeneralComparison extends BinaryExpression {
         operand0 = ExpressionTool.unsorted(operand0, false);
         operand1 = ExpressionTool.unsorted(operand1, false);
 
-        // Check for compatibility with XPath 1.0 rules
-
-        if (backwardsCompatible) {
-            issueWarnings(operand0.getItemType(), operand1.getItemType(), env);
-        }
-
         SequenceType atomicType = SequenceType.ATOMIC_SEQUENCE;
 
-        RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0);
+        RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0, null);
         operand0 = TypeChecker.staticTypeCheck(operand0, atomicType, false, role0, env);
 
-        RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1);
+        RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1, null);
         operand1 = TypeChecker.staticTypeCheck(operand1, atomicType, false, role1, env);
 
         ItemType t0 = operand0.getItemType();
@@ -88,28 +77,25 @@ public class GeneralComparison extends BinaryExpression {
         int c0 = operand0.getCardinality();
         int c1 = operand1.getCardinality();
 
-        if (!backwardsCompatible) {
-            if (t0 == Type.ANY_ATOMIC_TYPE || t0 == Type.UNTYPED_ATOMIC_TYPE ||
-                    t1 == Type.ANY_ATOMIC_TYPE || t1 == Type.UNTYPED_ATOMIC_TYPE ) {
-                // then no static type checking is possible
-            } else {
-                int pt0 = t0.getPrimitiveType();
-                int pt1 = t1.getPrimitiveType();
-                if (pt0 != pt1 &&
-                    !(Type.isSubType(t0, Type.NUMBER_TYPE) &&
-                        Type.isSubType(t1, Type.NUMBER_TYPE))) {
-                    StaticError err = new StaticError(
-                            "Cannot compare " + t0.toString(env.getNamePool()) +
-                            " to " + t1.toString(env.getNamePool()));
-                    err.setIsTypeError(true);
-                    throw err;
-                }
+        if (t0 == Type.ANY_ATOMIC_TYPE || t0 == Type.UNTYPED_ATOMIC_TYPE ||
+                t1 == Type.ANY_ATOMIC_TYPE || t1 == Type.UNTYPED_ATOMIC_TYPE ) {
+            // then no static type checking is possible
+        } else {
+            int pt0 = t0.getPrimitiveType();
+            int pt1 = t1.getPrimitiveType();
+            if (pt0 != pt1 &&
+                !(Type.isSubType(t0, Type.NUMBER_TYPE) &&
+                    Type.isSubType(t1, Type.NUMBER_TYPE))) {
+                StaticError err = new StaticError(
+                        "Cannot compare " + t0.toString(env.getNamePool()) +
+                        " to " + t1.toString(env.getNamePool()));
+                err.setIsTypeError(true);
+                throw err;
             }
         }
 
         if (c0 == StaticProperty.EXACTLY_ONE &&
-            c1 == StaticProperty.EXACTLY_ONE &&
-                (!backwardsCompatible || t0==t1)) {
+            c1 == StaticProperty.EXACTLY_ONE) {
 
             // Use a value comparison if both arguments are singletons
 
@@ -212,26 +198,15 @@ public class GeneralComparison extends BinaryExpression {
 
             Expression e0 = operand0;
             if (!Type.isSubType(t0, Type.NUMBER_TYPE)) {
-                if (backwardsCompatible) {
-                    e0 = new AtomicSequenceConverter(e0, Type.DOUBLE_TYPE);
-                    // TODO: the Nov 2003 spec says the value is cast to a double
-                    // which is what this does; but it should really convert using the
-                    // number() function to be backwards compatible.
-                } else {
-                    e0 = TypeChecker.staticTypeCheck(e0, SequenceType.NUMERIC_SEQUENCE,
-                            backwardsCompatible,
-                            new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0), env);
-                }
+                e0 = TypeChecker.staticTypeCheck(e0, SequenceType.NUMERIC_SEQUENCE,
+                        false,
+                        new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0, null), env);
             }
             Expression e1 = operand1;
             if (!Type.isSubType(t1, Type.NUMBER_TYPE)) {
-                if (backwardsCompatible) {
-                    e1 = new AtomicSequenceConverter(e1, Type.DOUBLE_TYPE);
-                } else {
-                    e1 = TypeChecker.staticTypeCheck(e1, SequenceType.NUMERIC_SEQUENCE,
-                            backwardsCompatible,
-                            new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1), env);
-                }
+                e1 = TypeChecker.staticTypeCheck(e1, SequenceType.NUMERIC_SEQUENCE,
+                        false,
+                        new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1, null), env);
             }
             MinimaxComparison mc = new MinimaxComparison(e0, operator, e1);
             ExpressionTool.copyLocationInfo(this, mc);
@@ -250,28 +225,30 @@ public class GeneralComparison extends BinaryExpression {
         return this;
     }
 
-    /**
-    * Issue warnings about backwards compatibility
-    */
-
-    private void issueWarnings(ItemType t1, ItemType t2, StaticContext env) {
-
-        // System.err.println("Check " + Type.getTypeName(t1) + " op " + Type.getTypeName(t2));
-
-        if (t1 instanceof NodeTest && t2.getPrimitiveType() == Type.BOOLEAN) {
-            env.issueWarning("Comparison of a node-set to a boolean has changed since XPath 1.0");
-        }
-
-        if (t1.getPrimitiveType() == Type.BOOLEAN && t2 instanceof NodeTest) {
-            env.issueWarning("Comparison of a boolean to a node-set has changed since XPath 1.0");
-        }
-
-        if ((t1 instanceof NodeTest || t1.getPrimitiveType() == Type.STRING) &&
-            (t2 instanceof NodeTest || t2.getPrimitiveType() == Type.STRING) &&
-            (operator==Token.LT || operator==Token.LE || operator==Token.GT || operator==Token.GE )) {
-            env.issueWarning("Less-than and greater-than comparisons between strings have changed since XPath 1.0");
-        }
-    }
+// --Commented out by Inspection START (16/12/04 14:39):
+//    /**
+//    * Issue warnings about backwards compatibility
+//    */
+//
+//    private void issueWarnings(ItemType t1, ItemType t2, StaticContext env) {
+//
+//        // System.err.println("Check " + Type.getTypeName(t1) + " op " + Type.getTypeName(t2));
+//
+//        if (t1 instanceof NodeTest && t2.getPrimitiveType() == Type.BOOLEAN) {
+//            env.issueWarning("Comparison of a node-set to a boolean has changed since XPath 1.0", this);
+//        }
+//
+//        if (t1.getPrimitiveType() == Type.BOOLEAN && t2 instanceof NodeTest) {
+//            env.issueWarning("Comparison of a boolean to a node-set has changed since XPath 1.0", this);
+//        }
+//
+//        if ((t1 instanceof NodeTest || t1.getPrimitiveType() == Type.STRING) &&
+//            (t2 instanceof NodeTest || t2.getPrimitiveType() == Type.STRING) &&
+//            (operator==Token.LT || operator==Token.LE || operator==Token.GT || operator==Token.GE )) {
+//            env.issueWarning("Less-than and greater-than comparisons between strings have changed since XPath 1.0", this);
+//        }
+//    }
+// --Commented out by Inspection STOP (16/12/04 14:39)
 
     /**
     * Evaluate the expression in a given context
@@ -308,7 +285,7 @@ public class GeneralComparison extends BinaryExpression {
                 AtomicValue s1 = (AtomicValue)iter1.next();
                 if (s1 == null) break;
                 try {
-                    if (compare(s1, singletonOperator, s2, comparer, backwardsCompatible, context)) {
+                    if (compare(s1, singletonOperator, s2, comparer, context)) {
                         return true;
                     }
                 } catch (DynamicError e) {
@@ -333,7 +310,7 @@ public class GeneralComparison extends BinaryExpression {
                 AtomicValue s2 = (AtomicValue)e2.next();
                 if (s2 == null) break;
                 try {
-                    if (compare(s1, singletonOperator, s2, comparer, backwardsCompatible, context)) {
+                    if (compare(s1, singletonOperator, s2, comparer, context)) {
                         return true;
                     }
                 } catch (DynamicError e) {
@@ -361,7 +338,6 @@ public class GeneralComparison extends BinaryExpression {
                                      int operator,
                                      AtomicValue a2,
                                      AtomicComparer comparer,
-                                     boolean backwardsCompatible,
                                      XPathContext context) throws XPathException {
 
         AtomicValue v1 = a1;
@@ -382,12 +358,6 @@ public class GeneralComparison extends BinaryExpression {
                 // the spec says convert it to a string, but this doesn't affect the outcome
             } else {
                 v2 = a2.convert(a1.getItemType().getPrimitiveType(), context);
-            }
-        }
-        if (backwardsCompatible) {
-            if (v1 instanceof NumericValue || v2 instanceof NumericValue) {
-                v1 = v1.convert(Type.DOUBLE, context);
-                v2 = v2.convert(Type.DOUBLE, context);
             }
         }
         return ValueComparison.compare(v1, operator, v2, comparer);

@@ -1,14 +1,12 @@
 package org.orbeon.saxon.event;
-import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.Err;
-import org.orbeon.saxon.om.Name;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.om.NamespaceConstant;
-import org.orbeon.saxon.om.QNameException;
-import org.orbeon.saxon.type.ValidationException;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.type.SimpleType;
+import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.xpath.XPathException;
 
-import java.util.StringTokenizer;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 /**
   * NamespaceReducer is a ProxyReceiver responsible for removing duplicate namespace
@@ -20,8 +18,10 @@ import java.util.StringTokenizer;
   * The NamespaceReducer also validates namespace-sensitive content.
   */
 
-public class NamespaceReducer extends ProxyReceiver
+public class NamespaceReducer extends ProxyReceiver implements NamespaceResolver
 {
+    // TODO: this class could extend StartTagBuffer and re-use some of the code.
+
     private int nscodeXML;
     private int nscodeNull;
 
@@ -46,15 +46,14 @@ public class NamespaceReducer extends ProxyReceiver
     private int[] pendingUndeclarations = null;
 
 	/**
-	* Set the name pool to be used for all name codes
+	* Set the pipeline configuration
 	*/
 
-	public void setConfiguration(Configuration config) {
-        super.setConfiguration(config);
-		NamePool namePool = config.getNamePool();
-		nscodeXML = namePool.getNamespaceCode("xml", NamespaceConstant.XML);
+	public void setPipelineConfiguration(PipelineConfiguration pipe) {
+        super.setPipelineConfiguration(pipe);
+		NamePool namePool = pipe.getConfiguration().getNamePool();
+		nscodeXML = namePool.getNamespaceCode("xml", NamespaceConstant.XML);   // TODO: expensive!
 		nscodeNull = namePool.getNamespaceCode("", "");
-		super.setConfiguration(config);
 	}
 
 
@@ -110,7 +109,6 @@ public class NamespaceReducer extends ProxyReceiver
             countStack[depth - 1]++;
             super.namespace(namespaceCode, properties);
         }
-
     }
 
     /**
@@ -119,50 +117,13 @@ public class NamespaceReducer extends ProxyReceiver
 
     public void attribute(int nameCode, int typeCode, CharSequence value, int locationId, int properties)
             throws XPathException {
-        if ((properties & ReceiverOptions.NEEDS_PREFIX_CHECK) != 0) {
-            // TODO: handle lists that mix QNames with other types
-            String val = value.toString();
-            if (val.indexOf(' ') < 0) {
-                checkQNamePrefix(val);
-            } else {
-                StringTokenizer tok = new StringTokenizer(val);
-                while (tok.hasMoreTokens()) {
-                    String token = tok.nextToken();
-                    checkQNamePrefix(token);
-                }
-            }
+        if (typeCode != -1 && (properties & ReceiverOptions.NEEDS_PREFIX_CHECK) != 0) {
+            // checking has been deferred until the namespace context is available
+            SimpleType type = (SimpleType)getConfiguration().getSchemaType(typeCode);
+            type.validateContent(value, this);
             properties &= (~ReceiverOptions.NEEDS_PREFIX_CHECK);
         }
         super.attribute(nameCode, typeCode, value, locationId, properties);
-    }
-
-    /**
-     * Check the prefix of a value to be used in element or attribute content against
-     * the namespace context in the result tree
-     * @param token a QName or list of QNames to be checked
-     * @throws ValidationException if a prefix has not been declared
-     */
-
-    private void checkQNamePrefix(String token) throws ValidationException {
-        try {
-            String[] parts = Name.getQNameParts(token);
-            if (parts[0].equals("") || parts[0].equals("xml")) {
-                return;
-            }
-            int prefixCode = getConfiguration().getNamePool().getCodeForPrefix(parts[0]);
-            if (prefixCode == -1) {
-                throw new ValidationException("Unknown prefix in QName content " + Err.wrap(token));
-            }
-            for (int i=namespacesSize-1; i>=0; i--) {
-                if (namespaces[i]>>16==prefixCode) {
-                    return;
-                }
-                // TODO: handle undeclared namespaces
-            }
-        } catch (QNameException err) {
-            throw new ValidationException("Invalid QName in content " + Err.wrap(token));
-        }
-        throw new ValidationException("Undeclared prefix in QName content " + Err.wrap(token));
     }
 
     /**
@@ -260,10 +221,10 @@ public class NamespaceReducer extends ProxyReceiver
      * @return the 16-bit URI code, or -1 if the prefix is not found
      */
 
-    protected int getURICode(short prefixCode) {
+    protected short getURICode(short prefixCode) {
         for (int i=namespacesSize-1; i>=0; i--) {
         	if ((namespaces[i]>>16) == (prefixCode)) {
-        		return namespaces[i]&0xffff;
+        		return (short)(namespaces[i]&0xffff);
             }
         }
         if (prefixCode == 0) {
@@ -271,6 +232,72 @@ public class NamespaceReducer extends ProxyReceiver
         } else {
             return -1;
         }
+    }
+
+    /**
+     * Get the namespace URI corresponding to a given prefix. Return null
+     * if the prefix is not in scope.
+     *
+     * @param prefix     the namespace prefix
+     * @param useDefault true if the default namespace is to be used when the
+     *                   prefix is ""
+     * @return the uri for the namespace, or null if the prefix is not in scope
+     */
+
+    public String getURIForPrefix(String prefix, boolean useDefault) {
+        NamePool pool = getNamePool();
+        if ("".equals(prefix) && !useDefault) {
+            return "";
+        } else if ("xml".equals(prefix)) {
+            return NamespaceConstant.XML;
+        } else {
+            short prefixCode = pool.getCodeForPrefix(prefix);
+            short uriCode = getURICode(prefixCode);
+            if (uriCode == -1) {
+                return null;
+            }
+            return pool.getURIFromURICode(uriCode);
+        }
+    }
+
+    /**
+     * Use this NamespaceContext to resolve a lexical QName
+     *
+     * @param qname      the lexical QName; this must have already been lexically validated
+     * @param useDefault true if the default namespace is to be used to resolve an unprefixed QName
+     * @param pool       the NamePool to be used
+     * @return the integer fingerprint that uniquely identifies this name
+     * @throws org.orbeon.saxon.xpath.DynamicError
+     *          if the string is not a valid lexical QName or
+     *          if the namespace prefix has not been declared
+     */
+
+    public int getFingerprint(String qname, boolean useDefault, NamePool pool) throws DynamicError {
+        try {
+            String[] parts = Name.getQNameParts(qname);
+            String uri = getURIForPrefix(parts[0], useDefault);
+            return pool.allocate(parts[0], uri, parts[1]);
+        } catch (QNameException e) {
+            throw new DynamicError(e.getMessage());
+        }
+    }
+
+    /**
+     * Get an iterator over all the prefixes declared in this namespace context. This will include
+     * the default namespace (prefix="") and the XML namespace where appropriate
+     */
+
+    public Iterator iteratePrefixes() {
+        NamePool pool = getNamePool();
+        List prefixes = new ArrayList(namespacesSize);
+        for (int i=namespacesSize-1; i>=0; i--) {
+            String prefix = pool.getPrefixFromNamespaceCode(namespaces[i]);
+            if (!prefixes.contains(prefix)) {
+                prefixes.add(prefix);
+            }
+        }
+        prefixes.add("xml");
+        return prefixes.iterator();
     }
 }
 

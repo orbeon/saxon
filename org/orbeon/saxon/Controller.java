@@ -12,11 +12,8 @@ import org.orbeon.saxon.trans.KeyManager;
 import org.orbeon.saxon.trans.Mode;
 import org.orbeon.saxon.trans.RuleManager;
 import org.orbeon.saxon.tree.TreeBuilder;
-import org.orbeon.saxon.value.EmptySequence;
-import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.xml.sax.SAXParseException;
@@ -46,7 +43,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     private Emitter messageEmitter;
     private RuleManager ruleManager;
     private Properties outputProperties;
-    private ParameterSet parameters;
+    private GlobalParameterSet parameters;
     private PreparedStylesheet preparedStylesheet;
     private TraceListener traceListener; // e.g.
     private boolean tracingPaused;
@@ -266,6 +263,17 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
+     * Set the base output URI (as it is known in the XSLT spec).
+     * This defaults to the system ID of the principal Result object, but
+     * a different value can be set for use where there is no principal result.
+     * The command line interface sets this to the current working directory.
+     */
+
+    public void setBaseOutputURI(String uri) {
+        principalResultURI = uri;
+    }
+
+    /**
      * Get the URI of the principal result destination.
      *
      * @return the URI, as a String
@@ -308,6 +316,22 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     ///////////////////////////////////////////////////////////////////////////////
 
     /**
+     * Make a PipelineConfiguration based on the properties of this Controller
+     */
+
+    public PipelineConfiguration makePipelineConfiguration() {
+        PipelineConfiguration pipe = new PipelineConfiguration();
+        pipe.setConfiguration(getConfiguration());
+        pipe.setErrorListener(getErrorListener());
+        pipe.setURIResolver(getURIResolver());
+        if (getExecutable() != null) {
+            // can be null for an IdentityTransformer
+            pipe.setLocationProvider(getExecutable().getLocationMap());
+        }
+        return pipe;
+    }
+
+    /**
      * Make an Emitter to be used for xsl:message output.
      *
      * @exception XPathException if any dynamic error occurs; in
@@ -333,7 +357,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     public void setMessageEmitter(Emitter emitter) {
         messageEmitter = emitter;
-        messageEmitter.setConfiguration(config);
+        messageEmitter.setPipelineConfiguration(makePipelineConfiguration());
     }
 
     /**
@@ -394,7 +418,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
                 errorListener.error(err);
             }
         } catch (TransformerException e) {
-            throw DynamicError.wrap(e);
+            throw DynamicError.makeDynamicError(e);
         }
     }
 
@@ -627,7 +651,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         }
         b.setTiming(config.isTiming());
         b.setLineNumbering(config.isLineNumbering());
-        b.setConfiguration(config);
+        b.setPipelineConfiguration(makePipelineConfiguration());
         return b;
     }
 
@@ -651,7 +675,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         }
         Stripper stripper;
         if (executable==null) {
-            stripper = new Stripper(new Mode());
+            stripper = new Stripper(new Mode(true));
         } else {
             stripper = executable.newStripper();
         }
@@ -891,7 +915,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         }
 
         currentDateTime = null;     // reset at start of each transformation
-        principalResultURI = result.getSystemId();
+        //principalResultURI = result.getSystemId();
 
         try {
             NodeInfo startNode = null;
@@ -926,13 +950,13 @@ public class Controller extends Transformer implements InstructionInfoProvider {
                 // a DOMSource with wrap=no: build the document tree
 
                 Builder sourceBuilder = makeBuilder();
-                Sender sender = new Sender(config);
+                Sender sender = new Sender(makePipelineConfiguration());
                 Receiver r = sourceBuilder;
                 if (executable.stripsWhitespace()) {
                     r = makeStripper(sourceBuilder);
                 }
                 sender.send(source, r);
-                DocumentInfo doc = sourceBuilder.getCurrentDocument();
+                DocumentInfo doc = (DocumentInfo)sourceBuilder.getCurrentRoot();
                 registerDocument(doc, source.getSystemId());
                 startNode = doc;
             }
@@ -1025,7 +1049,9 @@ public class Controller extends Transformer implements InstructionInfoProvider {
                 ((StreamResult)result).getOutputStream() == null);
 
         principalResult = result;
-        principalResultURI = result.getSystemId();
+        if (principalResultURI == null) {
+            principalResultURI = result.getSystemId();
+        }
 
         XPathContextMajor initialContext = newXPathContext();
         initialContext.setOrigin(this);
@@ -1094,7 +1120,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
             TailCall tc = ApplyTemplates.applyTemplates(
                                 initialContext.getCurrentIterator(),
                                 getRuleManager().getMode(initialMode),
-                                null, null, initialContext);
+                                null, null, initialContext, false);
             while (tc != null) {
                 tc = tc.processLeavingTail(initialContext);
             }
@@ -1175,7 +1201,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
                 new TransformerReceiver((Controller) next.newTransformer());
 
         nextTransformer.setSystemId(principalResultURI);
-        nextTransformer.setConfiguration(config);
+        nextTransformer.setPipelineConfiguration(makePipelineConfiguration());
         nextTransformer.setResult(result);
 
         return nextTransformer;
@@ -1197,20 +1223,11 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     public void setParameter(String expandedName, Object value) {
 
         if (parameters == null) {
-            parameters = new ParameterSet();
+            parameters = new GlobalParameterSet();
         }
 
-        Value result;
-        try {
-            result = Value.convertJavaObjectToXPath(value, this);
-            if (result==null) {
-                result = EmptySequence.getInstance();
-            }
-        } catch (XPathException err) {
-            result = new StringValue(value.toString());
-        }
         int fingerprint = namePool.allocateClarkName(expandedName);
-        parameters.put(fingerprint, result);
+        parameters.put(fingerprint, value);
 
     }
 

@@ -1,9 +1,9 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.SequenceType;
 
 import java.util.HashMap;
 
@@ -14,6 +14,13 @@ import java.util.HashMap;
 */
 
 public abstract class StandardFunction {
+
+    /**
+     * This class is never instantiated
+     */
+
+    private StandardFunction() {
+    }
 
     /**
      * Register a system function in the table of function details.
@@ -55,7 +62,12 @@ public abstract class StandardFunction {
     public static Entry makeEntry(String name, Class implementationClass, int opcode,
                                    int minArguments, int maxArguments, ItemType itemType, int cardinality) {
         Entry e = new Entry();
-        e.name = name;
+        int hash = name.indexOf('#');
+        if (hash < 0) {
+            e.name = name;
+        } else {
+            e.name = name.substring(0, hash);
+        }
         e.implementationClass = implementationClass;
         e.opcode = opcode;
         e.minArguments = minArguments;
@@ -89,8 +101,6 @@ public abstract class StandardFunction {
 
     private static HashMap functionTable = new HashMap(200);
 
-    // TODO: review the EXACTLY_ONE entries in the table below, some of them should become ZERO_OR_ONE.
-
     protected static ItemType SAME_AS_FIRST_ARGUMENT = NodeKindTest.NAMESPACE;
                 // this could be any item type that is used only for this purpose
 
@@ -117,6 +127,7 @@ public abstract class StandardFunction {
 
         e = register("base-uri", BaseURI.class, 0, 0, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.NODE_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+            // TODO: base-uri() returns anyURI in Oct 2004 draft
 
         e = register("boolean", BooleanFn.class, BooleanFn.BOOLEAN, 1, 1, Type.BOOLEAN_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
@@ -124,20 +135,21 @@ public abstract class StandardFunction {
         e = register("ceiling", Rounding.class, Rounding.CEILING, 1, 1, SAME_AS_FIRST_ARGUMENT, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.NUMBER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
-        e = register("concat", Concat.class, 0, 2, Integer.MAX_VALUE, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
-            arg(e, 0, Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            // Note, this has a variable number of arguments so it is treated specially
-
         e = register("codepoints-to-string", Unicode.class, Unicode.FROM_CODEPOINTS, 1, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
 
-        e = register("collection", Collection.class, 0, 1, 1, Type.NODE_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
+        e = register("collection", Collection.class, 0, 0, 1, Type.NODE_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
+            // TODO: add support for zero-argument collection() function
 
-        e = register("compare", Compare.class, 0, 2, 3, Type.INTEGER_TYPE, StaticProperty.EXACTLY_ONE);
+        e = register("compare", Compare.class, 0, 2, 3, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 2, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
+
+        e = register("concat", Concat.class, 0, 2, Integer.MAX_VALUE, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
+            arg(e, 0, Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+            // Note, this has a variable number of arguments so it is treated specially
 
         e = register("contains", Contains.class, Contains.CONTAINS, 2, 3, Type.BOOLEAN_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
@@ -155,12 +167,12 @@ public abstract class StandardFunction {
             register("current-group", CurrentGroup.class, CurrentGroup.CURRENT_GROUP, 0, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             register("current-grouping-key", CurrentGroup.class, CurrentGroup.CURRENT_GROUPING_KEY, 0, 0, Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
-            register("data", Data.class, 0, 1, 1, Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
+        e = register("data", Data.class, 0, 1, 1, Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             arg(e, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
 
-        e = register("dateTime", DateTimeConstructor.class, 0, 2, 2, Type.DATE_TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.DATE_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 1, Type.TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+        e = register("dateTime", DateTimeConstructor.class, 0, 2, 2, Type.DATE_TIME_TYPE, StaticProperty.EXACTLY_ONE);
+            arg(e, 0, Type.DATE_TYPE, StaticProperty.EXACTLY_ONE);
+            arg(e, 1, Type.TIME_TYPE, StaticProperty.EXACTLY_ONE);
 
         e = register("day-from-date", Component.class, (Component.DAY<<16) + Type.DATE, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.DATE_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
@@ -168,6 +180,7 @@ public abstract class StandardFunction {
         e = register("day-from-dateTime", Component.class, (Component.DAY<<16) + Type.DATE_TIME, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.DATE_TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
+        // TODO: obsolete name, delete this function at some stage
         e = register("days-from-dayTimeDuration", Component.class, (Component.DAY<<16) + Type.DAY_TIME_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
@@ -193,10 +206,7 @@ public abstract class StandardFunction {
             arg(e, 1, Type.NODE_TYPE, StaticProperty.EXACTLY_ONE);
 
         e = register("document-uri", NamePart.class, NamePart.DOCUMENT_URI, 1, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, NodeKindTest.DOCUMENT, StaticProperty.EXACTLY_ONE);
-
-        e = register("exists", Existence.class, Existence.EXISTS, 1, 1, Type.BOOLEAN_TYPE, StaticProperty.EXACTLY_ONE);
-            arg(e, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
+            arg(e, 0, NodeKindTest.DOCUMENT, StaticProperty.ALLOWS_ZERO_OR_MORE);
 
         e = register("empty", Existence.class, Existence.EMPTY, 1, 1, Type.BOOLEAN_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
@@ -209,20 +219,25 @@ public abstract class StandardFunction {
         e = register("element-available", Available.class, Available.ELEMENT_AVAILABLE, 1, 1, Type.BOOLEAN_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
 
-        // TODO: signature for error() has changed in the latest (July 2004) draft
-        e = register("error", Error.class, 0, 0, 1, Type.ITEM_TYPE, StaticProperty.EXACTLY_ONE);
-            arg(e, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+        e = register("error", Error.class, 0, 0, 3, Type.ITEM_TYPE, StaticProperty.EXACTLY_ONE);
+            // TODO: the return type here needs attention.
+            arg(e, 0, Type.QNAME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+            arg(e, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
+            arg(e, 2, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
 
         e = register("escape-uri", EscapeURI.class, 0, 2, 2, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
-            arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
+            arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 1, Type.BOOLEAN_TYPE, StaticProperty.EXACTLY_ONE);
 
         e = register("exactly-one", TreatFn.class, StaticProperty.EXACTLY_ONE, 1, 1, SAME_AS_FIRST_ARGUMENT, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.ITEM_TYPE, StaticProperty.EXACTLY_ONE);
                 // because we don't do draconian static type checking, we can do the work in the argument type checking code
 
+        e = register("exists", Existence.class, Existence.EXISTS, 1, 1, Type.BOOLEAN_TYPE, StaticProperty.EXACTLY_ONE);
+            arg(e, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
+
         // TODO: delete this obsolete name (replaced by fn:QName)
-        e = register("expanded-QName", QNameFn.class, QNameFn.EXPAND, 2, 2, Type.QNAME_TYPE, StaticProperty.EXACTLY_ONE);
+        e = register("expanded-QName", QNameFn.class, 0, 2, 2, Type.QNAME_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
 
@@ -246,7 +261,7 @@ public abstract class StandardFunction {
             arg(e, 4, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
         e = register("format-number", FormatNumber2.class, 0, 2, 3, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
-            arg(e, 0, Type.NUMBER_TYPE, StaticProperty.EXACTLY_ONE);
+            arg(e, 0, Type.NUMBER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 2, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
 
@@ -350,64 +365,18 @@ public abstract class StandardFunction {
             arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 1, NodeKindTest.ELEMENT, StaticProperty.EXACTLY_ONE);
 
-        // TODO: put the new names below into alphabetical order!
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        e = register("local-name-from-QName", Component.class, (Component.LOCALNAME<<16) + Type.QNAME, 1, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.QNAME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("namespace-uri-from-QName", Component.class, (Component.NAMESPACE<<16) + Type.QNAME, 1, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.QNAME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("hours-from-time", Component.class, (Component.HOURS<<16) + Type.TIME, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("in-scope-prefixes", InScopeNamespaces.class, 0, 1, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
-            arg(e, 0, NodeKindTest.ELEMENT, StaticProperty.EXACTLY_ONE);
-
-        e = register("namespace-uri-for-prefix", NamespaceForPrefix.class, 0, 2, 2, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
-            arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
-            arg(e, 1, NodeKindTest.ELEMENT, StaticProperty.EXACTLY_ONE);
-
         e = register("hours-from-dateTime", Component.class, (Component.HOURS<<16) + Type.DATE_TIME, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.DATE_TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
+        // TODO: delete this obsolete name
         e = register("hours-from-dayTimeDuration", Component.class, (Component.HOURS<<16) + Type.DAY_TIME_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
         e = register("hours-from-duration", Component.class, (Component.HOURS<<16) + Type.DAY_TIME_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
                     arg(e, 0, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+
+        e = register("hours-from-time", Component.class, (Component.HOURS<<16) + Type.TIME, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+            arg(e, 0, Type.TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
         e = register("id", Id.class, 0, 1, 2, NodeKindTest.ELEMENT, StaticProperty.ALLOWS_ZERO_OR_MORE);
             arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
@@ -419,12 +388,15 @@ public abstract class StandardFunction {
 
             register("implicit-timezone", CurrentDateTime.class, 0, 0, 0, Type.DAY_TIME_DURATION_TYPE, StaticProperty.EXACTLY_ONE);
 
+        e = register("in-scope-prefixes", InScopeNamespaces.class, 0, 1, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
+            arg(e, 0, NodeKindTest.ELEMENT, StaticProperty.EXACTLY_ONE);
+
         e = register("index-of", IndexOf.class, 0, 2, 3, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             arg(e, 0, Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             arg(e, 1, Type.ANY_ATOMIC_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 2, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
 
-        e = register("insert-before", Insert.class, 0, 3, 3, Type.ITEM_TYPE, StaticProperty.ALLOWS_ONE_OR_MORE);
+        e = register("insert-before", Insert.class, 0, 3, 3, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             arg(e, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             arg(e, 1, Type.INTEGER_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 2, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
@@ -434,16 +406,19 @@ public abstract class StandardFunction {
             arg(e, 1, Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             arg(e, 2, Type.NODE_TYPE, StaticProperty.EXACTLY_ONE);
 
-        e = register("lang", Lang.class, 0, 1, 1, Type.BOOLEAN_TYPE, StaticProperty.EXACTLY_ONE);
+        e = register("lang", Lang.class, 0, 1, 2, Type.BOOLEAN_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
-            // TODO: support 2-argument version
+            arg(e, 1, Type.NODE_TYPE, StaticProperty.EXACTLY_ONE);
 
             register("last", Last.class, 0, 0, 0, Type.INTEGER_TYPE, StaticProperty.EXACTLY_ONE);
 
         e = register("local-name", NamePart.class, NamePart.LOCAL_NAME, 0, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.NODE_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
-        e = register("lower-case", ForceCase.class, ForceCase.LOWERCASE, 1, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+        e = register("local-name-from-QName", Component.class, (Component.LOCALNAME<<16) + Type.QNAME, 1, 1, Type.NCNAME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+            arg(e, 0, Type.QNAME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+
+        e = register("lower-case", ForceCase.class, ForceCase.LOWERCASE, 1, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
         e = register("matches", Matches.class, 0, 2, 3, Type.BOOLEAN_TYPE, StaticProperty.EXACTLY_ONE);
@@ -451,17 +426,18 @@ public abstract class StandardFunction {
             arg(e, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 2, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
 
-        e = register("min", Minimax.class, Minimax.MIN, 1, 2, SAME_AS_FIRST_ARGUMENT, StaticProperty.ALLOWS_ZERO_OR_ONE);
+        e = register("max", Minimax.class, Minimax.MAX, 1, 2, SAME_AS_FIRST_ARGUMENT, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             arg(e, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
 
-        e = register("max", Minimax.class, Minimax.MAX, 1, 2, SAME_AS_FIRST_ARGUMENT, StaticProperty.ALLOWS_ZERO_OR_ONE);
+        e = register("min", Minimax.class, Minimax.MIN, 1, 2, SAME_AS_FIRST_ARGUMENT, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             arg(e, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
 
         e = register("minutes-from-dateTime", Component.class, (Component.MINUTES<<16) + Type.DATE_TIME, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.DATE_TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
+        // TODO: delete this obsolete synonym
         e = register("minutes-from-dayTimeDuration", Component.class, (Component.MINUTES<<16) + Type.DAY_TIME_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
                     arg(e, 0, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
@@ -480,14 +456,23 @@ public abstract class StandardFunction {
         e = register("months-from-duration", Component.class, (Component.MONTH<<16) + Type.YEAR_MONTH_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.YEAR_MONTH_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
+        // TODO: delete this obsolete synonym
         e = register("months-from-yearMonthDuration", Component.class, (Component.MONTH<<16) + Type.YEAR_MONTH_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.YEAR_MONTH_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
         e = register("name", NamePart.class, NamePart.NAME, 0, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.NODE_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
+        // TODO: this (and the next two) are changed in F+O to return xs:anyURI, but that relies on xs:anyURI to String promotion
         e = register("namespace-uri", NamePart.class, NamePart.NAMESPACE_URI, 0, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.NODE_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+
+        e = register("namespace-uri-for-prefix", NamespaceForPrefix.class, 0, 2, 2, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+            arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
+            arg(e, 1, NodeKindTest.ELEMENT, StaticProperty.EXACTLY_ONE);
+
+        e = register("namespace-uri-from-QName", Component.class, (Component.NAMESPACE<<16) + Type.QNAME, 1, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+            arg(e, 0, Type.QNAME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
         // TODO: support "nilled" function
 
@@ -497,7 +482,9 @@ public abstract class StandardFunction {
         e = register("not", BooleanFn.class, BooleanFn.NOT, 1, 1, Type.BOOLEAN_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
 
-        e = register("normalize-space", NormalizeSpace.class, 0, 0, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
+            register("normalize-space#0", NormalizeSpace.class, 0, 0, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
+
+        e = register("normalize-space#1", NormalizeSpace.class, 0, 1, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
         e = register("number", NumberFn.class, 0, 0, 1, Type.DOUBLE_TYPE, StaticProperty.EXACTLY_ONE);
@@ -509,7 +496,7 @@ public abstract class StandardFunction {
 
             register("position", Position.class, 0, 0, 0, Type.INTEGER_TYPE, StaticProperty.EXACTLY_ONE);
 
-        e = register("QName", QNameFn.class, QNameFn.EXPAND, 2, 2, Type.QNAME_TYPE, StaticProperty.EXACTLY_ONE);
+        e = register("QName", QNameFn.class, 0, 2, 2, Type.QNAME_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
 
@@ -526,12 +513,13 @@ public abstract class StandardFunction {
             arg(e, 2, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 3, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
 
-        e = register("resolve-QName", ResolveQName.class, 0, 2, 2, Type.QNAME_TYPE, StaticProperty.EXACTLY_ONE);
-            arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
+        e = register("resolve-QName", ResolveQName.class, 0, 2, 2, Type.QNAME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+            arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 1, NodeKindTest.ELEMENT, StaticProperty.EXACTLY_ONE);
 
-        e = register("resolve-uri", ResolveURI.class, 0, 1, 2, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
-            arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
+        // TODO: change this to return an xs:anyURI
+        e = register("resolve-uri", ResolveURI.class, 0, 1, 2, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+            arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
 
         e = register("reverse", Reverse.class, 0, 1, 1, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
@@ -550,6 +538,7 @@ public abstract class StandardFunction {
         e = register("seconds-from-dateTime", Component.class, (Component.SECONDS<<16) + Type.DATE_TIME, 1, 1, Type.DECIMAL_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.DATE_TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
+        // TODO: remove obsolete synonym
         e = register("seconds-from-dayTimeDuration", Component.class, (Component.SECONDS<<16) + Type.DAY_TIME_DURATION, 1, 1, Type.DECIMAL_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
@@ -564,12 +553,14 @@ public abstract class StandardFunction {
             arg(e, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 2, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
 
-            register("static-base-uri", StaticBaseURI.class, 0, 0, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
+            register("static-base-uri", StaticBaseURI.class, 0, 0, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
         e = register("string", StringFn.class, 0, 0, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
-            arg(e, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
+            arg(e, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
-        e = register("string-length", StringLength.class, 0, 0, 1, Type.INTEGER_TYPE, StaticProperty.EXACTLY_ONE);
+            register("string-length#0", StringLength.class, 0, 0, 0, Type.INTEGER_TYPE, StaticProperty.EXACTLY_ONE);
+
+        e = register("string-length#1", StringLength.class, 0, 1, 1, Type.INTEGER_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
         e = register("string-join", StringJoin.class, 0, 2, 2, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
@@ -577,9 +568,9 @@ public abstract class StandardFunction {
             arg(e, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
 
         e = register("string-to-codepoints", Unicode.class, Unicode.TO_CODEPOINTS, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
-            arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
+            arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
-        e = register("subsequence", Subsequence.class, Subsequence.SUBSEQUENCE, 2, 3, SAME_AS_FIRST_ARGUMENT, StaticProperty.ALLOWS_ZERO_OR_MORE);
+        e = register("subsequence", Subsequence.class, 0, 2, 3, SAME_AS_FIRST_ARGUMENT, StaticProperty.ALLOWS_ZERO_OR_MORE);
             arg(e, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             arg(e, 1, Type.NUMBER_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 2, Type.NUMBER_TYPE, StaticProperty.EXACTLY_ONE);
@@ -667,32 +658,13 @@ public abstract class StandardFunction {
         e = register("years-from-duration", Component.class, (Component.YEAR<<16) + Type.YEAR_MONTH_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.YEAR_MONTH_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
+        // TODO: delete obsolete signature
         e = register("years-from-yearMonthDuration", Component.class, (Component.YEAR<<16) + Type.YEAR_MONTH_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.YEAR_MONTH_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
         e = register("zero-or-one", TreatFn.class, StaticProperty.ALLOWS_ZERO_OR_ONE, 1, 1, SAME_AS_FIRST_ARGUMENT, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
                 // because we don't do draconian static type checking, we can do the work in the argument type checking code
-
-//        e = register("saxon:evaluate", Evaluate.class, Evaluate.EVALUATE, 1, 10, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
-//            arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
-//
-//        e = register("saxon:eval", Evaluate.class, Evaluate.EVAL, 1, 10, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
-//            arg(e, 0, Type.ANY_ATOMIC_TYPE, StaticProperty.EXACTLY_ONE);
-//
-//        e = register("saxon:expression", Evaluate.class, Evaluate.EXPRESSION, 1, 1, Type.ANY_ATOMIC_TYPE, StaticProperty.EXACTLY_ONE);
-//            arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
-//
-//        e = register("saxon:parse", Parse.class, 0, 1, 1, NodeKindTest.DOCUMENT, StaticProperty.EXACTLY_ONE);
-//            arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
-//
-//        e = register("saxon:serialize", Serialize.class, 0, 2, 2, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
-//            arg(e, 0, Type.NODE_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-//            arg(e, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
-//
-//        e = register("saxon:try", Try.class, 0, 2, 2, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
-//            arg(e, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
-//            arg(e, 1, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
     }
 
     /**
@@ -704,7 +676,13 @@ public abstract class StandardFunction {
      * null
      */
 
-    public static Entry getFunction(String name) {
+    public static Entry getFunction(String name, int arity) {
+        // try first for an entry of the form name#arity
+        Entry e = (Entry)functionTable.get(name + '#' + arity);
+        if (e != null) {
+            return e;
+        }
+        // try for a generic entry
         return (Entry)functionTable.get(name);
     }
 

@@ -6,18 +6,19 @@ import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.type.*;
+import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.xpath.XPathException;
 
-import java.util.Iterator;
 import java.io.PrintStream;
+import java.util.Iterator;
 
 
 /**
  * An xsl:copy-of element in the stylesheet.
  */
 
-public class CopyOf extends Instruction {
+public class CopyOf extends Instruction implements MappingFunction {
 
     private Expression select;
     private boolean copyNamespaces;
@@ -36,6 +37,16 @@ public class CopyOf extends Instruction {
     }
 
     /**
+     * Determine whether this instruction creates new nodes.
+     * This implementation returns true.
+     */
+
+    public final boolean createsNewNodes() {
+        // TODO: return false if the static type of the select expression is atomic
+        return true;
+    }
+
+    /**
      * Get the name of this instruction, for diagnostics and tracing
      */
 
@@ -49,6 +60,16 @@ public class CopyOf extends Instruction {
      */
     public void setRequireDocumentOrElement(boolean requireDocumentOrElement) {
         this.requireDocumentOrElement = requireDocumentOrElement;
+    }
+
+    /**
+     * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
+     * This method indicates which of these methods is provided. This implementation provides both iterate() and
+     * process() methods natively.
+     */
+
+    public int getImplementationMethod() {
+        return ITERATE_METHOD | PROCESS_METHOD;
     }
 
     /**
@@ -101,6 +122,7 @@ public class CopyOf extends Instruction {
                             copyAttribute(source, schemaType, validation, locationId, context);
                         } catch (NoOpenStartTagException err) {
                             DynamicError e = new DynamicError(err.getMessage());
+                            e.setLocator(this);
                             e.setXPathContext(context);
                             e.setErrorCode(err.getErrorCode());
                             context.getController().recoverableError(e);
@@ -135,7 +157,7 @@ public class CopyOf extends Instruction {
                                         source.getBaseURI(),
                                         controller.getNamePool(),
                                         validation);
-                        val.setConfiguration(controller.getConfiguration());
+                        val.setPipelineConfiguration(out.getPipelineConfiguration());
                         val.startDocument(0);
                         source.copy(val, whichNamespaces, true, locationId);
                         val.endDocument();
@@ -163,13 +185,15 @@ public class CopyOf extends Instruction {
         int opt = 0;
         String value = source.getStringValue();
         if (schemaType != null) {
-            if (schemaType instanceof SimpleType) {
+            if (schemaType.isSimpleType()) {
                 try {
                     ((SimpleType) schemaType).validateContent(value, DummyNamespaceResolver.getInstance());
                     if (((SimpleType) schemaType).isNamespaceSensitive()) {
                         opt |= ReceiverOptions.NEEDS_PREFIX_CHECK;
                     }
                     annotation = schemaType.getFingerprint();
+                } catch (UnresolvedReferenceException ure) {
+                    throw new ValidationException(ure);
                 } catch (ValidationException err) {
                     throw new ValidationException("Attribute being copied does not match the required type. " +
                             err.getMessage());
@@ -268,16 +292,16 @@ public class CopyOf extends Instruction {
         return super.evaluateItem(context);
     }
 
-    public boolean effectiveBooleanValue(XPathContext context) throws XPathException {
-        return super.effectiveBooleanValue(context);
-    }
-
     public SequenceIterator iterate(XPathContext context) throws XPathException {
+        if (validation==Validation.PRESERVE && schemaType==null && copyNamespaces) {
+            // create a virtual copy of the underlying nodes
+            return new MappingIterator(select.iterate(context), this, null, context);
+        }
         Controller controller = context.getController();
         XPathContext c2 = context.newMinorContext();
         c2.setOrigin(this);
         SequenceOutputter out = new SequenceOutputter();
-        out.setConfiguration(controller.getConfiguration());
+        out.setPipelineConfiguration(controller.makePipelineConfiguration());
         c2.setReceiver(out);
         try {
             process(c2);
@@ -294,6 +318,33 @@ public class CopyOf extends Instruction {
         }
     }
 
+    /**
+     * Mapping function used to perform the copy when using the iterate() method
+     */
+
+    /**
+     * Map one item to a sequence.
+     *
+     * @param item    The item to be mapped.
+     *                If context is supplied, this must be the same as context.currentItem().
+     * @param context The processing context. This is supplied only for mapping constructs that
+     *                set the context node, position, and size. Otherwise it is null.
+     * @param info    Arbitrary information supplied by the creator of the MappingIterator. It must be
+     *                read-only and immutable for the duration of the iteration.
+     * @return either (a) a SequenceIterator over the sequence of items that the supplied input
+     *         item maps to, or (b) an Item if it maps to a single item, or (c) null if it maps to an empty
+     *         sequence.
+     */
+
+    public Object map(Item item, XPathContext context, Object info) throws XPathException {
+        if (item instanceof AtomicValue) {
+            return item;
+        }
+        VirtualCopy vc = VirtualCopy.makeVirtualCopy((NodeInfo)item, (NodeInfo)item);
+        int documentNumber = ((XPathContext)info).getController().getNamePool().allocateDocumentNumber(vc);
+        vc.setDocumentNumber(documentNumber);
+        return vc;
+    }
 
 }
 

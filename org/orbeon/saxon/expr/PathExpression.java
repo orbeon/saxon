@@ -11,6 +11,7 @@ import org.orbeon.saxon.sort.DocumentSorter;
 import org.orbeon.saxon.sort.Reverser;
 import org.orbeon.saxon.trace.Location;
 import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.SequenceType;
@@ -53,10 +54,7 @@ public final class PathExpression extends ComputedExpression implements MappingF
         // The "/" operator in XPath 2.0 is not always associative. Problems
         // can occur if position() and last() are used on the rhs, or if node-constructors
         // appear, e.g. //b/../<d/>. So we only do this rewrite if the step is a path
-        // expression in which both operands are axis expression optionally with predicates
-
-        // This code also recognizes that if there are three or more steps in a path expression
-        // and one of them is ".", then the "." step is redundant.
+        // expression in which both operands are axis expressions optionally with predicates
 
         if (step instanceof PathExpression) {
             PathExpression stepPath = (PathExpression) step;
@@ -67,8 +65,22 @@ public final class PathExpression extends ComputedExpression implements MappingF
                 resetStaticProperties();
             }
         }
-        //System.err.println("New path expression " + this);
-        //display(10);
+    }
+
+    /**
+     * Get the start expression (the left-hand operand)
+     */
+
+    public Expression getStartExpression() {
+        return start;
+    }
+
+    /**
+     * Get the step expression (the right-hand operand)
+     */
+
+    public Expression getStepExpression() {
+        return step;
     }
 
     /**
@@ -89,7 +101,7 @@ public final class PathExpression extends ComputedExpression implements MappingF
 
     /**
      * Determine the data type of the items returned by this exprssion
-     * @return Type.NODE, or some subtype thereof
+     * @return the type of the step
      */
 
     public final ItemType getItemType() {
@@ -108,12 +120,12 @@ public final class PathExpression extends ComputedExpression implements MappingF
         step = step.simplify(env);
         resetStaticProperties();
 
-        // if the start expression is an empty node-set, then the whole PathExpression is empty
+        // if the start expression is an empty sequence, then the whole PathExpression is empty
         if (start instanceof EmptySequence) {
             return start;
         }
 
-        // if the simplified Step is an empty node-set, then the whole PathExpression is empty
+        // if the simplified Step is an empty sequence, then the whole PathExpression is empty
         if (step instanceof EmptySequence) {
             return step;
         }
@@ -128,20 +140,10 @@ public final class PathExpression extends ComputedExpression implements MappingF
             }
         }
 
-//        if (start instanceof ContextItemExpression &&
-//                step instanceof PathExpression && (step.getSpecialProperties() & StaticProperty.ORDERED_NODESET) != 0) {
-//            return step;
-//        }
-
         if (step instanceof ContextItemExpression &&
                 (start instanceof PathExpression || (start.getSpecialProperties() & StaticProperty.ORDERED_NODESET) != 0)) {
             return start;
         }
-
-//        if (step instanceof ContextItemExpression &&
-//                start instanceof PathExpression && (start.getSpecialProperties() & StaticProperty.ORDERED_NODESET) != 0) {
-//            return start;
-//        }
 
         // Remove a redundant "." in the middle of a path expression
 
@@ -272,6 +274,7 @@ public final class PathExpression extends ComputedExpression implements MappingF
             // decisions on sorting get upset. But we have new information, namely the contextItemType,
             // so we use that to check that it's a node
             start = start.analyze(env, contextItemType);
+            step = step.analyze(env, start.getItemType());
             return this;
         };
         state = 2;
@@ -279,67 +282,89 @@ public final class PathExpression extends ComputedExpression implements MappingF
         start = start.analyze(env, contextItemType);
         step = step.analyze(env, start.getItemType());
 
-        // We don't need the operands to be sorted; any sorting that's needed
-        // will be done at the top level
-
-        start = ExpressionTool.unsorted(start, false);
-        step = ExpressionTool.unsorted(step, false);
-
-        // Both operands must be of type node()*
+        // The first operand must be of type node()*
 
         RoleLocator role0 =
-                new RoleLocator(RoleLocator.BINARY_EXPR, "/", 0);
+                new RoleLocator(RoleLocator.BINARY_EXPR, "/", 0, null);
         role0.setErrorCode("XP0019");
         start = TypeChecker.staticTypeCheck(start,
                 SequenceType.NODE_SEQUENCE,
                 false, role0, env);
 
-        RoleLocator role1 =
-                new RoleLocator(RoleLocator.BINARY_EXPR, "/", 1);
-        role1.setErrorCode("XP0019");
-        step = TypeChecker.staticTypeCheck(step,
-                SequenceType.NODE_SEQUENCE,
-                false, role1, env);
-        resetStaticProperties();
-
-        // Try to simplify expressions such as a//b
-        PathExpression p = simplifyDescendantPath(env);
-        if (p != null) {
-            return p.simplify(env).analyze(env, contextItemType);
-        }
-
-
         // If any subexpressions within the step are not dependent on the focus,
-        // promote them: this causes them to be evaluated once, outside the path
-        // expression
+        // and if they are not "creative" expressions (expressions that can create new nodes), then
+        // promote them: this causes them to be evaluated once, outside the path expression
+
 
         PromotionOffer offer = new PromotionOffer();
         offer.action = PromotionOffer.FOCUS_INDEPENDENT;
         offer.promoteDocumentDependent = (start.getSpecialProperties() & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0;
         offer.containingExpression = this;
-        step = step.promote(offer);
-        resetStaticProperties();
-        if (offer.containingExpression instanceof LetExpression) {
-            state = 0;  // allow reanalysis (see test axes286)
-            offer.containingExpression = offer.containingExpression.analyze(env, contextItemType);
-        }
-
-        // Decide whether the result needs to be wrapped in a sorting
-        // expression to deliver the results in document order
-
-        if (offer.containingExpression instanceof PathExpression) {
-            PathExpression path = (PathExpression) offer.containingExpression;
-            int props = path.getSpecialProperties();
-
-            if ((props & StaticProperty.ORDERED_NODESET) != 0) {
-                return path;
-            } else if ((props & StaticProperty.REVERSE_DOCUMENT_ORDER) != 0) {
-                return new Reverser(path);
-            } else {
-                return new DocumentSorter(path);
+        
+        //if ((step.getSpecialProperties() & StaticProperty.NON_CREATIVE) != 0) {
+            step = step.promote(offer);
+            resetStaticProperties();
+            if (offer.containingExpression != this) {
+                state = 0;  // allow reanalysis (see test axes286)
+                offer.containingExpression = offer.containingExpression.analyze(env, contextItemType);
+                return offer.containingExpression;
             }
+        //}
+
+        // We distinguish three cases for the second operand: either it is known statically to deliver
+        // nodes only (a traditional path expression), or it is known statically to deliver atomic values
+        // only (a simple mapping expression), or we don't yet know.
+
+        ItemType stepType = step.getItemType();
+        if (Type.isSubType(stepType, Type.NODE_TYPE)) {
+
+            // A traditional path expression
+
+            // We don't need the operands to be sorted; any sorting that's needed
+            // will be done at the top level
+
+            start = ExpressionTool.unsorted(start, false);
+            step = ExpressionTool.unsorted(step, false);
+
+            RoleLocator role1 =
+                    new RoleLocator(RoleLocator.BINARY_EXPR, "/", 1, null);
+            role1.setErrorCode("XP0019");
+            step = TypeChecker.staticTypeCheck(step,
+                    SequenceType.NODE_SEQUENCE,
+                    false, role1, env);
+            resetStaticProperties();
+
+            // Try to simplify expressions such as a//b
+            PathExpression p = simplifyDescendantPath(env);
+            if (p != null) {
+                return p.simplify(env).analyze(env, contextItemType);
+            }
+
+            // Decide whether the result needs to be wrapped in a sorting
+            // expression to deliver the results in document order
+
+            if (offer.containingExpression instanceof PathExpression) {
+                PathExpression path = (PathExpression) offer.containingExpression;
+                int props = path.getSpecialProperties();
+
+                if ((props & StaticProperty.ORDERED_NODESET) != 0) {
+                    return path;
+                } else if ((props & StaticProperty.REVERSE_DOCUMENT_ORDER) != 0) {
+                    return new Reverser(path);
+                } else {
+                    return new DocumentSorter(path);
+                }
+            } else {
+                return offer.containingExpression;
+            }
+
+        } else if (Type.isSubType(stepType, Type.ANY_ATOMIC_TYPE)) {
+            // This is a simple mapping expression: a/b where b returns atomic values
+            return new SimpleMappingExpression(start, step, false).simplify(env).analyze(env, contextItemType);
         } else {
-            return offer.containingExpression;
+            // This is a hybrid mapping expression, one where we don't know the type of the step
+            // (and therefore, we don't know whether sorting into document order is required) until run-time
+            return new SimpleMappingExpression(start, step, true).simplify(env).analyze(env, contextItemType);
         }
     }
 
@@ -352,14 +377,19 @@ public final class PathExpression extends ComputedExpression implements MappingF
         if (exp != null) {
             return exp;
         } else {
-            start = start.promote(offer);
+            Expression start2 = start.promote(offer);
+            Expression step2 = step;
             if (offer.action == PromotionOffer.INLINE_VARIABLE_REFERENCES) {
                 // Don't pass on other requests. We could pass them on, but only after augmenting
                 // them to say we are interested in subexpressions that don't depend on either the
                 // outer context or the inner context.
-                step = step.promote(offer);
+                step2 = step.promote(offer);
             }
-            resetStaticProperties();
+            if (start2 != start || step2 != step) {
+                resetStaticProperties();
+                start = start2;
+                step = step2;
+            }
             return this;
         }
     }
@@ -368,12 +398,6 @@ public final class PathExpression extends ComputedExpression implements MappingF
      * Get the immediate subexpressions of this expression
      */
 
-//    public Expression[] getSubExpressions() {
-//        Expression[] exp = new Expression[2];
-//        exp[0] = start;
-//        exp[1] = step;
-//        return exp;
-//    }
     public Iterator iterateSubExpressions() {
         return new PairIterator(start, step);
     }
@@ -421,10 +445,14 @@ public final class PathExpression extends ComputedExpression implements MappingF
 
         if (testNaturallySorted(startProperties, stepProperties)) {
             p |= StaticProperty.ORDERED_NODESET;
-
         }
+
         if (testNaturallyReverseSorted()) {
             p |= StaticProperty.REVERSE_DOCUMENT_ORDER;
+        }
+
+        if ((startProperties & stepProperties & StaticProperty.NON_CREATIVE) != 0) {
+            p |= StaticProperty.NON_CREATIVE;
         }
 
         return p;
@@ -577,39 +605,6 @@ public final class PathExpression extends ComputedExpression implements MappingF
         }
     }
 
-// --Recycle Bin START (22/04/04 20:57):
-//    /**
-//    * Get the last step in this expression. A path expression A/B/C is represented as (A/B)/C, but
-//    * the last step is C
-//    */
-//
-//    public Expression getLastStep() {
-//        if (step instanceof PathExpression) {
-//            return ((PathExpression)step).getLastStep();
-//        } else {
-//            return step;
-//        }
-//    }
-// --Recycle Bin STOP (22/04/04 20:57)
-
-// --Recycle Bin START (22/04/04 20:57):
-//    /**
-//    * Get all steps before the last.
-//    */
-//
-//    public Expression getAllExceptLastStep() {
-//        if (step instanceof PathExpression) {
-//            PathExpression rem =
-//                    new PathExpression(start, ((PathExpression)step).getAllExceptLastStep());
-//            ExpressionTool.copyLocationInfo(start, rem);
-//            return rem;
-//        } else {
-//            return start;
-//        }
-//    }
-// --Recycle Bin STOP (22/04/04 20:57)
-
-
     /**
      * Iterate the path-expression in a given context
      * @param context the evaluation context
@@ -629,44 +624,6 @@ public final class PathExpression extends ComputedExpression implements MappingF
         master = new MappingIterator(master, this, context2, null);
         return master;
 
-/*
-    	if (naturallySorted) {
-    	    return master;
-    	}
-
-	    if (naturallyReverseSorted) {
-
-	        if (requireOrder) {
-    	        //System.err.println("PathExpression " + this + " - doing reversal");
-    	        //display(10);
-
-    	        SequenceExtent extent = new SequenceExtent(master);
-    	        return extent.reverseIterate();
-    	    } else {
-    	        return master;
-    	    }
-	    }
-
-    	if (requireUnique || requireOrder) {
-
-    	    // Having exhausted all other options, we take the plunge and sort the nodes
-
-    	    // System.err.println("PathExpression " + this + " - doing sort");
-    	    // display(10);
-
-            NodeOrderComparer comparer;
-            if (start instanceof SingletonNode || (start.getProperties() & CONTEXT_DOCUMENT_NODESET) != 0) {
-                // nodes are all in the same document
-                comparer = LocalOrderComparer.getInstance();
-            } else {
-                comparer = GlobalOrderComparer.getInstance();
-            }
-            return new DocumentOrderIterator(master, comparer);
-
-        } else {
-            return master;
-        }
-*/
     }
 
     /**

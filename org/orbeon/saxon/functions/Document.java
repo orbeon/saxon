@@ -3,25 +3,17 @@ import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.event.Builder;
 import org.orbeon.saxon.event.Sender;
 import org.orbeon.saxon.event.Stripper;
-import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.MappingFunction;
-import org.orbeon.saxon.expr.MappingIterator;
-import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.expr.StaticProperty;
+import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.sort.DocumentOrderIterator;
 import org.orbeon.saxon.sort.GlobalOrderComparer;
 import org.orbeon.saxon.value.Cardinality;
+import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.Source;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.xpath.DynamicError;
-
-import javax.xml.transform.URIResolver;
 import javax.xml.transform.TransformerException;
+import javax.xml.transform.URIResolver;
 import javax.xml.transform.dom.DOMSource;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -36,9 +28,13 @@ public class Document extends SystemFunction implements MappingFunction, XSLTFun
     private String expressionBaseURI = null;
 
     public void checkArguments(StaticContext env) throws XPathException {
-        super.checkArguments(env);
-        expressionBaseURI = env.getBaseURI();
-        argument[0] = ExpressionTool.unsorted(argument[0], false);
+        if (expressionBaseURI == null) {
+            // only do this once. The second call supplies an env pointing to the containing
+            // xsl:template, which has a different base URI (and in a simplified stylesheet, has no base URI)
+            super.checkArguments(env);
+            expressionBaseURI = env.getBaseURI();
+            argument[0] = ExpressionTool.unsorted(argument[0], false);
+        }
     }
 
     /**
@@ -47,10 +43,10 @@ public class Document extends SystemFunction implements MappingFunction, XSLTFun
 
     public int computeCardinality() {
         Expression expression = argument[0];
-        if (!Cardinality.allowsMany(expression.getCardinality())) {
-            return StaticProperty.ALLOWS_ZERO_OR_ONE;
-        } else {
+        if (Cardinality.allowsMany(expression.getCardinality())) {
             return StaticProperty.ALLOWS_ZERO_OR_MORE;
+        } else {
+            return StaticProperty.ALLOWS_ZERO_OR_ONE;
         }
         // may have to revise this if the argument can be a list-valued element or attribute
     }
@@ -62,9 +58,13 @@ public class Document extends SystemFunction implements MappingFunction, XSLTFun
     */
 
     public int computeSpecialProperties() {
-        return StaticProperty.ORDERED_NODESET | StaticProperty.PEER_NODESET;
+        return StaticProperty.ORDERED_NODESET |
+                StaticProperty.PEER_NODESET |
+                StaticProperty.NON_CREATIVE;
         // Declaring it as a peer node-set expression avoids sorting of expressions such as
         // document(XXX)/a/b/c
+        // The document() function might appear to be creative: but it isn't, because multiple calls
+        // with the same arguments will produce identical results.
     }
 
     /**
@@ -79,7 +79,7 @@ public class Document extends SystemFunction implements MappingFunction, XSLTFun
     * Information passed through the mapping iterator
     */
 
-    private class DocumentMappingInfo {
+    private static class DocumentMappingInfo {
         public String baseURI;
         public String stylesheetURI;
     }
@@ -111,11 +111,11 @@ public class Document extends SystemFunction implements MappingFunction, XSLTFun
                                     info);
 
         Expression expression = argument[0];
-        if (!Cardinality.allowsMany(expression.getCardinality())) {
-            return map;
-        } else {
+        if (Cardinality.allowsMany(expression.getCardinality())) {
             return new DocumentOrderIterator(map, GlobalOrderComparer.getInstance());
             // this is to make sure we eliminate duplicates: two href's might be the same
+        } else {
+            return map;
         }
     }
 
@@ -171,7 +171,7 @@ public class Document extends SystemFunction implements MappingFunction, XSLTFun
                 documentKey = (new URL(href)).toString();
             } catch (MalformedURLException err) {
                 // it isn't; but the URI resolver might know how to cope
-                documentKey = baseURL + "/" + href;
+                documentKey = baseURL + '/' + href;
                 baseURL = "";
             }
         } else {
@@ -190,7 +190,7 @@ public class Document extends SystemFunction implements MappingFunction, XSLTFun
 
         DocumentInfo doc = controller.getDocumentPool().find(documentKey);
         if (doc != null) {
-            return getFragment(doc, fragmentId);
+            return getFragment(doc, fragmentId, c);
         }
 
         try {
@@ -213,14 +213,14 @@ public class Document extends SystemFunction implements MappingFunction, XSLTFun
             } else {
                 Builder b = controller.makeBuilder();
                 Stripper s = controller.makeStripper(b);
-                new Sender(controller.getConfiguration()).send(source, s);
-                newdoc = b.getCurrentDocument();
+                new Sender(controller.makePipelineConfiguration()).send(source, s);
+                newdoc = (DocumentInfo)b.getCurrentRoot();
             }
             controller.registerDocument(newdoc, documentKey);
-            return getFragment(newdoc, fragmentId);
+            return getFragment(newdoc, fragmentId, c);
 
         } catch (TransformerException err) {
-            XPathException xerr = XPathException.wrap(err);
+            DynamicError xerr = DynamicError.makeDynamicError(err);
             try {
                 controller.recoverableError(xerr);
             } catch (XPathException err2) {
@@ -238,7 +238,8 @@ public class Document extends SystemFunction implements MappingFunction, XSLTFun
     * given id value; or null if no such element is found.
     */
 
-    private static NodeInfo getFragment(DocumentInfo doc, String fragmentId) {
+    private static NodeInfo getFragment(DocumentInfo doc, String fragmentId, XPathContext context) 
+    throws XPathException {
         // TODO: we only support one kind of fragment identifier. The rules say
         // that the interpretation of the fragment identifier depends on media type,
         // but we aren't getting the media type from the URIResolver.
@@ -246,7 +247,14 @@ public class Document extends SystemFunction implements MappingFunction, XSLTFun
             return doc;
         }
         if (!XMLChar.isValidNCName(fragmentId)) {
-            // TODO: this is a recoverable error, we are recovering silently
+            DynamicError err = new DynamicError("Invalid fragment identifier in URI");
+            err.setXPathContext(context);
+            err.setErrorCode("XT1160");
+            try {
+                context.getController().recoverableError(err);
+            } catch (DynamicError dynamicError) {
+                throw err;
+            }
             return doc;
         }
         return doc.selectID(fragmentId);

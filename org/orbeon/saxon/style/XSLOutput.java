@@ -2,11 +2,7 @@ package org.orbeon.saxon.style;
 import org.orbeon.saxon.event.SaxonOutputKeys;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.om.Name;
-import org.orbeon.saxon.om.NamespaceConstant;
-import org.orbeon.saxon.om.NamespaceException;
-import org.orbeon.saxon.om.QNameException;
-import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.OutputKeys;
@@ -59,7 +55,9 @@ public class XSLOutput extends StyleElement {
         		method = atts.getValue(a).trim();
         	} else if (f==StandardNames.VERSION) {
         		version = atts.getValue(a).trim();
-        	} else if (f==StandardNames.ENCODING) {
+        	} else if (f==StandardNames.BYTE_ORDER_MARK) {
+                byteOrderMark = atts.getValue(a).trim();
+            } else if (f==StandardNames.ENCODING) {
         		encoding = atts.getValue(a).trim();
         	} else if (f==StandardNames.OMIT_XML_DECLARATION) {
         		omitDeclaration = atts.getValue(a).trim();
@@ -89,8 +87,6 @@ public class XSLOutput extends StyleElement {
         		indentSpaces = atts.getValue(a).trim();
         	} else if (f==StandardNames.SAXON_NEXT_IN_CHAIN) {
         		nextInChain = atts.getValue(a).trim();
-            } else if (f==StandardNames.SAXON_BYTE_ORDER_MARK) {
-                byteOrderMark = atts.getValue(a).trim();
             } else if (f==StandardNames.SAXON_REQUIRE_WELL_FORMED) {
                 requireWellFormed = atts.getValue(a).trim();
         	} else {
@@ -112,9 +108,9 @@ public class XSLOutput extends StyleElement {
             try {
                 fingerprint = makeNameCode(nameAtt.trim()) & 0xfffff;
             } catch (NamespaceException err) {
-                compileError(err.getMessage());
+                compileError(err.getMessage(), "XT1570");
             } catch (XPathException err) {
-                compileError(err.getMessage());
+                compileError(err.getMessage(), "XT1570");
             }
         }
     }
@@ -156,16 +152,24 @@ public class XSLOutput extends StyleElement {
                     parts = Name.getQNameParts(method);
                     String prefix = parts[0];
                     if (prefix.equals("")) {
-                        compileError("method must be xml, html, xhtml, or text, or a prefixed name");
+                        compileError("method must be xml, html, xhtml, or text, or a prefixed name", "XT0020");
                     } else {
                         String uri = getURIForPrefix(prefix, false);
                         details.put(OutputKeys.METHOD, '{' + uri + '}' + parts[1] );
                     }
                 } catch (QNameException e) {
-                    compileError("Invalid method name. " + e.getMessage());
+                    compileError("Invalid method name. " + e.getMessage(), "XT0020");
                 } catch (NamespaceException err) {
-                    compileError(err.getMessage());
+                    compileError(err.getMessage(), "XT0280");
                 }
+            }
+        }
+
+        if (byteOrderMark != null) {
+            if (byteOrderMark.equals("yes") || byteOrderMark.equals("no")) {
+                details.put(SaxonOutputKeys.BYTE_ORDER_MARK, byteOrderMark);
+            } else {
+                compileError("byte-order-mark value must be 'yes' or 'no'", "XT0020");
             }
         }
 
@@ -177,7 +181,7 @@ public class XSLOutput extends StyleElement {
             if (indent.equals("yes") || indent.equals("no")) {
                 details.put(OutputKeys.INDENT, indent);
             } else {
-                compileError("indent must be yes or no");
+                compileError("indent value must be 'yes' or 'no'", "XT0020");
             }
         }
 
@@ -187,7 +191,7 @@ public class XSLOutput extends StyleElement {
                 details.put(OutputKeys.INDENT, "yes");
                 details.put(SaxonOutputKeys.INDENT_SPACES, indentSpaces);
             } catch (NumberFormatException err) {
-                compileError("saxon:indent-spaces must be an integer");
+                compileWarning("saxon:indent-spaces must be an integer. Using default value (3).");
             }
         }
 
@@ -211,7 +215,7 @@ public class XSLOutput extends StyleElement {
             if (omitDeclaration.equals("yes") || omitDeclaration.equals("no")) {
                 details.put(OutputKeys.OMIT_XML_DECLARATION, omitDeclaration);
             } else {
-                compileError("omit-xml-declaration attribute must be yes or no");
+                compileError("omit-xml-declaration attribute must be 'yes' or 'no'", "XT0020");
             }
         }
 
@@ -221,7 +225,7 @@ public class XSLOutput extends StyleElement {
             } else if (standalone.equals("omit")) {
                 // ignore
             } else {
-                compileError("standalone attribute must be yes or no");
+                compileError("standalone attribute must be 'yes' or 'no' or 'omit'", "XT0020");
             }
         }
 
@@ -241,7 +245,7 @@ public class XSLOutput extends StyleElement {
                 } catch (QNameException err) {
                     compileError("Invalid CDATA element name. " + err.getMessage());
                 } catch (NamespaceException err) {
-                    compileError(err.getMessage());
+                    compileError(err.getMessage(), "XT0280");
                 }
 
                 details.put(OutputKeys.CDATA_SECTION_ELEMENTS, existing+s);
@@ -252,7 +256,7 @@ public class XSLOutput extends StyleElement {
             if (undeclareNamespaces.equals("yes") || undeclareNamespaces.equals("no")) {
                 details.put(SaxonOutputKeys.UNDECLARE_NAMESPACES, undeclareNamespaces);
             } else {
-                compileError("undeclare-namespaces value must be yes or no");
+                compileError("undeclare-namespaces value must be 'yes' or 'no'", "XT0020");
             }
         }
 
@@ -279,7 +283,7 @@ public class XSLOutput extends StyleElement {
                 } catch (QNameException err) {
                     compileError("Invalid character-map name. " + err.getMessage());
                 } catch (NamespaceException err) {
-                    compileError(err.getMessage());
+                    compileError(err.getMessage(), "XT0280");
                 }
 
                 details.put(SaxonOutputKeys.USE_CHARACTER_MAPS, existing+s);
@@ -294,7 +298,7 @@ public class XSLOutput extends StyleElement {
             if (includeContentType.equals("yes") || includeContentType.equals("no")) {
                 details.put(SaxonOutputKeys.INCLUDE_CONTENT_TYPE, includeContentType);
             } else {
-                compileError("include-content-type attribute must be yes or no");
+                compileError("include-content-type attribute must be 'yes' or 'no'", "XT0020");
             }
         }
 
@@ -302,7 +306,7 @@ public class XSLOutput extends StyleElement {
             if (escapeURIAttributes.equals("yes") || escapeURIAttributes.equals("no")) {
                 details.put(SaxonOutputKeys.ESCAPE_URI_ATTRIBUTES, escapeURIAttributes);
             } else {
-                compileError("escape-uri-attributes value must be yes or no");
+                compileError("escape-uri-attributes value must be 'yes' or 'no'", "XT0020");
             }
         }
 
@@ -311,19 +315,11 @@ public class XSLOutput extends StyleElement {
             details.put(SaxonOutputKeys.NEXT_IN_CHAIN_BASE_URI, getSystemId());
         }
 
-        if (byteOrderMark != null) {
-            if (byteOrderMark.equals("yes") || byteOrderMark.equals("no")) {
-                details.put(SaxonOutputKeys.BYTE_ORDER_MARK, byteOrderMark);
-            } else {
-                compileError("saxon:byte-order-mark value must be yes or no");
-            }
-        }
-
         if (requireWellFormed != null) {
             if (requireWellFormed.equals("yes") || requireWellFormed.equals("no")) {
                 details.put(SaxonOutputKeys.REQUIRE_WELL_FORMED, requireWellFormed);
             } else {
-                compileError("saxon:require-well-formed value must be yes or no");
+                compileWarning("saxon:require-well-formed value must be 'yes' or 'no' (treated as no)");
             }
         }
 

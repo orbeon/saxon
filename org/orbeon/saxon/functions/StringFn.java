@@ -1,12 +1,9 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.xpath.XPathException;
 
 /**
@@ -23,20 +20,6 @@ public class StringFn extends SystemFunction {
      public Expression simplify(StaticContext env) throws XPathException {
         useContextItemAsDefault();
         return simplifyArguments(env);
-    }
-
-    /**
-    * Type check. This refinement of the method removes the function call wrapper if the
-    * argument is already of type single string
-    */
-
-    public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
-        super.analyze(env, contextItemType);
-        if (argument[0].getItemType()==Type.STRING_TYPE &&
-                argument[0].getCardinality()==StaticProperty.EXACTLY_ONE) {
-            return argument[0];
-        }
-        return this;
     }
 
     /**

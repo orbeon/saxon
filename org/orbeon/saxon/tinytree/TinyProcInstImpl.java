@@ -2,10 +2,8 @@ package org.orbeon.saxon.tinytree;
 //import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.type.Type;
-
 import org.orbeon.saxon.xpath.XPathException;
 import org.w3c.dom.ProcessingInstruction;
-import org.w3c.dom.DOMException;
 
 /**
   * TProcInstImpl is an implementation of ProcInstInfo
@@ -16,19 +14,19 @@ import org.w3c.dom.DOMException;
 
 final class TinyProcInstImpl extends TinyNodeImpl implements ProcessingInstruction {
 
-    public TinyProcInstImpl(TinyDocumentImpl doc, int nodeNr) {
-        this.document = doc;
+    public TinyProcInstImpl(TinyTree tree, int nodeNr) {
+        this.tree = tree;
         this.nodeNr = nodeNr;
     }
 
     public String getStringValue() {
-        int start = document.alpha[nodeNr];
-        int len = document.beta[nodeNr];
+        int start = tree.alpha[nodeNr];
+        int len = tree.beta[nodeNr];
         if (len==0) {
         	return "";	// need to special-case this for the Microsoft JVM
         }
         char[] dest = new char[len];
-        document.commentBuffer.getChars(start, start+len, dest, 0);
+        tree.commentBuffer.getChars(start, start+len, dest, 0);
         return new String(dest, 0, len);
     }
 
@@ -64,16 +62,6 @@ final class TinyProcInstImpl extends TinyNodeImpl implements ProcessingInstructi
 
     public String getData() {
         return getStringValue();
-    }
-
-    /**
-     * Set the content of this PI. Always fails.
-     * @exception DOMException
-     *    NO_MODIFICATION_ALLOWED_ERR: Raised when the node is readonly.
-     */
-
-    public void setData(String data) throws DOMException {
-        disallowUpdate();
     }
 
 }

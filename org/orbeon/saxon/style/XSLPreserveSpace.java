@@ -1,14 +1,10 @@
 package org.orbeon.saxon.style;
+import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.*;
 import org.orbeon.saxon.trans.Mode;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.om.Name;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.om.NamespaceException;
-import org.orbeon.saxon.om.QNameException;
-import org.orbeon.saxon.pattern.*;
-import org.orbeon.saxon.expr.Expression;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.StringTokenizer;
@@ -46,7 +42,7 @@ public class XSLPreserveSpace extends StyleElement {
 
     public Expression compile(Executable exec) throws TransformerConfigurationException
     {
-        Boolean preserve = new Boolean(getFingerprint()==StandardNames.XSL_PRESERVE_SPACE);
+        Boolean preserve = Boolean.valueOf(getFingerprint() == StandardNames.XSL_PRESERVE_SPACE);
         Mode stripperRules = getPrincipalStylesheet().getStripperRules();
 
         // elements is a space-separated list of element names
@@ -125,7 +121,7 @@ public class XSLPreserveSpace extends StyleElement {
                 }
 
             } catch (NamespaceException err) {
-                compileError(err.getMessage());
+                compileError(err.getMessage(), "XT0280");
             }
         }
         return null;

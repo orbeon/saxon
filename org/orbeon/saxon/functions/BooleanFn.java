@@ -1,7 +1,7 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.value.BooleanValue;
 import org.orbeon.saxon.xpath.XPathException;

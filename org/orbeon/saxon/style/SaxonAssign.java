@@ -1,10 +1,9 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.instruct.Assign;
-import org.orbeon.saxon.instruct.Instruction;
-import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.instruct.Assign;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -50,6 +49,9 @@ public class SaxonAssign extends XSLGeneralVariable  {
         }
         if (!declaration.isAssignable()) {
             compileError("Variable " + getVariableName() + " is not marked as assignable");
+        }
+        if (!declaration.isGlobal()) {
+            compileError("saxon:assign now works only with global variables");
         }
     }
 

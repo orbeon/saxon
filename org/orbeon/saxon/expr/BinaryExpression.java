@@ -6,15 +6,15 @@ import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.xpath.XPathException;
 
-import java.util.Iterator;
 import java.io.PrintStream;
+import java.util.Iterator;
 
 /**
 * Binary Expression: a numeric or boolean expression consisting of the
 * two operands and an operator
 */
 
-abstract class BinaryExpression extends ComputedExpression {
+public abstract class BinaryExpression extends ComputedExpression {
 
     protected Expression operand0;
     protected Expression operand1;
@@ -87,12 +87,16 @@ abstract class BinaryExpression extends ComputedExpression {
     * Get the immediate subexpressions of this expression
     */
 
-//    public Expression[] getSubExpressions() {
-//        return operands;
-//    }
-
     public Iterator iterateSubExpressions() {
         return new PairIterator(operand0, operand1);
+    }
+
+    /**
+     * Get the operator
+     */
+
+    public int getOperator() {
+        return operator;
     }
 
     /**
@@ -101,12 +105,23 @@ abstract class BinaryExpression extends ComputedExpression {
     */
 
     public int computeCardinality() {
-        if (Cardinality.allowsZero(operand0.getCardinality()) &&
+        if (Cardinality.allowsZero(operand0.getCardinality()) ||
                 Cardinality.allowsZero(operand1.getCardinality())) {
             return StaticProperty.ALLOWS_ZERO_OR_ONE;
         } else {
             return StaticProperty.EXACTLY_ONE;
         }
+    }
+
+    /**
+     * Determine the special properties of this expression
+     * @return {@link StaticProperty#NON_CREATIVE}. This is overridden
+     * for some subclasses.
+     */
+
+    public int computeSpecialProperties() {
+        int p = super.computeSpecialProperties();
+        return p | StaticProperty.NON_CREATIVE;
     }
 
     protected static boolean isCommutative(int operator) {

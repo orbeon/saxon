@@ -1,5 +1,6 @@
 package org.orbeon.saxon.pattern;
 import org.orbeon.saxon.expr.Token;
+import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.type.AnyType;
 import org.orbeon.saxon.type.SchemaType;
@@ -79,7 +80,7 @@ public class CombinedNodeTest extends NodeTest {
         }
     }
 
-    public String toString() {
+    public String toString(NamePool pool) {
         if (nodetest1 instanceof NameTest) {
             int kind = nodetest1.getPrimitiveType();
             String content = "";
@@ -87,14 +88,14 @@ public class CombinedNodeTest extends NodeTest {
                 content = ", " + ((ContentTypeTest)nodetest2).getSchemaType().getDisplayName();
             }
             if (kind == Type.ELEMENT) {
-                return "schema-element(*" + content + ")";
+                return "element(*" + content + ')';
             } else if (kind == Type.ATTRIBUTE) {
-                return "schema-attribute(*" + content + ")";
+                return "attribute(*" + content + ')';
             }
         }
-        String nt1 = (nodetest1==null ? "true()" : nodetest1.toString());
-        String nt2 = (nodetest2==null ? "true()" : nodetest2.toString());
-        return "(" + nt1 + " " + Token.tokens[operator] + " " + nt2 + ")";
+        String nt1 = (nodetest1==null ? "true()" : nodetest1.toString(pool));
+        String nt2 = (nodetest2==null ? "true()" : nodetest2.toString(pool));
+        return '(' + nt1 + ' ' + Token.tokens[operator] + ' ' + nt2 + ')';
     }
 
     /**
@@ -111,7 +112,31 @@ public class CombinedNodeTest extends NodeTest {
      */
 
     public int getNodeKindMask() {
+//        if (operator == Token.INTERSECT) {
+//
+//        }
         return nodetest1.getNodeKindMask() & nodetest2.getNodeKindMask();
+    }
+
+    /**
+     * Get the basic kind of object that this ItemType matches: for a NodeTest, this is the kind of node,
+     * or Type.Node if it matches different kinds of nodes.
+     *
+     * @return the node kind matched by this node test
+     */
+
+    public int getPrimitiveType() {
+        int mask = getNodeKindMask();
+        if (mask == (1<<Type.ELEMENT)) {
+            return Type.ELEMENT;
+        }
+        if (mask == (1<<Type.ATTRIBUTE)) {
+            return Type.ATTRIBUTE;
+        }
+        if (mask == (1<<Type.DOCUMENT)) {
+            return Type.DOCUMENT;
+        }
+        return Type.NODE;
     }
 
     /**
@@ -136,13 +161,32 @@ public class CombinedNodeTest extends NodeTest {
      */
 
     public SchemaType getContentType() {
-        if (nodetest2.getContentType() instanceof AnyType) {
-            return nodetest1.getContentType();
+        SchemaType type1 = nodetest1.getContentType();
+        SchemaType type2 = nodetest2.getContentType();
+        if (type1.isSameType(type2)) return type1;
+        if (operator == Token.INTERSECT) {
+            if (type2 instanceof AnyType) {
+                return nodetest1.getContentType();
+            }
+            if (type1 instanceof AnyType) {
+                return nodetest2.getContentType();
+            }
         }
-        if (nodetest1.getContentType() instanceof AnyType) {
-            return nodetest2.getContentType();
-        }
-        throw new UnsupportedOperationException("Combined nodetest has multiple content type constraints");
+        return AnyType.getInstance();
+    }
+
+    /**
+     * Get the name of the nodes matched by this nodetest, if it matches a specific name.
+     * Return -1 if the node test matches nodes of more than one name
+     */
+
+    public int getFingerprint() {
+        int fp1 = nodetest1.getFingerprint();
+        int fp2 = nodetest2.getFingerprint();
+        if (fp1 == fp2) return fp1;
+        if (fp2 == -1 && operator==Token.INTERSECT) return fp1;
+        if (fp1 == -1 && operator==Token.INTERSECT) return fp2;
+        return -1;
     }
 
     /**
@@ -159,6 +203,15 @@ public class CombinedNodeTest extends NodeTest {
 
     public double getDefaultPriority() {
         return 0.25;
+    }
+
+    /**
+     * Get the two parts of the combined node test
+     */
+
+    public NodeTest[] getComponentNodeTests() {
+        NodeTest[] tests = {nodetest1, nodetest2};
+        return tests;
     }
 }
 

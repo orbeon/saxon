@@ -1,14 +1,13 @@
 package org.orbeon.saxon.exslt;
-import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.value.SequenceValue;
-import org.orbeon.saxon.value.SequenceExtent;
-import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.value.EmptySequence;
+import org.orbeon.saxon.value.SequenceExtent;
+import org.orbeon.saxon.value.SequenceValue;
+import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 
