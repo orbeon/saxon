@@ -6,12 +6,12 @@ import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.pattern.NoNodeTest;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.RegexTranslator;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.ArrayList;

@@ -8,13 +8,13 @@ import net.sf.saxon.expr.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.NodeKindTest;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.*;
 import net.sf.saxon.value.QNameValue;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -85,6 +85,20 @@ public final class Attribute extends SimpleNodeConstructor {
         return StaticProperty.EXACTLY_ONE;
     }
 
+    /**
+     * Get the static properties of this expression (other than its type). The result is
+     * bit-signficant. These properties are used for optimizations. In general, if
+     * property bit is set, it is true, but if it is unset, the value is unknown.
+     *
+     * @return a set of flags indicating static properties of this expression
+     */
+
+    public int computeSpecialProperties() {
+        return super.computeSpecialProperties() |
+                StaticProperty.SINGLE_DOCUMENT_NODESET;
+    }
+    
+
      public Expression simplify(StaticContext env) throws XPathException {
         attributeName = attributeName.simplify(env);
         if (namespace!=null) {
@@ -127,9 +141,6 @@ public final class Attribute extends SimpleNodeConstructor {
         if (select != null) {
             list.add(select);
         }
-//        if (separator != null && !(separator instanceof StringValue)) {
-//            list.add(separator);
-//        }
         list.add(attributeName);
         if (namespace != null) {
             list.add(namespace);
@@ -202,17 +213,18 @@ public final class Attribute extends SimpleNodeConstructor {
         if (schemaType != null) {
             // test whether the value actually conforms to the given type
             try {
-                schemaType.validateContent(value, DummyNamespaceResolver.getInstance());
+                XPathException err = schemaType.validateContent(value, DummyNamespaceResolver.getInstance());
+                if (err != null) {
+                    throw new ValidationException("Attribute value " + Err.wrap(value, Err.VALUE) +
+                                               " does not match the required type " +
+                                               schemaType.getDescription() + ". " +
+                                               err.getMessage());
+                }
                 if (schemaType.isNamespaceSensitive()) {
                     options |= ReceiverOptions.NEEDS_PREFIX_CHECK;
                 }
             } catch (UnresolvedReferenceException ure) {
                 throw new ValidationException(ure);
-            } catch (ValidationException err) {
-                throw new ValidationException("Attribute value " + Err.wrap(value, Err.VALUE) +
-                                               " does not match the required type " +
-                                               schemaType.getDescription() + ". " +
-                                               err.getMessage());
             }
         } else if (validationAction==Validation.STRICT ||
                 validationAction==Validation.LAX) {
@@ -247,7 +259,7 @@ public final class Attribute extends SimpleNodeConstructor {
 
         if (nameValue instanceof StringValue) {
             // this will always be the case in XSLT
-            String rawName = nameValue.getStringValue();
+            CharSequence rawName = nameValue.getStringValueCS();
             try {
                 String[] parts = Name.getQNameParts(rawName);
                 prefix = parts[0];

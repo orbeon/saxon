@@ -1,11 +1,11 @@
 package net.sf.saxon.expr;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.*;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.*;
 import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -132,6 +132,7 @@ public final class AxisExpression extends ComputedExpression {
                                 NodeKindTest.toString(kind) +
                                 " nodes when starting at a node with simple type " +
                                 contentType.getDescription(), this);
+                        err.setLocator(this);
                         throw err;
                     }
                 } else if (((ComplexType)contentType).isSimpleContent() &&
@@ -142,6 +143,7 @@ public final class AxisExpression extends ComputedExpression {
                             " nodes when starting at a node with type " +
                             contentType.getDescription() +
                             ", as this type requires simple content", this);
+                    err.setLocator(this);
                     throw err;
                 } else if (((ComplexType)contentType).isEmptyContent() &&
                         (axis==Axis.CHILD || axis==Axis.DESCENDANT || axis==Axis.DESCENDANT_OR_SELF)) {
@@ -149,6 +151,7 @@ public final class AxisExpression extends ComputedExpression {
                             " nodes when starting at a node with type " +
                             contentType.getDescription() +
                             ", as this type requires empty content", this);
+                    err.setLocator(this);
                     throw err;
                 } else if (axis==Axis.ATTRIBUTE && targetfp != -1) {
                     try {
@@ -158,6 +161,7 @@ public final class AxisExpression extends ComputedExpression {
                                     contentType.getDescription() +
                                     " does not allow an attribute named " +
                                     env.getNamePool().getDisplayName(targetfp), this);
+                            err.setLocator(this);
                             throw err;
                         } else {
                             itemType = new CombinedNodeTest(
@@ -176,6 +180,7 @@ public final class AxisExpression extends ComputedExpression {
                                     contentType.getDescription() +
                                     " does not allow a child element named " +
                                     env.getNamePool().getDisplayName(targetfp), this);
+                            err.setLocator(this);
                             throw err;
                         } else {
                             itemType = new CombinedNodeTest(
@@ -255,6 +260,7 @@ public final class AxisExpression extends ComputedExpression {
 
     public int computeSpecialProperties() {
         return StaticProperty.CONTEXT_DOCUMENT_NODESET |
+               StaticProperty.SINGLE_DOCUMENT_NODESET |
                StaticProperty.NON_CREATIVE |
                (Axis.isForwards[axis] ? StaticProperty.ORDERED_NODESET  : StaticProperty.REVERSE_DOCUMENT_ORDER) |
                (Axis.isPeerAxis[axis] ? StaticProperty.PEER_NODESET : 0) |
@@ -281,7 +287,8 @@ public final class AxisExpression extends ComputedExpression {
             if (test==null) {
                 return AnyNodeTest.getInstance();
             } else {
-                return NodeKindTest.makeNodeKindTest(test.getPrimitiveType());
+                return test;
+                //return NodeKindTest.makeNodeKindTest(test.getPrimitiveType());
             }
         }
     }

@@ -1,13 +1,13 @@
 package net.sf.saxon.value;
-import net.sf.saxon.Configuration;
 import net.sf.saxon.Err;
 import net.sf.saxon.expr.Token;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.type.BuiltInAtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.type.ValidationException;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
 
 public final class DecimalValue extends NumericValue {
 
-    private final static int DIVIDE_PRECISION = 18;
+    private static final int DIVIDE_PRECISION = 18;
 
     private BigDecimal value;
 
@@ -33,31 +33,38 @@ public final class DecimalValue extends NumericValue {
         loseTrailingZeros();
     }
 
-    private static Pattern decimalPattern = Pattern.compile("(\\-|\\+)?((\\.[0-9]+)|([0-9]+(\\.[0-9]*)?))");
+    private static final Pattern decimalPattern = Pattern.compile("(\\-|\\+)?((\\.[0-9]+)|([0-9]+(\\.[0-9]*)?))");
 
     /**
-    * Constructor supplying a String
+    * Factory method to construct a DecimalValue from a string
     * @param in the value of the DecimalValue
-    */
+     * @param validate true if validation is required; false if the caller knows that the value is valid
+     * @return the required DecimalValue if the input is valid, or an ErrorValue encapsulating the error
+     * message if not.
+     */
 
-    public DecimalValue(CharSequence in) throws XPathException {
+    public static AtomicValue makeDecimalValue(CharSequence in, boolean validate) {
         String trimmed = trimWhitespace(in).toString();
         try {
-            if (!decimalPattern.matcher(trimmed).matches()) {
-                DynamicError err = new DynamicError(
-                        "Cannot convert string " + Err.wrap(trimmed, Err.VALUE) + " to decimal");
-                err.setErrorCode("FORG0001");
-                throw err;
+            if (validate) {
+                if (!decimalPattern.matcher(trimmed).matches()) {
+                    ValidationException err = new ValidationException(
+                            "Cannot convert string " + Err.wrap(trimmed, Err.VALUE) + " to xs:decimal");
+                    err.setErrorCode("FORG0001");
+                    return new ErrorValue(err);
+                }
             }
-            this.value = new BigDecimal(trimmed);
+            BigDecimal val = new BigDecimal(trimmed);
+            DecimalValue value = new DecimalValue(val);
             if (trimmed.charAt(trimmed.length()-1) == '0') {
-                loseTrailingZeros();
+                value.loseTrailingZeros();
             }
+            return value;
         } catch (NumberFormatException err) {
-            DynamicError e = new DynamicError(
-                    "Cannot convert string " + Err.wrap(trimmed, Err.VALUE) + " to decimal");
+            ValidationException e = new ValidationException(
+                    "Cannot convert string " + Err.wrap(trimmed, Err.VALUE) + " to xs:decimal");
             e.setErrorCode("FORG0001");
-            throw e;
+            return new ErrorValue(e);
         }
     }
 
@@ -66,13 +73,14 @@ public final class DecimalValue extends NumericValue {
     * @param in the value of the DecimalValue
     */
 
-    public DecimalValue(double in) throws XPathException {
+    public DecimalValue(double in) throws ValidationException {
         try {
             this.value = new BigDecimal(in);
             loseTrailingZeros();
         } catch (NumberFormatException err) {
             // Must be a special value such as NaN or infinity
-            DynamicError e = new DynamicError("Cannot convert double " + Err.wrap(in+"", Err.VALUE) + " to decimal");
+            ValidationException e = new ValidationException(
+                    "Cannot convert double " + Err.wrap(in+"", Err.VALUE) + " to decimal");
             e.setErrorCode("FORG0001");
             throw e;
         }
@@ -136,8 +144,8 @@ public final class DecimalValue extends NumericValue {
     * Convert to target data type
     */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
-        switch(requiredType) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+        switch(requiredType.getPrimitiveType()) {
         case Type.BOOLEAN:
                 // 0.0 => false, anything else => true
             return BooleanValue.get(value.signum()!=0);
@@ -153,15 +161,15 @@ public final class DecimalValue extends NumericValue {
         case Type.FLOAT:
             return new FloatValue(value.floatValue());
         case Type.STRING:
-            return new StringValue(getStringValue());
+            return new StringValue(getStringValueCS());
         case Type.UNTYPED_ATOMIC:
-            return new UntypedAtomicValue(getStringValue());
+            return new UntypedAtomicValue(getStringValueCS());
         default:
-            DynamicError err = new DynamicError("Cannot convert decimal to " +
-                                     StandardNames.getDisplayName(requiredType));
-            err.setXPathContext(context);
+            ValidationException err = new ValidationException("Cannot convert decimal to " +
+                                     requiredType.getDisplayName());
+            //err.setXPathContext(context);
             err.setErrorCode("FORG0001");
-            throw err;
+            return new ErrorValue(err);
         }
     }
 
@@ -244,7 +252,7 @@ public final class DecimalValue extends NumericValue {
     public NumericValue roundToHalfEven(int scale) {
         if (scale<0) {
             try {
-                AtomicValue val = convert(Type.INTEGER, null);
+                AtomicValue val = convert(Type.INTEGER);
                 if (val instanceof IntegerValue) {
                     return ((IntegerValue)val).roundToHalfEven(scale);
                 } else {
@@ -312,9 +320,9 @@ public final class DecimalValue extends NumericValue {
                 throw new DynamicError(err);
             }
         } else if (NumericValue.isInteger(other)) {
-            return arithmetic(operator, (DecimalValue)other.convert(Type.DECIMAL, context), context);
+            return arithmetic(operator, (DecimalValue)other.convert(Type.DECIMAL), context);
         } else {
-            NumericValue n = (NumericValue)convert(other.getItemType().getPrimitiveType(), context);
+            NumericValue n = (NumericValue)convert(other.getItemType().getPrimitiveType());
             return n.arithmetic(operator, other, context);
         }
     }
@@ -327,7 +335,7 @@ public final class DecimalValue extends NumericValue {
         if ((NumericValue.isInteger((NumericValue)other))) {
             // deliberately triggers a ClassCastException if other value is the wrong type
             try {
-                return compareTo(((NumericValue)other).convert(Type.DECIMAL, null));
+                return compareTo(((NumericValue)other).convert(Type.DECIMAL));
             } catch (XPathException err) {
                 throw new AssertionError("Conversion of integer to decimal should never fail");
             }
@@ -344,16 +352,16 @@ public final class DecimalValue extends NumericValue {
     * Convert to Java object (for passing to external functions)
     */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
+    public Object convertToJava(Class target, XPathContext context) throws XPathException {
         if (target==Object.class || target.isAssignableFrom(BigDecimal.class)) {
             return value;
         } else if (target.isAssignableFrom(DecimalValue.class)) {
             return this;
         } else if (target==boolean.class) {
-            BooleanValue bval = (BooleanValue)convert(Type.BOOLEAN, null);
+            BooleanValue bval = (BooleanValue)convert(Type.BOOLEAN);
             return Boolean.valueOf(bval.getBooleanValue());
         } else if (target==Boolean.class) {
-            BooleanValue bval = (BooleanValue)convert(Type.BOOLEAN, null);
+            BooleanValue bval = (BooleanValue)convert(Type.BOOLEAN);
             return Boolean.valueOf(bval.getBooleanValue());
         } else if (target==String.class || target==CharSequence.class) {
             return getStringValue();
@@ -372,7 +380,7 @@ public final class DecimalValue extends NumericValue {
         } else if (target==char.class || target==Character.class) {
             return new Character((char)value.intValue());
         } else {
-            Object o = super.convertToJava(target, config, context);
+            Object o = super.convertToJava(target, context);
             if (o == null) {
                 throw new DynamicError("Conversion of decimal to " + target.getName() +
                         " is not supported");

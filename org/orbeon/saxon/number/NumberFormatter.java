@@ -1,4 +1,6 @@
 package net.sf.saxon.number;
+import net.sf.saxon.om.FastStringBuffer;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,12 +36,12 @@ public class NumberFormatter implements Serializable {
 
         if (format.length()==0) format="1";
 
-        formatTokens = new ArrayList();
-        separators = new ArrayList();
+        formatTokens = new ArrayList(10);
+        separators = new ArrayList(10);
 
         int len = format.length();
         int i=0;
-        int t=0;
+        int t;
         boolean first = true;
         startsWithSeparator = true;
 
@@ -91,10 +93,10 @@ public class NumberFormatter implements Serializable {
     * @return the formatted output string.
     */
 
-    public String format(List numbers, int groupSize, String groupSeparator,
+    public CharSequence format(List numbers, int groupSize, String groupSeparator,
                         String letterValue, String ordinal, Numberer numberer) {
 
-        StringBuffer sb = new StringBuffer(20);
+        FastStringBuffer sb = new FastStringBuffer(20);
         int num = 0;
         int tok = 0;
         // output first punctuation token
@@ -124,7 +126,7 @@ public class NumberFormatter implements Serializable {
         if (separators.size()>formatTokens.size()) {
             sb.append((String)separators.get(separators.size()-1));
         }
-        return sb.toString();
+        return sb.condense();
     }
 
 }

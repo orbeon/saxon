@@ -1,10 +1,10 @@
 package net.sf.saxon.expr;
 import net.sf.saxon.om.NamePool;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.Cardinality;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Iterator;
@@ -100,6 +100,15 @@ public abstract class BinaryExpression extends ComputedExpression {
     }
 
     /**
+     * Get the operands
+     */
+
+    public Expression[] getOperands() {
+        Expression[] ops = {operand0, operand1};
+        return ops;
+    }
+
+    /**
     * Determine the static cardinality. Default implementation returns [0..1] if either operand
      * can be empty, or [1..1] otherwise.
     */
@@ -136,7 +145,18 @@ public abstract class BinaryExpression extends ComputedExpression {
                 operator == Token.NE ||
                 operator == Token.FNE
                 );
-        // not + or * because the type promotion works non-associatively
+    }
+
+    /**
+     * Test if one operator is the inverse of another, so that (A op1 B) is
+     * equivalent to (B op2 A). Commutative operators are the inverse of themselves
+     * and are therefore not listed here.
+     * @param op1 the first operator
+     * @param op2 the second operator
+     * @return true if the operators are the inverse of each other
+     */
+    protected static boolean isInverse(int op1, int op2) {
+        return op1 != op2 && op1 == Token.inverse(op2);
     }
 
     /**
@@ -157,8 +177,12 @@ public abstract class BinaryExpression extends ComputedExpression {
                     return true;
                 }
             }
+            if (isInverse(operator, b.operator) &&
+                    operand0.equals(b.operand1) &&
+                    operand1.equals(b.operand0)) {
+                return true;
+            }
             // TODO: recognize associative operators (A|(B|C)) == ((A|B)|C)
-            //    and inverse operators (A<B) == (B>A)
         }
         return false;
     }
@@ -169,8 +193,12 @@ public abstract class BinaryExpression extends ComputedExpression {
     */
 
     public int hashCode() {
-        return ("BinaryExpression " +
-                operator).hashCode() ^ operand0.hashCode() ^ operand1.hashCode();
+        // Ensure that an operator and its inverse get the same hash code,
+        // so that (A lt B) has the same hash code as (B gt A)
+        int op = Math.min(operator, Token.inverse(operator));
+        return ("BinaryExpression " + op).hashCode()
+                ^ operand0.hashCode()
+                ^ operand1.hashCode();
     }
 
     /**

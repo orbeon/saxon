@@ -3,6 +3,8 @@ import net.sf.saxon.om.ArrayIterator;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.value.StringValue;
+import net.sf.saxon.expr.LastPositionFinder;
+import net.sf.saxon.trans.XPathException;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -11,7 +13,7 @@ import java.util.regex.Pattern;
 * Class RegexIterator - provides an iterator over matched and unmatched substrings
 */
 
-public class RegexIterator implements SequenceIterator {
+public class RegexIterator implements SequenceIterator, LastPositionFinder {
 
     private String theString;
     private Pattern pattern;
@@ -184,6 +186,14 @@ public class RegexIterator implements SequenceIterator {
             groups[i] = new StringValue(currentGroups[i + 1]);
         }
         return new ArrayIterator(groups);
+    }
+
+    /**
+     * Get the last position (that is, the number of items in the sequence)
+     */
+
+    public int getLastPosition() throws XPathException {
+        return currentGroups.length;
     }
 
 }

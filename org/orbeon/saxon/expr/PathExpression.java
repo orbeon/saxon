@@ -10,12 +10,12 @@ import net.sf.saxon.pattern.NodeTest;
 import net.sf.saxon.sort.DocumentSorter;
 import net.sf.saxon.sort.Reverser;
 import net.sf.saxon.trace.Location;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.Cardinality;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Iterator;
@@ -273,23 +273,44 @@ public final class PathExpression extends ComputedExpression implements MappingF
             // we've already done the main analysis, and we don't want to do it again because
             // decisions on sorting get upset. But we have new information, namely the contextItemType,
             // so we use that to check that it's a node
-            start = start.analyze(env, contextItemType);
-            step = step.analyze(env, start.getItemType());
+            Expression start2 = start.analyze(env, contextItemType);
+            if (start2 != start) {
+                adoptChildExpression(start2);
+                start = start2;
+            }
+            Expression step2 = step.analyze(env, start.getItemType());
+            if (step2 != step) {
+                adoptChildExpression(step2);
+                step = step2;
+            }
             return this;
         };
         state = 2;
 
         start = start.analyze(env, contextItemType);
-        step = step.analyze(env, start.getItemType());
+        Expression start2 = start.analyze(env, contextItemType);
+        if (start2 != start) {
+            adoptChildExpression(start2);
+            start = start2;
+        }
+        Expression step2 = step.analyze(env, start.getItemType());
+        if (step2 != step) {
+            adoptChildExpression(step2);
+            step = step2;
+        }
 
         // The first operand must be of type node()*
 
         RoleLocator role0 =
                 new RoleLocator(RoleLocator.BINARY_EXPR, "/", 0, null);
         role0.setErrorCode("XP0019");
-        start = TypeChecker.staticTypeCheck(start,
+        start2 = TypeChecker.staticTypeCheck(start,
                 SequenceType.NODE_SEQUENCE,
                 false, role0, env);
+        if (start2 != start) {
+            adoptChildExpression(start2);
+            start = start2;
+        }
 
         // If any subexpressions within the step are not dependent on the focus,
         // and if they are not "creative" expressions (expressions that can create new nodes), then
@@ -302,7 +323,11 @@ public final class PathExpression extends ComputedExpression implements MappingF
         offer.containingExpression = this;
         
         //if ((step.getSpecialProperties() & StaticProperty.NON_CREATIVE) != 0) {
-            step = step.promote(offer);
+            step2 = step.promote(offer);
+            if (step2 != step) {
+                adoptChildExpression(step2);
+                step = step2;
+            }
             resetStaticProperties();
             if (offer.containingExpression != this) {
                 state = 0;  // allow reanalysis (see test axes286)
@@ -318,32 +343,45 @@ public final class PathExpression extends ComputedExpression implements MappingF
         ItemType stepType = step.getItemType();
         if (Type.isSubType(stepType, Type.NODE_TYPE)) {
 
-            // A traditional path expression
+            if ((step.getSpecialProperties() & StaticProperty.NON_CREATIVE) != 0) {
 
-            // We don't need the operands to be sorted; any sorting that's needed
-            // will be done at the top level
+                // A traditional path expression
 
-            start = ExpressionTool.unsorted(start, false);
-            step = ExpressionTool.unsorted(step, false);
+                // We don't need the operands to be sorted; any sorting that's needed
+                // will be done at the top level
 
-            RoleLocator role1 =
-                    new RoleLocator(RoleLocator.BINARY_EXPR, "/", 1, null);
-            role1.setErrorCode("XP0019");
-            step = TypeChecker.staticTypeCheck(step,
-                    SequenceType.NODE_SEQUENCE,
-                    false, role1, env);
-            resetStaticProperties();
+                start2 = ExpressionTool.unsorted(start, false);
+                if (start2 != start) {
+                    adoptChildExpression(start2);
+                    start = start2;
+                }
+                step2 = ExpressionTool.unsorted(step, false);
+                if (step2 != step) {
+                    adoptChildExpression(step2);
+                    step = step2;
+                }
+
+
+//            *** this check is unnecessary since we've already established that the step delivers nodes ***
+//            RoleLocator role1 =
+//                    new RoleLocator(RoleLocator.BINARY_EXPR, "/", 1, null);
+//            role1.setErrorCode("XP0019");
+//            step = TypeChecker.staticTypeCheck(step,
+//                    SequenceType.NODE_SEQUENCE,
+//                    false, role1, env);
+//            resetStaticProperties();
 
             // Try to simplify expressions such as a//b
-            PathExpression p = simplifyDescendantPath(env);
-            if (p != null) {
-                return p.simplify(env).analyze(env, contextItemType);
+                PathExpression p = simplifyDescendantPath(env);
+                if (p != null) {
+                    return p.simplify(env).analyze(env, contextItemType);
+                }
             }
 
             // Decide whether the result needs to be wrapped in a sorting
             // expression to deliver the results in document order
 
-            if (offer.containingExpression instanceof PathExpression) {
+            //if (offer.containingExpression instanceof PathExpression) {
                 PathExpression path = (PathExpression) offer.containingExpression;
                 int props = path.getSpecialProperties();
 
@@ -354,9 +392,9 @@ public final class PathExpression extends ComputedExpression implements MappingF
                 } else {
                     return new DocumentSorter(path);
                 }
-            } else {
-                return offer.containingExpression;
-            }
+            //} else {
+            //    return offer.containingExpression;
+            //}
 
         } else if (Type.isSubType(stepType, Type.ANY_ATOMIC_TYPE)) {
             // This is a simple mapping expression: a/b where b returns atomic values
@@ -425,6 +463,7 @@ public final class PathExpression extends ComputedExpression implements MappingF
         int startProperties = start.getSpecialProperties();
         int stepProperties = step.getSpecialProperties();
 
+        int p = 0;
         if (!Cardinality.allowsMany(start.getCardinality())) {
             startProperties |= StaticProperty.ORDERED_NODESET | StaticProperty.PEER_NODESET;
         }
@@ -432,9 +471,13 @@ public final class PathExpression extends ComputedExpression implements MappingF
             stepProperties |= StaticProperty.ORDERED_NODESET | StaticProperty.PEER_NODESET;
         }
 
-        int p = 0;
+
         if ((startProperties & stepProperties & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0) {
             p |= StaticProperty.CONTEXT_DOCUMENT_NODESET;
+        }
+        if (((startProperties & StaticProperty.SINGLE_DOCUMENT_NODESET) != 0) &&
+            ((stepProperties & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0)) {
+            p |= StaticProperty.SINGLE_DOCUMENT_NODESET;
         }
         if ((startProperties & stepProperties & StaticProperty.PEER_NODESET) != 0) {
             p |= StaticProperty.PEER_NODESET;

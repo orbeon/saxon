@@ -1,12 +1,11 @@
 package net.sf.saxon.event;
 import net.sf.saxon.om.*;
 import net.sf.saxon.tinytree.TinyBuilder;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.SequenceExtent;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 
@@ -87,9 +86,8 @@ public final class SequenceOutputter extends SequenceReceiver {
         if (tree==null) {
             createTree();
         }
-        if (level==0) {
+        if (level++ == 0) {
             tree.startDocument(properties);
-            level++;
         }
     }
 
@@ -124,13 +122,11 @@ public final class SequenceOutputter extends SequenceReceiver {
     public void endDocument() throws XPathException {
         if (--level == 0) {
             tree.endDocument();
-            //tree.close();
             DocumentInfo doc = (DocumentInfo)builder.getCurrentRoot();
-            //tree = null;
-            //builder = null;
             // add the constructed document to the result sequence
-            append(doc, 0);
+            append(doc, 0, NodeInfo.ALL_NAMESPACES);
         }
+        previousAtomic = false;
     }
 
     /**
@@ -168,7 +164,7 @@ public final class SequenceOutputter extends SequenceReceiver {
         tree.endElement();
         if (--level == 0) {
             NodeInfo element = builder.getCurrentRoot();
-            append(element, 0);
+            append(element, 0, NodeInfo.ALL_NAMESPACES);
         }
         previousAtomic = false;
     }
@@ -193,7 +189,7 @@ public final class SequenceOutputter extends SequenceReceiver {
             o.setNodeKind(Type.NAMESPACE);
             o.setNameCode(namePool.allocate("", "", namePool.getPrefixFromNamespaceCode(nscode)));
             o.setStringValue(namePool.getURIFromNamespaceCode(nscode));
-            append(o, 0);
+            append(o, 0, NodeInfo.ALL_NAMESPACES);
         } else {
             tree.namespace(nscode, properties);
         }
@@ -220,7 +216,7 @@ public final class SequenceOutputter extends SequenceReceiver {
             o.setNameCode(nameCode);
             o.setStringValue(value);
             o.setTypeAnnotation(typeCode);
-            append(o, locationId);
+            append(o, locationId, NodeInfo.ALL_NAMESPACES);
         } else {
             tree.attribute(nameCode, typeCode, value, locationId, properties);
         }
@@ -247,16 +243,18 @@ public final class SequenceOutputter extends SequenceReceiver {
     */
 
     public void characters(CharSequence s, int locationId, int properties) throws XPathException {
-        if (inStartTag) {
-            startContent();
-        }
-        if (level == 0) {
-            Orphan o = new Orphan(getConfiguration());
-            o.setNodeKind(Type.TEXT);
-            o.setStringValue(s);
-            append(o, locationId);
-        } else {
-            tree.characters(s, locationId, properties);
+        if (s.length() > 0) {
+            if (inStartTag) {
+                startContent();
+            }
+            if (level == 0) {
+                Orphan o = new Orphan(getConfiguration());
+                o.setNodeKind(Type.TEXT);
+                o.setStringValue(s);
+                append(o, locationId, NodeInfo.ALL_NAMESPACES);
+            } else {
+                tree.characters(s, locationId, properties);
+            }
         }
         previousAtomic = false;
     }
@@ -273,7 +271,7 @@ public final class SequenceOutputter extends SequenceReceiver {
             Orphan o = new Orphan(getConfiguration());
             o.setNodeKind(Type.COMMENT);
             o.setStringValue(comment);
-            append(o, locationId);
+            append(o, locationId, NodeInfo.ALL_NAMESPACES);
         } else {
             tree.comment(comment, locationId, properties);
         }
@@ -294,7 +292,7 @@ public final class SequenceOutputter extends SequenceReceiver {
             o.setNameCode(getNamePool().allocate("", "", target));
             o.setNodeKind(Type.PROCESSING_INSTRUCTION);
             o.setStringValue(data);
-            append(o, locationId);
+            append(o, locationId, NodeInfo.ALL_NAMESPACES);
         } else {
             tree.processingInstruction(target, data, locationId, properties);
         }
@@ -313,27 +311,27 @@ public final class SequenceOutputter extends SequenceReceiver {
     * Append an item to the sequence, performing any necessary type-checking and conversion
     */
 
-    public void append(Item item, int locationId) throws XPathException {
+    public void append(Item item, int locationId, int copyNamespaces) throws XPathException {
 
         if (item==null) {
             return;
         }
 
-        // If an atomic value is written to a tree, and the previous item was also
-        // an atomic value, then add a single space to separate them
-
-        if (tree!=null && previousAtomic && item instanceof AtomicValue) {
-            tree.characters(" ", 0, 0);
-        }
-        previousAtomic = (item instanceof AtomicValue);
-
         if (level==0) {
             list.add(item);
+            previousAtomic = false;
         } else {
             if (item instanceof AtomicValue) {
-                tree.characters(item.getStringValue(), 0, 0);
+                // If an atomic value is written to a tree, and the previous item was also
+                // an atomic value, then add a single space to separate them
+                if (previousAtomic) {
+                    tree.characters(" ", 0, 0);
+                }
+                tree.characters(item.getStringValueCS(), 0, 0);
+                previousAtomic = true;
             } else {
                 ((NodeInfo)item).copy(tree, NodeInfo.ALL_NAMESPACES, true, locationId);
+                previousAtomic = false;
             }
         }
     }
@@ -342,13 +340,12 @@ public final class SequenceOutputter extends SequenceReceiver {
     * Get the sequence that has been built
     */
 
-    public Value getSequence() {
+    public ValueRepresentation getSequence() {
         switch (list.size()) {
             case 0:
                 return EmptySequence.getInstance();
             case 1:
-                Item item = (Item)list.get(0);
-                return Value.asValue(item);
+                return (Item)list.get(0);
             default:
                 return new SequenceExtent(list);
         }

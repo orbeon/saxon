@@ -4,11 +4,11 @@ import net.sf.saxon.event.*;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.pattern.NodeKindTest;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.type.ValidationException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.util.Iterator;
 
@@ -51,7 +51,7 @@ public abstract class ElementCreator extends Instruction {
      * Simplify an expression. This performs any static optimization (by rewriting the expression
      * as a different expression). The default implementation does nothing.
      * @return the simplified expression
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      *          if an error is discovered during expression rewriting
      */
 
@@ -76,7 +76,7 @@ public abstract class ElementCreator extends Instruction {
      * @return the original expression, rewritten to perform necessary
      *         run-time type checks, and to perform other type-related
      *         optimizations
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      *          if an error is discovered during this phase
      *          (typically a type error)
      */
@@ -89,7 +89,7 @@ public abstract class ElementCreator extends Instruction {
     /**
      * Handle promotion offers, that is, non-local tree rewrites.
      * @param offer The type of rewrite being offered
-     * @throws XPathException
+     * @throws net.sf.saxon.trans.XPathException
      */
 
     protected void promoteInst(PromotionOffer offer) throws XPathException {
@@ -129,6 +129,19 @@ public abstract class ElementCreator extends Instruction {
     }
 
     /**
+     * Get the static properties of this expression (other than its type). The result is
+     * bit-signficant. These properties are used for optimizations. In general, if
+     * property bit is set, it is true, but if it is unset, the value is unknown.
+     *
+     * @return a set of flags indicating static properties of this expression
+     */
+
+    public int computeSpecialProperties() {
+        return super.computeSpecialProperties() |
+                StaticProperty.SINGLE_DOCUMENT_NODESET;
+    }
+
+    /**
      * Set the validation mode for the new element
      */
 
@@ -151,7 +164,7 @@ public abstract class ElementCreator extends Instruction {
      * Callback to output namespace nodes for the new element.
      * @param context The execution context
      * @param receiver the Receiver where the namespace nodes are to be written
-     * @throws XPathException
+     * @throws net.sf.saxon.trans.XPathException
      */
 
     protected abstract void outputNamespaceNodes(XPathContext context, Receiver receiver)

@@ -2,9 +2,9 @@ package net.sf.saxon.instruct;
 
 import net.sf.saxon.expr.Binding;
 import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.om.ValueRepresentation;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.Serializable;
 
@@ -16,6 +16,15 @@ public class UserFunctionParameter implements Binding, Serializable {
     private SequenceType requiredType;
     private int slotNumber;
     private int referenceCount = 999;
+
+    /**
+     * Indicate whether the binding is local or global. A global binding is one that has a fixed
+     * value for the life of a query or transformation; any other binding is local.
+     */
+
+    public boolean isGlobal() {
+        return false;
+    }
 
     public void setRequiredType(SequenceType type) {
         requiredType = type;
@@ -37,7 +46,7 @@ public class UserFunctionParameter implements Binding, Serializable {
         slotNumber = slot;
     }
 
-    public Value evaluateVariable(XPathContext context) throws XPathException {
+    public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException {
         return context.evaluateLocalVariable(slotNumber);
     }
 

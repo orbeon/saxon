@@ -2,8 +2,8 @@ package net.sf.saxon.event;
 import net.sf.saxon.Configuration;
 import net.sf.saxon.StandardURIResolver;
 import net.sf.saxon.om.ProcInstParser;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.TransformerException;
@@ -122,7 +122,7 @@ public class PIGrabber extends ProxyReceiver {
     /**
     * Return list of stylesheets that matched, as an array of Source objects
     * @return null if there were no matching stylesheets.
-    * @throws XPathException if a URI cannot be resolved
+    * @throws net.sf.saxon.trans.XPathException if a URI cannot be resolved
     */
 
     public Source[] getAssociatedStylesheets() throws TransformerException {

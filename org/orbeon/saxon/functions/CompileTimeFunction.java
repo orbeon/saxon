@@ -4,7 +4,7 @@ import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 /**
 * Abtract class representing a function call that is always rewritten at compile-time:

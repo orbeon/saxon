@@ -3,10 +3,10 @@ import net.sf.saxon.expr.*;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Collections;

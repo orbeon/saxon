@@ -1,7 +1,7 @@
 package net.sf.saxon.event;
 
 import net.sf.saxon.Configuration;
-import org.w3c.dom.ls.LSResourceResolver;
+import net.sf.saxon.Controller;
 
 import javax.xml.transform.ErrorListener;
 import javax.xml.transform.URIResolver;
@@ -17,7 +17,7 @@ public class PipelineConfiguration {
     private LocationProvider locationProvider;
     private ErrorListener errorListener;
     private URIResolver uriResolver;
-    private LSResourceResolver resourceResolver;
+    private Controller controller;
 
     public PipelineConfiguration() {}
 
@@ -26,7 +26,7 @@ public class PipelineConfiguration {
         locationProvider = p.locationProvider;
         errorListener = p.errorListener;
         uriResolver = p.uriResolver;
-        resourceResolver = p.resourceResolver;
+        controller = p.controller;
     }
 
     public Configuration getConfiguration() {
@@ -61,31 +61,18 @@ public class PipelineConfiguration {
         this.uriResolver = uriResolver;
     }
 
-    /**
-      * Get a (DOM level 3) resource resolver. If this is available, it takes precedence
-      * over the URIResolver when dereferencing URIs. Unlike the URIResolver, the resource
-      * resolver can handle non-XML resources (such as query modules), and is sensitive to the
-      * type of resource required and the target namespace expected.
-      * @return the resource resolver previously registered using
-      * {@link #setResourceResolver(org.w3c.dom.ls.LSResourceResolver)}, or null if none has
-      * been registered.
-      */
-
-     public LSResourceResolver getResourceResolver() {
-         return resourceResolver;
+     public void setController(Controller controller) {
+         this.controller = controller;
      }
 
     /**
-      * Set a (DOM level 3) resource resolver. If this is supplied, it takes precedence
-      * over the URIResolver when dereferencing URIs. Unlike the URIResolver, the resource
-      * resolver can handle non-XML resources (such as query modules), and is sensitive to the
-      * type of resource required and the target namespace expected.
-      * @param resourceResolver the resource resolver to be used
-      */
+     * Get the controller associated with this pipelineConfiguration
+     * @return the controller if it is known; otherwise null.
+     */
 
-     public void setResourceResolver(LSResourceResolver resourceResolver) {
-         this.resourceResolver = resourceResolver;
-     }
+    public Controller getController() {
+        return controller;
+    }
 
 }
 

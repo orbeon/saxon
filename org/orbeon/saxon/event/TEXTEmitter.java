@@ -1,7 +1,9 @@
 package net.sf.saxon.event;
 import net.sf.saxon.charcode.UnicodeCharacterSet;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
+
+import javax.xml.transform.OutputKeys;
 
 /**
   * This class generates TEXT output
@@ -24,9 +26,9 @@ public class TEXTEmitter extends XMLEmitter {
         // Write a BOM if requested
         String byteOrderMark = outputProperties.getProperty(SaxonOutputKeys.BYTE_ORDER_MARK);
 
-        if ("yes".equals(byteOrderMark)) {
+        if ("yes".equals(byteOrderMark) &&
+                    !"UTF-16".equalsIgnoreCase(outputProperties.getProperty(OutputKeys.ENCODING))) {
             try {
-                // TODO: default for UTF-16 is "yes"
                 openDocument();
                 writer.write('\uFEFF');
                 empty = false;

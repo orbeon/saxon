@@ -4,6 +4,7 @@ import net.sf.saxon.om.XMLChar;
 
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetEncoder;
+import java.util.HashMap;
 
 /**
 * This class establishes properties of a character set that is
@@ -12,13 +13,13 @@ import java.nio.charset.CharsetEncoder;
 
 public class UnknownCharacterSet implements CharacterSet {
 
+    public static HashMap map;
+
     private CharsetEncoder encoder;
 
     // This class is written on the assumption that the CharsetEncoder.canEncode()
     // method may be expensive. For BMP characters, it therefore remembers the results
     // so each character is only looked up the first time it is encountered.
-
-    // TODO: only create one instance of this class for each charset
 
     private byte[] charinfo = new byte[65536];
         // rely on initialization to zeroes
@@ -28,8 +29,20 @@ public class UnknownCharacterSet implements CharacterSet {
     private static final byte GOOD = 1;
     private static final byte BAD = 2;
 
-    protected UnknownCharacterSet(Charset charset) {
+    private UnknownCharacterSet(Charset charset) {
         encoder = charset.newEncoder();
+    }
+
+    public static synchronized UnknownCharacterSet makeCharSet(Charset charset) {
+        if (map == null) {
+            map = new HashMap(10);
+        }
+        UnknownCharacterSet c = (UnknownCharacterSet)map.get(charset);
+        if (c == null) {
+            c = new UnknownCharacterSet(charset);
+            map.put(charset, c);
+        }
+        return c;
     }
 
     public final boolean inCharset(int c) {

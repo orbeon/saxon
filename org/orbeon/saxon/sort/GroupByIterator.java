@@ -7,8 +7,8 @@ import net.sf.saxon.om.Item;
 import net.sf.saxon.om.ListIterator;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.trace.Location;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 import java.util.Comparator;

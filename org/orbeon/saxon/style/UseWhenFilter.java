@@ -6,12 +6,14 @@ import net.sf.saxon.event.StartTagBuffer;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.instruct.SlotManager;
 import net.sf.saxon.om.NamespaceConstant;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerException;
+import javax.xml.transform.URIResolver;
+import javax.xml.transform.Source;
 import java.util.Stack;
 
 /**
@@ -83,7 +85,7 @@ public class UseWhenFilter extends ProxyReceiver {
                     loc.setSystemId(getDocumentLocator().getSystemId(locationId));
                     loc.setLineNumber(getDocumentLocator().getLineNumber(locationId));
                     err.setLocator(loc);
-                    err.setErrorCode(e.getErrorCode());
+                    err.setErrorCode(e.getErrorCodeLocalPart());
                     try {
                         getPipelineConfiguration().getErrorListener().fatalError(err);
                     } catch (TransformerException tex) {
@@ -213,11 +215,34 @@ public class UseWhenFilter extends ProxyReceiver {
         SlotManager stackFrameMap = getPipelineConfiguration().getConfiguration().makeSlotManager();
         ExpressionTool.allocateSlots(expr, stackFrameMap.getNumberOfVariables(), stackFrameMap);
         Controller controller = new Controller(getConfiguration());
+        controller.setURIResolver(new URIPreventer());
         XPathContext dynamicContext = controller.newXPathContext();
         dynamicContext = dynamicContext.newCleanContext();
         ((XPathContextMajor)dynamicContext).openStackFrame(stackFrameMap.getNumberOfVariables());
-        // TODO: the spec effectively disallows document() and collection() functions
         return ExpressionTool.effectiveBooleanValue(expr.iterate(dynamicContext));
+    }
+
+    /**
+     * Define a URIResolver that disallows all URIs
+     */
+
+    private static class URIPreventer implements URIResolver {
+        /**
+         * Called by the processor when it encounters
+         * an xsl:include, xsl:import, or document() function.
+         *
+         * @param href An href attribute, which may be relative or absolute.
+         * @param base The base URI against which the first argument will be made
+         *             absolute if the absolute URI is required.
+         * @return A Source object, or null if the href cannot be resolved,
+         *         and the processor should try to resolve the URI itself.
+         * @throws javax.xml.transform.TransformerException
+         *          if an error occurs when trying to
+         *          resolve the URI.
+         */
+        public Source resolve(String href, String base) throws TransformerException {
+            throw new TransformerException("No external documents are available within an [xsl]use-when expression");
+        }
     }
 
 

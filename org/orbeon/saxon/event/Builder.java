@@ -1,18 +1,16 @@
 package net.sf.saxon.event;
 
 import net.sf.saxon.Configuration;
-import net.sf.saxon.dom.DocumentWrapper;
+import net.sf.saxon.Controller;
 import net.sf.saxon.om.DocumentInfo;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.om.StrippedDocument;
 import net.sf.saxon.tinytree.TinyBuilder;
 import net.sf.saxon.tinytree.TinyDocumentImpl;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.tree.TreeBuilder;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
-import org.w3c.dom.Document;
-import org.w3c.dom.Node;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.dom.DOMSource;
@@ -166,29 +164,12 @@ public abstract class Builder implements Receiver {
 
         NodeInfo start;
         if (source instanceof DOMSource || source instanceof NodeInfo) {
-            if (source instanceof DOMSource) {
-                Node dsnode = ((DOMSource)source).getNode();
-                if (dsnode instanceof NodeInfo) {
-                    start = (NodeInfo)dsnode;
-                } else {
-                    Document dom;
-                    if (dsnode instanceof Document) {
-                        dom = (Document)dsnode;
-                    } else {
-                        dom = dsnode.getOwnerDocument();
-                    }
-                    DocumentWrapper docWrapper = new DocumentWrapper(dom, source.getSystemId(), config);
-                    start = docWrapper.wrap(dsnode);
-                }
-            } else {
-                start = (NodeInfo)source;
-            }
+            start = Controller.unravel(source, config);
             if (stripper != null) {
                 DocumentInfo docInfo = start.getDocumentRoot();
                 StrippedDocument strippedDoc = new StrippedDocument(docInfo, stripper);
                 start = strippedDoc.wrap(start);
             }
-            return start;
 
         } else {
             // we have a SAXSource or StreamSource

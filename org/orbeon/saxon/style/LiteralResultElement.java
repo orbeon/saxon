@@ -1,23 +1,18 @@
 package net.sf.saxon.style;
 import net.sf.saxon.Configuration;
 import net.sf.saxon.PreparedStylesheet;
-import net.sf.saxon.expr.AppendExpression;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.Token;
-import net.sf.saxon.instruct.AttributeSet;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.instruct.FixedAttribute;
-import net.sf.saxon.instruct.FixedElement;
+import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.trace.Location;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.tree.DocumentImpl;
 import net.sf.saxon.tree.TreeBuilder;
 import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
@@ -42,7 +37,6 @@ public class LiteralResultElement extends StyleElement {
     private SchemaType schemaType = null;
     private int validation = Validation.STRIP;
     private boolean inheritNamespaces = true;
-    private static final int[] INT_0 = new int[0];
 
     /**
     * Determine whether this type of element is allowed to contain a template-body
@@ -50,6 +44,14 @@ public class LiteralResultElement extends StyleElement {
     */
 
     public boolean mayContainSequenceConstructor() {
+        return true;
+    }
+
+    /**
+     * Specify that this is an instruction
+     */
+
+    public boolean isInstruction() {
         return true;
     }
 
@@ -125,7 +127,7 @@ public class LiteralResultElement extends StyleElement {
                     attributeChecked[numberOfAttributes] = false;
                     boolean special = false;
                     if (exp instanceof StringValue) {
-                        String val = ((StringValue)exp).getStringValue();
+                        CharSequence val = ((StringValue)exp).getStringValueCS();
                         for (int k=0; k<val.length(); k++) {
                             char c = val.charAt(k);
                             if ((int)c<33 || (int)c>126 ||
@@ -166,7 +168,7 @@ public class LiteralResultElement extends StyleElement {
 
     public void validate() throws TransformerConfigurationException {
 
-        toplevel = (getParentNode() instanceof XSLStylesheet);
+        toplevel = (getParent() instanceof XSLStylesheet);
 
         resultNameCode = getNameCode();
 
@@ -216,9 +218,9 @@ public class LiteralResultElement extends StyleElement {
             }
 
             if (optimizeNS) {
-            	namespaceCodes = INT_0;
+            	namespaceCodes = NodeInfo.EMPTY_NAMESPACE_LIST;
             } else {
-                namespaceCodes = getNamespaceCodes();
+                namespaceCodes = getInScopeNamespaceCodes();
 	        }
 
             // apply any aliases required to create the list of output namespaces
@@ -411,7 +413,8 @@ public class LiteralResultElement extends StyleElement {
                 if (firstChild == null) {
                     firstChild = att;
                 } else {
-                    firstChild = new AppendExpression(att, Token.COMMA, firstChild);
+                    //firstChild = new AppendExpression(att, Token.COMMA, firstChild);
+                    firstChild = Block.makeBlock(att, firstChild);
                 }
             }
         }

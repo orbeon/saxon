@@ -117,12 +117,6 @@ public abstract class NodeTest implements ItemType, Serializable {
     public abstract boolean matches(NodeInfo node);
 
     /**
-     * Indicate whether this NodeTest is capable of matching text nodes
-     */
-
-    public abstract boolean allowsTextNodes();
-
-    /**
      * Get a mask indicating which kinds of nodes this NodeTest can match. This is a combination
      * of bits: 1<<Type.ELEMENT for element nodes, 1<<Type.TEXT for text nodes, and so on.
      */

@@ -6,7 +6,7 @@ import net.sf.saxon.event.Stripper;
 import net.sf.saxon.om.AllElementStripper;
 import net.sf.saxon.om.DocumentInfo;
 import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 import org.xml.sax.SAXParseException;
 
 import javax.xml.transform.Source;
@@ -150,7 +150,7 @@ public class QueryProcessor {
      * and defaults to the current working directory.
      * @param query The XQuery query to be evaluated, supplied as a string.
      * @return an XQueryExpression object representing the prepared expression
-     * @throws net.sf.saxon.xpath.XPathException if the syntax of the expression is wrong,
+     * @throws net.sf.saxon.trans.XPathException if the syntax of the expression is wrong,
      * or if it references namespaces, variables, or functions that have not been declared,
      * or contains other static errors.
     */
@@ -169,7 +169,7 @@ public class QueryProcessor {
      * and defaults to the current working directory.
      * @param source A Reader giving access to the text of the XQuery query to be compiled.
      * @return an XPathExpression object representing the prepared expression.
-     * @throws net.sf.saxon.xpath.XPathException if the syntax of the expression is wrong, or if it references namespaces,
+     * @throws net.sf.saxon.trans.XPathException if the syntax of the expression is wrong, or if it references namespaces,
      * variables, or functions that have not been declared, or any other static error is reported.
      * @throws java.io.IOException if a failure occurs reading the supplied input.
     */

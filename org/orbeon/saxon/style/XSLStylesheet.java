@@ -12,13 +12,8 @@ import net.sf.saxon.query.XQueryFunction;
 import net.sf.saxon.query.XQueryFunctionLibrary;
 import net.sf.saxon.sort.CodepointCollator;
 import net.sf.saxon.sort.CollationFactory;
-import net.sf.saxon.trans.DecimalFormatManager;
-import net.sf.saxon.trans.KeyManager;
-import net.sf.saxon.trans.Mode;
-import net.sf.saxon.trans.RuleManager;
+import net.sf.saxon.trans.*;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.*;
@@ -68,11 +63,17 @@ public class XSLStylesheet extends StyleElement {
     // value is the XSLTemplate object in the source stylesheet.
     private HashMap templateIndex = new HashMap(20);
 
+    // the value of the inputTypeAnnotations attribute on this module, combined with the values
+    // on all imported/included modules. This is a combination of the bit-significant values
+    // ANNOTATION_STRIP and ANNOTATION_PRESERVE.
+    private int inputAnnotations = 0;
+    public static final int ANNOTATION_STRIP = 1;
+    public static final int ANNOTATION_PRESERVE = 2;
+
     // table of imported schemas
     private HashSet schemaIndex = new HashSet(10);
 
     // table of functions imported from XQuery library modules
-//private HashMap xqueryFunctionIndex;
     private XQueryFunctionLibrary queryFunctions;
 
     // function library for external Java functions
@@ -109,7 +110,7 @@ public class XSLStylesheet extends StyleElement {
         exec.setLocationMap(locationMap);
 
         functionLibrary = new FunctionLibraryList();
-        functionLibrary.addFunctionLibrary(new SystemFunctionLibrary(config, true));
+        functionLibrary.addFunctionLibrary(new SystemFunctionLibrary(SystemFunctionLibrary.FULL_XSLT));
         functionLibrary.addFunctionLibrary(new StylesheetFunctionLibrary(this, true));
         functionLibrary.addFunctionLibrary(config.getVendorFunctionLibrary());
         functionLibrary.addFunctionLibrary(new ConstructorFunctionLibrary(config));
@@ -181,7 +182,7 @@ public class XSLStylesheet extends StyleElement {
 
     protected Mode getStripperRules() {
         if (exec.getStripperRules() == null) {
-            exec.setStripperRules(new Mode(true));
+            exec.setStripperRules(new Mode(Mode.STRIPPER_MODE));
         }
         return exec.getStripperRules();
     }
@@ -415,6 +416,7 @@ public class XSLStylesheet extends StyleElement {
 
     public void prepareAttributes() throws TransformerConfigurationException {
 
+        String inputTypeAnnotationsAtt = null;
         AttributeCollection atts = getAttributeList();
         for (int a = 0; a < atts.getLength(); a++) {
 
@@ -434,12 +436,27 @@ public class XSLStylesheet extends StyleElement {
                     compileError("Invalid value for default-validation attribute. " +
                             "Permitted values are (strict, lax, preserve, strip)", "XT0020");
                 }
+            } else if (f == StandardNames.INPUT_TYPE_ANNOTATIONS) {
+                inputTypeAnnotationsAtt = atts.getValue("", f);
             } else {
                 checkUnknownAttribute(nc);
             }
         }
         if (version == null) {
             reportAbsence("version");
+        }
+
+        if (inputTypeAnnotationsAtt != null) {
+            if (inputTypeAnnotationsAtt.equals("strip")) {
+                setInputTypeAnnotations(ANNOTATION_STRIP);
+            } else if (inputTypeAnnotationsAtt.equals("preserve")) {
+                setInputTypeAnnotations(ANNOTATION_PRESERVE);
+            } else if (inputTypeAnnotationsAtt.equals("unspecified")) {
+                //
+            } else {
+                compileError("Invalid value for input-type-annotations attribute. " +
+                             "Permitted values are (strip, preserve, unspecified)", "XT0020");
+            }
         }
     }
 
@@ -449,6 +466,55 @@ public class XSLStylesheet extends StyleElement {
 
     public int getDefaultValidation() {
         return defaultValidation;
+    }
+
+
+    /**
+     * Get the value of the input-type-annotations attribute, for this module alone.
+     * The value is an or-ed combination of the two bits
+     * {@link #ANNOTATION_STRIP} and {@link #ANNOTATION_PRESERVE}
+     */
+
+    public int getInputTypeAnnotationsAttribute() throws TransformerConfigurationException {
+        String inputTypeAnnotationsAtt = getAttributeValue(StandardNames.INPUT_TYPE_ANNOTATIONS);
+        if (inputTypeAnnotationsAtt != null) {
+            if (inputTypeAnnotationsAtt.equals("strip")) {
+                setInputTypeAnnotations(ANNOTATION_STRIP);
+            } else if (inputTypeAnnotationsAtt.equals("preserve")) {
+                setInputTypeAnnotations(ANNOTATION_PRESERVE);
+            } else if (inputTypeAnnotationsAtt.equals("unspecified")) {
+                //
+            } else {
+                compileError("Invalid value for input-type-annotations attribute. " +
+                             "Permitted values are (strip, preserve, unspecified)", "XT0020");
+            }
+        }
+        return inputAnnotations;
+    }
+
+
+    /**
+     * Get the value of the input-type-annotations attribute, for this module combined with that
+     * of all included/imported modules. The value is an or-ed combination of the two bits
+     * {@link #ANNOTATION_STRIP} and {@link #ANNOTATION_PRESERVE}
+     */
+
+    public int getInputTypeAnnotations() {
+        return inputAnnotations;
+    }
+
+    /**
+     * Set the value of the input-type-annotations attribute, for this module combined with that
+     * of all included/imported modules. The value is an or-ed combination of the two bits
+     * {@link #ANNOTATION_STRIP} and {@link #ANNOTATION_PRESERVE}
+     */
+
+    public void setInputTypeAnnotations(int annotations) throws TransformerConfigurationException {
+        inputAnnotations |= annotations;
+        if (inputAnnotations == (ANNOTATION_STRIP | ANNOTATION_PRESERVE)) {
+            compileError("One stylesheet module specifies input-type-annotations='strip', " +
+                    "another specifies input-type-annotations='preserve'", "XT0265");
+        }
     }
 
     /**
@@ -492,7 +558,7 @@ public class XSLStylesheet extends StyleElement {
         if (validationError != null) {
             compileError(validationError);
         }
-        if (!(getParentNode() instanceof DocumentInfo)) {
+        if (!(getParent() instanceof DocumentInfo)) {
             compileError(getDisplayName() + " must be the outermost element", "XT0010");
         }
 
@@ -594,7 +660,7 @@ public class XSLStylesheet extends StyleElement {
             }
             if (child.getNodeKind() == Type.TEXT) {
                 // in an embedded stylesheet, white space nodes may still be there
-                if (!Navigator.isWhite(child.getStringValue())) {
+                if (!Navigator.isWhite(child.getStringValueCS())) {
                     previousElement.compileError(
                             "No character data is allowed between top-level elements");
                 }
@@ -854,29 +920,6 @@ public class XSLStylesheet extends StyleElement {
     }
 
     /**
-     * Get a Java class for a given namespace URI, if possible.
-     * @return the Class referred to by the URI (as a Class object),
-     * or null if none is found.
-     */
-
-//    public Class getExternalJavaClass(String uri) {
-//        if (!getPreparedStyleSheet().getConfiguration().isAllowExternalFunctions()) {
-//            return null;
-//        }
-//        for (int i=topLevel.size() - 1; i>=0; i--) {
-//            Object s = topLevel.get(i);
-//            if (s instanceof SaxonScript) {
-//                SaxonScript script = (SaxonScript)s;
-//                Class c = script.getJavaClass(uri);
-//                if (c != null) {
-//                    return c;
-//                }
-//            }
-//        }
-//        return null;
-//    }
-
-    /**
      * Declare an imported XQuery function
      */
 
@@ -949,13 +992,14 @@ public class XSLStylesheet extends StyleElement {
                 try {
                     exec.getDecimalFormatManager().fixupDefaultDefault();
                 } catch (StaticError err) {
-                    compileError(err.getMessage(), err.getErrorCode());
+                    compileError(err.getMessage(), err.getErrorCodeLocalPart());
                 }
             }
 
             exec.setStripsWhitespace(stripsWhitespace());
             exec.setDefaultOutputProperties(gatherOutputProperties(-1));
             exec.setPatternSlotSpace(largestPatternStackFrame);
+            exec.setStripsInputTypeAnnotations(inputAnnotations == ANNOTATION_STRIP);
 
             // Build the index of named character maps
 
@@ -994,7 +1038,7 @@ public class XSLStylesheet extends StyleElement {
             }
 
             FunctionLibraryList libraryList = new FunctionLibraryList();
-            libraryList.addFunctionLibrary(new SystemFunctionLibrary(getConfiguration(), true));
+            libraryList.addFunctionLibrary(new SystemFunctionLibrary(SystemFunctionLibrary.FULL_XSLT));
             libraryList.addFunctionLibrary(overriding);
             libraryList.addFunctionLibrary(getConfiguration().getVendorFunctionLibrary());
             libraryList.addFunctionLibrary(new ConstructorFunctionLibrary(getConfiguration()));

@@ -3,8 +3,8 @@ import net.sf.saxon.om.DocumentInfo;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 
 import java.io.PrintStream;
 
@@ -61,17 +61,16 @@ public class RootExpression extends SingleNodeExpression {
     public NodeInfo getNode(XPathContext context) throws XPathException {
         Item current = context.getContextItem();
         if (current==null) {
-            dynamicError("Finding root of tree: the context item is not set", context);
+            dynamicError("Finding root of tree: the context item is undefined", "XP0002", context);
         }
         if (current instanceof NodeInfo) {
             DocumentInfo doc = ((NodeInfo)current).getDocumentRoot();
             if (doc==null) {
-                dynamicError("The root of the tree containing the context item is not a document node", context);
+                dynamicError("The root of the tree containing the context item is not a document node", "XP0050", context);
             }
             return doc;
-        } else {
-            dynamicError("Finding root of tree: the context item is not a node", context);
         }
+        typeError("Finding root of tree: the context item is not a node", "XP0020", context);
         // dummy return; we never get here
         return null;
     }
@@ -83,7 +82,9 @@ public class RootExpression extends SingleNodeExpression {
     */
 
     public int getIntrinsicDependencies() {
-        return StaticProperty.DEPENDS_ON_CONTEXT_DOCUMENT | StaticProperty.CONTEXT_DOCUMENT_NODESET;
+        return StaticProperty.DEPENDS_ON_CONTEXT_DOCUMENT |
+                StaticProperty.SINGLE_DOCUMENT_NODESET |
+                StaticProperty.CONTEXT_DOCUMENT_NODESET;
     }
 
     /**
@@ -91,7 +92,7 @@ public class RootExpression extends SingleNodeExpression {
     */
 
     public void display(int level, NamePool pool, PrintStream out) {
-        out.println(ExpressionTool.indent(level) + "/");
+        out.println(ExpressionTool.indent(level) + '/');
     }
 
 }

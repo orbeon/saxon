@@ -6,9 +6,9 @@ import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.NameTest;
 import net.sf.saxon.sort.AtomicComparer;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.BooleanValue;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * XSLT 2.0 deep-equal() function.

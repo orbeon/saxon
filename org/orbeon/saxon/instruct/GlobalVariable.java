@@ -2,11 +2,11 @@ package net.sf.saxon.instruct;
 import net.sf.saxon.Controller;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.om.SingletonIterator;
+import net.sf.saxon.om.ValueRepresentation;
 import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.trace.InstructionInfo;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 
 /**
 * Handler for global variables in a stylesheet or query. <br>
@@ -50,7 +50,7 @@ public class GlobalVariable extends GeneralVariable implements Container {
      * of the element otherwise, either as a tree or as a sequence
     */
 
-    public Value getSelectValue(XPathContext context) throws XPathException {
+    public ValueRepresentation getSelectValue(XPathContext context) throws XPathException {
         if (select==null) {
             throw new AssertionError("*** No select expression!!");
         } else {
@@ -60,7 +60,7 @@ public class GlobalVariable extends GeneralVariable implements Container {
             if (stackFrameMap != null) {
                 c2.openStackFrame(stackFrameMap);
             }
-            return ExpressionTool.eagerEvaluate(select, c2);
+            return ExpressionTool.lazyEvaluate(select, c2, true);
         }
     }
 
@@ -68,11 +68,11 @@ public class GlobalVariable extends GeneralVariable implements Container {
     * Evaluate the variable
     */
 
-    public Value evaluateVariable(XPathContext context) throws XPathException {
+    public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException {
         Controller controller = context.getController();
         Bindery b = controller.getBindery();
 
-        Value v = b.getGlobalVariableValue(this);
+        ValueRepresentation v = b.getGlobalVariableValue(this);
 
         if (v != null) {
             return v;
@@ -84,7 +84,7 @@ public class GlobalVariable extends GeneralVariable implements Container {
 
             try {
                 b.setExecuting(this, true);
-                Value value = getSelectValue(context);
+                ValueRepresentation value = getSelectValue(context);
                 b.defineGlobalVariable(this, value);
                 b.setExecuting(this, false);
                 return value;

@@ -8,8 +8,8 @@ import net.sf.saxon.om.Axis;
 import net.sf.saxon.om.AxisIterator;
 import net.sf.saxon.om.Navigator;
 import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -24,12 +24,12 @@ public class XSLParam extends XSLVariableDeclaration {
     Expression conversion = null;
 
     protected boolean allowsValue() {
-        return !(getParentNode() instanceof XSLFunction);
+        return !(getParent() instanceof XSLFunction);
         // function parameters cannot take a default value
     }
 
     protected boolean allowsRequired() {
-        return !(getParentNode() instanceof XSLFunction);
+        return !(getParent() instanceof XSLFunction);
         // function parameters cannot take the "required" attribute
     }
 
@@ -39,7 +39,7 @@ public class XSLParam extends XSLVariableDeclaration {
 
     public void validate() throws TransformerConfigurationException {
 
-        NodeInfo parent = (NodeInfo)getParentNode();
+        NodeInfo parent = getParent();
         boolean local = (parent instanceof XSLTemplate || parent instanceof XSLFunction);
         global = (parent instanceof XSLStylesheet);
 
@@ -62,7 +62,7 @@ public class XSLParam extends XSLVariableDeclaration {
                     compileError("xsl:param must be the first element within a template or function", "XT0010");
                 } else {
                     // it must be a text node; allow it if all whitespace
-                    if (!Navigator.isWhite(node.getStringValue())) {
+                    if (!Navigator.isWhite(node.getStringValueCS())) {
                         compileError("xsl:param must not be preceded by text", "XT0010");
                     }
                 }
@@ -89,22 +89,9 @@ public class XSLParam extends XSLVariableDeclaration {
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {
 
-        // TODO: deal specially with params that aren't referenced. (These aren't a problem
-        // for stylesheet function parameters, the UserFunctionParam object is created but
-        // gets garbage collected if there are no variables that refer to it.)
-
         if (getParent() instanceof XSLFunction) {
             // Do nothing. We did everything necessary while compiling the XSLFunction element.
             return null;
-//            // For Function arguments, the UserFunctionParameter is more efficient than
-//            // the general-purpose Param object
-//            UserFunctionParameter arg = new UserFunctionParameter();
-//            arg.setRequiredType(getRequiredType());
-//            arg.setSlotNumber(getSlotNumber());
-//            fixupBinding(arg);
-//            return null;
-                // no need to return an instruction in this case, the parameter definition
-                // is not executable.
         } else {
             int slot = getSlotNumber();
             if (requiredType != null) {

@@ -1,6 +1,6 @@
 package net.sf.saxon.event;
 
-import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.trans.DynamicError;
 
 /**
 * Exception indicating that an attribute or namespace node has been written when

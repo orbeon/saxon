@@ -2,8 +2,8 @@ package net.sf.saxon.instruct;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Iterator;

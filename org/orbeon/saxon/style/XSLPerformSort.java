@@ -5,10 +5,10 @@ import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.*;
 import net.sf.saxon.sort.SortExpression;
 import net.sf.saxon.sort.SortKeyDefinition;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -53,6 +53,14 @@ public class XSLPerformSort extends StyleElement {
         return true;
     }
 
+    /**
+     * Specify that xsl:sort is a permitted child
+     */
+
+    protected boolean isPermittedChild(StyleElement child) {
+        return (child instanceof XSLSort);
+    }
+    
     public void prepareAttributes() throws TransformerConfigurationException {
 
 		AttributeCollection atts = getAttributeList();
@@ -89,7 +97,7 @@ public class XSLPerformSort extends StyleElement {
                 }
                 if (child instanceof XSLSort || child instanceof XSLFallback) {
                     // no action
-                } else if (child.getNodeKind() == Type.TEXT && !Navigator.isWhite(child.getStringValue())) {
+                } else if (child.getNodeKind() == Type.TEXT && !Navigator.isWhite(child.getStringValueCS())) {
                         // with xml:space=preserve, white space nodes may still be there
                         // ERR XT1040
                     compileError("Within xsl:perform-sort, significant text must not appear if there is a select attribute");

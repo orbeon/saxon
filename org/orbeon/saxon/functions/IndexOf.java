@@ -3,9 +3,9 @@ import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.sort.AtomicComparer;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.IntegerValue;
-import net.sf.saxon.xpath.XPathException;
 
 
 /**
@@ -37,7 +37,7 @@ public class IndexOf extends CollatingFunction {
         Item current = null;
 
         public IndexIterator(SequenceIterator base, AtomicValue value, AtomicComparer comparer)
-        throws XPathException {
+        {
             this.base = base;
             this.value = value;
             this.comparer = comparer;

@@ -3,15 +3,16 @@ import net.sf.saxon.event.Builder;
 import net.sf.saxon.instruct.TerminationException;
 import net.sf.saxon.om.DocumentInfo;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.om.Validation;
 import net.sf.saxon.query.DynamicQueryContext;
 import net.sf.saxon.query.QueryResult;
 import net.sf.saxon.query.StaticQueryContext;
 import net.sf.saxon.query.XQueryExpression;
 import net.sf.saxon.trace.TraceListener;
 import net.sf.saxon.trace.XQueryTraceListener;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.UntypedAtomicValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 import org.xml.sax.InputSource;
 
 import javax.xml.transform.OutputKeys;
@@ -205,9 +206,18 @@ public class Query {
 
                     else if (args[i].equals("-val")) {
                         if (schemaAware) {
-                            config.setSchemaValidation(true);
+                            config.setSchemaValidationMode(Validation.STRICT);
                         } else {
                             quit("The -val option requires a schema-aware processor", 2);
+                        }
+                        i++;
+                    }
+
+                    else if (args[i].equals("-vlax")) {
+                        if (schemaAware) {
+                            config.setSchemaValidationMode(Validation.LAX);
+                        } else {
+                            quit("The -vlax option requires a schema-aware processor", 2);
                         }
                         i++;
                     }
@@ -336,7 +346,9 @@ public class Query {
                     line = err.getLocator().getLineNumber();
                     module = err.getLocator().getSystemId();
                 }
-                if (!err.hasBeenReported()) {
+                if (err.hasBeenReported()) {
+                    quit(err.getMessage(), 2);
+                } else {
                     if (line == -1) {
                         System.err.println("Failed to compile query: " + err.getMessage());
                     } else {
@@ -344,7 +356,8 @@ public class Query {
                         System.err.println(err.getMessage());
                     }
                 }
-                throw new DynamicError(err);
+                exp = null;
+                System.exit(2);
             }
 
             if (explain) {
@@ -378,9 +391,11 @@ public class Query {
                 } catch (TerminationException err) {
                     throw err;
                 } catch (XPathException err) {
-                    // The message will already have been displayed; don't do it twice
-                    // err.printStackTrace();
-                    throw new DynamicError("Run-time errors were reported");
+                    if (err.hasBeenReported()) {
+                        throw new DynamicError("Run-time errors were reported");
+                    } else {
+                        throw err;
+                    }
                 }
 
                 if (showTime) {
@@ -444,6 +459,7 @@ public class Query {
         System.err.println("  -u              Names are URLs not filenames");
         if (config.isSchemaAware(Configuration.XQUERY)) {
             System.err.println("  -val            Validate source documents using schema");
+            System.err.println("  -vlax           Lax validation of source documents using schema");                  
             System.err.println("  -vw             Treat validation errors on result document as warnings");
         }
         System.err.println("  -wrap           Wraps result sequence in XML elements");

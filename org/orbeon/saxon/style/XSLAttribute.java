@@ -61,7 +61,7 @@ public final class XSLAttribute extends XSLStringConstructor {
         }
         attributeName = makeAttributeValueTemplate(nameAtt);
         if (attributeName instanceof StringValue) {
-            if (!Name.isQName(nameAtt)) {
+            if (!Name.isQName(((StringValue)attributeName).getStringValue())) {
                 compileError("Attribute name is not a valid QName", "XT0850");
                 // prevent a duplicate error message...
                 attributeName = new StringValue("saxon-error-attribute");
@@ -118,7 +118,7 @@ public final class XSLAttribute extends XSLStringConstructor {
     }
 
     public void validate() throws TransformerConfigurationException {
-        if (!(getParentNode() instanceof XSLAttributeSet)) {
+        if (!(getParent() instanceof XSLAttributeSet)) {
             checkWithinTemplate();
         }
         attributeName = typeCheck("name", attributeName);
@@ -141,8 +141,8 @@ public final class XSLAttribute extends XSLStringConstructor {
             try {
                 parts = Name.getQNameParts(qName);
             } catch (QNameException e) {
+                // This can't happen, because of previous checks, but we'll behave as if it can
                 compileError("Invalid attribute name: " + qName, "XT0850");
-                // TODO: we've already checked this
                 return null;
             }
 
@@ -164,10 +164,9 @@ public final class XSLAttribute extends XSLStringConstructor {
             if (namespace==null) {
                 String nsuri = "";
                 if (!parts[0].equals("")) {
-                    try {
-                        nsuri = getURIForPrefix(parts[0], false);
-                    } catch (NamespaceException err) {
-                        compileError(err.getMessage(), "XT0280");
+                    nsuri = getURIForPrefix(parts[0], false);
+                    if (nsuri == null) {
+                        undeclaredNamespaceError(parts[0], "XT0280");
                         return null;
                     }
                 }

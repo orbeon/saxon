@@ -1,10 +1,10 @@
 package net.sf.saxon.instruct;
 
 import net.sf.saxon.expr.*;
+import net.sf.saxon.om.ValueRepresentation;
 import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -91,7 +91,7 @@ public final class LocalParam extends GeneralVariable {
      * Evaluate the variable
      */
 
-    public Value evaluateVariable(XPathContext c) throws XPathException {
+    public ValueRepresentation evaluateVariable(XPathContext c) {
         return c.evaluateLocalVariable(getSlotNumber());
     }
 }

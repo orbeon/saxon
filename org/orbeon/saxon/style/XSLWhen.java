@@ -62,7 +62,7 @@ public class XSLWhen extends StyleElement {
     }
 
     public void validate() throws TransformerConfigurationException {
-        if (!(getParentNode() instanceof XSLChoose)) {
+        if (!(getParent() instanceof XSLChoose)) {
             compileError("xsl:when must be immediately within xsl:choose", "XT0010");
         }
         test = typeCheck("test", test);

@@ -1,7 +1,7 @@
 package net.sf.saxon.style;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.xpath.StaticError;
+import net.sf.saxon.trans.StaticError;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -11,6 +11,10 @@ import javax.xml.transform.TransformerConfigurationException;
 */
 
 public class AbsentExtensionElement extends StyleElement {
+
+    public boolean isInstruction() {
+        return true;
+    }
 
     /**
     * Determine whether this type of element is allowed to contain a template-body

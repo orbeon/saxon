@@ -3,6 +3,7 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.instruct.ProcessingInstruction;
+import net.sf.saxon.om.AttributeCollectionImpl;
 import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.value.StringValue;
 

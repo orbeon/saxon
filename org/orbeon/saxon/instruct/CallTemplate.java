@@ -7,9 +7,9 @@ import net.sf.saxon.om.NamespaceResolver;
 import net.sf.saxon.om.QNameException;
 import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.trace.InstructionInfo;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -151,7 +151,7 @@ public class CallTemplate extends Instruction {
     /**
      * Handle promotion offers, that is, non-local tree rewrites.
      * @param offer The type of rewrite being offered
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      */
 
     protected void promoteInst(PromotionOffer offer) throws XPathException {
@@ -221,7 +221,7 @@ public class CallTemplate extends Instruction {
 
         //System.err.println("Call template using tail recursion");
         if (params==null) {                  // bug 490967
-            params = new ParameterSet();
+            params = ParameterSet.EMPTY_PARAMETER_SET;
         }
 
         return new CallTemplatePackage(target, params, tunnels, context);
@@ -256,8 +256,6 @@ public class CallTemplate extends Instruction {
   		    }
             int fprint = controller.getNamePool().getFingerprint(uri, localName);
             Template target = controller.getExecutable().getNamedTemplate(fprint);
-            //HashMap templateTable = controller.getExecutable().getNamedTemplateTable();
-            //Template target = (Template)templateTable.get(new Integer(fprint));
             if (target==null) {
             	throw dynamicError("Template " + qname + " has not been defined", controller);
             }
@@ -331,14 +329,7 @@ public class CallTemplate extends Instruction {
 
             // System.err.println("Tail call on template");
 
-            TailCall tc;
-        	//if (controller.isTracing()) {
-            //    tc = target.traceExpand(c2);
-            //} else {
-                tc = target.expand(c2);
-            //}
-
-            //bindery.closeStackFrame();
+            TailCall tc = target.expand(c2);
             return tc;
         }
     }

@@ -4,11 +4,11 @@ import net.sf.saxon.expr.*;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ExternalObjectType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.ObjectValue;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Arrays;
@@ -72,7 +72,7 @@ public class TupleExpression extends ComputedExpression {
         // TODO: Use eager evaluation to get the first sort key, because it will always be needed.
         // For the return value and the other sort keys, use lazy evaluation
         for (int i=0; i<components.length; i++) {
-            tuple[i] = ExpressionTool.lazyEvaluate(components[i], context, true);
+            tuple[i] = Value.asValue(ExpressionTool.lazyEvaluate(components[i], context, true));
         }
         return new ObjectValue(tuple);
     }
@@ -95,9 +95,9 @@ public class TupleExpression extends ComputedExpression {
         return Arrays.asList(components).iterator();
     }
 
-    public SequenceIterator iterate(XPathContext context) throws XPathException {
-        return super.iterate(context);
-    }
+//    public SequenceIterator iterate(XPathContext context) throws XPathException {
+//        return super.iterate(context);
+//    }
 
 }
 

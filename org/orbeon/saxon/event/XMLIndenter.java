@@ -1,6 +1,6 @@
 package net.sf.saxon.event;
 import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.OutputKeys;
 import java.util.Properties;

@@ -7,10 +7,10 @@ import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.sort.CodepointCollator;
 import net.sf.saxon.sort.CollationFactory;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.type.SchemaType;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.SourceLocator;
@@ -41,6 +41,7 @@ public class StaticQueryContext implements StaticContext {
     private HashSet explicitPrologNamespaces;
     private Stack activeNamespaces;
     private boolean inheritNamespaces = true;
+    private boolean preserveNamespaces = true;
 	private HashMap collations;
 	private HashMap variables;
     private List variableList;  // unlike the hashmap, this preserves the order in which variables were declared
@@ -94,7 +95,7 @@ public class StaticQueryContext implements StaticContext {
         defaultCollationName = NamespaceConstant.CodepointCollationURI;
         declareCollation(defaultCollationName, CodepointCollator.getInstance());
         functionLibraryList = new FunctionLibraryList();
-        functionLibraryList.addFunctionLibrary(new SystemFunctionLibrary(config, false));
+        functionLibraryList.addFunctionLibrary(new SystemFunctionLibrary(SystemFunctionLibrary.XPATH_ONLY));
         functionLibraryList.addFunctionLibrary(config.getVendorFunctionLibrary());
         functionLibraryList.addFunctionLibrary(new ConstructorFunctionLibrary(config));
         if (config.isAllowExternalFunctions()) {
@@ -145,7 +146,7 @@ public class StaticQueryContext implements StaticContext {
      * and defaults to the current working directory.
      * @param query The XQuery query to be evaluated, supplied as a string.
      * @return an XQueryExpression object representing the prepared expression
-     * @throws net.sf.saxon.xpath.XPathException if the syntax of the expression is wrong,
+     * @throws net.sf.saxon.trans.XPathException if the syntax of the expression is wrong,
      * or if it references namespaces, variables, or functions that have not been declared,
      * or contains other static errors.
      * @throws IllegalStateException if the StaticQueryContext has been used to compile another
@@ -166,7 +167,7 @@ public class StaticQueryContext implements StaticContext {
      * and defaults to the current working directory.
      * @param source A Reader giving access to the text of the XQuery query to be compiled.
      * @return an XPathExpression object representing the prepared expression.
-     * @throws net.sf.saxon.xpath.XPathException if the syntax of the expression is wrong, or if it references namespaces,
+     * @throws net.sf.saxon.trans.XPathException if the syntax of the expression is wrong, or if it references namespaces,
      * variables, or functions that have not been declared, or any other static error is reported.
      * @throws java.io.IOException if a failure occurs reading the supplied input.
      * @throws IllegalStateException if the StaticQueryContext has been used to compile another
@@ -297,7 +298,7 @@ public class StaticQueryContext implements StaticContext {
      * This method is used by the XQuery parser to resolve namespace prefixes.
      * @param prefix The prefix
      * @return the corresponding namespace URI
-     * @throws XPathException if the prefix has not been declared
+     * @throws net.sf.saxon.trans.XPathException if the prefix has not been declared
     */
 
     public String getURIForPrefix(String prefix) throws XPathException {
@@ -453,6 +454,24 @@ public class StaticQueryContext implements StaticContext {
     public boolean isInheritNamespaces() {
         return inheritNamespaces;
     }
+
+    /**
+     * Set the namespace copy mode
+     * @param inherit true if namespaces are preserved, false if not
+     */
+
+    public void setPreserveNamespaces(boolean inherit) {
+        preserveNamespaces = inherit;
+    }
+
+    /**
+     * Get the namespace copy mode
+     * @return true if namespaces are preserved, false if not
+     */
+
+    public boolean isPreserveNamespaces() {
+        return preserveNamespaces;
+    }
     /**
     * Declare a named collation. Collations are only available in a query if this method
      * has been called externally to declare the collation and associate it with an
@@ -538,7 +557,7 @@ public class StaticQueryContext implements StaticContext {
     */
 
     public void declareVariable(VariableDeclaration var) throws StaticError {
-        int key = var.getNameCode() & 0xfffff;
+        int key = var.getNameCode() & NamePool.FP_MASK;
         Integer keyObj = new Integer(key);
         if (variables.get(keyObj) != null) {
             StaticError err = new StaticError(
@@ -560,7 +579,7 @@ public class StaticQueryContext implements StaticContext {
         while (iter.hasNext()) {
             GlobalVariableDefinition var = (GlobalVariableDefinition)iter.next();
             try {
-                int slot = globalVariableMap.allocateSlotNumber(var.getNameCode()&0xfffff);
+                int slot = globalVariableMap.allocateSlotNumber(var.getNameCode()&NamePool.FP_MASK);
                 var.compile(this, slot);
             } catch (XPathException err) {
                 if (err instanceof StaticError) {
@@ -701,7 +720,7 @@ public class StaticQueryContext implements StaticContext {
 
     public void declareFunction(XQueryFunction function) throws StaticError {
         if (function.getNumberOfArguments() == 1) {
-            SchemaType t = config.getSchemaType(function.getNameCode() & 0xfffff);
+            SchemaType t = config.getSchemaType(function.getNameCode() & NamePool.FP_MASK);
             if (t != null && t instanceof AtomicType) {
                 StaticError err = new StaticError("Function name " + function.getFunctionDisplayName(getNamePool()) +
                         " clashes with the name of the constructor function for an atomic type");
@@ -716,7 +735,7 @@ public class StaticQueryContext implements StaticContext {
      * Bind function calls that could not be bound when first encountered. These
      * will either be forwards references to functions declared later in the query,
      * or errors. This method is for internal use.
-     * @throws net.sf.saxon.xpath.StaticError if a function call refers to a function that has
+     * @throws net.sf.saxon.trans.StaticError if a function call refers to a function that has
      * not been declared
      */
 
@@ -849,7 +868,7 @@ public class StaticQueryContext implements StaticContext {
      * @param locationURI location hint of the query module to be loaded
      * @param importer The importing query module (used to check for cycles)
      * @return The StaticQueryContext representing the loaded query module
-     * @throws net.sf.saxon.xpath.StaticError
+     * @throws net.sf.saxon.trans.StaticError
      */
 
     public static StaticQueryContext loadQueryModule(

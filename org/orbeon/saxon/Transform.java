@@ -2,9 +2,10 @@ package net.sf.saxon;
 import net.sf.saxon.event.Builder;
 import net.sf.saxon.instruct.TerminationException;
 import net.sf.saxon.trace.TraceListener;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.UntypedAtomicValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.om.Validation;
 import org.xml.sax.InputSource;
 
 import javax.xml.transform.*;
@@ -64,7 +65,10 @@ public class Transform {
      */
 
     protected void setFactoryConfiguration() {
-        factory.setConfiguration(new Configuration());
+        Configuration config = new Configuration();
+        factory.setConfiguration(config);
+        // In basic XSLT, all nodes are untyped by definition
+        config.setAllNodesUntyped(true);
     }
 
     /**
@@ -183,9 +187,20 @@ public class Transform {
                         if (schemaAware) {
                             factory.setAttribute(
                                     FeatureKeys.SCHEMA_VALIDATION,
-                                    Boolean.valueOf(true));
+                                    new Integer(Validation.STRICT));
                         } else {
                             quit("The -val option requires a schema-aware processor", 2);
+                        }
+                        i++;
+                    }
+
+                    else if (args[i].equals("-vlax")) {
+                        if (schemaAware) {
+                            factory.setAttribute(
+                                    FeatureKeys.SCHEMA_VALIDATION,
+                                    new Integer(Validation.LAX));
+                        } else {
+                            quit("The -vlax option requires a schema-aware processor", 2);
                         }
                         i++;
                     }
@@ -744,7 +759,7 @@ public class Transform {
      * @param parameterList List of parameters to be supplied to the
      *     transformation
      * @param initialMode Initial mode for executing the transformation
-     * @exception XPathException If the transformation fails
+     * @exception net.sf.saxon.trans.XPathException If the transformation fails
      */
 
     public void processFile(
@@ -795,7 +810,7 @@ public class Transform {
      * @param parameterList List of parameters to be supplied to the
      *     transformation
      * @param initialMode Initial mode for executing the transformation
-     * @exception XPathException If the transformation fails
+     * @exception net.sf.saxon.trans.XPathException If the transformation fails
      */
 
     public void execute(
@@ -892,6 +907,7 @@ public class Transform {
         System.err.println("  -v              Validate source documents using DTD");
         if (config.isSchemaAware(Configuration.XSLT)) {
             System.err.println("  -val            Validate source documents using schema");
+            System.err.println("  -vlax           Lax validation of source documents using schema");
             System.err.println("  -vw             Treat validation errors on result document as warnings");
         }
         System.err.println("  -w0             Recover silently from recoverable errors");
@@ -912,7 +928,7 @@ public class Transform {
 
     /** Create an instance of a URIResolver with a specified class name
      *
-     * @exception XPathException if the requested class does not
+     * @exception net.sf.saxon.trans.XPathException if the requested class does not
      *     implement the javax.xml.transform.URIResolver interface
      * @param className The fully-qualified name of the URIResolver class
      * @return The newly created URIResolver
@@ -929,7 +945,7 @@ public class Transform {
 
     /** Create an instance of a TraceListener with a specified class name
      *
-     * @exception XPathException if the requested class does not
+     * @exception net.sf.saxon.trans.XPathException if the requested class does not
      *     implement the net.sf.saxon.trace.TraceListener interface
      * @param className The fully qualified class name of the TraceListener to
      *      be constructed

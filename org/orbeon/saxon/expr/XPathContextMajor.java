@@ -5,11 +5,11 @@ import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.AxisIterator;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SingletonIterator;
+import net.sf.saxon.om.ValueRepresentation;
 import net.sf.saxon.sort.GroupIterator;
 import net.sf.saxon.trace.InstructionInfoProvider;
 import net.sf.saxon.trans.Mode;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 /**
  * This class represents a "major context" in which an XPath expression is evaluated:
@@ -168,10 +168,10 @@ public class XPathContextMajor extends XPathContextMinor {
      * means it can survive function returns and the like.
      */
 
-    public void setStackFrame(SlotManager map, Value[] variables) {
+    public void setStackFrame(SlotManager map, ValueRepresentation[] variables) {
         stackFrame = new StackFrame(map, variables);
         if (map != null && variables.length != map.getNumberOfVariables()) {
-            stackFrame.slots = new Value[map.getNumberOfVariables()];
+            stackFrame.slots = new ValueRepresentation[map.getNumberOfVariables()];
             System.arraycopy(variables, 0, stackFrame.slots, 0, variables.length);
         }
     }
@@ -182,7 +182,7 @@ public class XPathContextMajor extends XPathContextMinor {
      * @param map the SlotManager for the new stack frame
      */
     public void openStackFrame(SlotManager map) {
-        stackFrame = new StackFrame(map, new Value[map.getNumberOfVariables()]);
+        stackFrame = new StackFrame(map, new ValueRepresentation[map.getNumberOfVariables()]);
     }
 
     /**
@@ -193,14 +193,14 @@ public class XPathContextMajor extends XPathContextMinor {
      */
 
     public void openStackFrame(int numberOfVariables) {
-        stackFrame = new StackFrame(null, new Value[numberOfVariables]);
+        stackFrame = new StackFrame(null, new ValueRepresentation[numberOfVariables]);
     }
 
     /**
      * Get the value of a local variable, identified by its slot number
      */
 
-    public Value evaluateLocalVariable(int slotnumber) {
+    public ValueRepresentation evaluateLocalVariable(int slotnumber) {
         return stackFrame.slots[slotnumber];
     }
 
@@ -208,7 +208,7 @@ public class XPathContextMajor extends XPathContextMinor {
      * Set the value of a local variable, identified by its slot number
      */
 
-    public void setLocalVariable(int slotnumber, Value value) {
+    public void setLocalVariable(int slotnumber, ValueRepresentation value) {
         stackFrame.slots[slotnumber] = value;
     }
 
@@ -331,7 +331,7 @@ public class XPathContextMajor extends XPathContextMinor {
 
         ParameterSet params = (isTunnel ? getTunnelParameters() : localParameters);
     	if (params==null) return false;
-    	Value val = params.get(fingerprint);
+    	ValueRepresentation val = params.get(fingerprint);
         stackFrame.slots[binding.getSlotNumber()] = val;
         return (val != null);
     }

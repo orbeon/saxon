@@ -5,6 +5,8 @@ import org.xml.sax.XMLReader;
 import javax.xml.transform.Source;
 import javax.xml.transform.sax.SAXSource;
 
+import net.sf.saxon.om.Validation;
+
 /**
  * This class wraps a JAXP Source object to provide an extended Source object that
  * contains options indicating how the Source should be processed: for example,
@@ -16,7 +18,7 @@ import javax.xml.transform.sax.SAXSource;
 public class AugmentedSource implements Source {
 
     private Source source;
-    private Boolean schemaValidation = null;
+    private int schemaValidation = Validation.DEFAULT;
     private XMLReader parser = null;
     private Boolean wrapDocument = null;
 
@@ -59,23 +61,23 @@ public class AugmentedSource implements Source {
 
     /**
      * Set whether or not schema validation of this source is required
-     * @param option true indicates schema validation is required, false that validation
-     * is not required, null indicates that the default value for the system configuration
-     * should be used.
+     * @param option one of {@link Validation#STRICT},
+     * {@link Validation#LAX}, {@link Validation#STRIP},
+     * {@link Validation#PRESERVE}, {@link Validation#DEFAULT}
+     *
      */
 
-    public void setSchemaValidation(Boolean option) {
+    public void setSchemaValidationMode(int option) {
         schemaValidation = option;
     }
 
     /**
      * Get whether or not schema validation of this source is required
-     * @return true indicates schema validation is required, false that validation
-     * is not required, null indicates that the default value for the system configuration
-     * should be used.
+     * @return the validation mode requested, or {@link Validation#DEFAULT}
+     * to use the default validation mode from the Configuration.
      */
 
-    public Boolean getSchemaValidation() {
+    public int getSchemaValidation() {
         return schemaValidation;
     }
 

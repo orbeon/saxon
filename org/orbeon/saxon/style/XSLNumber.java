@@ -13,10 +13,10 @@ import net.sf.saxon.number.Numberer_en;
 import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.pattern.NodeKindTest;
 import net.sf.saxon.pattern.Pattern;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 

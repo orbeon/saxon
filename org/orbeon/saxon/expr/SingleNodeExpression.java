@@ -4,10 +4,10 @@ import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.om.SingletonIterator;
 import net.sf.saxon.pattern.AnyNodeTest;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
 
 
 
@@ -67,6 +67,7 @@ public abstract class SingleNodeExpression extends ComputedExpression {
     public int computeSpecialProperties() {
         return StaticProperty.ORDERED_NODESET |
                 StaticProperty.CONTEXT_DOCUMENT_NODESET |
+                StaticProperty.SINGLE_DOCUMENT_NODESET |
                 StaticProperty.NON_CREATIVE;
     }
 

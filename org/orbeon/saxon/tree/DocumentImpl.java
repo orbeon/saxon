@@ -2,10 +2,8 @@ package net.sf.saxon.tree;
 import net.sf.saxon.Configuration;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.om.*;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
-import org.w3c.dom.*;
-import org.xml.sax.Attributes;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,7 +15,7 @@ import java.util.HashMap;
   */
 
 public final class DocumentImpl extends ParentNodeImpl
-    implements DocumentInfo, Document {
+    implements DocumentInfo {
 
     //private static int nextDocumentNumber = 0;
 
@@ -85,9 +83,6 @@ public final class DocumentImpl extends ParentNodeImpl
     */
 
     public void setSystemId(String uri) {
-        //if (uri==null) {
-        //    throw new IllegalArgumentException("System ID must not be null");
-        //}
         if (uri==null) {
             uri = "";
         }
@@ -185,7 +180,7 @@ public final class DocumentImpl extends ParentNodeImpl
     * @return null
     */
 
-    public final Node getNextSibling() {
+    public final NodeInfo getNextSibling() {
         return null;
     }
 
@@ -194,7 +189,7 @@ public final class DocumentImpl extends ParentNodeImpl
     * @return null
     */
 
-    public final Node getPreviousSibling()  {
+    public final NodeInfo getPreviousSibling()  {
         return null;
     }
 
@@ -203,7 +198,7 @@ public final class DocumentImpl extends ParentNodeImpl
      * @return the Element node for the outermost element of the document.
      */
 
-    public Element getDocumentElement() {
+    public ElementImpl getDocumentElement() {
         return documentElement;
     }
 
@@ -273,11 +268,11 @@ public final class DocumentImpl extends ParentNodeImpl
         while(curr!=null) {
             if (curr.getNodeKind()==Type.ELEMENT) {
                 ElementImpl e = (ElementImpl)curr;
-                Attributes atts = e.getAttributeList();
+                AttributeCollection atts = e.getAttributeList();
                 for (int i=0; i<atts.getLength(); i++) {
-                    if ("ID".equals(atts.getType(i)) && XMLChar.isValidNCName(atts.getValue(i))) {
+                    if (atts.isId(i) && XMLChar.isValidNCName(atts.getValue(i).trim())) {
                         // don't index any invalid IDs - these can arise when using a non-validating parser
-                        registerID(e, atts.getValue(i));
+                        registerID(e, atts.getValue(i).trim());
                     }
                 }
             }
@@ -341,76 +336,6 @@ public final class DocumentImpl extends ParentNodeImpl
         }
         return (String[])entityTable.get(name);
     }
-
-    /**
-     * The following methods are defined in DOM Level 3, and Saxon includes nominal implementations of these
-     * methods so that the code will compile when DOM Level 3 interfaces are installed.
-     */
-
-    public String getInputEncoding() {
-        return null;
-    }
-
-    public String getXmlEncoding() {
-        return null;
-    }
-
-    public boolean getXmlStandalone() {
-        return false;
-    }
-
-    public void setXmlStandalone(boolean xmlStandalone)
-                                  throws DOMException {
-        disallowUpdate();
-    }
-
-    public String getXmlVersion() {
-        return "1.0";
-    }
-    public void setXmlVersion(String xmlVersion)
-                                  throws DOMException {
-        disallowUpdate();
-    }
-
-    public boolean getStrictErrorChecking() {
-        return false;
-    }
-
-    public void setStrictErrorChecking(boolean strictErrorChecking) {
-        disallowUpdate();
-    }
-
-    public String getDocumentURI() {
-        return getSystemId();
-    }
-
-    public void setDocumentURI(String documentURI) {
-        disallowUpdate();
-    }
-
-    public Node adoptNode(Node source)
-                          throws DOMException {
-        disallowUpdate();
-        return null;
-    }
-
-    //DOM LEVEL 3 METHOD
-    public DOMConfiguration getDomConfig() {
-        return null;
-    }
-
-    public void normalizeDocument() {
-        disallowUpdate();
-    }
-
-    public Node renameNode(Node n,
-                           String namespaceURI,
-                           String qualifiedName)
-                           throws DOMException {
-        disallowUpdate();
-        return null;
-    }
-
 
     /**
     * Copy this node to a given outputter

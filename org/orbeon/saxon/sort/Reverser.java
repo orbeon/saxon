@@ -3,8 +3,8 @@ package net.sf.saxon.sort;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.SequenceExtent;
-import net.sf.saxon.xpath.XPathException;
 
 /**
  * A Reverser is an expression that reverses the order of a sequence of items.

@@ -1,9 +1,9 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.*;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.QNameValue;
-import net.sf.saxon.xpath.XPathException;
 
 
 /**
@@ -22,7 +22,7 @@ public class ResolveQName extends SystemFunction {
             return null;
         }
 
-        String qname = arg0.getStringValue();
+        CharSequence qname = arg0.getStringValueCS();
         String[] parts;
         try {
             parts = Name.getQNameParts(qname);

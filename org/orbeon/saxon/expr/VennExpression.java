@@ -4,11 +4,11 @@ import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.pattern.CombinedNodeTest;
 import net.sf.saxon.sort.DocumentOrderIterator;
 import net.sf.saxon.sort.GlobalOrderComparer;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
 
 
 /**

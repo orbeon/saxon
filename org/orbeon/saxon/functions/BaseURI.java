@@ -4,8 +4,8 @@ import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.value.AnyURIValue;
 
 /**
 * This class supports the base-uri() functions in XPath 2.0
@@ -32,7 +32,11 @@ public class BaseURI extends SystemFunction {
         if (node==null) {
             return null;
         }
-        return new StringValue(node.getBaseURI());
+        String s = node.getBaseURI();
+        if (s == null) {
+            return null;
+        }
+        return new AnyURIValue(s);
     }
 
 }

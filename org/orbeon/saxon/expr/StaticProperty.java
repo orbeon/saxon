@@ -47,7 +47,14 @@ public abstract class StaticProperty {
     * Bit setting: Expression depends on regex-group() 
     */
 
-    public static final int DEPENDS_ON_REGEX_GROUP = 1<<6;    
+    public static final int DEPENDS_ON_REGEX_GROUP = 1<<6;
+    
+    
+    /**
+     * Bit setting: Expression depends on local variables
+     */ 
+    
+    public static final int DEPENDS_ON_LOCAL_VARIABLES = 1<<7;
 
     /**
     * Combination of bits representing dependencies on the XSLT context
@@ -88,7 +95,8 @@ public abstract class StaticProperty {
             DEPENDS_ON_CURRENT_GROUP |
             DEPENDS_ON_REGEX_GROUP |
             DEPENDS_ON_CURRENT_ITEM |
-            DEPENDS_ON_FOCUS;
+            DEPENDS_ON_FOCUS |
+            DEPENDS_ON_LOCAL_VARIABLES;
 
     /*
     * Bit set if an empty sequence is allowed
@@ -147,6 +155,14 @@ public abstract class StaticProperty {
     */
 
     public static final int EMPTY = ALLOWS_ZERO;
+
+    /**
+     * REduce the cardinality value to an integer in the range 0-7
+     */
+
+    public static final int getCardinalityCode(int cardinality) {
+        return (cardinality & CARDINALITY_MASK) >> 8;
+    }
 
     /**
      * Expression property: this bit is set by getProperties() in the case of
@@ -211,6 +227,14 @@ public abstract class StaticProperty {
     public static final int NON_CREATIVE = 1<<22;
 
     /**
+     * Expression property: this bit is set in the case of an expression that delivers
+     * a set of nodes that are all in the same document (not necessarily the same
+     * document as the context node).
+     */
+
+    public static final int SINGLE_DOCUMENT_NODESET = 1<<23;
+
+    /**
      * Mask for "special properties": that is, all properties other than cardinality
      * and dependencies
      */
@@ -222,6 +246,7 @@ public abstract class StaticProperty {
             PEER_NODESET |
             SUBTREE_NODESET |
             ATTRIBUTE_NS_NODESET |
+            SINGLE_DOCUMENT_NODESET |
             NON_CREATIVE;
 
     // This class is not instantiated

@@ -9,12 +9,12 @@ import net.sf.saxon.om.Navigator;
 import net.sf.saxon.om.Orphan;
 import net.sf.saxon.pattern.NodeKindTest;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.*;
 import net.sf.saxon.value.StringValue;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -102,7 +102,7 @@ public final class ValueOf extends SimpleNodeConstructor {
       * @param parentType The schema type
       * @param env        the static context
       * @param whole
-      * @throws net.sf.saxon.xpath.XPathException
+      * @throws net.sf.saxon.trans.XPathException
       *          if the expression doesn't match the required content type
       */
 
@@ -117,11 +117,10 @@ public final class ValueOf extends SimpleNodeConstructor {
              }
              if (whole && stype != null && !stype.isNamespaceSensitive()) {
                         // Can't validate namespace-sensitive content statically
-                 try {
-                     stype.validateContent(((Value)select).getStringValue(), null);
-                 } catch (XPathException e) {
-                     e.setLocator(this);
-                     throw e;
+                 XPathException err = stype.validateContent(((Value)select).getStringValue(), null);
+                 if (err != null) {
+                     err.setLocator(this);
+                     throw err;
                  }
                  return;
              }

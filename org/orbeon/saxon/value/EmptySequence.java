@@ -7,7 +7,6 @@ import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.pattern.NoNodeTest;
 import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -16,7 +15,7 @@ import java.io.PrintStream;
 */
 
 
-public final class EmptySequence extends SequenceValue {
+public final class EmptySequence extends Value {
 
     // This class has a single instance
     private static EmptySequence THE_INSTANCE = new EmptySequence();
@@ -37,10 +36,19 @@ public final class EmptySequence extends SequenceValue {
     }
 
     /**
+     * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
+     * This method indicates which of these methods is prefered.
+     */
+
+    public int getImplementationMethod() {
+        return EVALUATE_METHOD;
+    }
+
+    /**
     * Return an iteration over the sequence
     */
 
-    public SequenceIterator iterate(XPathContext context) throws XPathException {
+    public SequenceIterator iterate(XPathContext context) {
         return EmptyIterator.getInstance();
     }
 
@@ -68,9 +76,18 @@ public final class EmptySequence extends SequenceValue {
 
     public int getSpecialProperties() {
         return  StaticProperty.ORDERED_NODESET |
+                StaticProperty.SINGLE_DOCUMENT_NODESET |
                 StaticProperty.CONTEXT_DOCUMENT_NODESET;
     }
 
+    /**
+     * Get the length of the sequence
+     * @return always 0 for an empty sequence
+     */
+
+    public final int getLength() {
+        return 0;
+    }
     /**
     * Is this expression the same as another expression?
     * @throws ClassCastException if the values are not comparable

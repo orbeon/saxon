@@ -1,12 +1,12 @@
 package net.sf.saxon.expr;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.sort.AtomicComparer;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.BooleanValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.util.Comparator;
 

@@ -1,14 +1,15 @@
 package net.sf.saxon.instruct;
+import net.sf.saxon.expr.TypeChecker;
 import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.om.ValueRepresentation;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
 import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.Cardinality;
 import net.sf.saxon.value.EmptySequence;
+import net.sf.saxon.value.ErrorValue;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 
 /**
@@ -20,10 +21,10 @@ import net.sf.saxon.xpath.XPathException;
 
 public final class Bindery  {
 
-    private Value[] globals;                        // values of global variables and parameters
+    private ValueRepresentation[] globals;                        // values of global variables and parameters
     private boolean[] busy;                         // set to true while variable is being evaluated
-    private GlobalParameterSet globalParameters;          // supplied global parameters
-    private SlotManager globalVariableMap;        // contains the mapping of variable names to slot numbers
+    private GlobalParameterSet globalParameters;    // supplied global parameters
+    private SlotManager globalVariableMap;          // contains the mapping of variable names to slot numbers
 
     /**
     * Define how many slots are needed for global variables
@@ -32,7 +33,7 @@ public final class Bindery  {
     public void allocateGlobals(SlotManager map) {
         globalVariableMap = map;
         int n = map.getNumberOfVariables()+1;
-        globals = new Value[n];
+        globals = new ValueRepresentation[n];
         busy = new boolean[n];
         for (int i=0; i<n; i++) {
             globals[i] = null;
@@ -68,38 +69,32 @@ public final class Bindery  {
         }
 
         Value val;
-        //try {
-            val = Value.convertJavaObjectToXPath(obj, binding.getRequiredType(), context);
+        try {
+            val = Value.convertJavaObjectToXPath(
+                    obj, binding.getRequiredType(), context.getController().getConfiguration());
             if (val==null) {
                 val = EmptySequence.getInstance();
             }
-        //} catch (XPathException err) {
-        //    val = new StringValue(obj.toString());
-        //}
+        } catch (XPathException err) {
+            err.setLocator(binding);
+            throw err;
+        }
 
         ItemType reqItemType = binding.getRequiredType().getPrimaryType();
         if (val instanceof AtomicValue && reqItemType instanceof AtomicType) {
             // If the parameter is an atomic value, typically a string supplied on
             // the command line, we attempt to convert it to the required type. This
             // will not always succeed.
-            val = ((AtomicValue)val).convert((AtomicType)reqItemType, null);
+            val = ((AtomicValue)val).convert((AtomicType)reqItemType, null, true);
+            if (val instanceof ErrorValue) {
+                throw ((ErrorValue)val).getException();
+            }
         } else {
             // For any other parameter value, we verify that if conforms to the
             // required type. This must be precise conformance, we don't attempt to
             // do atomization or to convert untypedAtomic values
-
-            if (!Type.isSubType(val.getItemType(), reqItemType)) {
-                DynamicError err = new DynamicError (
-                        "Global parameter requires type " + reqItemType +
-                        "; supplied value has type " + val.getItemType());
-                err.setIsTypeError(true);
-                throw err;
-            }
-            int reqCardinality = binding.getRequiredType().getCardinality();
-            if (!Cardinality.subsumes(reqCardinality, val.getCardinality())) {
-                DynamicError err = new DynamicError (
-                        "Supplied value of external parameter does not match the required cardinality");
-                err.setIsTypeError(true);
+            DynamicError err = TypeChecker.testConformance(val, binding.getRequiredType());
+            if (err != null) {
                 throw err;
             }
         }
@@ -113,14 +108,14 @@ public final class Bindery  {
     * @param value the value of the variable
     */
 
-    public void defineGlobalVariable(GlobalVariable binding, Value value) {
+    public void defineGlobalVariable(GlobalVariable binding, ValueRepresentation value) {
         globals[binding.getSlotNumber()] = value;
     }
 
     /**
     * Set/Unset a flag to indicate that a particular global variable is currently being
     * evaluated.
-    * @throws XPathException If an attempt is made to set the flag when it is already set, this means
+    * @throws net.sf.saxon.trans.XPathException If an attempt is made to set the flag when it is already set, this means
     * the definition of the variable is circular.
     */
 
@@ -146,7 +141,7 @@ public final class Bindery  {
     * @return the Value of the variable if defined, null otherwise.
     */
 
-    public Value getGlobalVariableValue(GlobalVariable binding) {
+    public ValueRepresentation getGlobalVariableValue(GlobalVariable binding) {
         return globals[binding.getSlotNumber()];
     }
 
@@ -156,7 +151,7 @@ public final class Bindery  {
     * @return the Value of the variable if defined, null otherwise.
     */
 
-    public Value getGlobalVariable(int slot) {
+    public ValueRepresentation getGlobalVariable(int slot) {
         return globals[slot];
     }
 
@@ -165,7 +160,7 @@ public final class Bindery  {
     * @param binding identifies the local or global variable or parameter
     */
 
-    public void assignGlobalVariable(GlobalVariable binding, Value value) {
+    public void assignGlobalVariable(GlobalVariable binding, ValueRepresentation value) {
         defineGlobalVariable(binding, value);
     }
 
@@ -183,7 +178,7 @@ public final class Bindery  {
      * that know the layout of the global variables within the array.
      */
 
-    public Value[] getGlobalVariables() {
+    public ValueRepresentation[] getGlobalVariables() {
         return globals;
     }
 

@@ -11,6 +11,8 @@ import nu.xom.Document;
 import nu.xom.Element;
 import nu.xom.Node;
 
+import java.util.HashMap;
+
 /**
  * The root node of an XPath tree. (Or equivalently, the tree itself).
  * <P>
@@ -29,6 +31,8 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
 	protected String baseURI;
 
 	protected int documentNumber;
+
+    private HashMap idIndex;
 
 	/**
 	 * Create a Saxon wrapper for a XOM document
@@ -60,7 +64,7 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
 	 * @return the wrapping NodeInfo object
 	 */
 
-	public VirtualNode wrap(Object node) {
+	public VirtualNode wrap(Node node) {
 		if (node == this.node) { return this; }
 		return makeWrapper(node, this);
 	}
@@ -125,28 +129,30 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
 	 */
 
 	public NodeInfo selectID(String id) {
-		// TODO: optimize by indexing with HashMap as in net.sf.saxon.tree.DocumentImpl
-		Document doc = (Document) node;
-		return selectID(id, doc.getRootElement());
+		if (idIndex == null) {
+            idIndex = new HashMap(50);
+		    Document doc = (Document) node;
+            buildIDIndex(doc.getRootElement());
+        }
+        return (NodeInfo)idIndex.get(id);
 	}
 	
 	
-	private NodeInfo selectID(String id, Element elem) {
-		// walk the tree in reverse document order
+	private void buildIDIndex(Element elem) {
+		// walk the tree in reverse document order, to satisfy the XPath 1.0 rule
+        // that says if an ID appears twice, the first one wins
 		for (int i=elem.getChildCount(); --i >= 0 ; ) {
 			Node child = elem.getChild(i);
 			if (child instanceof Element) {
-				NodeInfo found = selectID(id, (Element)child);
-				if (found != null) return found;
+				buildIDIndex((Element)child);
 			}
 		}
 		for (int i=elem.getAttributeCount(); --i >= 0 ; ) {
 			Attribute att = elem.getAttribute(i);
-			if (att.getType() == Attribute.Type.ID && att.getValue().equals(id)) {
-				return wrap(elem);
+			if (att.getType() == Attribute.Type.ID) {
+				idIndex.put(att.getValue(), wrap(elem));
 			}
 		}
-		return null;
 	}
 
     /**

@@ -8,10 +8,10 @@ import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.NodeKindTest;
 import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.tinytree.TinyBuilder;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.value.TextFragmentValue;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Iterator;
@@ -77,7 +77,7 @@ public class DocumentInstr extends Instruction {
      * Simplify an expression. This performs any static optimization (by rewriting the expression
      * as a different expression). The default implementation does nothing.
      * @return the simplified expression
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      *          if an error is discovered during expression rewriting
      */
 
@@ -102,7 +102,7 @@ public class DocumentInstr extends Instruction {
      * @return the original expression, rewritten to perform necessary
      *         run-time type checks, and to perform other type-related
      *         optimizations
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      *          if an error is discovered during this phase
      *          (typically a type error)
      */
@@ -152,7 +152,7 @@ public class DocumentInstr extends Instruction {
         Item item = evaluateItem(context);
         if (item != null) {
             SequenceReceiver out = context.getReceiver();
-            out.append(item, locationId);
+            out.append(item, locationId, NodeInfo.ALL_NAMESPACES);
         }
         return null;
     }
@@ -169,7 +169,7 @@ public class DocumentInstr extends Instruction {
             if (constantText != null) {
                 textValue = constantText;
             } else {
-                textValue = new StringBuffer(100);
+                FastStringBuffer sb = new FastStringBuffer(100);
                 SequenceIterator iter = content.iterate(context);
                 if (iter instanceof AtomizableIterator) {
                     ((AtomizableIterator)iter).setIsAtomizing(true);
@@ -177,8 +177,9 @@ public class DocumentInstr extends Instruction {
                 while (true) {
                     Item item = iter.next();
                     if (item==null) break;
-                    ((StringBuffer)textValue).append(item.getStringValue());
+                    sb.append(item.getStringValueCS());
                 }
+                textValue = sb.condense();
             }
             root = new TextFragmentValue(textValue, baseURI);
             root.setConfiguration(controller.getConfiguration());

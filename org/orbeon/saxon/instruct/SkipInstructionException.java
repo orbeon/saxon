@@ -1,5 +1,5 @@
 package net.sf.saxon.instruct;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 /**
 * This exception is thrown by code when execution of an instruction has failed,

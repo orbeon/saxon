@@ -1,10 +1,10 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.DateTimeValue;
 import net.sf.saxon.value.DateValue;
 import net.sf.saxon.value.TimeValue;
-import net.sf.saxon.xpath.XPathException;
 
 
 /**

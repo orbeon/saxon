@@ -1,7 +1,8 @@
 package net.sf.saxon.charcode;
 
 /**
-* This class defines properties of the cp1250 character set
+* This class defines properties of the cp1250 Central Europe character set,
+ * as defined at <a ref="http://www.microsoft.com/globaldev/reference/sbcs/1250.htm">http://www.microsoft.com/globaldev/reference/sbcs/1250.htm</a>.
 */
 
 public class CP1250CharacterSet implements CharacterSet{

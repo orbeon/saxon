@@ -93,7 +93,7 @@ public abstract class StandardFunction {
 
     public static void arg(Entry e, int a, ItemType type, int cardinality) {
         try {
-            e.argumentTypes[a] = new SequenceType(type, cardinality);
+            e.argumentTypes[a] = SequenceType.makeSequenceType(type, cardinality);
         } catch (ArrayIndexOutOfBoundsException err) {
             System.err.println("Internal Saxon error: Can't set argument " + a + " of " + e.name);
         }
@@ -125,9 +125,8 @@ public abstract class StandardFunction {
                 // can't say "same as first argument" because the avg of a set of integers is decimal
             arg(e, 0, Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
 
-        e = register("base-uri", BaseURI.class, 0, 0, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+        e = register("base-uri", BaseURI.class, 0, 0, 1, Type.ANY_URI_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.NODE_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            // TODO: base-uri() returns anyURI in Oct 2004 draft
 
         e = register("boolean", BooleanFn.class, BooleanFn.BOOLEAN, 1, 1, Type.BOOLEAN_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
@@ -140,7 +139,6 @@ public abstract class StandardFunction {
 
         e = register("collection", Collection.class, 0, 0, 1, Type.NODE_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
-            // TODO: add support for zero-argument collection() function
 
         e = register("compare", Compare.class, 0, 2, 3, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
@@ -205,7 +203,7 @@ public abstract class StandardFunction {
             arg(e, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             arg(e, 1, Type.NODE_TYPE, StaticProperty.EXACTLY_ONE);
 
-        e = register("document-uri", NamePart.class, NamePart.DOCUMENT_URI, 1, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+        e = register("document-uri", NamePart.class, NamePart.DOCUMENT_URI, 1, 1, Type.ANY_URI_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, NodeKindTest.DOCUMENT, StaticProperty.ALLOWS_ZERO_OR_MORE);
 
         e = register("empty", Existence.class, Existence.EMPTY, 1, 1, Type.BOOLEAN_TYPE, StaticProperty.EXACTLY_ONE);
@@ -358,7 +356,7 @@ public abstract class StandardFunction {
         e = register("get-namespace-from-QName", Component.class, (Component.NAMESPACE<<16) + Type.QNAME, 1, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.QNAME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
-        e = register("get-in-scope-prefixes", InScopeNamespaces.class, 0, 1, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
+        e = register("get-in-scope-prefixes", InScopePrefixes.class, 0, 1, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             arg(e, 0, NodeKindTest.ELEMENT, StaticProperty.EXACTLY_ONE);
 
         e = register("get-namespace-uri-for-prefix", NamespaceForPrefix.class, 0, 2, 2, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
@@ -388,7 +386,7 @@ public abstract class StandardFunction {
 
             register("implicit-timezone", CurrentDateTime.class, 0, 0, 0, Type.DAY_TIME_DURATION_TYPE, StaticProperty.EXACTLY_ONE);
 
-        e = register("in-scope-prefixes", InScopeNamespaces.class, 0, 1, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
+        e = register("in-scope-prefixes", InScopePrefixes.class, 0, 1, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             arg(e, 0, NodeKindTest.ELEMENT, StaticProperty.EXACTLY_ONE);
 
         e = register("index-of", IndexOf.class, 0, 2, 3, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
@@ -463,15 +461,14 @@ public abstract class StandardFunction {
         e = register("name", NamePart.class, NamePart.NAME, 0, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.NODE_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
-        // TODO: this (and the next two) are changed in F+O to return xs:anyURI, but that relies on xs:anyURI to String promotion
-        e = register("namespace-uri", NamePart.class, NamePart.NAMESPACE_URI, 0, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
+        e = register("namespace-uri", NamePart.class, NamePart.NAMESPACE_URI, 0, 1, Type.ANY_URI_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.NODE_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
-        e = register("namespace-uri-for-prefix", NamespaceForPrefix.class, 0, 2, 2, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+        e = register("namespace-uri-for-prefix", NamespaceForPrefix.class, 0, 2, 2, Type.ANY_URI_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 1, NodeKindTest.ELEMENT, StaticProperty.EXACTLY_ONE);
 
-        e = register("namespace-uri-from-QName", Component.class, (Component.NAMESPACE<<16) + Type.QNAME, 1, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+        e = register("namespace-uri-from-QName", Component.class, (Component.NAMESPACE<<16) + Type.QNAME, 1, 1, Type.ANY_URI_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.QNAME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
         // TODO: support "nilled" function
@@ -496,6 +493,9 @@ public abstract class StandardFunction {
 
             register("position", Position.class, 0, 0, 0, Type.INTEGER_TYPE, StaticProperty.EXACTLY_ONE);
 
+        e = register("prefix-from-QName", Component.class, (Component.PREFIX<<16) + Type.QNAME, 1, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+            arg(e, 0, Type.QNAME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+
         e = register("QName", QNameFn.class, 0, 2, 2, Type.QNAME_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
@@ -517,15 +517,14 @@ public abstract class StandardFunction {
             arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 1, NodeKindTest.ELEMENT, StaticProperty.EXACTLY_ONE);
 
-        // TODO: change this to return an xs:anyURI
-        e = register("resolve-uri", ResolveURI.class, 0, 1, 2, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+        e = register("resolve-uri", ResolveURI.class, 0, 1, 2, Type.ANY_URI_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
 
         e = register("reverse", Reverse.class, 0, 1, 1, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             arg(e, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
 
-        e = register("root", Root.class, 0, 0, 1, NodeKindTest.DOCUMENT, StaticProperty.ALLOWS_ZERO_OR_ONE);
+        e = register("root", Root.class, 0, 0, 1, Type.NODE_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.NODE_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
         e = register("round", Rounding.class, Rounding.ROUND, 1, 1, SAME_AS_FIRST_ARGUMENT, StaticProperty.ALLOWS_ZERO_OR_ONE);
@@ -553,7 +552,7 @@ public abstract class StandardFunction {
             arg(e, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 2, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
 
-            register("static-base-uri", StaticBaseURI.class, 0, 0, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+            register("static-base-uri", StaticBaseURI.class, 0, 0, 0, Type.ANY_URI_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
         e = register("string", StringFn.class, 0, 0, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
@@ -628,7 +627,7 @@ public abstract class StandardFunction {
         e = register("upper-case", ForceCase.class, ForceCase.UPPERCASE, 1, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
-        e = register("unparsed-entity-uri", UnparsedEntity.class, UnparsedEntity.URI, 1, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
+        e = register("unparsed-entity-uri", UnparsedEntity.class, UnparsedEntity.URI, 1, 1, Type.ANY_URI_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
 
         // internal version of unparsed-entity-uri with second argument representing the current document

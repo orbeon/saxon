@@ -4,8 +4,8 @@ import net.sf.saxon.event.Receiver;
 import net.sf.saxon.event.SaxonLocator;
 import net.sf.saxon.om.Name;
 import net.sf.saxon.om.NamePool;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import org.w3c.dom.*;
 import org.xml.sax.helpers.AttributesImpl;
 import org.xml.sax.helpers.NamespaceSupport;
@@ -50,14 +50,6 @@ public class DOMSender implements SaxonLocator {
     }
 
     /**
-    * Set the namePool
-    */
-
-//    public void setNamePool(NamePool pool) {
-//        this.namePool = pool;
-//    }
-
-    /**
     * Set the DOM Document that will be walked
     */
 
@@ -76,7 +68,7 @@ public class DOMSender implements SaxonLocator {
 
     /**
     * Walk a document (traversing the nodes depth first)
-    * @exception XPathException On any error in the document
+    * @exception net.sf.saxon.trans.XPathException On any error in the document
     */
 
     public void send() throws XPathException {
@@ -127,7 +119,7 @@ public class DOMSender implements SaxonLocator {
   /**
     * Walk an element of a document (traversing the children depth first)
     * @param node The DOM Element object to walk
-    * @exception XPathException On any error in the document
+    * @exception net.sf.saxon.trans.XPathException On any error in the document
     *
     */
 

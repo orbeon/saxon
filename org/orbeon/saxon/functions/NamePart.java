@@ -5,9 +5,10 @@ import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.QNameValue;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.value.AnyURIValue;
 
 /**
 * This class supports the name(), local-name(), and namespace-uri() functions
@@ -58,6 +59,8 @@ public class NamePart extends SystemFunction {
             // return an empty string, except for node-name()
             if (operation == NODE_NAME) {
                 return null;
+            } else if (operation == DOCUMENT_URI || operation == NAMESPACE_URI) {
+                return AnyURIValue.EMPTY_URI;
             } else {
                 return StringValue.EMPTY_STRING;
             }
@@ -76,7 +79,7 @@ public class NamePart extends SystemFunction {
                 s = (uri==null ? "" : uri);
                         // null should no longer be returned, but the spec has changed, so it's
                         // better to be defensive
-                break;
+                return new AnyURIValue(s);
             case GENERATE_ID:
                 s = node.generateId();
                 break;
@@ -85,7 +88,7 @@ public class NamePart extends SystemFunction {
                 // in the case of temporary trees, or any other document that can't be retrieved using the
                 // system ID.
                 s = node.getSystemId();
-                break;
+                return new AnyURIValue(s);
             case NODE_NAME:
                 int nc = node.getNameCode();
                 if (nc == -1) {

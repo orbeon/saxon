@@ -4,8 +4,8 @@ import net.sf.saxon.Loader;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.AttributeCollection;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.text.Collator;
@@ -65,10 +65,6 @@ public class SaxonCollation extends StyleElement {
         if (nameAtt!=null) {
             collationName = nameAtt.trim();
         }
-
-        // TODO: not all attributes are supported yet...
-
-        // TODO: code has been copied into CollationFactory, could call the methods there
 
         if (classAtt!=null) {
             if (rulesAtt != null || langAtt != null || strengthAtt != null || decompositionAtt != null) {

@@ -2,9 +2,9 @@ package net.sf.saxon.value;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AnyItemType;
 import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * A SequenceIntent is sequence value that uses deferred evaluation. It
@@ -17,7 +17,7 @@ import net.sf.saxon.xpath.XPathException;
 // Saxon and EXSLT extension functions exploit this mechanism. Perhaps they should be
 // changed to return a Closure instead.
 
-public class SequenceIntent extends SequenceValue {
+public class SequenceIntent extends Value {
 
     private SequenceIterator iterator;
     private SequenceExtent extent = null;
@@ -37,12 +37,13 @@ public class SequenceIntent extends SequenceValue {
     }
 
     /**
-    * Supply knowledge of the types of the items
-    */
+     * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
+     * This method indicates which of these methods is prefered.
+     */
 
-//    public void setItemType(int type) {
-//        itemType = type;
-//    }
+    public int getImplementationMethod() {
+        return ITERATE_METHOD;
+    }
 
     /**
     * Get the item type
@@ -82,28 +83,6 @@ public class SequenceIntent extends SequenceValue {
             return super.itemAt(n);
         }
     }
-
-    /**
-    * Evaluate as a string. Returns the string value of the first value in the sequence
-    * @return the string value of the Expression, evaluated in the current context
-    */
-
-//    public String getStringValue() throws XPathException {
-//        if (extent!=null) {
-//            return extent.getStringValue();
-//        }
-//        SequenceIterator iter = iterator.getAnother();
-//        if (iter.hasNext()) {
-//            Object first = iter.next();
-//            if (first instanceof NodeInfo) {
-//                return ((NodeInfo)first).getStringValue();
-//            } else {
-//                return ((AtomicValue)first).getStringValue();
-//            }
-//        } else {
-//            return "";
-//        }
-//    }
 
 }
 

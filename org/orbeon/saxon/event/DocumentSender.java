@@ -1,8 +1,8 @@
 package net.sf.saxon.event;
 
 import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
 
 /**
  * Sends an entire document to a Receiver.

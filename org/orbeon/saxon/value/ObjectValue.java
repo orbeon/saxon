@@ -1,11 +1,11 @@
 package net.sf.saxon.value;
-import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.type.BuiltInAtomicType;
 import net.sf.saxon.type.ExternalObjectType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 
 /**
@@ -43,8 +43,8 @@ public class ObjectValue extends AtomicValue {
     * Convert to target data type
     */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
-        switch(requiredType) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+        switch(requiredType.getPrimitiveType()) {
         case Type.ATOMIC:
         case Type.OBJECT:
         case Type.ITEM:
@@ -57,7 +57,7 @@ public class ObjectValue extends AtomicValue {
         case Type.UNTYPED_ATOMIC:
             return new UntypedAtomicValue(getStringValue());
         default:
-            return new StringValue(getStringValue()).convert(requiredType, context);
+            return new StringValue(getStringValue()).convertPrimitive(requiredType, validate);
         }
     }
 
@@ -104,7 +104,7 @@ public class ObjectValue extends AtomicValue {
     * Convert to Java object (for passing to external functions)
     */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
+    public Object convertToJava(Class target, XPathContext context) throws XPathException {
 
         if (value==null) return null;
 
@@ -113,27 +113,27 @@ public class ObjectValue extends AtomicValue {
         } else if (target==Value.class || target==ObjectValue.class) {
             return this;
         } else if (target==boolean.class || target==Boolean.class) {
-            BooleanValue bval = (BooleanValue)convert(Type.BOOLEAN, null);
+            BooleanValue bval = (BooleanValue)convert(Type.BOOLEAN);
             return Boolean.valueOf(bval.getBooleanValue());
         } else if (target==String.class || target==CharSequence.class) {
             return getStringValue();
         } else if (target==double.class || target==Double.class) {
-            DoubleValue bval = (DoubleValue)convert(Type.DOUBLE, null);
+            DoubleValue bval = (DoubleValue)convert(Type.DOUBLE);
             return new Double(bval.getDoubleValue());
         } else if (target==float.class || target==Float.class) {
-            DoubleValue bval = (DoubleValue)convert(Type.FLOAT, null);
+            DoubleValue bval = (DoubleValue)convert(Type.FLOAT);
             return new Float(bval.getDoubleValue());
         } else if (target==long.class || target==Long.class) {
-            IntegerValue bval = (IntegerValue)convert(Type.INTEGER, null);
+            IntegerValue bval = (IntegerValue)convert(Type.INTEGER);
             return new Long(bval.longValue());
         } else if (target==int.class || target==Integer.class) {
-            IntegerValue bval = (IntegerValue)convert(Type.INTEGER, null);
+            IntegerValue bval = (IntegerValue)convert(Type.INTEGER);
             return new Integer((int)bval.longValue());
         } else if (target==short.class || target==Short.class) {
-            IntegerValue bval = (IntegerValue)convert(Type.INTEGER, null);
+            IntegerValue bval = (IntegerValue)convert(Type.INTEGER);
             return new Short((short)bval.longValue());
         } else if (target==byte.class || target==Byte.class) {
-            IntegerValue bval = (IntegerValue)convert(Type.INTEGER, null);
+            IntegerValue bval = (IntegerValue)convert(Type.INTEGER);
             return new Byte((byte)bval.longValue());
         } else if (target==char.class || target==Character.class) {
             String s = getStringValue();

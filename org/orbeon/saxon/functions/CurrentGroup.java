@@ -7,7 +7,7 @@ import net.sf.saxon.om.EmptyIterator;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.sort.GroupIterator;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 /**
 * Implements the XSLT functions current-group() and current-grouping-key()

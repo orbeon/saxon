@@ -1,6 +1,7 @@
 package net.sf.saxon.trace;
 
 import net.sf.saxon.Version;
+import net.sf.saxon.value.Value;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
@@ -69,6 +70,13 @@ public abstract class AbstractTraceListener implements TraceListener {
         while (props.hasNext()) {
             String prop = (String)props.next();
             Object val = info.getProperty(prop);
+            if (prop.startsWith("{")) {
+                // It's a QName in Clark notation: we'll strip off the namespace
+                int rcurly = prop.indexOf('}');
+                if (rcurly > 0) {
+                    prop = prop.substring(rcurly+1);
+                }
+            }
             if (val != null && !prop.equals("name") && !prop.equals("expression")) {
                 msg += ' ' + prop + "=\"" + escape(val.toString()) + '"';
             }
@@ -87,16 +95,19 @@ public abstract class AbstractTraceListener implements TraceListener {
     }
 
     /**
-     * Escape a string for XML output (in an attribute delimited by double quotes)
+     * Escape a string for XML output (in an attribute delimited by double quotes).
+     * This method also collapses whitespace (since the value may be an XPath expression that
+     * was originally written over several lines).
      */
 
     public String escape(String in) {
         if (in==null) {
             return "";
         }
-        StringBuffer sb = new StringBuffer(50);
-        for (int i=0; i<in.length(); i++) {
-            char c = in.charAt(i);
+        CharSequence collapsed = Value.collapseWhitespace(in);
+        StringBuffer sb = new StringBuffer(collapsed.length() + 10);
+        for (int i=0; i<collapsed.length(); i++) {
+            char c = collapsed.charAt(i);
             if (c=='<') {
                 sb.append("&lt;");
             } else if (c=='>') {

@@ -1,8 +1,10 @@
 package net.sf.saxon.event;
 import net.sf.saxon.charcode.UnicodeCharacterSet;
 import net.sf.saxon.om.XMLChar;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.om.FastStringBuffer;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.tinytree.CharSlice;
 
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.TransformerException;
@@ -30,11 +32,11 @@ public class XMLEmitter extends Emitter
 
     protected Stack elementStack = new Stack();
 
-    // Namecodes in the range 0..1024 are common. So for these codes,
+    // Namecodes in the range 0..2048 are common. So for these codes,
     // we maintain a direct lookup from the namecode to the display name
     // that bypasses reference to the namepool
 
-    private String[] nameLookup = new String[1024];
+    private String[] nameLookup = new String[2048];
 
 
     static boolean[] specialInText;         // lookup table for special characters in text
@@ -107,7 +109,7 @@ public class XMLEmitter extends Emitter
         if (rep!=null) {
         	preferHex = (rep.trim().equalsIgnoreCase("hex"));
         }
-        rep = outputProperties.getProperty(SaxonOutputKeys.UNDECLARE_NAMESPACES);
+        rep = outputProperties.getProperty(SaxonOutputKeys.UNDECLARE_PREFIXES);
         if (rep!=null) {
         	undeclareNamespaces = (rep.trim().equalsIgnoreCase("yes"));
         }
@@ -123,8 +125,9 @@ public class XMLEmitter extends Emitter
         try {
             String byteOrderMark = outputProperties.getProperty(SaxonOutputKeys.BYTE_ORDER_MARK);
 
-            if ("yes".equals(byteOrderMark)) {
-                // TODO: default for UTF-16 is "yes"
+            if ("yes".equals(byteOrderMark) &&
+                    !"UTF-16".equalsIgnoreCase(outputProperties.getProperty(OutputKeys.ENCODING))) {
+                // For UTF-16, Java outputs a BOM whether we like it or not
                 writer.write('\uFEFF');
             }
 
@@ -134,10 +137,11 @@ public class XMLEmitter extends Emitter
             }
 
             String version = outputProperties.getProperty(OutputKeys.VERSION);
-            if (version==null) version = "1.0";
+            if (version==null) {
+                version = "1.0";
+            }
 
             String encoding = outputProperties.getProperty(OutputKeys.ENCODING);
-
             if (encoding==null || encoding.equalsIgnoreCase("utf8")) {
                 encoding = "UTF-8";
             }
@@ -146,15 +150,18 @@ public class XMLEmitter extends Emitter
             // then force an XML declaration to be output, otherwise the
             // result will not be well-formed XML
 
-            if (omit.equals("yes") &&
-                  !(encoding.equalsIgnoreCase("UTF-8")) ||
-                    encoding.equalsIgnoreCase("utf-16") ||
-                    encoding.equalsIgnoreCase("us-ascii") ||
-                    encoding.equalsIgnoreCase("ascii")) {
-                omit = "no";
-            }
+//            if (omit.equals("yes") &&
+//                  !(encoding.equalsIgnoreCase("UTF-8")) ||
+//                    encoding.equalsIgnoreCase("utf-16") ||
+//                    encoding.equalsIgnoreCase("us-ascii") ||
+//                    encoding.equalsIgnoreCase("ascii")) {
+//                omit = "no";
+//            }
 
             String standalone = outputProperties.getProperty(OutputKeys.STANDALONE);
+            if ("omit".equals(standalone)) {
+                standalone = null;
+            }
 
             if (omit.equals("no")) {
                 writer.write("<?xml version=\"" + version + "\" " + "encoding=\"" + encoding + '\"' +
@@ -209,21 +216,21 @@ public class XMLEmitter extends Emitter
     */
 
     public void startElement (int nameCode, int typeCode, int locationId, int properties) throws XPathException
-    {
+    {   
         if (empty) {
             openDocument();
         }
         String displayName = null;
 
         // See if we've seen this name before
-        if (nameCode < 1024) {
+        if (nameCode < 2048) {
             displayName = nameLookup[nameCode];
         }
 
         // Otherwise, look it up in the namepool and check that it's encodable
         if (displayName == null) {
     	    displayName = namePool.getDisplayName(nameCode);
-            if (nameCode < 1024) {
+            if (nameCode < 2048) {
                 nameLookup[nameCode] = displayName;
             }
             int badchar = testCharacters(displayName);
@@ -265,6 +272,8 @@ public class XMLEmitter extends Emitter
             if (nsprefix.equals("")) {
                 writer.write(' ');
                 writeAttribute(elementCode, "xmlns", nsuri, 0);
+            } else if (nsprefix.equals("xml")) {
+                return;
             } else {
                 int badchar = testCharacters(nsprefix);
                 if (badchar!=0) {
@@ -286,14 +295,14 @@ public class XMLEmitter extends Emitter
         String displayName = null;
 
         // See if we've seen this name before
-        if (nameCode < 1024) {
+        if (nameCode < 2048) {
             displayName = nameLookup[nameCode];
         }
 
         // Otherwise, look it up in the namepool and check that it's encodable
         if (displayName == null) {
     	    displayName = namePool.getDisplayName(nameCode);
-            if (nameCode < 1024) {
+            if (nameCode < 2048) {
                 nameLookup[nameCode] = displayName;
             }
             int badchar = testCharacters(displayName);
@@ -441,7 +450,7 @@ public class XMLEmitter extends Emitter
                 writeEscape(chars, false);
             } else {
                 if (testCharacters(chars) == 0) {
-                    writer.write(chars.toString());
+                    writeCharSequence(chars);
                 } else {
                     // Recoverable error: using disable output escaping with characters
                     // that are not available in the target encoding
@@ -460,6 +469,22 @@ public class XMLEmitter extends Emitter
             }
         } catch (java.io.IOException err) {
             throw new DynamicError(err);
+        }
+    }
+
+    /**
+     * Write a CharSequence: various implementations
+     */
+
+    public void writeCharSequence(CharSequence s) throws java.io.IOException {
+        if (s instanceof String) {
+            writer.write((String)s);
+        } else if (s instanceof CharSlice) {
+            ((CharSlice)s).write(writer);
+        } else if (s instanceof FastStringBuffer) {
+            ((FastStringBuffer)s).write(writer);
+        } else {
+            writer.write(s.toString());
         }
     }
 
@@ -491,18 +516,18 @@ public class XMLEmitter extends Emitter
     * @param inAttribute  Set to true if the text is in an attribute value
     */
 
-    protected void writeEscape(CharSequence chars, boolean inAttribute)
+    protected void writeEscape(final CharSequence chars, final boolean inAttribute)
     throws java.io.IOException {
         int segstart = 0;
         boolean disabled = false;
-        boolean[] specialChars = (inAttribute ? specialInAtt : specialInText);
+        final boolean[] specialChars = (inAttribute ? specialInAtt : specialInText);
 
         while (segstart < chars.length()) {
             int i = segstart;
 
             // find a maximal sequence of "ordinary" characters
             while (i < chars.length()) {
-                char c = chars.charAt(i);
+                final char c = chars.charAt(i);
                 if (c < 127) {
                     if (specialChars[c]) {
                         break;
@@ -520,17 +545,23 @@ public class XMLEmitter extends Emitter
                 }
             }
 
-            // write out this sequence
-            if (i > segstart) {
-                writer.write(chars.subSequence(segstart, i).toString());
-            }
-
-            // exit if this was the whole string
+            // if this was the whole string write it out and exit
             if (i >= chars.length()) {
+                if (segstart == 0) {
+                    writeCharSequence(chars);
+                } else {
+                    writeCharSequence(chars.subSequence(segstart, i));
+                }
                 return;
             }
 
-            char c = chars.charAt(i);
+            // otherwise write out this sequence
+            if (i > segstart) {
+                writeCharSequence(chars.subSequence(segstart, i));
+            }
+
+            // examine the special character that interrupted the scan
+            final char c = chars.charAt(i);
             if (c==0) {
                 // used to switch escaping on and off
                 disabled = !disabled;

@@ -1,13 +1,14 @@
 package net.sf.saxon.value;
-import net.sf.saxon.Configuration;
 import net.sf.saxon.Err;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.functions.Component;
-import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.om.FastStringBuffer;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.type.BuiltInAtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.type.ValidationException;
 
 import java.util.*;
 
@@ -140,8 +141,8 @@ public class DateValue extends CalendarValue implements Comparable {
         }
     }
 
-    private void badDate(String msg, CharSequence value) throws XPathException {
-        DynamicError err = new DynamicError("Invalid date " + Err.wrap(value, Err.VALUE) + ". " + msg);
+    private void badDate(String msg, CharSequence value) throws ValidationException {
+        ValidationException err = new ValidationException("Invalid date " + Err.wrap(value, Err.VALUE) + ". " + msg);
         err.setErrorCode("FORG0001");
         throw err;
     }
@@ -163,12 +164,11 @@ public class DateValue extends CalendarValue implements Comparable {
     /**
     * Convert to target data type
     * @param requiredType an integer identifying the required atomic type
-    * @return an AtomicValue, a value of the required type
-    * @throws XPathException if the conversion is not possible
+    * @return an AtomicValue, a value of the required type; or an ErrorValue
     */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
-        switch(requiredType) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+        switch(requiredType.getPrimitiveType()) {
         case Type.DATE:
         case Type.ATOMIC:
         case Type.ITEM:
@@ -177,10 +177,10 @@ public class DateValue extends CalendarValue implements Comparable {
             return new DateTimeValue(calendar, zoneSpecified);
 
         case Type.STRING:
-            return new StringValue(getStringValue());
+            return new StringValue(getStringValueCS());
 
         case Type.UNTYPED_ATOMIC:
-            return new UntypedAtomicValue(getStringValue());
+            return new UntypedAtomicValue(getStringValueCS());
 
         case Type.G_YEAR:
             GYearValue gy = new GYearValue();
@@ -208,11 +208,11 @@ public class DateValue extends CalendarValue implements Comparable {
             return gd;
 
         default:
-            DynamicError err = new DynamicError("Cannot convert date to " +
-                                     StandardNames.getDisplayName(requiredType));
-            err.setXPathContext(context);
+            ValidationException err = new ValidationException("Cannot convert date to " +
+                                     requiredType.getDisplayName());
+            //err.setXPathContext(context);
             err.setErrorCode("FORG0001");
-            throw err;
+            return new ErrorValue(err);
         }
     }
 
@@ -233,7 +233,7 @@ public class DateValue extends CalendarValue implements Comparable {
 
     public String getStringValue() {
 
-        StringBuffer sb = new StringBuffer(16);
+        FastStringBuffer sb = new FastStringBuffer(16);
         int era = calendar.get(GregorianCalendar.ERA);
         int year = calendar.get(Calendar.YEAR);
         if (era == GregorianCalendar.BC) {
@@ -270,9 +270,9 @@ public class DateValue extends CalendarValue implements Comparable {
 
     public CalendarValue removeTimezone() throws XPathException {
         return (CalendarValue)
-                    ((DateTimeValue)convert(Type.DATE_TIME, null))
+                    ((DateTimeValue)convert(Type.DATE_TIME))
                         .removeTimezone()
-                        .convert(Type.DATE, null);
+                        .convert(Type.DATE);
     }
 
     /**
@@ -284,16 +284,16 @@ public class DateValue extends CalendarValue implements Comparable {
 
     public CalendarValue setTimezone(SecondsDurationValue tz) throws XPathException {
        return (CalendarValue)
-                    ((DateTimeValue)convert(Type.DATE_TIME, null))
+                    ((DateTimeValue)convert(Type.DATE_TIME))
                         .setTimezone(tz)
-                        .convert(Type.DATE, null);
+                        .convert(Type.DATE);
     }
 
     /**
     * Convert to Java object (for passing to external functions)
     */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
+    public Object convertToJava(Class target, XPathContext context) throws XPathException {
         if (target.isAssignableFrom(Date.class)) {
             return getUTCDate();
         } else if (target.isAssignableFrom(DateTimeValue.class)) {
@@ -303,7 +303,7 @@ public class DateValue extends CalendarValue implements Comparable {
         } else if (target==Object.class) {
             return getStringValue();
         } else {
-            Object o = super.convertToJava(target, config, context);
+            Object o = super.convertToJava(target, context);
             if (o == null) {
                 throw new DynamicError("Conversion of date to " + target.getName() +
                         " is not supported");
@@ -400,18 +400,19 @@ public class DateValue extends CalendarValue implements Comparable {
   /**
      * Determine the difference between two points in time, as a duration
      * @param other the other point in time
-     * @return the duration as an xdt:dayTimeDuration
+     * @param context
+   * @return the duration as an xdt:dayTimeDuration
      * @throws XPathException for example if one value is a date and the other is a time
      */
 
-    public SecondsDurationValue subtract(CalendarValue other) throws XPathException {
+    public SecondsDurationValue subtract(CalendarValue other, XPathContext context) throws XPathException {
         if (!(other instanceof DateValue)) {
             DynamicError err = new DynamicError(
                     "First operand of '-' is a date, but the second is not");
             err.setIsTypeError(true);
             throw err;
         }
-        return super.subtract(other);
+        return super.subtract(other, context);
     }
 
  }

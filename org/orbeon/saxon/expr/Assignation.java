@@ -1,8 +1,8 @@
 package net.sf.saxon.expr;
 import net.sf.saxon.om.NamePool;
+import net.sf.saxon.om.ValueRepresentation;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -50,6 +50,15 @@ public abstract class Assignation extends ComputedExpression implements Binding 
             declaration.fixupReferences(this);
         }
         adoptChildExpression(action);
+    }
+
+    /**
+     * Indicate whether the binding is local or global. A global binding is one that has a fixed
+     * value for the life of a query or transformation; any other binding is local.
+     */
+
+    public boolean isGlobal() {
+        return false;
     }
 
     /**
@@ -101,21 +110,28 @@ public abstract class Assignation extends ComputedExpression implements Binding 
             if (offer.action == PromotionOffer.INLINE_VARIABLE_REFERENCES ||
                     offer.action == PromotionOffer.UNORDERED) {
                 action = action.promote(offer);
-            } else if (offer.action == PromotionOffer.RANGE_INDEPENDENT
-//                    || offer.action == PromotionOffer.WHERE_CLAUSE
-                                                                            ) {
+            } else if (offer.action == PromotionOffer.RANGE_INDEPENDENT) {
                 // Pass the offer to the action expression only if the action isn't dependent on the
                 // variable bound by this assignation
                 Binding[] savedBindingList = offer.bindingList;
-                Binding[] newBindingList = new Binding[offer.bindingList.length+1];
-                System.arraycopy(offer.bindingList, 0, newBindingList, 0, offer.bindingList.length);
-                newBindingList[offer.bindingList.length] = this;
+                Binding[] newBindingList = extendBindingList(offer.bindingList);
                 offer.bindingList = newBindingList;
                 action = action.promote(offer);
                 offer.bindingList = savedBindingList;
             }
             return this;
         }
+    }
+
+    /**
+     * Extend an array of variable bindings to include the binding(s) defined in this expression
+     */
+
+    protected Binding[] extendBindingList(Binding[] in) {
+        Binding[] newBindingList = new Binding[in.length+1];
+        System.arraycopy(in, 0, newBindingList, 0, in.length);
+        newBindingList[in.length] = this;
+        return newBindingList;
     }
 
     /**
@@ -129,14 +145,21 @@ public abstract class Assignation extends ComputedExpression implements Binding 
      * <p>if (C) then (let $i := SEQ return R) else ()
      */
 
-    protected Expression promoteWhereClause() {
+    protected Expression promoteWhereClause(Binding positionBinding) {
         if (action instanceof IfExpression) {
             Container container = getParentExpression();
             IfExpression ifex = (IfExpression)action;
             Expression condition = ifex.getCondition();
             Expression elseex = ifex.getElseExpression();
-            Binding[] bindingList = {this};
             if (elseex instanceof EmptySequence) {
+                Binding[] bindingList;
+                if (positionBinding == null) {
+                    Binding[] bl = {this};
+                    bindingList = bl;
+                } else {
+                    Binding[] bl = {this, positionBinding};
+                    bindingList = bl;
+                }
                 List list = new ArrayList(5);
                 Expression promotedCondition = null;
                 listAndComponents(condition, list);
@@ -232,7 +255,7 @@ public abstract class Assignation extends ComputedExpression implements Binding 
     * Get the value of the range variable
     */
 
-    public Value evaluateVariable(XPathContext context) throws XPathException {
+    public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException {
         return context.evaluateLocalVariable(slotNumber);
     }
 

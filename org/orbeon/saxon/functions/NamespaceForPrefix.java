@@ -1,11 +1,11 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.Axis;
+import net.sf.saxon.om.InscopeNamespaceResolver;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.om.NamespaceResolver;
 import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.value.AnyURIValue;
 
 
 /**
@@ -14,27 +14,26 @@ import net.sf.saxon.xpath.XPathException;
 
 public class NamespaceForPrefix extends SystemFunction {
 
+    /**
+     * Evaluate the function
+     * @param context the XPath dynamic context
+     * @return the URI corresponding to the prefix supplied in the first argument, or null
+     * if the prefix is not in scope
+     * @throws XPathException if a failure occurs evaluating the arguments
+     */
+
     public Item evaluateItem(XPathContext context) throws XPathException {
         NodeInfo element = (NodeInfo)argument[1].evaluateItem(context);
         String prefix = argument[0].evaluateItem(context).getStringValue();
-        SequenceIterator nsNodes = element.iterateAxis(Axis.NAMESPACE);
-        while (true) {
-            NodeInfo ns = (NodeInfo)nsNodes.next();
-            if (ns == null) {
-                break;
-            }
-            if (ns.getLocalPart().equals(prefix)) {
-                return new StringValue(ns.getStringValue());
-            }
+        NamespaceResolver resolver = new InscopeNamespaceResolver(element);
+        String uri = resolver.getURIForPrefix(prefix, true);
+        if (uri == null) {
+            return null;
         }
-        return null;
+        return new AnyURIValue(uri);
     }
 
 }
-
-
-
-
 
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");

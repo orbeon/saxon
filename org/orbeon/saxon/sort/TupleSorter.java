@@ -4,11 +4,11 @@ import net.sf.saxon.expr.*;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AnyItemType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.ObjectValue;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -94,6 +94,7 @@ public class TupleSorter extends ComputedExpression implements MappingFunction {
     }
 
     public boolean effectiveBooleanValue(XPathContext context) throws XPathException {
+        // TODO: is this still correct? EBV now depends on the order of the sequence
         return base.effectiveBooleanValue(context);
     }
 

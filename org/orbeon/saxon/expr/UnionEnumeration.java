@@ -4,7 +4,7 @@ import net.sf.saxon.om.LookaheadIterator;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.sort.NodeOrderComparer;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 /**
 * An enumeration representing a nodeset that is a union of two other NodeSets.

@@ -6,7 +6,6 @@ import net.sf.saxon.instruct.WithParam;
 import net.sf.saxon.om.Axis;
 import net.sf.saxon.om.AxisIterator;
 import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NodeInfo;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -28,13 +27,14 @@ public class XSLWithParam extends XSLGeneralVariable {
     public void validate() throws TransformerConfigurationException {
         super.validate();
 
-        NodeInfo parent = getParent();
-        if (!((parent instanceof XSLApplyTemplates) ||
-                 (parent instanceof XSLCallTemplate) ||
-                 (parent instanceof XSLApplyImports) ||
-                 (parent instanceof XSLNextMatch))) {
-            compileError("xsl:with-param cannot appear as a child of " + parent.getDisplayName(), "XT0010");
-        }
+//      following check removed: it's now the responsibility of parents to check their children
+//        NodeInfo parent = getParent();
+//        if (!((parent instanceof XSLApplyTemplates) ||
+//                 (parent instanceof XSLCallTemplate) ||
+//                 (parent instanceof XSLApplyImports) ||
+//                 (parent instanceof XSLNextMatch))) {
+//            compileError("xsl:with-param cannot appear as a child of " + parent.getDisplayName(), "XT0010");
+//        }
 
         // Check for duplicate parameter names
 

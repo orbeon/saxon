@@ -1,10 +1,11 @@
 package net.sf.saxon.instruct;
-import net.sf.saxon.om.NamePool;
+import net.sf.saxon.om.NamespaceConstant;
 import net.sf.saxon.om.NamespaceResolver;
 
 import java.io.Serializable;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 /**
   * A dummy namespace resolver used when validating QName-valued attributes written to
@@ -30,8 +31,7 @@ public final class DummyNamespaceResolver implements Serializable, NamespaceReso
 
 
     /**
-    * Get the namespace URI corresponding to a given prefix. This implementation
-     * returns a dummy URI
+    * Get the namespace URI corresponding to a given prefix.
     * @param prefix the namespace prefix
     * @param useDefault true if the default namespace is to be used when the
     * prefix is ""
@@ -39,19 +39,14 @@ public final class DummyNamespaceResolver implements Serializable, NamespaceReso
     */
 
     public String getURIForPrefix(String prefix, boolean useDefault) {
-        return "saxon dummy namespace URI";
-    }
-
-    /**
-    * Use this NamespaceContext to resolve a lexical QName
-    * @param qname the lexical QName; this must have already been lexically validated
-    * @param useDefault true if the default namespace is to be used to resolve an unprefixed QName
-    * @param pool the NamePool to be used
-    * @return the integer fingerprint that uniquely identifies this name
-    */
-
-    public int getFingerprint(String qname, boolean useDefault, NamePool pool) {
-        return -1;
+        if ("".equals(prefix)) {
+            return "";
+        } else if ("xml".equals(prefix)) {
+            return NamespaceConstant.XML;
+        } else {
+            // this is a dummy namespace resolver, we don't actually know the URI
+            return "";
+        }
     }
 
     /**
@@ -60,7 +55,10 @@ public final class DummyNamespaceResolver implements Serializable, NamespaceReso
      */
 
     public Iterator iteratePrefixes() {
-        return Collections.EMPTY_LIST.iterator();
+        List list = new ArrayList(2);
+        list.add("");
+        list.add("xml");
+        return list.iterator();
     }
 }
 

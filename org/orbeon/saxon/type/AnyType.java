@@ -3,7 +3,6 @@ package net.sf.saxon.type;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.om.NamespaceConstant;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.om.SingletonIterator;
@@ -17,7 +16,7 @@ import java.io.Serializable;
  * also known as the urtype.
  */
 
-public final class AnyType implements ComplexType, ValidSchemaType, Serializable {
+public final class AnyType implements ComplexType, Serializable {
 
     private static AnyType theInstance = new AnyType();
 
@@ -71,7 +70,7 @@ public final class AnyType implements ComplexType, ValidSchemaType, Serializable
      * parent. Returns zero for primitive types.
      *
      * @return a numeric code representing the derivation method, for example
-     * {@link org.w3c.dom.TypeInfo#DERIVATION_RESTRICTION}
+     * {@link SchemaType#DERIVATION_RESTRICTION}
      */
 
     public int getDerivationMethod() {
@@ -82,7 +81,7 @@ public final class AnyType implements ComplexType, ValidSchemaType, Serializable
      * Determines whether derivation (of a particular kind)
      * from this type is allowed, based on the "final" property
      *
-     * @param derivation the kind of derivation, for example {@link org.w3c.dom.TypeInfo#DERIVATION_LIST}
+     * @param derivation the kind of derivation, for example {@link SchemaType#DERIVATION_LIST}
      * @return true if this kind of derivation is allowed
      */
 
@@ -120,7 +119,7 @@ public final class AnyType implements ComplexType, ValidSchemaType, Serializable
 
     /**
      * Returns the value of the 'block' attribute for this type, as a bit-signnificant
-     * integer with fields such as {@link org.w3c.dom.TypeInfo#DERIVATION_LIST} and {@link org.w3c.dom.TypeInfo#DERIVATION_EXTENSION}
+     * integer with fields such as {@link SchemaType#DERIVATION_LIST} and {@link SchemaType#DERIVATION_EXTENSION}
      *
      * @return the value of the 'block' attribute for this type
      */
@@ -211,6 +210,16 @@ public final class AnyType implements ComplexType, ValidSchemaType, Serializable
     }
 
     /**
+     * Get the namecode of the name of this type. This includes the prefix from the original
+     * type declaration: in the case of built-in types, there may be a conventional prefix
+     * or there may be no prefix.
+     */
+
+    public int getNameCode() {
+        return StandardNames.XS_ANY_TYPE;
+    }
+
+    /**
      * Get a description of this type for use in diagnostics
      * @return the string "xs:anyType"
      */
@@ -244,8 +253,8 @@ public final class AnyType implements ComplexType, ValidSchemaType, Serializable
      * type.
      *
      @param expression the expression that delivers the content
-     * @param kind       the node kind whose content is being delivered: {@link net.sf.saxon.type.Type.ELEMENT},
-          *                   {@link net.sf.saxon.type.Type.ATTRIBUTE}, or {@link net.sf.saxon.type.Type.DOCUMENT}
+     * @param kind       the node kind whose content is being delivered: {@link net.sf.saxon.type.Type#ELEMENT},
+          *                   {@link net.sf.saxon.type.Type#ATTRIBUTE}, or {@link net.sf.saxon.type.Type#DOCUMENT}
      * @param env
 
      */
@@ -286,53 +295,8 @@ public final class AnyType implements ComplexType, ValidSchemaType, Serializable
      *          if the derivation is not allowed
      */
 
-    public void checkDerivation(SchemaType type, int block) throws SchemaException {
+    public void isTypeDerivationOK(SchemaType type, int block) throws SchemaException {
         throw new SchemaException("Cannot derive xs:anyType from another type");
-    }
-
-    /**
-     * The name of a type declared for the associated element or attribute,
-     * or <code>null</code> if unknown.
-     */
-    public String getTypeName() {
-        return "anyType";
-    }
-
-    /**
-     * The namespace of the type declared for the associated element or
-     * attribute or <code>null</code> if the element does not have
-     * declaration or if no namespace information is available.
-     */
-    
-    public String getTypeNamespace() {
-        return NamespaceConstant.SCHEMA;
-    }
-
-    /**
-     * This method returns if there is a derivation between the reference
-     * type definition, i.e. the <code>TypeInfo</code> on which the method
-     * is being called, and the other type definition, i.e. the one passed
-     * as parameters.
-     *
-     * @param typeNamespaceArg the namespace of the other type definition.
-     * @param typeNameArg      the name of the other type definition.
-     * @param derivationMethod the type of derivation and conditions applied
-     *                         between two types, as described in the list of constants provided
-     *                         in this interface.
-     * @return If the document's schema is a DTD or no schema is associated
-     *         with the document, this method will always return <code>false</code>
-     *         .  If the document's schema is an XML Schema, the method will
-     *         <code>true</code> if the reference type definition is derived from
-     *         the other type definition according to the derivation parameter. If
-     *         the value of the parameter is <code>0</code> (no bit is set to
-     *         <code>1</code> for the <code>derivationMethod</code> parameter),
-     *         the method will return <code>true</code> if the other type
-     *         definition can be reached by recursing any combination of {base
-     *         type definition}, {item type definition}, or {member type
-     *         definitions} from the reference type definition.
-     */
-    public boolean isDerivedFrom(String typeNamespaceArg, String typeNameArg, int derivationMethod) {
-        return false;
     }
 
     /**
@@ -353,8 +317,8 @@ public final class AnyType implements ComplexType, ValidSchemaType, Serializable
      * Find an element particle within this complex type definition having a given element name
      * (identified by fingerprint), and return the cardinality associated with that element particle,
      * that is, the number of times the element can occur within this complex type. The value is one of
-     * {@link net.sf.saxon.expr.StaticProperty.EXACTLY_ONE}, {@link net.sf.saxon.expr.StaticProperty.ALLOWS_ZERO_OR_ONE},
-     * {@link net.sf.saxon.expr.StaticProperty.ALLOWS_ZERO_OR_MORE}, {@link net.sf.saxon.expr.StaticProperty.ALLOWS_ONE_OR_MORE},
+     * {@link net.sf.saxon.expr.StaticProperty#EXACTLY_ONE}, {@link net.sf.saxon.expr.StaticProperty#ALLOWS_ZERO_OR_ONE},
+     * {@link net.sf.saxon.expr.StaticProperty#ALLOWS_ZERO_OR_MORE}, {@link net.sf.saxon.expr.StaticProperty#ALLOWS_ONE_OR_MORE},
      * If there is no such particle, return zero.
      *
      * @param fingerprint Identifies the name of the child element within this content model

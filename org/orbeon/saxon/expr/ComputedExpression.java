@@ -9,12 +9,12 @@ import net.sf.saxon.om.SingletonIterator;
 import net.sf.saxon.trace.InstructionInfo;
 import net.sf.saxon.trace.InstructionInfoProvider;
 import net.sf.saxon.trace.Location;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.Cardinality;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.SourceLocator;
 import java.io.Serializable;
@@ -143,6 +143,13 @@ public abstract class ComputedExpression
      */
 
     public String getSystemId() {
+        if (locationId == -1) {
+            if (parentExpression != null) {
+                return parentExpression.getSystemId();
+            } else {
+                return null;
+            }
+        }
         Executable exec = getExecutable();
         if (exec == null) {
             return null;
@@ -196,7 +203,7 @@ public abstract class ComputedExpression
      * @param offer details of the offer, for example the offer to move
      *     expressions that don't depend on the context to an outer level in
      *     the containing expression
-     * @exception XPathException if any error is detected
+     * @exception net.sf.saxon.trans.XPathException if any error is detected
      * @return if the offer is not accepted, return this expression unchanged.
      *      Otherwise return the result of rewriting the expression to promote
      *      this subexpression
@@ -205,9 +212,9 @@ public abstract class ComputedExpression
     public Expression promote(PromotionOffer offer) throws XPathException {
         // The following temporary code checks that this method is implemented for all expressions
         // that have subexpressions
-//        if (getSubExpressions().length > 0) {
-//            throw new UnsupportedOperationException("promote is not implemented for " + this.getClass());
-//        }
+        if (iterateSubExpressions().hasNext()) {
+            throw new UnsupportedOperationException("promote is not implemented for " + this.getClass());
+        }
         return this;
     }
 

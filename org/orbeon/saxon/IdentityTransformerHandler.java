@@ -2,7 +2,7 @@ package net.sf.saxon;
 import net.sf.saxon.event.PipelineConfiguration;
 import net.sf.saxon.event.ReceivingContentHandler;
 import net.sf.saxon.event.ResultWrapper;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 import org.xml.sax.SAXException;
 
 import javax.xml.transform.Result;
@@ -91,7 +91,7 @@ public class IdentityTransformerHandler extends ReceivingContentHandler implemen
         try {
             Properties props = controller.getOutputProperties();
             PipelineConfiguration pipe = controller.makePipelineConfiguration();
-            setReceiver(ResultWrapper.getReceiver(result, pipe, props, null));
+            setReceiver(ResultWrapper.getReceiver(result, pipe, props));
             setPipelineConfiguration(pipe);
         } catch (XPathException err) {
             throw new SAXException(err);

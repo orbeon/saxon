@@ -1,9 +1,9 @@
 package net.sf.saxon.expr;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.BooleanValue;
-import net.sf.saxon.xpath.XPathException;
 
 
 /**
@@ -34,8 +34,8 @@ class BooleanExpression extends BinaryExpression {
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
         Expression exp = super.analyze(env, contextItemType);
         if (exp instanceof BooleanExpression) {
-            ((BooleanExpression)exp).operand0 = ExpressionTool.unsorted(operand0, false);
-            ((BooleanExpression)exp).operand1 = ExpressionTool.unsorted(operand1, false);
+            ((BooleanExpression)exp).operand0 = ExpressionTool.unsortedIfHomogeneous(operand0, false);
+            ((BooleanExpression)exp).operand1 = ExpressionTool.unsortedIfHomogeneous(operand1, false);
         }
         return exp;
     }

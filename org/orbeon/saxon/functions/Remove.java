@@ -5,11 +5,11 @@ import net.sf.saxon.expr.TailExpression;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.IntegerValue;
 import net.sf.saxon.value.NumericValue;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * The XPath 2.0 remove() function

@@ -1,11 +1,8 @@
 package net.sf.saxon.value;
-import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.type.*;
 
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -15,12 +12,16 @@ import java.net.URL;
 
 
 /**
-* A string value
+* An XPath value of type xs:anyURI.
+ *
+ * <p>This is implemented as a subtype of StringValue even though xs:anyURI is not a subtype of
+ * xs:string in the XPath type hierarchy. This enables type promotion from URI to String to happen
+ * automatically in most cases where it is appropriate.</p>
 */
 
-public final class AnyURIValue extends AtomicValue {
+public final class AnyURIValue extends StringValue {
 
-    private String value;     // may be zero-length, will never be null
+    public static final AnyURIValue EMPTY_URI = new AnyURIValue("");
 
     /**
     * Constructor
@@ -32,23 +33,14 @@ public final class AnyURIValue extends AtomicValue {
     }
 
     /**
-    * Get the string value as a String
-    * @return the string value
-    */
-
-    public String getStringValue() {
-        return value;
-    }
-
-    /**
     * Convert to target data type
     * @param requiredType integer code representing the item type required
-    * @return the result of the conversion
-    * @throws XPathException if the conversion is not allowed
+    * @return the result of the conversion, or an ErrorValue
     */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
-        switch(requiredType) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+        int req = requiredType.getPrimitiveType();
+        switch(req) {
         case Type.ATOMIC:
         case Type.ITEM:
         case Type.ANY_URI:
@@ -66,40 +58,52 @@ public final class AnyURIValue extends AtomicValue {
         case Type.IDREF:
         case Type.ENTITY:
         case Type.NMTOKEN:
-            return new RestrictedStringValue(value, requiredType);
+            return RestrictedStringValue.makeRestrictedString(value, req, validate);
+
         default:
-            DynamicError err = new DynamicError("Cannot convert anyURI to " +
-                                     StandardNames.getDisplayName(requiredType));
-            err.setXPathContext(context);
+            ValidationException err = new ValidationException("Cannot convert anyURI to " +
+                                     requiredType.getDisplayName());
             err.setErrorCode("FORG0001");
-            throw err;
+            return new ErrorValue(err);
         }
     }
 
     /**
     * Return the type of the expression
-    * @return Type.ANY_URI (always)
+    * @return Type.ANY_URI_TYPE (always)
     */
 
     public ItemType getItemType() {
         return Type.ANY_URI_TYPE;
     }
 
-
     /**
-    * Determine if two anyURI values are equal
-    * @return true if the two values are equal
-    * @throws ClassCastException if the other value is not an AnyURIValue
-    */
+     * Determine if two AnyURIValues are equal, according to XML Schema rules. (This method
+     * is not used for XPath comparisons, which are always under the control of a collation.)
+     * @throws ClassCastException if the values are not comparable
+     */
 
     public boolean equals(Object other) {
-        return this.value.equals(((AnyURIValue)other).value);
+        // Force a ClassCastException if the other value isn't an anyURI or derived from anyURI
+        AnyURIValue otherVal = (AnyURIValue) ((AtomicValue) other).getPrimitiveValue();
+        // cannot use equals() directly on two unlike CharSequences
+        return getStringValue().equals(otherVal.getStringValue());
     }
 
-    public int hashCode() {
-        return value.hashCode();
+    /**
+     * Get the effective boolean value of the value
+     *
+     * @param context the evaluation context (not used in this implementation)
+     * @return true, unless the value is boolean false, numeric zero, or
+     *     zero-length string
+     */
+    public boolean effectiveBooleanValue(XPathContext context) throws XPathException {
+        DynamicError err = new DynamicError(
+                "Effective boolean value is not defined for a value of type xs:anyURI");
+        err.setIsTypeError(true);
+        err.setXPathContext(context);
+        throw err;
     }
-
 
     /**
     * Convert to Java object (for passing to external functions)
@@ -108,20 +112,20 @@ public final class AnyURIValue extends AtomicValue {
     * @throws XPathException if conversion to this target type is not possible
     */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
+    public Object convertToJava(Class target, XPathContext context) throws XPathException {
         if (target==Object.class) {
             return value;
         } else if (target.isAssignableFrom(StringValue.class)) {
             return this;
         } else if (target==URI.class) {
             try {
-                return new URI(value);
+                return new URI(value.toString());
             } catch (URISyntaxException err) {
                 throw new DynamicError("The anyURI value '" + value + "' is not an acceptable Java URI");
             }
         } else if (target==URL.class) {
             try {
-                return new URL(value);
+                return new URL(value.toString());
             } catch (MalformedURLException err) {
                 throw new DynamicError("The anyURI value '" + value + "' is not an acceptable Java URL");
             }
@@ -130,7 +134,7 @@ public final class AnyURIValue extends AtomicValue {
         } else if (target==CharSequence.class) {
             return value;
         } else {
-             Object o = super.convertToJava(target, config, context);
+             Object o = super.convertToJava(target, context);
             if (o == null) {
                 throw new DynamicError("Conversion of anyURI to " + target.getName() +
                         " is not supported");

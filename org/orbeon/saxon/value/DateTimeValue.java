@@ -1,13 +1,14 @@
 package net.sf.saxon.value;
-import net.sf.saxon.Configuration;
 import net.sf.saxon.Controller;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.functions.Component;
-import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.om.FastStringBuffer;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.type.BuiltInAtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.type.ValidationException;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -24,20 +25,19 @@ public final class DateTimeValue extends CalendarValue implements Comparable {
 
 
     /**
-    * Constructor: create a dateTime value representing the nominal
+    * get the dateTime value representing the nominal
     * date/time of this transformation run. Two calls within the same
-    * transformation will always return the same answer.
+    * query or transformation will always return the same answer.
     */
 
-    public DateTimeValue(XPathContext context) {
+    public static DateTimeValue getCurrentDateTime(XPathContext context) {
         Controller c = context.getController();
         if (c==null) {
-            // non-XSLT environment
-            calendar = new GregorianCalendar();
+            // non-XSLT/XQuery environment
+            return new DateTimeValue(new GregorianCalendar(), true);
         } else {
-            calendar = c.getCurrentDateTime();
+            return c.getCurrentDateTime();
         }
-        zoneSpecified = true;
     }
 
     /**
@@ -269,66 +269,77 @@ public final class DateTimeValue extends CalendarValue implements Comparable {
     /**
     * Convert to target data type
     * @param requiredType an integer identifying the required atomic type
-    * @return an AtomicValue, a value of the required type
-    * @throws XPathException if the conversion is not possible
+    * @return an AtomicValue, a value of the required type; or an ErrorValue
     */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
-        switch(requiredType) {
-        case Type.DATE_TIME:
-        case Type.ATOMIC:
-        case Type.ITEM:
-            return this;
-        case Type.DATE:
-            String ds = getStringValue();
-            int sep = ds.indexOf('T');
-            if (zoneSpecified) {
-                int z = ds.indexOf('Z', sep);
-                if (z < 0) {
-                    z = ds.indexOf('+', sep);
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+        try {
+            switch(requiredType.getPrimitiveType()) {
+            case Type.DATE_TIME:
+            case Type.ATOMIC:
+            case Type.ITEM:
+                return this;
+            case Type.DATE:
+                String ds = getStringValue();
+                int sep = ds.indexOf('T');
+                if (zoneSpecified) {
+                    int z = ds.indexOf('Z', sep);
+                    if (z < 0) {
+                        z = ds.indexOf('+', sep);
+                    }
+                    if (z < 0) {
+                        z = ds.indexOf('-', sep);
+                    }
+                    if (z < 0) {
+                        // something's gone wrong
+                        throw new IllegalArgumentException("Internal date formatting error " + ds);
+                    }
+                    return new DateValue(ds.substring(0, sep) + ds.substring(z));
+                } else {
+                    return new DateValue(ds.substring(0, sep));
                 }
-                if (z < 0) {
-                    z = ds.indexOf('-', sep);
-                }
-                if (z < 0) {
-                    // something's gone wrong
-                    throw new IllegalArgumentException("Internal date formatting error " + ds);
-                }
-                return new DateValue(ds.substring(0, sep) + ds.substring(z));
-            } else {
-                return new DateValue(ds.substring(0, sep));
+            case Type.TIME:
+                ds = getStringValue();
+                sep = ds.indexOf('T');
+                return new TimeValue(ds.substring(sep+1));
+
+            case Type.G_YEAR:
+                return(convertPrimitive(Type.DATE_TYPE, validate)
+                        .convertPrimitive(Type.G_YEAR_TYPE, validate));
+
+            case Type.G_YEAR_MONTH:
+                return(convertPrimitive(Type.DATE_TYPE, validate)
+                        .convertPrimitive(Type.G_YEAR_MONTH_TYPE, validate));
+
+            case Type.G_MONTH:
+                return(convertPrimitive(Type.DATE_TYPE, validate)
+                        .convertPrimitive(Type.G_MONTH_TYPE, validate));
+
+            case Type.G_MONTH_DAY:
+                return(convertPrimitive(Type.DATE_TYPE, validate)
+                        .convertPrimitive(Type.G_MONTH_DAY_TYPE, validate));
+
+            case Type.G_DAY:
+                return(convertPrimitive(Type.DATE_TYPE, validate)
+                        .convertPrimitive(Type.G_DAY_TYPE, validate));
+
+            case Type.STRING:
+                return new StringValue(getStringValueCS());
+
+            case Type.UNTYPED_ATOMIC:
+                return new UntypedAtomicValue(getStringValueCS());
+
+            default:
+                ValidationException err = new ValidationException("Cannot convert dateTime to " +
+                                         requiredType.getDisplayName());
+                //err.setXPathContext(context);
+                err.setErrorCode("FORG0001");
+                return new ErrorValue(err);
             }
-        case Type.TIME:
-            ds = getStringValue();
-            sep = ds.indexOf('T');
-            return new TimeValue(ds.substring(sep+1));
-
-        case Type.G_YEAR:
-            return(convert(Type.DATE, context).convert(Type.G_YEAR, context));
-
-        case Type.G_YEAR_MONTH:
-            return(convert(Type.DATE, context).convert(Type.G_YEAR_MONTH, context));
-
-        case Type.G_MONTH:
-            return(convert(Type.DATE, context).convert(Type.G_MONTH, context));
-
-        case Type.G_MONTH_DAY:
-            return(convert(Type.DATE, context).convert(Type.G_MONTH_DAY, context));
-
-        case Type.G_DAY:
-            return(convert(Type.DATE, context).convert(Type.G_DAY, context));
-
-        case Type.STRING:
-            return new StringValue(getStringValue());
-
-        case Type.UNTYPED_ATOMIC:
-            return new UntypedAtomicValue(getStringValue());
-        default:
-            DynamicError err = new DynamicError("Cannot convert dateTime to " +
-                                     StandardNames.getDisplayName(requiredType));
-            err.setXPathContext(context);
-            err.setErrorCode("FORG0001");
-            throw err;
+        } catch (ValidationException e) {
+            return new ErrorValue(e);
+        } catch (XPathException e) {
+            return new ErrorValue(new ValidationException(e));
         }
     }
 
@@ -340,7 +351,7 @@ public final class DateTimeValue extends CalendarValue implements Comparable {
 
     public String getStringValue() {
 
-        StringBuffer sb = new StringBuffer(30);
+        FastStringBuffer sb = new FastStringBuffer(30);
         int era = calendar.get(GregorianCalendar.ERA);
         int year = calendar.get(Calendar.YEAR);
         if (era == GregorianCalendar.BC) {
@@ -370,12 +381,12 @@ public final class DateTimeValue extends CalendarValue implements Comparable {
 
     }
 
-    static void appendString(StringBuffer sb, int value, int size) {
+    static void appendString(FastStringBuffer sb, int value, int size) {
         String s = "000"+value;
         sb.append( s.substring(s.length()-size) );
     }
 
-    static void appendSeconds(Calendar calendar, StringBuffer sb) {
+    static void appendSeconds(Calendar calendar, FastStringBuffer sb) {
         appendString(sb, calendar.get(Calendar.SECOND), 2);
         int millis = calendar.get(Calendar.MILLISECOND);
         if (millis != 0) {
@@ -397,7 +408,7 @@ public final class DateTimeValue extends CalendarValue implements Comparable {
      * representation
      */
 
-    public static void appendTimezone(Calendar calendar, StringBuffer sb) {
+    public static void appendTimezone(Calendar calendar, FastStringBuffer sb) {
         int timeZoneOffset = (calendar.get(Calendar.ZONE_OFFSET) +
                               calendar.get(Calendar.DST_OFFSET)) / 60000;
         appendTimezone(timeZoneOffset, sb);
@@ -412,7 +423,7 @@ public final class DateTimeValue extends CalendarValue implements Comparable {
      * representation
      */
 
-    static void appendTimezone(int timeZoneOffset, StringBuffer sb) {
+    static void appendTimezone(int timeZoneOffset, FastStringBuffer sb) {
         if (timeZoneOffset == 0) {
             sb.append('Z');
         } else {
@@ -461,7 +472,7 @@ public final class DateTimeValue extends CalendarValue implements Comparable {
             cal.setTime(getUTCDate());
             return new DateTimeValue(cal, true);
         } else {
-            StringBuffer sb = new StringBuffer(10);
+            FastStringBuffer sb = new FastStringBuffer(10);
             sb.append(getStringValue());
             appendTimezone((int)(tz.getLengthInSeconds()/60.0), sb);
             return new DateTimeValue(sb);
@@ -499,25 +510,26 @@ public final class DateTimeValue extends CalendarValue implements Comparable {
   /**
      * Determine the difference between two points in time, as a duration
      * @param other the other point in time
-     * @return the duration as an xdt:dayTimeDuration
+     * @param context
+   * @return the duration as an xdt:dayTimeDuration
      * @throws XPathException for example if one value is a date and the other is a time
      */
 
-    public SecondsDurationValue subtract(CalendarValue other) throws XPathException {
+    public SecondsDurationValue subtract(CalendarValue other, XPathContext context) throws XPathException {
         if (!(other instanceof DateTimeValue)) {
             DynamicError err = new DynamicError(
                     "First operand of '-' is a dateTime, but the second is not");
             err.setIsTypeError(true);
             throw err;
         }
-        return super.subtract(other);
+        return super.subtract(other, context);
     }
 
     /**
     * Convert to Java object (for passing to external functions)
     */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
+    public Object convertToJava(Class target, XPathContext context) throws XPathException {
         if (target.isAssignableFrom(Date.class)) {
             return getUTCDate();
         } else if (target.isAssignableFrom(DateTimeValue.class)) {
@@ -527,7 +539,7 @@ public final class DateTimeValue extends CalendarValue implements Comparable {
         } else if (target==Object.class) {
             return getStringValue();
         } else {
-            Object o = super.convertToJava(target, config, context);
+            Object o = super.convertToJava(target, context);
             if (o == null) {
                 throw new DynamicError("Conversion of dateTime to " + target.getName() +
                         " is not supported");
@@ -554,9 +566,9 @@ public final class DateTimeValue extends CalendarValue implements Comparable {
         case Component.MINUTES:
             return new IntegerValue(calendar.get(Calendar.MINUTE));
         case Component.SECONDS:
-            StringBuffer sb = new StringBuffer(10);
+            FastStringBuffer sb = new FastStringBuffer(10);
             appendSeconds(calendar, sb);
-            return new DecimalValue(sb);
+            return DecimalValue.makeDecimalValue(sb, false);
         case Component.TIMEZONE:
             if (zoneSpecified) {
                 int tzmsecs = (calendar.get(Calendar.ZONE_OFFSET) +

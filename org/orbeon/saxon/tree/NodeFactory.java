@@ -1,6 +1,6 @@
 package net.sf.saxon.tree;
 import net.sf.saxon.event.LocationProvider;
-import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.om.AttributeCollectionImpl;
 import net.sf.saxon.om.NodeInfo;
 
 
@@ -30,7 +30,7 @@ public interface NodeFactory {
     public ElementImpl makeElementNode(
             NodeInfo parent,
             int nameCode,
-            AttributeCollection attlist,
+            AttributeCollectionImpl attlist,
             int[] namespaces,
             int namespacesUsed,
             LocationProvider locator,

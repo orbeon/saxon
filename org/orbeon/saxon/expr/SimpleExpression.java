@@ -1,11 +1,12 @@
 package net.sf.saxon.expr;
 
 import net.sf.saxon.Controller;
+import net.sf.saxon.value.Value;
 import net.sf.saxon.event.SequenceOutputter;
 import net.sf.saxon.om.*;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Arrays;
@@ -19,7 +20,7 @@ import java.util.Iterator;
 
 public abstract class SimpleExpression extends ComputedExpression {
 
-    private static final Expression[] NO_ARGUMENTS = new Expression[0];
+    public static final Expression[] NO_ARGUMENTS = new Expression[0];
 
     protected Expression[] arguments = NO_ARGUMENTS;
 
@@ -78,7 +79,7 @@ public abstract class SimpleExpression extends ComputedExpression {
      * variables will only be accurately known if they have been explicitly declared.</p>
      *
      * @param env the static context of the expression
-     * @exception net.sf.saxon.xpath.StaticError if an error is discovered during this phase
+     * @exception net.sf.saxon.trans.StaticError if an error is discovered during this phase
      *     (typically a type error)
      * @return the original expression, rewritten to perform necessary
      *     run-time type checks, and to perform other type-related
@@ -227,7 +228,7 @@ public abstract class SimpleExpression extends ComputedExpression {
 
             process(c2);
 
-            return seq.getSequence().iterate(context);
+            return Value.getIterator(seq.getSequence());
         }
         return null;
     }
@@ -245,11 +246,11 @@ public abstract class SimpleExpression extends ComputedExpression {
             while (true) {
                 Item it = iter.next();
                 if (it==null) break;
-                context.getReceiver().append(it, locationId);
+                context.getReceiver().append(it, locationId, NodeInfo.ALL_NAMESPACES);
             }
         } else {
             Item item = evaluateItem(context);
-            context.getReceiver().append(item, locationId);
+            context.getReceiver().append(item, locationId, NodeInfo.ALL_NAMESPACES);
         }
     }
 

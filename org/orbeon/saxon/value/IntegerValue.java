@@ -1,17 +1,12 @@
 package net.sf.saxon.value;
 
-import net.sf.saxon.Configuration;
 import net.sf.saxon.Err;
 import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.expr.Token;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.type.AtomicType;
-import net.sf.saxon.type.BuiltInSchemaFactory;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.type.*;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -71,48 +66,127 @@ public final class IntegerValue extends NumericValue {
     public IntegerValue(long val, AtomicType type) throws DynamicError {
         this.value = val;
         this.type = type;
-        checkRange(value, type);
+        if (!checkRange(value, type)) {
+            DynamicError err = new DynamicError("Integer value " + val +
+                    " is out of range for the requested type " + type.getDescription());
+            err.setErrorCode("FORG0001");
+            throw err;
+        };
+    }
+
+    /**
+     * Convert the value to a subtype of xs:integer
+     * @param subtype the target subtype
+     * @param validate true if validation is required; false if the caller already knows that the value is valid
+     * @return null if the conversion succeeds; an XPathException describing the failure if it fails
+     */
+
+    public ValidationException convertToSubtype(AtomicType subtype, boolean validate) {
+        if (!validate) {
+            setSubType(subtype);
+            return null;
+        } else if (checkRange(subtype)) {
+            return null;
+        } else {
+            ValidationException err = new ValidationException("String " + value +
+                    " cannot be converted to integer subtype " + subtype.getDescription());
+            err.setErrorCode("FORG0001");
+            return err;
+        }
     }
 
     /**
      * This class allows subtypes of xs:integer to be held, as well as xs:integer values.
-     * This method sets the required type label
-     * @param type the subtype of integer required
-     * @throws DynamicError if the value is out of range for this subtype
+     * This method sets the required type label. It is the caller's responsibility to check that
+     * the value is within range.
      */
-    public void setSubType(AtomicType type) throws DynamicError {
+    public void setSubType(AtomicType type) {
         this.type = type;
-        checkRange(value, type);
+    }
+
+    /**
+     * This class allows subtypes of xs:integer to be held, as well as xs:integer values.
+     * This method checks that the value is within range, and also sets the type label.
+     * @param type the subtype of integer required
+     * @return true if successful, false if value is out of range for the subtype
+     */
+    public boolean checkRange(AtomicType type) {
+        this.type = type;
+        return checkRange(value, type);
     }
 
     /**
      * Static factory method to convert strings to integers.
      * @param s the String to be converted
-     * @return either an IntegerValue or a BigIntegerValue representing the value of the String;
-     * @throws DynamicError if it cannot be converted
+     * @return either an IntegerValue or a BigIntegerValue representing the value of the String, or
+     * an ErrorValue encapsulating an Exception if the value cannot be converted.
      */
 
-    public static NumericValue stringToInteger(CharSequence s) throws DynamicError {
-        try {
-            CharSequence t = trimWhitespace(s);
-            if (t.charAt(0) == '+') {
-                t = t.subSequence(1, t.length());
-            }
-            if (t.length() < 16) {
-                return new IntegerValue(Long.parseLong(t.toString()));
-            } else {
-                return new BigIntegerValue(new BigInteger(t.toString()));
-            }
-        } catch (NumberFormatException err) {
-            //err.printStackTrace();
-            DynamicError e = new DynamicError("Cannot convert string " + Err.wrap(s, Err.VALUE) + " to an integer");
-            e.setErrorCode("FORG0001");
-            throw e;
-        } catch (StringIndexOutOfBoundsException err2) {
-            DynamicError e = new DynamicError("Cannot convert zero-length string to an integer");
-            e.setErrorCode("FORG0001");
-            throw e;
+    public static AtomicValue stringToInteger(CharSequence s) {
+
+        int len = s.length();
+        int start = 0;
+        while (start < len && s.charAt(start) <= 0x20) {
+            start++;
         }
+        int last = len - 1;
+        while (last > start && s.charAt(last) <= 0x20) {
+            last--;
+        }
+        if (start > last) {
+            return numericError("Cannot convert zero-length string to an integer");
+        }
+        if (last - start < 16) {
+            // for short numbers, we do the conversion ourselves, to avoid throwing unnecessary exceptions
+            boolean negative = false;
+            long value = 0;
+            int i=start;
+            if (s.charAt(i) == '+') {
+                i++;
+            } else if (s.charAt(i) == '-') {
+                negative = true;
+                i++;
+            }
+            if (i > last) {
+                return numericError("Cannot convert string " + Err.wrap(s, Err.VALUE) +
+                        " to integer: no digits after the sign");
+            }
+            while (i <= last) {
+                char d = s.charAt(i++);
+                if (d >= '0' && d <= '9') {
+                    value = 10*value + (d-'0');
+                } else {
+                    return numericError("Cannot convert string " + Err.wrap(s, Err.VALUE) + " to an integer");
+                }
+            }
+            return new IntegerValue((negative ? -value : value));
+        } else {
+            // for longer numbers, rely on library routines
+            try {
+                CharSequence t = trimWhitespace(s);
+                if (t.charAt(0) == '+') {
+                    t = t.subSequence(1, t.length());
+                }
+                if (t.length() < 16) {
+                    return new IntegerValue(Long.parseLong(t.toString()));
+                } else {
+                    return new BigIntegerValue(new BigInteger(t.toString()));
+                }
+            } catch (NumberFormatException err) {
+                return numericError("Cannot convert string " + Err.wrap(s, Err.VALUE) + " to an integer");
+            }
+        }
+    }
+
+    /**
+     * Helper method to handle errors converting a string to a number
+     * @param message error message
+     * @return an ErrorValue encapsulating an Exception describing the error
+     */
+    private static ErrorValue numericError(String message) {
+        ValidationException err = new ValidationException(message);
+        err.setErrorCode("FORG0001");
+        return new ErrorValue(err);
     }
 
     /**
@@ -120,24 +194,20 @@ public final class IntegerValue extends NumericValue {
      *
      * @param value the value to be checked
      * @param type the required item type, a subtype of xs:integer
-     * @exception DynamicError if the value is out of range for the required
-     *      subtype
+     * @return true if successful, false if value is out of range for the subtype
      */
 
-    private static void checkRange(long value, AtomicType type) throws DynamicError {
+    private static boolean checkRange(long value, AtomicType type) {
         for (int i = 0; i < ranges.length; i += 3) {
             if (ranges[i] == type.getFingerprint()) {
                 if (value < ranges[i + 1] || value > ranges[i + 2]) {
-                    DynamicError err = new DynamicError("Value is out of range for type " + type.toString());
-                    err.setErrorCode("FORG0001");
-                    throw err;
+                    return false;
                 }
-                return;
+                return true;
             }
         }
-        DynamicError err = new DynamicError("No range information for type " + type.toString());
-        err.setErrorCode("FORG0001");
-        throw err;
+        throw new IllegalArgumentException(
+                "No range information found for integer subtype " + type.getDescription());
     }
 
     /**
@@ -214,13 +284,12 @@ public final class IntegerValue extends NumericValue {
     /**
      * Convert to target data type
      *
-     * @exception XPathException if the conversion is not possible
      * @param requiredType an integer identifying the required atomic type
      * @return an AtomicValue, a value of the required type
      */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
-        switch (requiredType) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+        switch (requiredType.getFingerprint()) {
             case Type.BOOLEAN:
                 return BooleanValue.get(value != 0);
 
@@ -242,8 +311,12 @@ public final class IntegerValue extends NumericValue {
             case Type.UNSIGNED_INT:
             case Type.UNSIGNED_SHORT:
             case Type.UNSIGNED_BYTE:
-                return new IntegerValue(value,
-                        (AtomicType) BuiltInSchemaFactory.getSchemaType(requiredType));
+                IntegerValue val = new IntegerValue(value);
+                ValidationException err = val.convertToSubtype(requiredType, validate);
+                if (err != null) {
+                    return new ErrorValue(err);
+                }
+                return val;
 
             case Type.DOUBLE:
                 return new DoubleValue((double) value);
@@ -261,11 +334,11 @@ public final class IntegerValue extends NumericValue {
                 return new UntypedAtomicValue(getStringValue());
 
             default:
-                DynamicError err = new DynamicError("Cannot convert integer to " +
-                        StandardNames.getDisplayName(requiredType));
-                err.setXPathContext(context);
-                err.setErrorCode("FORG0001");
-                throw err;
+                ValidationException err2 = new ValidationException("Cannot convert integer to " +
+                        requiredType.getDisplayName());
+                //err.setXPathContext(context);
+                err2.setErrorCode("FORG0001");
+                return new ErrorValue(err2);
         }
     }
 
@@ -445,7 +518,7 @@ public final class IntegerValue extends NumericValue {
         } else if (other instanceof BigIntegerValue) {
             return new BigIntegerValue(value).arithmetic(operator, other, context);
         } else {
-            NumericValue v = (NumericValue) convert(other.getItemType().getPrimitiveType(), context);
+            NumericValue v = (NumericValue) convert(other.getItemType().getPrimitiveType());
             return v.arithmetic(operator, other, context);
         }
     }
@@ -479,16 +552,16 @@ public final class IntegerValue extends NumericValue {
      *     instance of the target class
      */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
+    public Object convertToJava(Class target, XPathContext context) throws XPathException {
         if (target == Object.class) {
             return new Long(value);
         } else if (target.isAssignableFrom(IntegerValue.class)) {
             return this;
         } else if (target == boolean.class) {
-            BooleanValue bval = (BooleanValue) convert(Type.BOOLEAN, null);
+            BooleanValue bval = (BooleanValue) convert(Type.BOOLEAN);
             return Boolean.valueOf(bval.getBooleanValue());
         } else if (target == Boolean.class) {
-            BooleanValue bval = (BooleanValue) convert(Type.BOOLEAN, null);
+            BooleanValue bval = (BooleanValue) convert(Type.BOOLEAN);
             return Boolean.valueOf(bval.getBooleanValue());
         } else if (target == String.class || target == CharSequence.class) {
             return getStringValue();
@@ -511,7 +584,7 @@ public final class IntegerValue extends NumericValue {
         } else if (target == BigDecimal.class) {
             return BigDecimal.valueOf(value);
         } else {
-            Object o = super.convertToJava(target, config, context);
+            Object o = super.convertToJava(target, context);
             if (o == null) {
                 throw new DynamicError("Conversion of integer to " + target.getName() +
                         " is not supported");

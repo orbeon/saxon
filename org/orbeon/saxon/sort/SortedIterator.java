@@ -4,7 +4,7 @@ import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.trace.Location;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 import java.util.Comparator;
 
@@ -44,6 +44,7 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
     throws XPathException {
         this.context = context.newMinorContext();
         this.context.setOriginatingConstructType(Location.SORT_KEY);
+        this.context.setCurrentIterator(base);
         this.base = base;
         this.sortkeys = sortkeys;
         recordSize = sortkeys.length + 2;
@@ -95,7 +96,7 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
         }
         SortedIterator s = new SortedIterator();
         // the new iterator is the same as the old ...
-        s.base = base;
+        s.base = base.getAnother();
         s.sortkeys = sortkeys;
         s.recordSize = recordSize;
         s.nodeKeys = nodeKeys;
@@ -118,9 +119,10 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
         nodeKeys = new Object[allocated * recordSize];
         count = 0;
 
-        XPathContext c2 = context.newMinorContext();
-        c2.setOriginatingConstructType(Location.SORT_KEY);
-        c2.setCurrentIterator(base);
+        XPathContext c2 = context;
+//        XPathContext c2 = context.newMinorContext();
+//        c2.setOriginatingConstructType(Location.SORT_KEY);
+//        c2.setCurrentIterator(base);
         //c2.setReceiver(new SequenceOutputter());
 
         // initialise the array with data
@@ -178,20 +180,21 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
         int a1 = a*recordSize + 1;
         int b1 = b*recordSize + 1;
         for (int i=0; i<sortkeys.length; i++) {
-            Comparator comparator = keyComparers[i];
             int comp;
             // System.err.println("Comparing " + nodeKeys[a1+i] + " with " + nodeKeys[b1+i]);
             if (nodeKeys[a1+i] == null) {
                 // first sort key value is ()
-                comp = (nodeKeys[b1+i]==null ? 0 :
-                          (sortkeys[i].getEmptyFirst() ? -1 : +1));
+                comp = (nodeKeys[b1+i]==null ? 0 : (sortkeys[i].getEmptyFirst() ? -1 : +1));
             } else if (nodeKeys[b1+i]==null) {
                 // second sort key value is ()
                 comp = (sortkeys[i].getEmptyFirst() ? +1 : -1);
             } else {
-                comp = comparator.compare(nodeKeys[a1+i], nodeKeys[b1+i]);
+                comp = keyComparers[i].compare(nodeKeys[a1+i], nodeKeys[b1+i]);
             }
-            if (comp!=0) return comp;
+            if (comp != 0) {
+                // we have found a difference, so we can return
+                return comp;
+            }
         }
 
         // all sort keys equal: return the items in their original order

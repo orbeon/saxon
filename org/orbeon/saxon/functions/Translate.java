@@ -1,9 +1,10 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.om.FastStringBuffer;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
 
 
 
@@ -19,13 +20,13 @@ public class Translate extends SystemFunction {
         if (sv==null) {
             return StringValue.EMPTY_STRING;
         };
-        String s1 = sv.getStringValue();
+        CharSequence s1 = sv.getStringValueCS();
 
         sv = (AtomicValue)argument[1].evaluateItem(context);
-        String s2 = sv.getStringValue();
+        CharSequence s2 = sv.getStringValueCS();
 
         sv = (AtomicValue)argument[2].evaluateItem(context);
-        String s3 = sv.getStringValue();
+        CharSequence s3 = sv.getStringValueCS();
 
         return new StringValue(translate(s1, s2, s3));
     }
@@ -34,23 +35,23 @@ public class Translate extends SystemFunction {
     * Perform the translate function
     */
 
-    private static CharSequence translate(String s0, String s1, String s2) {
+    private static CharSequence translate(CharSequence s0, CharSequence s1, CharSequence s2) {
 
         // check for surrogate pairs
-        int len0 = StringValue.getLength(s0);
-        int len1 = StringValue.getLength(s1);
-        int len2 = StringValue.getLength(s2);
+        int len0 = StringValue.getStringLength(s0);
+        int len1 = StringValue.getStringLength(s1);
+        int len2 = StringValue.getStringLength(s2);
         if (s0.length()!=len0 ||
                 s1.length()!=len1 ||
                 s2.length()!=len2 ) {
             return slowTranslate(s0, s1, s2);
         }
-
-        StringBuffer sb = new StringBuffer(s0.length());
+        String st1 = s1.toString();
+        FastStringBuffer sb = new FastStringBuffer(s0.length());
         int s2len = s2.length();
         for (int i=0; i<s0.length(); i++) {
             char c = s0.charAt(i);
-            int j = s1.indexOf(c);
+            int j = st1.indexOf(c);
             if (j<s2len) {
                 sb.append(( j<0 ? c : s2.charAt(j) ));
             }
@@ -62,7 +63,7 @@ public class Translate extends SystemFunction {
     * Perform the translate function when surrogate pairs are in use
     */
 
-    private static CharSequence slowTranslate(String s0, String s1, String s2) {
+    private static CharSequence slowTranslate(CharSequence s0, CharSequence s1, CharSequence s2) {
         int[] a0 = StringValue.expand(s0);
         int[] a1 = StringValue.expand(s1);
         int[] a2 = StringValue.expand(s2);

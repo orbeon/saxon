@@ -1,6 +1,7 @@
 package net.sf.saxon.event;
 import net.sf.saxon.om.Item;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.trans.XPathException;
 
 /**
   * TeeOutputter: a SequenceReceiver that duplicates received events to two different destinations
@@ -20,9 +21,9 @@ public class TeeOutputter extends SequenceReceiver {
      * Output an item (atomic value or node) to the sequence
      */
 
-    public void append(Item item, int locationId) throws XPathException {
-        seq1.append(item, locationId);
-        seq2.append(item, locationId);
+    public void append(Item item, int locationId, int copyNamespaces) throws XPathException {
+        seq1.append(item, locationId, NodeInfo.ALL_NAMESPACES);
+        seq2.append(item, locationId, NodeInfo.ALL_NAMESPACES);
     }
 
     /**

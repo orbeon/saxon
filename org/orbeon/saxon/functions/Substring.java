@@ -2,12 +2,15 @@ package net.sf.saxon.functions;
 import net.sf.saxon.expr.Token;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.IntegerValue;
 import net.sf.saxon.value.NumericValue;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
 
+/**
+ * This class implements the XPath substring() function
+ */
 
 public class Substring extends SystemFunction {
 
@@ -21,7 +24,7 @@ public class Substring extends SystemFunction {
         if (sv==null) {
             sv = StringValue.EMPTY_STRING;
         }
-        String s = sv.getStringValue();
+        CharSequence s = sv.getStringValueCS();
 
         AtomicValue a1 = (AtomicValue)argument[1].evaluateItem(context);
         NumericValue a = (NumericValue)a1.getPrimitiveValue();
@@ -39,7 +42,7 @@ public class Substring extends SystemFunction {
     * Implement substring function with two arguments.
     */
 
-    private static String substring(String s, NumericValue start) {
+    private static CharSequence substring(CharSequence s, NumericValue start) {
         int slength = s.length();
 
         long lstart;
@@ -69,7 +72,7 @@ public class Substring extends SystemFunction {
         int cpos=0;
         while (cpos<slength) {
             if (pos >= lstart) {
-                return s.substring(cpos);
+                return s.subSequence(cpos, s.length());
             }
 
             int ch = (int)s.charAt(cpos++);
@@ -82,7 +85,7 @@ public class Substring extends SystemFunction {
     * Implement substring function with three arguments.
     */
 
-    private static String substring(String s, NumericValue start, NumericValue len, XPathContext context) {
+    private static CharSequence substring(CharSequence s, NumericValue start, NumericValue len, XPathContext context) {
         int slength = s.length();
 
         long lstart;
@@ -162,9 +165,9 @@ public class Substring extends SystemFunction {
         if (jstart<0 || jstart==jend) {
             return "";
         } else if (jend<0) {
-            return s.substring(jstart);
+            return s.subSequence(jstart, s.length());
         } else {
-            return s.substring(jstart, jend);
+            return s.subSequence(jstart, jend);
         }
     }
 }

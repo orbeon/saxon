@@ -1,7 +1,6 @@
 package net.sf.saxon.type;
 
 import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.xpath.XPathException;
 
 /**
  * Marker interface for atomic types (these are either built-in atomic types
@@ -18,14 +17,14 @@ public interface AtomicType extends SimpleType, ItemType {
      * @param primValue the value in the value space of the primitive type
      * @param lexicalValue the value in the lexical space. If null, the string value of primValue
      * is used. This value is checked against the pattern facet (if any)
-     * @param throwError true if an exception is to be thrown when the value is
-     * invalid (if false, the method returns null instead)
-     * @throws net.sf.saxon.xpath.XPathException if the value is invalid
+     * @param validate     true if the value is to be validated against the facets of the derived
+     *                     type; false if the caller knows that the value is already valid.
+     * @return the derived atomic value if validation succeeds, or an ErrorValue otherwise. The ErrorValue
+     * encapsulates the exception that occurred; it is the caller's responsibility to check for this.
      */
 
-    public AtomicValue makeDerivedValue(
-            AtomicValue primValue, String lexicalValue, boolean throwError)
-            throws XPathException;
+    public AtomicValue makeDerivedValue(AtomicValue primValue, CharSequence lexicalValue, boolean validate);
+
 }
 
 //

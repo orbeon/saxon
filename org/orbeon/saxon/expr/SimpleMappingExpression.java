@@ -4,11 +4,11 @@ import net.sf.saxon.om.*;
 import net.sf.saxon.sort.DocumentOrderIterator;
 import net.sf.saxon.sort.GlobalOrderComparer;
 import net.sf.saxon.trace.Location;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.Cardinality;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Iterator;

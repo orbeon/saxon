@@ -9,12 +9,12 @@ import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AnyItemType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -88,7 +88,7 @@ public class Copy extends ElementCreator {
     throws XPathException {
         if (copyNamespaces) {
             NodeInfo element = (NodeInfo)context.getContextItem();
-            element.outputNamespaceNodes(receiver, true);
+            element.sendNamespaceDeclarations(receiver, true);
         }
     }
 
@@ -99,7 +99,7 @@ public class Copy extends ElementCreator {
         SequenceReceiver out = c2.getReceiver();
         Item item = context.getContextItem();
         if (!(item instanceof NodeInfo)) {
-            out.append(item, locationId);
+            out.append(item, locationId, NodeInfo.ALL_NAMESPACES);
             return null;
         }
         NodeInfo source = (NodeInfo)item;
@@ -118,21 +118,21 @@ public class Copy extends ElementCreator {
             } catch (NoOpenStartTagException err) {
                 DynamicError e = new DynamicError(err.getMessage());
                 e.setXPathContext(context);
-                e.setErrorCode(err.getErrorCode());
+                e.setErrorCode(err.getErrorCodeLocalPart());
                 context.getController().recoverableError(e);
             }
             break;
 
         case Type.TEXT:
-            out.characters(source.getStringValue(), locationId, 0);
+            out.characters(source.getStringValueCS(), locationId, 0);
             break;
 
         case Type.PROCESSING_INSTRUCTION:
-            out.processingInstruction(source.getDisplayName(), source.getStringValue(), locationId, 0);
+            out.processingInstruction(source.getDisplayName(), source.getStringValueCS(), locationId, 0);
             break;
 
         case Type.COMMENT:
-            out.comment(source.getStringValue(), locationId, 0);
+            out.comment(source.getStringValueCS(), locationId, 0);
             break;
 
         case Type.NAMESPACE:
@@ -141,7 +141,7 @@ public class Copy extends ElementCreator {
             } catch (NoOpenStartTagException err) {
                 DynamicError e = new DynamicError(err.getMessage());
                 e.setXPathContext(context);
-                e.setErrorCode(err.getErrorCode());
+                e.setErrorCode(err.getErrorCodeLocalPart());
                 context.getController().recoverableError(e);
             }
             break;

@@ -1,12 +1,13 @@
 package net.sf.saxon.value;
 import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.NodeKindTest;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AnyItemType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
 
 import java.util.List;
 
@@ -16,10 +17,10 @@ import java.util.List;
  * by allocating memory to each item in the sequence.
  */
 
-public final class SequenceExtent extends SequenceValue {
+public final class SequenceExtent extends Value {
     private Item[] value;
     private int start = 0;  // zero-based offset of the start
-    private int end;        // the first item that is NOT included
+    private int end;        // the 0-based index of the first item that is NOT included
     private ItemType itemType = null;   // memoized
 
     /**
@@ -66,7 +67,7 @@ public final class SequenceExtent extends SequenceValue {
     /**
      * Construct a sequence containing all the items in a SequenceIterator.
      *
-     * @exception XPathException if reading the items using the
+     * @exception net.sf.saxon.trans.XPathException if reading the items using the
      *     SequenceIterator raises an error
      * @param iter The supplied sequence of items. This must be positioned at
      *     the start, so that hasNext() returns true if there are any nodes in
@@ -97,11 +98,23 @@ public final class SequenceExtent extends SequenceValue {
     }
 
     /**
-     * Materialize the SequenceValue as a SequenceExtent
+     * Factory method to make a Value holding the contents of any SequenceIterator
      */
 
-    public SequenceExtent materialize() throws XPathException {
-        return this;
+    public static Value makeSequenceExtent(SequenceIterator iter) throws XPathException {
+        if (iter instanceof GroundedIterator) {
+            return ((GroundedIterator)iter).materialize();
+        }
+        return new SequenceExtent(iter);
+    }
+
+    /**
+     * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
+     * This method indicates which of these methods is prefered.
+     */
+
+    public int getImplementationMethod() {
+        return ITERATE_METHOD;
     }
 
     /**
@@ -240,21 +253,21 @@ public final class SequenceExtent extends SequenceValue {
      * Get the effective boolean value
      */
 
-    public boolean effectiveBooleanValue(XPathContext context) {
+    public boolean effectiveBooleanValue(XPathContext context) throws XPathException {
         int len = getLength();
-        if (len == 0){
+        if (len == 0) {
             return false;
-        } else if (len > 1) {
+        } else if (value[0] instanceof NodeInfo) {
             return true;
+        } else if (len > 1) {
+            // this is a type error - reuse the error messages
+            return ExpressionTool.effectiveBooleanValue(iterate(context));
         } else {
-            Item i = value[0];
-            if (i instanceof NodeInfo) {
-                return true;
-            } else {
-                return ((AtomicValue)i).effectiveBooleanValue(context);
-            }
+            return ((AtomicValue)value[0]).effectiveBooleanValue(context);
         }
     }
+
+
 }
 
 //

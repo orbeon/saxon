@@ -2,13 +2,12 @@ package net.sf.saxon.expr;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.BooleanValue;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -58,8 +57,7 @@ class QuantifiedExpression extends Assignation {
         sequence = ExpressionTool.unsorted(sequence, false);
 
         SequenceType decl = declaration.getRequiredType();
-        SequenceType sequenceType =
-                            new SequenceType(decl.getPrimaryType(),
+        SequenceType sequenceType = SequenceType.makeSequenceType(decl.getPrimaryType(),
                                              StaticProperty.ALLOWS_ZERO_OR_MORE);
         RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, new Integer(nameCode), 0, env.getNamePool());
         sequence = TypeChecker.strictTypeCheck(
@@ -123,7 +121,7 @@ class QuantifiedExpression extends Assignation {
             if (it == null) {
                 break;
             }
-            context.setLocalVariable(slotNumber, Value.asValue(it));
+            context.setLocalVariable(slotNumber, it);
             if (some == action.effectiveBooleanValue(context)) {
                 return some;
             }

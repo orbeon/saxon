@@ -3,10 +3,10 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.PromotionOffer;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.om.ValueRepresentation;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
 
 import java.util.List;
 
@@ -76,7 +76,7 @@ public class WithParam extends GeneralVariable {
      * Evaluate the variable (method exists only to satisfy the interface)
      */
 
-    public Value evaluateVariable(XPathContext context) throws XPathException {
+    public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException {
         throw new UnsupportedOperationException();
     }
 }

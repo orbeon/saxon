@@ -1,10 +1,11 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.om.FastStringBuffer;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
 
 
 public class Concat extends SystemFunction {
@@ -23,17 +24,7 @@ public class Concat extends SystemFunction {
     */
 
     public String evaluateAsString(XPathContext c) throws XPathException {
-        int numArgs = argument.length;
-
-        StringBuffer sb = new StringBuffer();
-        for (int i=0; i<numArgs; i++) {
-            AtomicValue val = (AtomicValue)argument[i].evaluateItem(c);
-            if (val!=null) {
-                sb.append(val.getStringValue());
-            }
-        }
-
-        return sb.toString();
+        return evaluateItem(c).getStringValue();
     }
 
     /**
@@ -41,7 +32,15 @@ public class Concat extends SystemFunction {
     */
 
     public Item evaluateItem(XPathContext c) throws XPathException {
-        return new StringValue(evaluateAsString(c));
+        int numArgs = argument.length;
+        FastStringBuffer sb = new FastStringBuffer(1024);
+        for (int i=0; i<numArgs; i++) {
+            AtomicValue val = (AtomicValue)argument[i].evaluateItem(c);
+            if (val!=null) {
+                sb.append(val.getStringValueCS());
+            }
+        }
+        return new StringValue(sb.condense());
     }
 
 }

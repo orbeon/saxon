@@ -23,6 +23,10 @@ public class NamespaceConstant {
 	 * The numeric code representing the null namespace (actually, zero)
 	 */
 	public static final short NULL_CODE = 0;
+    /**
+     * The namespace code for the null namespace
+     */
+    public static final int NULL_NAMESPACE_CODE = 0;
 
     /**
      * Fixed namespace name for XML: "http://www.w3.org/XML/1998/namespace".
@@ -32,6 +36,11 @@ public class NamespaceConstant {
      * Numeric code representing the XML namespace
      */
     public static final short XML_CODE = 1;
+    /**
+     * The namespace code for the XML namespace
+     */
+    public static final int XML_NAMESPACE_CODE = 0x00010001;
+
 
     /**
      * Fixed namespace name for XSLT: "http://www.w3.org/1999/XSL/Transform"
@@ -64,7 +73,7 @@ public class NamespaceConstant {
      * Namespace for additional XPath-defined data types:
      * "http://www.w3.org/2003/05/xpath-datatypes"
      */
-    public static final String XDT = "http://www.w3.org/2004/10/xpath-datatypes";
+    public static final String XDT = "http://www.w3.org/2005/02/xpath-datatypes";
     /**
      * Numeric code representing the schema namespace
      */
@@ -109,18 +118,18 @@ public class NamespaceConstant {
     /**
      * The standard namespace for functions and operators
      */
-    public static final String FN = "http://www.w3.org/2004/10/xpath-functions";
+    public static final String FN = "http://www.w3.org/2005/02/xpath-functions";
 
     /**
      * The standard namespace for system error codes
      */
-    public static final String ERR = "http://www.w3.org/2004/10/xqt-errors";
+    public static final String ERR = "http://www.w3.org/2005/02/xqt-errors";
 
 
     /**
      * Predefined XQuery namespace for local functions
      */
-    public static final String LOCAL = "http://www.w3.org/2004/10/xquery-local-functions";
+    public static final String LOCAL = "http://www.w3.org/2005/02/xquery-local-functions";
     /**
      * Recognize the Microsoft namespace so we can give a suitably sarcastic error message
      */
@@ -169,7 +178,7 @@ public class NamespaceConstant {
      * URI identifying the Unicode codepoint collation
      */
 
-    public static final String CodepointCollationURI = "http://www.w3.org/2004/10/xpath-functions/collation/codepoint";
+    public static final String CodepointCollationURI = "http://www.w3.org/2005/02/xpath-functions/collation/codepoint";
 
     /**
      * Private constructor: class is never instantiated

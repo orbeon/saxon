@@ -4,8 +4,8 @@ import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.DocumentInfo;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * Implements the unparsed-entity-uri() function defined in XSLT 1.0

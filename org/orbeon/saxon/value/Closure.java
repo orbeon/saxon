@@ -1,14 +1,10 @@
 package net.sf.saxon.value;
-import net.sf.saxon.Configuration;
 import net.sf.saxon.event.SequenceOutputter;
 import net.sf.saxon.expr.*;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.SingletonIterator;
+import net.sf.saxon.om.*;
 import net.sf.saxon.trace.Location;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -33,7 +29,7 @@ import java.io.PrintStream;
  *
 */
 
-public class Closure extends SequenceValue {
+public class Closure extends Value {
 
     protected Expression expression;
     protected XPathContextMajor savedXPathContext;
@@ -43,7 +39,9 @@ public class Closure extends SequenceValue {
     // to the reservoir. It only ever has one instance (for each Closure) and each
     // item is read only once.
 
-    SequenceIterator inputIterator;
+    protected SequenceIterator inputIterator;
+
+    private static final ValueRepresentation[] EMPTY_STACKFRAME = new ValueRepresentation[0];
 
     /**
      * Private constructor: instances must be created using the make() method
@@ -66,7 +64,11 @@ public class Closure extends SequenceValue {
             TailExpression tail = (TailExpression)expression;
             Expression base = tail.getBaseExpression();
             if (base instanceof VariableReference) {
-                base = ExpressionTool.lazyEvaluate(base, context, save);
+                base = Value.asValue(ExpressionTool.lazyEvaluate(base, context, save));
+                if (base instanceof MemoClosure) {
+                    SequenceIterator it = base.iterate(null);
+                    base = ((GroundedIterator)it).materialize();
+                }
                 if (base instanceof SequenceExtent) {
                     return new SequenceExtent(
                             (SequenceExtent)base,
@@ -85,26 +87,31 @@ public class Closure extends SequenceValue {
         // whose depth exceeds a certain threshold, we evaluate the closure eagerly to avoid
         // creating deeply nested lists of Closures, which consume memory unnecessarily
 
-        // TODO: only save those local variables that the expression actually depends on.
-        // Saving variables unnecessarily prevents the values being garbage collected.
+        // We only copy the local variables if the expression has dependencies on local variables.
+        // It would be even smarter to copy only those variables that we need; but that gives
+        // diminishing returns.
 
-        StackFrame localStackFrame = context.getStackFrame();
-        Value[] local = localStackFrame.getStackFrameValues();
-        if (local != null) {
-            Value[] savedStackFrame = new Value[local.length];
-            //System.arraycopy(local, 0, savedStackFrame, 0, local.length);
-            for (int i=0; i<local.length; i++) {
-                if (local[i] instanceof Closure) {
-                    int cdepth = ((Closure)local[i]).depth;
-                    if (cdepth >= 10) {
-                        local[i] = ExpressionTool.eagerEvaluate(local[i], context);
-                    } else if (cdepth + 1 > c.depth) {
-                        c.depth = cdepth + 1;
+        if ((expression.getDependencies() & StaticProperty.DEPENDS_ON_LOCAL_VARIABLES) != 0) {
+            StackFrame localStackFrame = context.getStackFrame();
+            ValueRepresentation[] local = localStackFrame.getStackFrameValues();
+            if (local != null) {
+                ValueRepresentation[] savedStackFrame = new ValueRepresentation[local.length];
+                //System.arraycopy(local, 0, savedStackFrame, 0, local.length);
+                for (int i=0; i<local.length; i++) {
+                    if (local[i] instanceof Closure) {
+                        int cdepth = ((Closure)local[i]).depth;
+                        if (cdepth >= 10) {
+                            local[i] = ExpressionTool.eagerEvaluate((Closure)local[i], context);
+                        } else if (cdepth + 1 > c.depth) {
+                            c.depth = cdepth + 1;
+                        }
                     }
+                    savedStackFrame[i] = local[i];
                 }
-                savedStackFrame[i] = local[i];
+                c.savedXPathContext.setStackFrame(localStackFrame.getStackFrameMap(), savedStackFrame);
             }
-            c.savedXPathContext.setStackFrame(localStackFrame.getStackFrameMap(), savedStackFrame);
+        } else {
+            //c.savedXPathContext.setStackFrame(localStackFrame.getStackFrameMap(), EMPTY_STACKFRAME);
         }
 
         // Make a copy of the context item
@@ -190,22 +197,13 @@ public class Closure extends SequenceValue {
     }
 
     /**
-    * Get the n'th item in the sequence (starting from 0). This is defined for all
-    * SequenceValues, but its real benefits come for a SequenceValue stored extensionally
-    */
-
-    public Item itemAt(int n) throws XPathException {
-        return super.itemAt(n);
-    }
-
-    /**
     * Convert to Java object (for passing to external functions)
     */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
-        Value val = ExpressionTool.eagerEvaluate(this, null);
-        return val.convertToJava(target, config, context);
-    }
+//    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
+//        Value val = ExpressionTool.eagerEvaluate(this, null);
+//        return val.convertToJava(target, config, context);
+//    }
 
 
     public void display(int level, NamePool pool, PrintStream out) {

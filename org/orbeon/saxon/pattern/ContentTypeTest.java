@@ -1,5 +1,6 @@
 package net.sf.saxon.pattern;
 import net.sf.saxon.Configuration;
+import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.type.*;
 
@@ -57,7 +58,7 @@ public class ContentTypeTest extends NodeTest {
             return false;
         }
 
-        if (requiredType == -1) {
+        if (requiredType == -1 || requiredType == StandardNames.XS_ANY_TYPE) {
             return true;
             // TODO: don't bother generating a CombinedNodeTest when the element at the head
             // of the substitution group has type xs:anyType (schvalid007)
@@ -68,7 +69,15 @@ public class ContentTypeTest extends NodeTest {
         }
 
         if (annotation == -1) {
-            return false;
+            if (nodeKind == Type.ELEMENT) {
+                return (requiredType == StandardNames.XDT_UNTYPED);
+            } else if (nodeKind == Type.ATTRIBUTE) {
+                return (requiredType == StandardNames.XDT_UNTYPED_ATOMIC ||
+                        requiredType == StandardNames.XDT_ANY_ATOMIC_TYPE ||
+                        requiredType == StandardNames.XS_ANY_SIMPLE_TYPE);
+            } else {
+                return false;
+            }
         }
 
         try {
@@ -111,14 +120,6 @@ public class ContentTypeTest extends NodeTest {
 
     public int getPrimitiveType() {
         return kind;
-    }
-
-    /**
-     * Indicate whether this NodeTest is capable of matching text nodes
-     */
-
-    public boolean allowsTextNodes() {
-        return false;
     }
 
     /**

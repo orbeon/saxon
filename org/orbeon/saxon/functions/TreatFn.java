@@ -1,8 +1,9 @@
 package net.sf.saxon.functions;
-import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.expr.*;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.type.ItemType;
 
 /**
 * This class supports the XPath 2.0 functions exactly-one(), one-or-more(), zero-or-one().
@@ -10,9 +11,32 @@ import net.sf.saxon.xpath.XPathException;
 * functions; the run-time type checking is done as part of the function call mechanism
 */
 
-// TODO: the only problem with implementing the functions this way is that the wrong error codes are produced.
-
 public class TreatFn extends SystemFunction {
+
+    /**
+     * Type-check the expression. This also calls preEvaluate() to evaluate the function
+     * if all the arguments are constant; functions that do not require this behavior
+     * can override the preEvaluate method.
+     */
+
+    public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
+        Expression exp = super.analyze(env, contextItemType);
+        if (exp instanceof TreatFn) {
+            if (((TreatFn)exp).argument[0] instanceof CardinalityChecker) {
+                // Normal path. Modify the CardinalityChecker that does the work so that it
+                // returns the correct error code in the event of a failure.
+                CardinalityChecker cc = (CardinalityChecker)((TreatFn)exp).argument[0];
+                if (operation == StaticProperty.EXACTLY_ONE) {
+                    cc.setErrorCode("FORG0005");
+                } else if (operation == StaticProperty.ALLOWS_ONE_OR_MORE) {
+                    cc.setErrorCode("FORG0004");
+                } else {
+                    cc.setErrorCode("FORG0003");
+                }
+            }
+        }
+        return exp;
+    }
 
     /**
     * Evaluate the function
@@ -27,7 +51,7 @@ public class TreatFn extends SystemFunction {
     */
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
-        return argument[0].iterate(context);
+       return argument[0].iterate(context);
     }
 
 }

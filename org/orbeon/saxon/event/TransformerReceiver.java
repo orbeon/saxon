@@ -1,8 +1,8 @@
 package net.sf.saxon.event;
 import net.sf.saxon.Controller;
 import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.Result;
 import javax.xml.transform.Transformer;
@@ -40,7 +40,10 @@ public class TransformerReceiver extends ProxyReceiver {
         builder = controller.makeBuilder();
         builder.setPipelineConfiguration(getPipelineConfiguration());
         builder.setSystemId(systemId);
-        Stripper stripper = controller.makeStripper(builder);
+        Receiver stripper = controller.makeStripper(builder);
+        if (controller.getExecutable().stripsInputTypeAnnotations()) {
+            stripper = controller.getConfiguration().getAnnotationStripper(stripper);
+        }
         this.setUnderlyingReceiver(stripper);
         super.open();
     }

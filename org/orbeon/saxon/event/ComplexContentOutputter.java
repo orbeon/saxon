@@ -1,11 +1,11 @@
 package net.sf.saxon.event;
 import net.sf.saxon.expr.ExpressionLocation;
 import net.sf.saxon.om.*;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.QNameValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 /**
  * This class is used for generating complex content, that is, the content of an
@@ -142,7 +142,7 @@ public class ComplexContentOutputter extends SequenceReceiver {
     * Output a namespace declaration. <br>
     * This is added to a list of pending namespaces for the current start tag.
     * If there is already another declaration of the same prefix, this one is
-    * ignored.
+    * ignored, unless the REJECT_DUPLICATES flag is set, in which case this is an error.
     * Note that unlike SAX2 startPrefixMapping(), this call is made AFTER writing the start tag.
     * @param nscode The namespace code
     * @throws XPathException if there is no start tag to write to (created using writeStartTag),
@@ -173,6 +173,10 @@ public class ComplexContentOutputter extends SequenceReceiver {
             }
         	if ((nscode>>16) == (pendingNSList[i]>>16)) {
         	    if (rejectDuplicates) {
+                    // In XSLT this error is recoverable. However, the recovery action is to take the
+                    // last of the namespaces rather than the first. This recovery action gives us problems
+                    // because we have already assumed that the first one will be generated, for example
+                    // when checking any attributes in the sequence. So we make it a hard error.
         	        DynamicError err = new DynamicError("Cannot create two namespace nodes with the same name");
                     err.setErrorCode("XT0430");
                     throw err;
@@ -189,7 +193,7 @@ public class ComplexContentOutputter extends SequenceReceiver {
         if (((nscode>>16) == 0) && ((nscode&0xffff)!=0)) {
             if (elementIsInNullNamespace == null) {
                 elementIsInNullNamespace = Boolean.valueOf(
-                        (getNamePool().allocateNamespaceCode(pendingStartTag) & 0xffff) == 0);
+                        getNamePool().getURI(pendingStartTag) == NamespaceConstant.NULL);
             }
             if (elementIsInNullNamespace.booleanValue()) {
                 DynamicError err = new DynamicError(
@@ -295,10 +299,11 @@ public class ComplexContentOutputter extends SequenceReceiver {
 
 	private int checkProposedPrefix(int nameCode, int seq) throws XPathException {
         NamePool namePool = getNamePool();
-		int nscode = namePool.allocateNamespaceCode(nameCode);
-		            // TODO: can we ensure that the namespace code is already in the
-		            // namepool, allowing use of getNamespaceCode rather than
-		            // allocateNamespaceCode, to avoid synchronization?
+        int nscode = namePool.getNamespaceCode(nameCode);
+        if (nscode == -1) {
+            // avoid calling allocate where possible, because it's synchronized
+		    nscode = namePool.allocateNamespaceCode(nameCode);
+        }
 		int nsprefix = nscode>>16;
 
         for (int i=0; i<pendingNSListSize; i++) {
@@ -378,9 +383,12 @@ public class ComplexContentOutputter extends SequenceReceiver {
 
     /**
     * Append an arbitrary item (node or atomic value) to the output
-    */
+     * @param item the item to be appended
+     * @param locationId the location of the calling instruction, for diagnostics
+     * @param copyNamespaces if the item is an element node, this indicates whether its namespaces
+     */
 
-    public void append(Item item, int locationId) throws XPathException {
+    public void append(Item item, int locationId, int copyNamespaces) throws XPathException {
         if (item == null) {
             return;
         } else if (item instanceof AtomicValue) {
@@ -392,17 +400,17 @@ public class ComplexContentOutputter extends SequenceReceiver {
                 err.setErrorCode("XT0380");
                 throw err;
             }
-            characters(item.getStringValue(), locationId, 0);
+            characters(item.getStringValueCS(), locationId, 0);
             previousAtomic = true;
         } else if (item instanceof DocumentInfo) {
             SequenceIterator iter = ((DocumentInfo)item).iterateAxis(Axis.CHILD);
             while (true) {
                 Item it = iter.next();
                 if (it == null) break;
-                append(it, locationId);
+                append(it, locationId, copyNamespaces);
             }
         } else {
-            ((NodeInfo)item).copy(this, NodeInfo.ALL_NAMESPACES, true, locationId);
+            ((NodeInfo)item).copy(this, copyNamespaces, true, locationId);
             previousAtomic = false;
         }
     }

@@ -2,9 +2,9 @@ package net.sf.saxon.pattern;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * A pattern formed as the union (or) of two other patterns
@@ -41,8 +41,8 @@ public class UnionPattern extends Pattern {
     * @return the optimised Pattern
     */
 
-    public Pattern typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        return new UnionPattern(p1.typeCheck(env, contextItemType), p2.typeCheck(env, contextItemType));
+    public Pattern analyze(StaticContext env, ItemType contextItemType) throws XPathException {
+        return new UnionPattern(p1.analyze(env, contextItemType), p2.analyze(env, contextItemType));
     }
 
 	/**

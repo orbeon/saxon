@@ -5,17 +5,14 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.expr.UserFunctionCall;
 import net.sf.saxon.expr.XPathContextMajor;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.om.*;
 import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.trace.InstructionInfo;
 import net.sf.saxon.trace.InstructionInfoProvider;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
 
 import java.util.HashMap;
 
@@ -130,20 +127,20 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
      * @return a Value representing the result of the function.
      */
 
-    public Value call(Value[] actualArgs, XPathContextMajor context, boolean evaluateTailCalls)
+    public ValueRepresentation call(ValueRepresentation[] actualArgs, XPathContextMajor context, boolean evaluateTailCalls)
             throws XPathException {
 
         // If this is a memo function, see if the result is already known
         Controller controller = context.getController();
         if (memoFunction) {
-            Value value = getCachedValue(controller, actualArgs);
+            ValueRepresentation value = getCachedValue(controller, actualArgs);
             if (value != null) return value;
         }
 
         // Otherwise evaluate the function
 
         context.setStackFrame(getStackFrameMap(), actualArgs);
-        Value result;
+        ValueRepresentation result;
         try {
             result = ExpressionTool.lazyEvaluate(getBody(), context, false);
         } catch (XPathException err) {
@@ -179,7 +176,7 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
      * @return a Value representing the result of the function.
      */
 
-    public Value call(Value[] actualArgs, Controller controller) throws XPathException {
+    public ValueRepresentation call(ValueRepresentation[] actualArgs, Controller controller) throws XPathException {
         return call(actualArgs, controller.newXPathContext(), true);
     }
 
@@ -188,49 +185,41 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
      * @return the cached value, or null if no value has been saved for these parameters
      */
 
-    private Value getCachedValue(Controller controller, Value[] params) {
-
-        try {
-            HashMap map = (HashMap) controller.getUserData(this, "memo-function-cache");
-            if (map == null) {
-                return null;
-            }
-            String key = getCombinedKey(params);
-            //System.err.println("Used cached value");
-            return (Value) map.get(key);
-        } catch (XPathException err) {
+    private ValueRepresentation getCachedValue(Controller controller, ValueRepresentation[] params) throws XPathException {
+        HashMap map = (HashMap) controller.getUserData(this, "memo-function-cache");
+        if (map == null) {
             return null;
         }
+        String key = getCombinedKey(params);
+        //System.err.println("Used cached value");
+        return (ValueRepresentation) map.get(key);
     }
 
     /**
      * For memo functions, put the computed value in the cache.
      */
 
-    private void putCachedValue(Controller controller, Value[] params, Value value) {
-        try {
-            HashMap map = (HashMap) controller.getUserData(this, "memo-function-cache");
-            if (map == null) {
-                map = new HashMap(32);
-                controller.setUserData(this, "memo-function-cache", map);
-            }
-            String key = getCombinedKey(params);
-            map.put(key, value);
-        } catch (XPathException err) {
-            // it doesn't matter if we fail to cache the result
+    private void putCachedValue(Controller controller, ValueRepresentation[] params, ValueRepresentation value) throws XPathException {
+        HashMap map = (HashMap) controller.getUserData(this, "memo-function-cache");
+        if (map == null) {
+            map = new HashMap(32);
+            controller.setUserData(this, "memo-function-cache", map);
         }
+        String key = getCombinedKey(params);
+        map.put(key, value);
     }
 
     /**
      * Get a key value representing the values of all the supplied arguments
      */
 
-    private static String getCombinedKey(Value[] params) throws XPathException {
-        StringBuffer sb = new StringBuffer(120);
+    private static String getCombinedKey(ValueRepresentation[] params) throws XPathException {
+        FastStringBuffer sb = new FastStringBuffer(120);
 
         for (int i = 0; i < params.length; i++) {
-            Value val = params[i];
-            SequenceIterator iter = val.iterate(null);
+            ValueRepresentation val = params[i];
+            // TODO: if the argument value is a sequence, use the identity of the sequence, not its content
+            SequenceIterator iter = Value.getIterator(val);
             while (true) {
                 Item item = iter.next();
                 if (item == null) {
@@ -244,7 +233,7 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
                 } else {
                     sb.append("" + Type.displayTypeName(item));
                     sb.append('/');
-                    sb.append(item.getStringValue());
+                    sb.append(item.getStringValueCS());
                 }
                 sb.append('\u0001');
             }

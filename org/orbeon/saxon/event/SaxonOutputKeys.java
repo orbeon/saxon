@@ -1,7 +1,7 @@
 package net.sf.saxon.event;
 import net.sf.saxon.Err;
 import net.sf.saxon.om.XMLChar;
-import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.trans.DynamicError;
 
 import javax.xml.transform.OutputKeys;
 import java.util.StringTokenizer;
@@ -52,12 +52,12 @@ public class SaxonOutputKeys {
     public static final String INCLUDE_CONTENT_TYPE = "include-content-type";
 
    /**
-     * include-content-type = "yes" | "no". This attribute is defined in XSLT 2.0
+     * undeclare-prefixes = "yes" | "no". This attribute is defined in XSLT 2.0
      *
-     * <p>Indicates XML 1.1 namespace declarations are to be output</p>
+     * <p>Indicates XML 1.1 namespace undeclarations are to be output when required</p>
      */
 
-    public static final String UNDECLARE_NAMESPACES = "undeclare-namespaces";
+    public static final String UNDECLARE_PREFIXES = "undeclare-prefixes";
 
     /**
      * escape-uri-attributes = "yes" | "no". This attribute is defined in XSLT 2.0
@@ -162,7 +162,7 @@ public class SaxonOutputKeys {
                 // no validation performed
             } else if (key.equals(NEXT_IN_CHAIN_BASE_URI)) {
                 // no validation performed
-            } else if (key.equals(UNDECLARE_NAMESPACES)) {
+            } else if (key.equals(UNDECLARE_PREFIXES)) {
                 if (value != null) {
                     checkYesOrNo(key, value);
                 }

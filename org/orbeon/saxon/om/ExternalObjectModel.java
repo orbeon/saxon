@@ -1,6 +1,14 @@
 package net.sf.saxon.om;
 
 import net.sf.saxon.Configuration;
+import net.sf.saxon.event.Receiver;
+import net.sf.saxon.event.PipelineConfiguration;
+import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.value.Value;
+
+import javax.xml.transform.Result;
+import javax.xml.transform.Source;
 
 /**
  * This interface must be implemented by any third-party object model that can
@@ -10,10 +18,55 @@ import net.sf.saxon.Configuration;
 public interface ExternalObjectModel {
 
     /**
-     * Test whether this object model recognizes a given node as one of its own
+     * Test whether this object model recognizes a given node as one of its own.
+     * @return true if the object is a representation of a node in this object model
      */
 
     public boolean isRecognizedNode(Object object);
+
+    /**
+     * Test whether this object model recognizes a particular kind of JAXP Result object,
+     * and if it does, return a Receiver that builds an instance of this data model from
+     * a sequence of events. If the Result is not recognised, return null.
+     */
+
+    public Receiver getDocumentBuilder(Result result) throws XPathException;
+
+    /**
+     * Test whether this object model recognizes a particular kind of JAXP Source object,
+     * and if it does, send the contents of the document to a supplied Receiver, and return true.
+     * Otherwise, return false.
+     */
+
+    public boolean sendSource(Source source, Receiver receiver, PipelineConfiguration pipe) throws XPathException;
+
+    /**
+     * Wrap or unwrap a node using this object model to return the corresponding Saxon node. If the supplied
+     * source does not belong to this object model, return null
+     */
+
+    public NodeInfo unravel(Source source, Configuration config);
+
+    /**
+     * Convert a Java object to an XPath value. If the supplied object is recognized as a representation
+     * of a value using this object model, the object model should convert the value to an XPath value
+     * and return this as the result. If not, it should return null. If the object is recognized but cannot
+     * be converted, an exception should be thrown
+     */
+
+    public Value convertObjectToXPathValue(Object object, Configuration config) throws XPathException;
+
+    /**
+     * Convert an XPath value to an object in this object model. If the supplied value can be converted
+     * to an object in this model, of the specified class, then the conversion should be done and the
+     * resulting object returned. If the value cannot be converted, the method should return null. Note
+     * that the supplied class might be a List, in which case the method should inspect the contents of the
+     * Value to see whether they belong to this object model.
+     * @throws XPathException if the target class is explicitly associated with this object model, but the
+     * supplied value cannot be converted to the appropriate class 
+     */
+
+    public Object convertXPathValueToObject(Value value, Class targetClass, XPathContext context) throws XPathException;
 
     /**
      * Wrap a document node in the external object model in a document wrapper that implements

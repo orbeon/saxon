@@ -3,9 +3,10 @@ import net.sf.saxon.Configuration;
 import net.sf.saxon.Err;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.pattern.NodeTest;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.SchemaType;
+import net.sf.saxon.type.Type;
 import net.sf.saxon.value.UntypedAtomicValue;
-import net.sf.saxon.xpath.XPathException;
 
 /**
   * A node (implementing the NodeInfo interface) representing an attribute, text node,
@@ -14,7 +15,7 @@ import net.sf.saxon.xpath.XPathException;
   * @author Michael H. Kay
   */
 
-public class Orphan implements NodeInfo {
+public final class Orphan implements NodeInfo {
 
     private short kind;
     private int nameCode = -1;
@@ -128,8 +129,11 @@ public class Orphan implements NodeInfo {
     */
 
     public String getBaseURI() {
-        // TODO: check this against the data model
-        return systemId;
+        if (kind == Type.PROCESSING_INSTRUCTION) {
+            return systemId;
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -169,6 +173,15 @@ public class Orphan implements NodeInfo {
     }
 
     /**
+     * Get the value of the item as a CharSequence. This is in some cases more efficient than
+     * the version of the method that returns a String.
+     */
+
+    public CharSequence getStringValueCS() {
+        return stringValue;
+    }
+
+    /**
 	* Get name code. The name code is a coded form of the node name: two nodes
 	* with the same name code have the same namespace URI, the same local name,
 	* and the same prefix. By masking the name code with &0xfffff, you get a
@@ -189,7 +202,11 @@ public class Orphan implements NodeInfo {
 	*/
 
 	public int getFingerprint() {
-	    return getNameCode()&0xfffff;
+        if (nameCode == -1) {
+            return -1;
+        } else {
+	        return getNameCode()&0xfffff;
+        }
 	}
 
     /**
@@ -221,6 +238,21 @@ public class Orphan implements NodeInfo {
     }
 
     /**
+     * Get the prefix of the name of the node. This is defined only for elements and attributes.
+     * If the node has no prefix, or for other kinds of node, return a zero-length string.
+     *
+     * @return The prefix of the name of the node.
+     */
+
+    public String getPrefix() {
+        if (nameCode == -1) {
+            return "";
+        } else {
+            return config.getNamePool().getPrefix(nameCode);
+        }
+    }
+
+    /**
     * Get the display name of this node. For elements and attributes this is [prefix:]localname.
     * For unnamed nodes, it is an empty string.
     * @return The display name of this node.
@@ -237,6 +269,7 @@ public class Orphan implements NodeInfo {
 
     /**
     * Get the NodeInfo object representing the parent of this node
+     * @return null - an Orphan has no parent.
     */
 
     public NodeInfo getParent() {
@@ -380,13 +413,31 @@ public class Orphan implements NodeInfo {
     * Output all namespace nodes associated with this element. Does nothing if
     * the node is not an element.
     * @param out The relevant outputter
-    * @param includeAncestors True if namespaces declared on ancestor elements must
-    * be output; false if it is known that these are already on the result tree
-    */
+     * @param includeAncestors True if namespaces declared on ancestor elements must
+     */
 
-    public void outputNamespaceNodes(Receiver out, boolean includeAncestors) {
+    public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors) {
     }
 
+    /**
+     * Get all namespace undeclarations and undeclarations defined on this element.
+     *
+     * @param buffer If this is non-null, and the result array fits in this buffer, then the result
+     *               may overwrite the contents of this array, to avoid the cost of allocating a new array on the heap.
+     * @return An array of integers representing the namespace declarations and undeclarations present on
+     *         this element. For a node other than an element, return null. Otherwise, the returned array is a
+     *         sequence of namespace codes, whose meaning may be interpreted by reference to the name pool. The
+     *         top half word of each namespace code represents the prefix, the bottom half represents the URI.
+     *         If the bottom half is zero, then this is a namespace undeclaration rather than a declaration.
+     *         The XML namespace is never included in the list. If the supplied array is larger than required,
+     *         then the first unused entry will be set to -1.
+     *         <p/>
+     *         <p>For a node other than an element, the method returns null.</p>
+     */
+
+    public int[] getDeclaredNamespaces(int[] buffer) {
+        return null;
+    }
 
 }
 

@@ -6,13 +6,13 @@ import net.sf.saxon.expr.TypeChecker;
 import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.NodeKindTest;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.Cardinality;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -88,7 +88,8 @@ public abstract class XSLGeneralVariable extends StyleElement {
     }
 
     public boolean isGlobal() {
-        return global;
+        return isTopLevel();
+            // might be called before the "global" field is initialized
     }
 
     /**
@@ -219,7 +220,7 @@ public abstract class XSLGeneralVariable extends StyleElement {
     }
 
     public void validate() throws TransformerConfigurationException {
-        global = (getParentNode() instanceof XSLStylesheet);
+        global = isTopLevel();
 
         if (global) {
             slotManager = getConfiguration().makeSlotManager();
@@ -277,9 +278,9 @@ public abstract class XSLGeneralVariable extends StyleElement {
     }
 
     /**
-     * Method called for parameters of call-template to check the type of the actual
-     * parameter against the type of the required parameter
-     * @param required The type required by the signature of the called template
+     * Check the supplied select expression against the required type.
+     * @param required The type required by the variable declaration, or in the case
+     * of xsl:with-param, the signature of the called template
      */
 
     protected void checkAgainstRequiredType(SequenceType required)

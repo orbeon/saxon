@@ -5,20 +5,18 @@ import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.pattern.NoNodeTest;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AnyItemType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.Cardinality;
 import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.value.IntegerValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.value.SequenceExtent;
 
 import java.io.PrintStream;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Iterator;
+import java.util.*;
 
 
 /**
@@ -26,11 +24,35 @@ import java.util.Iterator;
 * its contents. Used for top-level templates, xsl:otherwise, etc.
 */
 
-public class Block extends Instruction implements MappingFunction {
+public class Block extends Instruction {
 
     private Expression[] children;
 
     public Block() {
+    }
+
+    public static Block makeBlock(Expression e1, Expression e2) {
+        if (e1 instanceof Block || e2 instanceof Block) {
+            Iterator it1 = (e1 instanceof Block ? e1.iterateSubExpressions() : new MonoIterator(e1));
+            Iterator it2 = (e2 instanceof Block ? e2.iterateSubExpressions() : new MonoIterator(e2));
+            List list = new ArrayList(10);
+            while (it1.hasNext()) {
+                list.add(it1.next());
+            }
+            while (it2.hasNext()) {
+                list.add(it2.next());
+            }
+            Expression[] exps = new Expression[list.size()];
+            exps = (Expression[])list.toArray(exps);
+            Block b = new Block();
+            b.setChildren(exps);
+            return b;
+        } else {
+            Expression[] exps = {e1, e2};
+            Block b = new Block();
+            b.setChildren(exps);
+            return b;
+        }
     }
 
     /**
@@ -130,15 +152,26 @@ public class Block extends Instruction implements MappingFunction {
      */
 
     public Expression simplify(StaticContext env) throws XPathException {
+        boolean allAtomic = true;
         if (children != null) {
             for (int c=0; c<children.length; c++) {
                 children[c] = children[c].simplify(env);
+                if (!(children[c] instanceof Item)) {
+                    allAtomic = false;
+                }
             }
             if (children.length == 1) {
                 return getChildren()[0];
             }
             if (children.length == 0) {
                 return EmptySequence.getInstance();
+            }
+            if (allAtomic) {
+                Item[] values = new Item[children.length];
+                for (int c=0; c<children.length; c++) {
+                    values[c] = (Item)children[c];
+                }
+                return new SequenceExtent(values);
             }
         } else {
             return EmptySequence.getInstance();
@@ -281,27 +314,92 @@ public class Block extends Instruction implements MappingFunction {
         } else if (children.length == 1) {
             return children[0].iterate(context);
         } else {
-            SequenceIterator base = new RangeExpression.RangeIterator(0, children.length-1);
-            return new MappingIterator(base, this, null, context);
+            return new BlockIterator(context);
         }
     }
 
-   /**
-     * Map one item to a sequence.
-     * @param item The item to be mapped.
-     * If context is supplied, this must be the same as context.currentItem().
-     * @param context The processing context. This is supplied only for mapping constructs that
-     * set the context node, position, and size. Otherwise it is null.
-     * @param info Arbitrary information supplied by the creator of the MappingIterator. It must be
-     * read-only and immutable for the duration of the iteration.
-     * @return either (a) a SequenceIterator over the sequence of items that the supplied input
-     * item maps to, or (b) an Item if it maps to a single item, or (c) null if it maps to an empty
-     * sequence.
+    /**
+     * Iterate over the instructions in the Block, concatenating the result of each instruction
+     * into a single combined sequence.
      */
 
-    public Object map(Item item, XPathContext context, Object info) throws XPathException {
-        int i = (int)((IntegerValue)item).longValue();
-        return children[i].iterate((XPathContext)info);
+    private class BlockIterator implements SequenceIterator {
+
+        private int i = 0;
+        private SequenceIterator child;
+        private XPathContext context;
+        private Item current;
+        private int position = 0;
+
+        public BlockIterator(XPathContext context) {
+            this.context = context;
+        }
+
+        /**
+         * Get the next item in the sequence. <BR>
+         *
+         * @return the next item, or null if there are no more items.
+         * @throws net.sf.saxon.trans.XPathException
+         *          if an error occurs retrieving the next item
+         */
+
+        public Item next() throws XPathException {
+            while (true) {
+                if (child == null) {
+                    child = children[i++].iterate(context);
+                }
+                current = child.next();
+                if (current != null) {
+                    position++;
+                    return current;
+                }
+                child = null;
+                if (i >= children.length) {
+                    return null;
+                }
+            }
+        }
+
+        /**
+         * Get the current value in the sequence (the one returned by the
+         * most recent call on next()). This will be null before the first
+         * call of next().
+         *
+         * @return the current item, the one most recently returned by a call on
+         *         next(); or null, if next() has not been called, or if the end
+         *         of the sequence has been reached.
+         */
+
+        public Item current() {
+            return current;
+        }
+
+        /**
+         * Get the current position. This will be zero before the first call
+         * on next(), otherwise it will be the number of times that next() has
+         * been called.
+         *
+         * @return the current position, the position of the item returned by the
+         *         most recent call of next()
+         */
+
+        public int position() {
+            return position;
+        }
+
+        /**
+         * Get another SequenceIterator that iterates over the same items as the original,
+         * but which is repositioned at the start of the sequence.
+         *
+         * @return a SequenceIterator that iterates over the same items,
+         *         positioned before the first item
+         * @throws net.sf.saxon.trans.XPathException
+         *          if any error occurs
+         */
+
+        public SequenceIterator getAnother() throws XPathException {
+            return new BlockIterator(context);
+        }
     }
 }
 //

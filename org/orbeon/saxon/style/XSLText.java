@@ -10,7 +10,6 @@ import net.sf.saxon.om.Item;
 import net.sf.saxon.pattern.NodeKindTest;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -74,11 +73,7 @@ public class XSLText extends XSLStringConstructor {
                 compileError("xsl:text must not contain child elements", "XT0010");
                 return;
             } else {
-                try {
-                    value = new StringValue(child.getStringValue());
-                } catch (XPathException e) {
-                    value = StringValue.EMPTY_STRING;
-                }
+                value = new StringValue(child.getStringValueCS());
                 break;
             }
         }

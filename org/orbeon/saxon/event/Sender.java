@@ -3,22 +3,23 @@ package net.sf.saxon.event;
 import net.sf.saxon.AugmentedSource;
 import net.sf.saxon.Configuration;
 import net.sf.saxon.StandardErrorHandler;
-import net.sf.saxon.dom.DOMSender;
-import net.sf.saxon.om.DocumentInfo;
+import net.sf.saxon.om.ExternalObjectModel;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.om.Validation;
+import net.sf.saxon.pull.PullProvider;
+import net.sf.saxon.pull.PullPushCopier;
+import net.sf.saxon.pull.PullSource;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
-import org.w3c.dom.Node;
 import org.xml.sax.*;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.TransformerException;
-import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.sax.SAXSource;
 import javax.xml.transform.stream.StreamSource;
+import java.util.List;
 
 /**
 * Sender is a helper class that sends events to a Receiver from any kind of Source object
@@ -57,31 +58,36 @@ public class Sender {
 
     public void send(Source source, Receiver receiver, boolean isFinal)
     throws XPathException {
+        Configuration config = pipe.getConfiguration();
         receiver.setPipelineConfiguration(pipe);
         receiver.setSystemId(source.getSystemId());
 
-        int validation = (pipe.getConfiguration().isSchemaValidation() ? Validation.STRICT : Validation.PRESERVE);
+        int validation = config.getSchemaValidationMode();
         if (isFinal) {
             // this ensures that the Validate command produces multiple error messages
             validation |= Validation.VALIDATE_OUTPUT;
         }
 
+        XMLReader parser = null;
         if (source instanceof AugmentedSource) {
-            Boolean localValidate = ((AugmentedSource)source).getSchemaValidation();
-            if (localValidate != null) {
-                validation = (localValidate.booleanValue() ? Validation.STRICT : Validation.PRESERVE);
+            int localValidate = ((AugmentedSource)source).getSchemaValidation();
+            if (localValidate != Validation.DEFAULT) {
+                validation = localValidate;
             }
+            parser = ((AugmentedSource)source).getXMLReader();
             source = ((AugmentedSource)source).getContainedSource();
         }
 
         if (source instanceof NodeInfo) {
-            if ((validation & Validation.VALIDATION_MODE_MASK) != Validation.PRESERVE) {
-                try {
-                    pipe.getErrorListener().warning(
-                            new TransformerException("Validation request ignored for a NodeInfo source"));
-                } catch (TransformerException e) {
-                    throw DynamicError.makeDynamicError(e);
-                }
+            int val = validation & Validation.VALIDATION_MODE_MASK;
+            if (val != Validation.PRESERVE) {
+                receiver = config.getDocumentValidator(receiver, source.getSystemId(), config.getNamePool(), val);
+//                try {
+//                    pipe.getErrorListener().warning(
+//                            new TransformerException("Validation request ignored for a NodeInfo source"));
+//                } catch (TransformerException e) {
+//                    throw DynamicError.makeDynamicError(e);
+//                }
             }
             NodeInfo ns = (NodeInfo)source;
             int kind = ns.getNodeKind();
@@ -89,29 +95,50 @@ public class Sender {
                 throw new IllegalArgumentException("Sender can only handle document or element nodes");
             }
             sendDocumentInfo(ns, receiver, pipe.getConfiguration().getNamePool());
+            return;
+
+        } else if (source instanceof PullSource) {
+            // support for a PullSource is experimental
+            sendPullSource((PullSource)source, receiver, validation);
+            return;
 
         } else if (source instanceof SAXSource) {
             sendSAXSource((SAXSource)source, receiver, validation);
-
-        } else if (source instanceof DOMSource) {
-            sendDOMSource((DOMSource)source, receiver, validation);
+            return;
 
         } else if (source instanceof StreamSource) {
-//            if (config.isSchemaAware()) {
-//                config.builtInParse(source, receiver, validation);
-//            } else {
-                StreamSource ss = (StreamSource)source;
-                String url = source.getSystemId();
-                InputSource is = new InputSource(url);
-                is.setCharacterStream(ss.getReader());
-                is.setByteStream(ss.getInputStream());
-                SAXSource sax = new SAXSource(pipe.getConfiguration().getSourceParser(), is);
-                sax.setSystemId(source.getSystemId());
-                sendSAXSource(sax, receiver, validation);
-//            }
+            StreamSource ss = (StreamSource)source;
+            String url = source.getSystemId();
+            InputSource is = new InputSource(url);
+            is.setCharacterStream(ss.getReader());
+            is.setByteStream(ss.getInputStream());
+            if (parser == null) {
+                parser = pipe.getConfiguration().getSourceParser();
+            }
+            SAXSource sax = new SAXSource(parser, is);
+            sax.setSystemId(source.getSystemId());
+            sendSAXSource(sax, receiver, validation);
+            return;
         } else {
-            throw new IllegalArgumentException("Unknown type of source " + source.getClass());
+            // See if there is a registered external object model that knows about this kind of source
+            if ((validation & Validation.VALIDATION_MODE_MASK) != Validation.PRESERVE) {
+                // Add a document validator to the pipeline
+                receiver = config.getDocumentValidator(receiver,
+                                                   source.getSystemId(),
+                                                   config.getNamePool(),
+                                                   validation);
+            }
+            List externalObjectModels = pipe.getConfiguration().getExternalObjectModels();
+            for (int m=0; m<externalObjectModels.size(); m++) {
+                ExternalObjectModel model = (ExternalObjectModel)externalObjectModels.get(m);
+                boolean done = model.sendSource(source, receiver, pipe);
+                if (done) {
+                    return;
+                }
+            }
+
         }
+        throw new IllegalArgumentException("Unknown type of source " + source.getClass());
     }
 
 
@@ -127,29 +154,29 @@ public class Sender {
         sender.send(receiver);
     }
 
-    private void sendDOMSource(DOMSource source, Receiver receiver, int validation)
-    throws XPathException {
-        Node startNode = source.getNode();
-        Configuration config = pipe.getConfiguration();
-        NamePool pool = config.getNamePool();
-        if (startNode instanceof DocumentInfo) {
-            sendDocumentInfo((DocumentInfo)startNode, receiver, pool);
-        } else {
-            if ((validation & Validation.VALIDATION_MODE_MASK) != Validation.PRESERVE) {
-                // Add a document validator to the pipeline
-                receiver = config.getDocumentValidator(receiver,
-                                                   source.getSystemId(),
-                                                   pool,
-                                                   validation);
-            }
-            DOMSender driver = new DOMSender();
-            driver.setStartNode(startNode);
-            driver.setReceiver(receiver);
-            driver.setPipelineConfiguration(pipe);
-            driver.setSystemId(source.getSystemId());
-            driver.send();
-        }
-    }
+//    private void sendDOMSource(DOMSource source, Receiver receiver, int validation)
+//    throws XPathException {
+//        Node startNode = source.getNode();
+//        Configuration config = pipe.getConfiguration();
+//        NamePool pool = config.getNamePool();
+//        if (startNode instanceof DocumentInfo) {
+//            sendDocumentInfo((DocumentInfo)startNode, receiver, pool);
+//        } else {
+//            if ((validation & Validation.VALIDATION_MODE_MASK) != Validation.PRESERVE) {
+//                // Add a document validator to the pipeline
+//                receiver = config.getDocumentValidator(receiver,
+//                                                   source.getSystemId(),
+//                                                   pool,
+//                                                   validation);
+//            }
+//            DOMSender driver = new DOMSender();
+//            driver.setStartNode(startNode);
+//            driver.setReceiver(receiver);
+//            driver.setPipelineConfiguration(pipe);
+//            driver.setSystemId(source.getSystemId());
+//            driver.send();
+//        }
+//    }
 
     private void sendSAXSource(SAXSource source, Receiver receiver, int validation)
     throws XPathException {
@@ -222,6 +249,20 @@ public class Sender {
         } catch (java.io.IOException err) {
             throw new DynamicError(err);
         }
+    }
+
+    private void sendPullSource(PullSource source, Receiver receiver, int validation)
+            throws XPathException {
+        if (validation != Validation.PRESERVE && validation != Validation.STRIP) {
+            throw new DynamicError("Validation is not currently supported with a PullSource");
+        }
+        receiver.open();
+        PullProvider provider = source.getPullProvider();
+        provider.setPipelineConfiguration(pipe);
+        receiver.setPipelineConfiguration(pipe);
+        PullPushCopier copier = new PullPushCopier(provider, receiver);
+        copier.copy();
+        receiver.close();
     }
 
 }

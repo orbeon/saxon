@@ -1,8 +1,8 @@
 package net.sf.saxon.expr;
 import net.sf.saxon.sort.DocumentSorter;
 import net.sf.saxon.sort.Reverser;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * PromotionOffer is an object used transiently during compilation of an expression. It contains
@@ -164,7 +164,7 @@ public class PromotionOffer  {
     private Expression promote(Expression child) {
         RangeVariableDeclaration decl = new RangeVariableDeclaration();
         decl.setVariableName("zz:" + decl.hashCode());
-        SequenceType type = new SequenceType(child.getItemType(), child.getCardinality());
+        SequenceType type = SequenceType.makeSequenceType(child.getItemType(), child.getCardinality());
         decl.setRequiredType(type);
 
         VariableReference var = new VariableReference(decl);

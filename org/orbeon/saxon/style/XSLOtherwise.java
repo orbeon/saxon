@@ -42,7 +42,7 @@ public class XSLOtherwise extends StyleElement {
     }
 
     public void validate() throws TransformerConfigurationException {
-        if (!(getParentNode() instanceof XSLChoose)) {
+        if (!(getParent() instanceof XSLChoose)) {
             compileError("xsl:otherwise must be immediately within xsl:choose", "XT0010");
         }
     }

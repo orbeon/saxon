@@ -1,5 +1,5 @@
 package net.sf.saxon.instruct;
-import net.sf.saxon.value.Value;
+
 
 /**
  * A GlobalParameterSet is a set of parameters supplied when invoking a stylesheet or query.
@@ -46,7 +46,7 @@ public class GlobalParameterSet
         }
         if (used+1 > keys.length) {
         	int[] newkeys = new int[used*2];
-            Value[] newvalues = new Value[used*2];
+            Object[] newvalues = new Object[used*2];     // was (incorrectly) Value[]
             System.arraycopy(values, 0, newvalues, 0, used);
             System.arraycopy(keys, 0, newkeys, 0, used);
             values = newvalues;

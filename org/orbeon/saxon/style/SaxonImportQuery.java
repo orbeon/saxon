@@ -6,7 +6,7 @@ import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.query.StaticQueryContext;
 import net.sf.saxon.query.XQueryFunction;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.Iterator;

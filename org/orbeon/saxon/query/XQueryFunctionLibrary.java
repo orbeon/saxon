@@ -6,8 +6,8 @@ import net.sf.saxon.expr.UserFunctionCall;
 import net.sf.saxon.functions.FunctionLibrary;
 import net.sf.saxon.instruct.UserFunction;
 import net.sf.saxon.om.NamePool;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -195,7 +195,7 @@ public class XQueryFunctionLibrary implements FunctionLibrary {
      * Bind function calls that could not be bound when first encountered. These
      * will either be forwards references to functions declared later in the query,
      * or errors. This method is for internal use.
-     * @throws net.sf.saxon.xpath.StaticError if a function call refers to a function that has
+     * @throws net.sf.saxon.trans.StaticError if a function call refers to a function that has
      * not been declared
      */
 

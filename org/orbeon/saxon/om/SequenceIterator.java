@@ -1,5 +1,5 @@
 package net.sf.saxon.om;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 /**
  * <p>
@@ -58,7 +58,6 @@ public interface SequenceIterator {
     public SequenceIterator getAnother() throws XPathException;
 
 }
-
 
 
 //

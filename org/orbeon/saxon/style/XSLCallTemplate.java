@@ -5,10 +5,12 @@ import net.sf.saxon.instruct.CallTemplate;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.instruct.Template;
 import net.sf.saxon.om.*;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AnyItemType;
 import net.sf.saxon.type.ItemType;
+import net.sf.saxon.type.Type;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.Err;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.List;
@@ -95,6 +97,26 @@ public class XSLCallTemplate extends StyleElement {
     public void validate() throws TransformerConfigurationException {
         checkWithinTemplate();
 
+        AxisIterator kids = iterateAxis(Axis.CHILD);
+        while (true) {
+            NodeInfo child = (NodeInfo)kids.next();
+            if (child == null) {
+                break;
+            }
+            if (child instanceof XSLWithParam) {
+                // OK;
+            } else if (child instanceof XSLFallback && mayContainFallback()) {
+                // xsl:fallback is not allowed on xsl:call-template, but is allowed on saxon:call-template (cheat!)
+            } else if (child.getNodeKind() == Type.TEXT) {
+                    // with xml:space=preserve, white space nodes may still be there
+                if (!Navigator.isWhite(child.getStringValueCS())) {
+                    compileError("No character data is allowed within xsl:call-template", "XT0010");
+                }
+            } else {
+                compileError("Child element " + Err.wrap(child.getDisplayName(), Err.ELEMENT) +
+                        " is not allowed within xsl:call-template", "XT0010");
+            }
+        }        
         if (calledTemplateExpression==null) {
             template = findTemplate(calledTemplateFingerprint);
             if (template==null) {
@@ -133,7 +155,7 @@ public class XSLCallTemplate extends StyleElement {
                     }
                     if (!ok) {
                         compileError("No value supplied for required parameter " +
-                                ((XSLParam)param).getVariableName(), "XT0690");
+                                Err.wrap(((XSLParam)param).getVariableName(), Err.VARIABLE), "XT0690");
                     }
                 }
             }

@@ -2,7 +2,7 @@ package net.sf.saxon.functions;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 /**
  * Implement the fn:collection() function. The Saxon implementation loads an XML
@@ -10,11 +10,11 @@ import net.sf.saxon.xpath.XPathException;
  *
  * <p>The structure of this index is:
  * <pre>
- * <collection>
- *    <doc href="doc1.xml"/>
- *    <doc href="doc2.xml"/>
- *    <doc href="doc3.xml"/>
- * </collection>
+ * &lt;collection&gt;
+ *    &lt;doc href="doc1.xml"&gt;
+ *    &lt;doc href="doc2.xml"&gt;
+ *    &lt;doc href="doc3.xml"&gt;
+ * &lt;/collection&gt;
  * </pre></p>
  *
  * <p>The document URIs are resolved relative to the base URI of the doc element
@@ -42,6 +42,12 @@ public class Collection extends SystemFunction implements MappingFunction {
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
 
+        // Zero-argument function: Saxon does not support a default collection
+
+        if (getNumberOfArguments() == 0) {
+            dynamicError("There is no default collection", "FODC0002", context);
+        }
+
         // First read the catalog document
 
         String href = argument[0].evaluateItem(context).getStringValue();
@@ -58,7 +64,7 @@ public class Collection extends SystemFunction implements MappingFunction {
 
         SequenceIterator iter =
                 catalog.iterateAxis(Axis.CHILD, NodeKindTest.ELEMENT);
-        NodeInfo top = null;
+        NodeInfo top;
         while (true) {
             top = (NodeInfo)iter.next();
             if (top == null) break;

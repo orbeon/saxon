@@ -4,7 +4,7 @@ import net.sf.saxon.expr.XPathContextMajor;
 import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.trace.InstructionInfo;
 import net.sf.saxon.trace.InstructionInfoProvider;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 /**
 * The compiled form of an xsl:attribute-set element in the stylesheet.

@@ -4,15 +4,12 @@ import net.sf.saxon.Controller;
 import net.sf.saxon.event.SequenceOutputter;
 import net.sf.saxon.event.SequenceReceiver;
 import net.sf.saxon.expr.*;
-import net.sf.saxon.om.EmptyIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.SingletonIterator;
+import net.sf.saxon.om.*;
 import net.sf.saxon.trace.InstructionInfo;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.SourceLocator;
 
@@ -123,7 +120,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
                                                 loc,
                                                 error.getException());
                 if (error instanceof DynamicError) {
-                    de.setErrorCode(error.getErrorCode());
+                    de.setErrorCode(error.getErrorCodeLocalPart());
                     if (((DynamicError)error).getXPathContext()==null) {
                         de.setXPathContext(context);
                     } else {
@@ -161,7 +158,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
         if (actualParams == null || actualParams.length == 0) {
             return null;
         }
-        ParameterSet params = new ParameterSet();
+        ParameterSet params = new ParameterSet(actualParams.length);
         for (int i=0; i<actualParams.length; i++) {
             params.put(actualParams[i].getVariableFingerprint(),
                        actualParams[i].getSelectValue(context));
@@ -181,7 +178,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
         if (existingParams == null) {
             return assembleParams(context, actualParams);
         }
-        ParameterSet newParams = new ParameterSet(existingParams);
+        ParameterSet newParams = new ParameterSet(existingParams, (actualParams==null ? 0 : actualParams.length));
         if (actualParams == null || actualParams.length == 0) {
             return newParams;
         }
@@ -196,16 +193,12 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
      * Simplify an expression. This performs any static optimization (by rewriting the expression
      * as a different expression). The default implementation does nothing.
      *
-     * @exception net.sf.saxon.xpath.XPathException if an error is discovered during expression
+     * @exception net.sf.saxon.trans.XPathException if an error is discovered during expression
      *     rewriting
      * @return the simplified expression
      */
 
      public abstract Expression simplify(StaticContext env) throws XPathException;
-//    {
-//        ExpressionTool.makeParentReferences(this);
-//        return this;
-//    }
 
     /**
      * Perform static analysis of an expression and its subexpressions.
@@ -277,7 +270,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
      * @param offer details of the offer, for example the offer to move
      *     expressions that don't depend on the context to an outer level in
      *     the containing expression
-     * @exception net.sf.saxon.xpath.XPathException if any error is detected
+     * @exception net.sf.saxon.trans.XPathException if any error is detected
      * @return if the offer is not accepted, return this expression unchanged.
      *      Otherwise return the result of rewriting the expression to promote
      *      this subexpression
@@ -374,7 +367,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
      * the result to a string, other than converting () to "". This method is used mainly to
      * evaluate expressions produced by compiling an attribute value template.
      *
-     * @exception net.sf.saxon.xpath.XPathException if any dynamic error occurs evaluating the
+     * @exception net.sf.saxon.trans.XPathException if any dynamic error occurs evaluating the
      *     expression
      * @exception java.lang.ClassCastException if the result type of the
      *     expression is not xs:string?
@@ -405,7 +398,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
      */
 
 
-    public boolean effectiveBooleanValue(XPathContext context) throws XPathException {
+    public final boolean effectiveBooleanValue(XPathContext context) throws XPathException {
         return ExpressionTool.effectiveBooleanValue(iterate(context));
     }
 
@@ -439,7 +432,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
                 it = (Item)((UserFunctionCall.FunctionCallPackage)it).appendTo(out);
                 // continue round the loop to unwind all recursive calls
             } else {
-                out.append(it, locationId);
+                out.append(it, locationId, NodeInfo.ALL_NAMESPACES);
                 return;
             }
         }

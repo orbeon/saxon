@@ -14,8 +14,6 @@ import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.NumericValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.io.Serializable;
@@ -199,8 +197,8 @@ public class KeyManager implements Serializable {
         Pattern match = keydef.getMatch();
         Expression use = keydef.getUse();
         Collator collator = keydef.getCollation();
-        NodeInfo sourceRoot = doc;
-        NodeInfo curr = sourceRoot;
+
+        NodeInfo curr;
         XPathContextMajor xc = context.newContext();
         xc.setOrigin(keydef);
 
@@ -338,7 +336,7 @@ public class KeyManager implements Serializable {
                     break;
                 }
                 try {
-                    val = item.convert(soughtItemType, xc);
+                    val = item.convert(soughtItemType);
                 } catch (XPathException err) {
                     // ignore values that can't be converted to the required type
                     break;
@@ -411,7 +409,7 @@ public class KeyManager implements Serializable {
                 itemType == StandardNames.XS_DECIMAL ||
                 itemType == StandardNames.XS_FLOAT) {
             itemType = StandardNames.XS_DOUBLE;
-            value = value.convert(itemType, context);
+            value = value.convert(itemType);
         }
 
         Object indexObject = getIndex(doc, fingerprint, itemType);

@@ -1,11 +1,7 @@
 package net.sf.saxon.tree;
-import net.sf.saxon.om.ArrayIterator;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.EmptyIterator;
-import net.sf.saxon.om.SingletonIterator;
+import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.AnyNodeTest;
 import net.sf.saxon.pattern.NodeTest;
-import org.w3c.dom.Node;
 
 /**
   * ParentNodeImpl is an implementation of a non-leaf node (specifically, an Element node
@@ -74,7 +70,7 @@ abstract class ParentNodeImpl extends NodeImpl {
     * @return the first child node of the required type, or null if there are no children
     */
 
-    public final Node getFirstChild() {
+    public final NodeInfo getFirstChild() {
         if (children==null) return null;
         if (children instanceof NodeImpl) return (NodeImpl)children;
         return ((NodeImpl[])children)[0];
@@ -85,32 +81,12 @@ abstract class ParentNodeImpl extends NodeImpl {
     * @return the last child of the element, or null if there are no children
     */
 
-    public final Node getLastChild() {
+    public final NodeInfo getLastChild() {
         if (children==null) return null;
         if (children instanceof NodeImpl) return (NodeImpl)children;
         NodeImpl[] n = (NodeImpl[])children;
         return n[n.length-1];
     }
-
-    /**
-     * Return a <code>NodeList</code> that contains all children of this node. If
-     * there are no children, this is a <code>NodeList</code> containing no
-     * nodes.
-     */
-
-    /*public final NodeList getChildNodes() {
-        if (hasChildNodes()) {
-            try {
-                return new DOMNodeList(
-                    new SequenceExtent(
-                                enumerateChildren(AnyNodeTest.getInstance())));
-            } catch (XPathException err) {
-                return super.getChildNodes();
-            }
-        } else {
-            return super.getChildNodes();
-        }
-    }*/
 
     /**
     * Get the nth child node of the element (numbering from 0)
@@ -135,20 +111,25 @@ abstract class ParentNodeImpl extends NodeImpl {
     */
 
     public String getStringValue() {
-        StringBuffer sb = null;
+        return getStringValueCS().toString();
+    }
+
+
+    public CharSequence getStringValueCS() {
+        FastStringBuffer sb = null;
 
         NodeImpl next = (NodeImpl)getFirstChild();
         while (next!=null) {
             if (next instanceof TextImpl) {
                 if (sb==null) {
-                    sb = new StringBuffer();
+                    sb = new FastStringBuffer(1024);
                 }
-                sb.append(next.getStringValue());
+                sb.append(next.getStringValueCS());
             }
             next = next.getNextInDocument(this);
         }
         if (sb==null) return "";
-        return sb.toString();
+        return sb.condense();
     }
 
     /**
@@ -218,13 +199,6 @@ abstract class ParentNodeImpl extends NodeImpl {
         }
     }
 
-    /**
-    * Get the node value as defined in the DOM. This is not the same as the XPath string-value.
-    */
-
-    public String getNodeValue() {
-        return null;
-    }
 }
 
 

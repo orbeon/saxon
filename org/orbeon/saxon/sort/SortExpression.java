@@ -3,10 +3,10 @@ import net.sf.saxon.expr.*;
 import net.sf.saxon.om.EmptyIterator;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.Cardinality;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -69,6 +69,10 @@ public class SortExpression extends ComputedExpression {
             if (e != null && !(e instanceof Value)) {
                 list.add(e);
             }
+            e = sortKeys[i].collationName;
+            if (e != null && !(e instanceof Value)) {
+                list.add(e);
+            }
         }
         return list.iterator();
     }
@@ -92,6 +96,48 @@ public class SortExpression extends ComputedExpression {
             return this;
         } else {
             return select;
+        }
+    }
+
+    /**
+     * Offer promotion for this subexpression. The offer will be accepted if the subexpression
+     * is not dependent on the factors (e.g. the context item) identified in the PromotionOffer.
+     * By default the offer is not accepted - this is appropriate in the case of simple expressions
+     * such as constant values and variable references where promotion would give no performance
+     * advantage. This method is always called at compile time.
+     *
+     * @param offer details of the offer, for example the offer to move
+     *              expressions that don't depend on the context to an outer level in
+     *              the containing expression
+     * @return if the offer is not accepted, return this expression unchanged.
+     *         Otherwise return the result of rewriting the expression to promote
+     *         this subexpression
+     * @throws net.sf.saxon.trans.XPathException
+     *          if any error is detected
+     */
+
+    public Expression promote(PromotionOffer offer) throws XPathException {
+        Expression exp = offer.accept(this);
+        if (exp!=null) {
+            return exp;
+        } else {
+            select = select.promote(offer);
+            for (int i=0; i<sortKeys.length; i++) {
+                sortKeys[i].setSortKey((sortKeys[i].getSortKey().promote(offer)));
+                if (sortKeys[i].caseOrder != null) {
+                    sortKeys[i].caseOrder = sortKeys[i].caseOrder.promote(offer);
+                }
+                if (sortKeys[i].dataTypeExpression != null) {
+                    sortKeys[i].dataTypeExpression = sortKeys[i].dataTypeExpression.promote(offer);
+                }
+                if (sortKeys[i].language != null) {
+                    sortKeys[i].language = sortKeys[i].language.promote(offer);
+                }
+                if (sortKeys[i].collationName != null) {
+                    sortKeys[i].collationName = sortKeys[i].collationName.promote(offer);
+                }
+            }
+            return this;
         }
     }
 
@@ -136,6 +182,9 @@ public class SortExpression extends ComputedExpression {
         int props = 0;
         if ((select.getSpecialProperties() & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0) {
             props |= StaticProperty.CONTEXT_DOCUMENT_NODESET;
+        }
+        if ((select.getSpecialProperties() & StaticProperty.SINGLE_DOCUMENT_NODESET) != 0) {
+            props |= StaticProperty.SINGLE_DOCUMENT_NODESET;
         }
         if ((select.getSpecialProperties() & StaticProperty.NON_CREATIVE) != 0) {
             props |= StaticProperty.NON_CREATIVE;

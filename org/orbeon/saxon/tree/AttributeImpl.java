@@ -2,11 +2,8 @@ package net.sf.saxon.tree;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
-import org.w3c.dom.Attr;
-import org.w3c.dom.Node;
-
 
 /**
   * A node in the XML parse tree representing an attribute. Note that this is
@@ -14,7 +11,7 @@ import org.w3c.dom.Node;
   * @author Michael H. Kay
   */
 
-final class AttributeImpl extends NodeImpl implements Attr {
+final class AttributeImpl extends NodeImpl {
 
     private int nameCode;
     private String value;
@@ -51,7 +48,7 @@ final class AttributeImpl extends NodeImpl implements Attr {
         if (!(other instanceof AttributeImpl)) return false;
         if (this==other) return true;
         AttributeImpl otherAtt = (AttributeImpl)other;
-        return (parent.isSameNode(otherAtt.parent) &&
+        return (parent.isSameNodeInfo(otherAtt.parent) &&
         		 ((nameCode&0xfffff)==(otherAtt.nameCode&0xfffff)));
     }
 
@@ -89,7 +86,7 @@ final class AttributeImpl extends NodeImpl implements Attr {
     * Get next sibling - not defined for attributes
     */
 
-    public Node getNextSibling() {
+    public NodeInfo getNextSibling() {
         return null;
     }
 
@@ -97,7 +94,7 @@ final class AttributeImpl extends NodeImpl implements Attr {
     * Get previous sibling - not defined for attributes
     */
 
-    public Node getPreviousSibling() {
+    public NodeInfo getPreviousSibling() {
         return null;
     }
 
@@ -119,11 +116,11 @@ final class AttributeImpl extends NodeImpl implements Attr {
     }
 
     /**
-    * Get sequential key. Returns key of owning element with the attribute name as a suffix
+    * Get sequential key. Returns key of owning element with the attribute index as a suffix
     */
 
     public String generateId() {
-        return parent.generateId() + "_" + getDisplayName();
+        return parent.generateId() + 'a' + index;
     }
 
     /**

@@ -2,10 +2,10 @@ package net.sf.saxon.functions;
 import net.sf.saxon.expr.Token;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.IntegerValue;
 import net.sf.saxon.value.NumericValue;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * This class supports the ceiling(), floor(), round(), and round-to-half-even() functions,

@@ -4,6 +4,8 @@ import org.xml.sax.SAXException;
 import org.xml.sax.helpers.XMLFilterImpl;
 
 import java.util.Stack;
+import java.util.HashMap;
+import java.util.Iterator;
 
 
 /**
@@ -12,9 +14,6 @@ import java.util.Stack;
 * treated as if they were present on the identified element.
 */
 
-// TODO: there could be a problem with namespace declarations that are present on
-// outer elements and then cancelled/overridden.
-  
 public class IDFilter extends XMLFilterImpl {
 
     private String id;
@@ -61,10 +60,20 @@ public class IDFilter extends XMLFilterImpl {
                 }
             }
             if (activeDepth==1) {
+                // Collect together all the in-scope namespaces that haven't been redeclared
+                // or undeclared
+                HashMap nsmap = new HashMap(namespacePrefixes.size());
                 for (int n=0; n<namespacePrefixes.size(); n++) {
-                    super.startPrefixMapping(
-                            (String)namespacePrefixes.elementAt(n),
-                            (String)namespaceURIs.elementAt(n) );
+                     if (namespaceURIs.elementAt(n).equals("")) {
+                         nsmap.remove(namespacePrefixes.elementAt(n));
+                     } else {
+                         nsmap.put(namespacePrefixes.elementAt(n),
+                                 namespaceURIs.elementAt(n));
+                     }
+                }
+                for (Iterator it = nsmap.keySet().iterator(); it.hasNext();) {
+                    String prefix = (String)it.next();
+                    super.startPrefixMapping(prefix, (String)nsmap.get(prefix));
                 }
             }
         } else {

@@ -2,6 +2,7 @@ package net.sf.saxon.xpath;
 
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.functions.FunctionLibrary;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.namespace.QName;
 import javax.xml.xpath.XPathFunction;

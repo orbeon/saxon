@@ -1,8 +1,8 @@
 package net.sf.saxon.event;
 
 import net.sf.saxon.om.*;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.xpath.XPathException;
 
 /**
  * A TreeReceiver acts as a bridge between a SequenceReceiver, which can receive
@@ -233,19 +233,19 @@ public class TreeReceiver extends SequenceReceiver {
      * Append an arbitrary item (node or atomic value) to the output
      */
 
-    public void append(Item item, int locationId) throws XPathException {
+    public void append(Item item, int locationId, int copyNamespaces) throws XPathException {
         if (item instanceof AtomicValue) {
             if (previousAtomic) {
                 characters(" ", locationId, 0);
             }
-            characters(item.getStringValue(), locationId, 0);
+            characters(item.getStringValueCS(), locationId, 0);
             previousAtomic = true;
         } else if (item instanceof DocumentInfo) {
             SequenceIterator iter = ((DocumentInfo)item).iterateAxis(Axis.CHILD);
             while (true) {
                 Item it = iter.next();
                 if (it == null) break;
-                append(it, locationId);
+                append(it, locationId, NodeInfo.ALL_NAMESPACES);
             }
         } else {
             ((NodeInfo)item).copy(this, NodeInfo.ALL_NAMESPACES, true, locationId);

@@ -8,9 +8,9 @@ import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.functions.EscapeURI;
 import net.sf.saxon.pattern.*;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.SequenceExtent;
-import net.sf.saxon.xpath.XPathException;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -43,7 +43,8 @@ public final class Navigator {
 
     public static final boolean isWhite(CharSequence content) {
         for (int i=0; i<content.length();) {
-            // all valid XML whitespace characters, and only whitespace characters, are <= 0x20
+            // all valid XML 1.0 whitespace characters, and only whitespace characters, are <= 0x20
+            // TODO: needs updating to support XML 1.1
             if (content.charAt(i++) > 32) {
                 return false;
             }
@@ -69,7 +70,7 @@ public final class Navigator {
     public static String getBaseURI(NodeInfo element) {
         String xmlBase = element.getAttributeValue(StandardNames.XML_BASE);
         if (xmlBase!=null) {
-            String escaped = EscapeURI.escape(xmlBase, false);
+            String escaped = EscapeURI.escape(xmlBase, false).toString();
             URI escapedURI;
             try {
                 escapedURI = new URI(escaped);
@@ -105,6 +106,31 @@ public final class Navigator {
             return parent.getBaseURI();
         } else {
             return startSystemId;
+        }
+    }
+
+    /**
+     * Output all namespace nodes associated with this element. Does nothing if
+     * the node is not an element. This is a helper method to allow the method
+     * {@link NodeInfo#sendNamespaceDeclarations(net.sf.saxon.event.Receiver, boolean)} to be
+     * implemented if {@link NodeInfo#getDeclaredNamespaces(int[])} is available.
+     * @param out The relevant outputter
+     * @param includeAncestors True if namespaces declared on ancestor elements must be output
+     */
+
+    public static void sendNamespaceDeclarations(NodeInfo node, Receiver out, boolean includeAncestors)
+        throws XPathException {
+        if (node.getNodeKind() == Type.ELEMENT) {
+            int[] codes;
+            if (includeAncestors) {
+                codes = new NamespaceIterator(node, null).getInScopeNamespaceCodes();
+            } else {
+                codes = node.getDeclaredNamespaces(NodeInfo.EMPTY_NAMESPACE_LIST);
+            }
+            for (int i=0; i<codes.length; i++) {
+                if (codes[i] == -1) break;
+                out.namespace(codes[i], 0);
+            }
         }
     }
 
@@ -319,13 +345,11 @@ public final class Navigator {
      * Return one plus the number of previous nodes in the
      * document that match the supplied pattern
      *
-     * @exception XPathException
+     * @exception net.sf.saxon.trans.XPathException
      * @param inst Identifies the xsl:number expression; this is relevant
      *     when the function is memoised to support repeated use of the same
-     *     instruction to number modulple nodes
-     * @param node Identifies the xsl:number instruction; this is
-     *     relevant when the function is memoised to support repeated use of
-     *     the same instruction to number modulple nodes
+     *     instruction to number multiple nodes
+     * @param node The node being numbered
      * @param count Pattern that identifies which nodes should be
      *     counted. Default (null) is the element name if the current node is
      *      an element, or "node()" otherwise.
@@ -500,7 +524,7 @@ public final class Navigator {
                 // output the namespaces
 
                 if (whichNamespaces != NodeInfo.NO_NAMESPACES) {
-                    node.outputNamespaceNodes(out, true);
+                    node.sendNamespaceDeclarations(out, true);
                 }
 
                 // output the attributes
@@ -537,19 +561,19 @@ public final class Navigator {
             case Type.ATTRIBUTE: {
                 out.attribute(node.getNameCode(),
                               copyAnnotations? node.getTypeAnnotation(): -1,
-                              node.getStringValue(), 0, 0);
+                              node.getStringValueCS(), 0, 0);
                 return;
             }
             case Type.TEXT: {
-                out.characters(node.getStringValue(), 0, 0);
+                out.characters(node.getStringValueCS(), 0, 0);
                 return;
             }
             case Type.COMMENT: {
-                out.comment(node.getStringValue(), 0, 0);
+                out.comment(node.getStringValueCS(), 0, 0);
                 return;
             }
             case Type.PROCESSING_INSTRUCTION: {
-                out.processingInstruction(node.getLocalPart(), node.getStringValue(), 0, 0);
+                out.processingInstruction(node.getLocalPart(), node.getStringValueCS(), 0, 0);
                 return;
             }
             case Type.NAMESPACE: {
@@ -750,28 +774,6 @@ public final class Navigator {
                 }
     	    }
         }
-
-//    	public int getLastPosition() {
-//
-//    	    // To find out how many nodes there are in the axis, we
-//    	    // make a copy of the original node enumeration, and run through
-//    	    // the whole thing again, counting how many nodes match the filter.
-//
-//    	    if (last>=0) {
-//    	        return last;
-//    	    }
-//    	    last = 0;
-//            AxisIterator b = (AxisIterator)base.getAnother();
-//            while (true) {
-//                NodeInfo n = (NodeInfo)b.next();
-//                if (n == null) {
-//                    return last;
-//                }
-//                if (nodeTest.matches(n)) {
-//                    last++;
-//                }
-//            }
-//    	}
 
     	public SequenceIterator getAnother() {
     	    return new AxisFilter((AxisIterator)base.getAnother(), nodeTest);

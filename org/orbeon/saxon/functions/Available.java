@@ -5,9 +5,9 @@ import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.*;
 import net.sf.saxon.style.StyleNodeFactory;
 import net.sf.saxon.style.XSLTStaticContext;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * This class supports the XSLT element-available and function-available functions.

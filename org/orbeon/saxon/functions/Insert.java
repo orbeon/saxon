@@ -2,9 +2,9 @@ package net.sf.saxon.functions;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.NumericValue;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * The XPath 2.0 insert-before() function
@@ -26,7 +26,7 @@ public class Insert extends SystemFunction {
         return new InsertIterator(seq, ins, pos);
     }
 
-    private class InsertIterator implements SequenceIterator {
+    public static class InsertIterator implements SequenceIterator {
 
         private SequenceIterator base;
         private SequenceIterator insert;

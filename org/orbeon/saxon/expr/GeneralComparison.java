@@ -2,16 +2,15 @@ package net.sf.saxon.expr;
 import net.sf.saxon.functions.Position;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.pattern.NodeTest;
 import net.sf.saxon.sort.AtomicComparer;
 import net.sf.saxon.sort.CodepointCollator;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.util.Comparator;
 
@@ -58,6 +57,12 @@ public class GeneralComparison extends BinaryExpression {
         operand0 = operand0.analyze(env, contextItemType);
         operand1 = operand1.analyze(env, contextItemType);
 
+        // If either operand is statically empty, return false
+
+        if (operand0 == EmptySequence.getInstance() || operand1 == EmptySequence.getInstance()) {
+            return BooleanValue.FALSE;
+        }
+
         // Neither operand needs to be sorted
 
         operand0 = ExpressionTool.unsorted(operand0, false);
@@ -83,21 +88,23 @@ public class GeneralComparison extends BinaryExpression {
         } else {
             int pt0 = t0.getPrimitiveType();
             int pt1 = t1.getPrimitiveType();
-            if (pt0 != pt1 &&
-                !(Type.isSubType(t0, Type.NUMBER_TYPE) &&
-                    Type.isSubType(t1, Type.NUMBER_TYPE))) {
+            if (!Type.isComparable(pt0, pt1)) {
                 StaticError err = new StaticError(
                         "Cannot compare " + t0.toString(env.getNamePool()) +
                         " to " + t1.toString(env.getNamePool()));
+                err.setErrorCode("XP0006");
                 err.setIsTypeError(true);
                 throw err;
             }
         }
 
         if (c0 == StaticProperty.EXACTLY_ONE &&
-            c1 == StaticProperty.EXACTLY_ONE) {
+                c1 == StaticProperty.EXACTLY_ONE &&
+                t0 != Type.ANY_ATOMIC_TYPE &&
+                t1 != Type.ANY_ATOMIC_TYPE) {
 
-            // Use a value comparison if both arguments are singletons
+            // Use a value comparison if both arguments are singletons, and if the comparison operator to
+            // be used can be determined.
 
             Expression e0 = operand0;
             Expression e1 = operand1;
@@ -271,7 +278,7 @@ public class GeneralComparison extends BinaryExpression {
         SequenceIterator iter1 = operand0.iterate(context);
         SequenceIterator iter2 = operand1.iterate(context);
 
-        SequenceExtent seq2 = new SequenceExtent(iter2);
+        Value seq2 = SequenceExtent.makeSequenceExtent(iter2);
                 // we choose seq2 because it's more likely to be a singleton
         int count2 = seq2.getLength();
 
@@ -344,20 +351,20 @@ public class GeneralComparison extends BinaryExpression {
         AtomicValue v2 = a2;
         if (a1 instanceof UntypedAtomicValue) {
             if (a2 instanceof NumericValue) {
-                v1 = a1.convert(Type.DOUBLE, context);
+                v1 = a1.convert(Type.DOUBLE);
             } else if (a2 instanceof UntypedAtomicValue) {
                 // the spec says convert it to a string, but this doesn't affect the outcome
             } else {
-                v1 = a1.convert(a2.getItemType().getPrimitiveType(), context);
+                v1 = a1.convert(a2.getItemType().getPrimitiveType());
             }
         }
         if (a2 instanceof UntypedAtomicValue) {
             if (a1 instanceof NumericValue) {
-                v2 = a2.convert(Type.DOUBLE, context);
+                v2 = a2.convert(Type.DOUBLE);
             } else if (a1 instanceof UntypedAtomicValue) {
                 // the spec says convert it to a string, but this doesn't affect the outcome
             } else {
-                v2 = a2.convert(a1.getItemType().getPrimitiveType(), context);
+                v2 = a2.convert(a1.getItemType().getPrimitiveType());
             }
         }
         return ValueComparison.compare(v1, operator, v2, comparer);
@@ -396,7 +403,7 @@ public class GeneralComparison extends BinaryExpression {
     }
 
     protected GeneralComparison getInverseComparison() {
-        return new GeneralComparison(operand1, Value.inverse(operator), operand0);
+        return new GeneralComparison(operand1, Token.inverse(operator), operand0);
     }
 
     protected String displayOperator() {

@@ -1,13 +1,14 @@
 package net.sf.saxon.value;
 
-import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.functions.Component;
-import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.om.FastStringBuffer;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.type.BuiltInAtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.type.ValidationException;
 
 import java.util.*;
 
@@ -77,7 +78,7 @@ public final class TimeValue extends CalendarValue implements Comparable {
                         badTime("decimal separator occurs twice");
                     }
                     part = (String) tok.nextElement();
-                    double fractionalSeconds = Double.parseDouble("." + part);
+                    double fractionalSeconds = Double.parseDouble('.' + part);
                     millisecond = (int) (Math.round(fractionalSeconds * 1000));
                     state = 1;
                 } else if ("Z".equals(delim)) {
@@ -142,18 +143,17 @@ public final class TimeValue extends CalendarValue implements Comparable {
     }
 
     private void badTime(String msg) throws XPathException {
-        throw new DynamicError("Invalid time value (" + msg + ")");
+        throw new DynamicError("Invalid time value (" + msg + ')');
     }
 
     /**
      * Convert to target data type
      * @param requiredType an integer identifying the required atomic type
-     * @return an AtomicValue, a value of the required type
-     * @throws XPathException if the conversion is not possible
+     * @return an AtomicValue, a value of the required type; or an ErrorValue
      */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
-        switch (requiredType) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+        switch (requiredType.getPrimitiveType()) {
             case Type.TIME:
             case Type.ATOMIC:
             case Type.ITEM:
@@ -165,11 +165,11 @@ public final class TimeValue extends CalendarValue implements Comparable {
 //            case Type.DATE_TIME:
 //                return new DateTimeValue(calendar, zoneSpecified);
             default:
-                DynamicError err = new DynamicError("Cannot convert time to " +
-                        StandardNames.getDisplayName(requiredType));
-                err.setXPathContext(context);
+                ValidationException err = new ValidationException("Cannot convert time to " +
+                        requiredType.getDisplayName());
+                //err.setXPathContext(context);
                 err.setErrorCode("FORG0001");
-                throw err;
+                return new ErrorValue(err);
         }
     }
 
@@ -181,7 +181,7 @@ public final class TimeValue extends CalendarValue implements Comparable {
 
     public String getStringValue() {
 
-        StringBuffer sb = new StringBuffer(16);
+        FastStringBuffer sb = new FastStringBuffer(16);
 
         DateTimeValue.appendString(sb, calendar.get(Calendar.HOUR_OF_DAY), 2);
         sb.append(':');
@@ -224,7 +224,7 @@ public final class TimeValue extends CalendarValue implements Comparable {
         return (CalendarValue)
                 new DateTimeValue(calendar, zoneSpecified)
                 .removeTimezone()
-                .convert(Type.TIME, null);
+                .convert(Type.TIME);
     }
 
     /**
@@ -238,14 +238,14 @@ public final class TimeValue extends CalendarValue implements Comparable {
         return (CalendarValue)
                 new DateTimeValue(calendar, zoneSpecified)
                 .setTimezone(tz)
-                .convert(Type.TIME, null);
+                .convert(Type.TIME);
     }
 
     /**
      * Convert to Java object (for passing to external functions)
      */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
+    public Object convertToJava(Class target, XPathContext context) throws XPathException {
         if (target.isAssignableFrom(TimeValue.class)) {
             return this;
         } else if (target == String.class) {
@@ -253,7 +253,7 @@ public final class TimeValue extends CalendarValue implements Comparable {
         } else if (target == Object.class) {
             return getStringValue();
         } else {
-            Object o = super.convertToJava(target, config, context);
+            Object o = super.convertToJava(target, context);
             if (o == null) {
                 throw new DynamicError("Conversion of time to " + target.getName() +
                         " is not supported");
@@ -274,9 +274,9 @@ public final class TimeValue extends CalendarValue implements Comparable {
             case Component.MINUTES:
                 return new IntegerValue(calendar.get(Calendar.MINUTE));
             case Component.SECONDS:
-                StringBuffer sb = new StringBuffer(10);
+                FastStringBuffer sb = new FastStringBuffer(10);
                 DateTimeValue.appendSeconds(calendar, sb);
-                return new DecimalValue(sb.toString());
+                return DecimalValue.makeDecimalValue(sb, false);
             case Component.TIMEZONE:
                 if (zoneSpecified) {
                     int tzsecs = (calendar.get(Calendar.ZONE_OFFSET) +
@@ -349,18 +349,19 @@ public final class TimeValue extends CalendarValue implements Comparable {
     /**
      * Determine the difference between two points in time, as a duration
      * @param other the other point in time
+     * @param context
      * @return the duration as an xdt:dayTimeDuration
      * @throws XPathException for example if one value is a date and the other is a time
      */
 
-    public SecondsDurationValue subtract(CalendarValue other) throws XPathException {
+    public SecondsDurationValue subtract(CalendarValue other, XPathContext context) throws XPathException {
         if (!(other instanceof TimeValue)) {
             DynamicError err = new DynamicError(
                     "First operand of '-' is a time, but the second is not");
             err.setIsTypeError(true);
             throw err;
         }
-        return super.subtract(other);
+        return super.subtract(other, context);
     }
 
 

@@ -1,15 +1,14 @@
 package net.sf.saxon.pattern;
-import net.sf.saxon.expr.Container;
-import net.sf.saxon.expr.ExpressionParser;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.expr.*;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.Serializable;
+import java.util.Iterator;
+import java.util.Collections;
 
 /**
 * A Pattern represents the result of parsing an XSLT pattern string. <br>
@@ -79,8 +78,48 @@ public abstract class Pattern implements Serializable, Container {
     * @return the optimised Pattern
     */
 
-    public Pattern typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Pattern analyze(StaticContext env, ItemType contextItemType) throws XPathException {
         return this;
+    }
+
+    /**
+     * Get the dependencies of the pattern. The only possible dependency for a pattern is
+     * on local variables. This is analyzed in those patterns where local variables may appear.
+     */
+
+    public int getDependencies() {
+        return 0;
+    }
+
+    /**
+     * Iterate over the subexpressions within this pattern
+     */
+
+    public Iterator iterateSubExpressions() {
+        return Collections.EMPTY_LIST.iterator();
+    }
+
+    /**
+     * Offer promotion for subexpressions within this pattern. The offer will be accepted if the subexpression
+     * is not dependent on the factors (e.g. the context item) identified in the PromotionOffer.
+     * By default the offer is not accepted - this is appropriate in the case of simple expressions
+     * such as constant values and variable references where promotion would give no performance
+     * advantage. This method is always called at compile time.
+     *
+     * <p>Unlike the corresponding method on {@link Expression}, this method does not return anything:
+     * it can make internal changes to the pattern, but cannot return a different pattern. Only certain
+     * kinds of promotion are applicable within a pattern: specifically, promotions affecting local
+     * variable references within the pattern.
+     *
+     * @param offer details of the offer, for example the offer to move
+     *              expressions that don't depend on the context to an outer level in
+     *              the containing expression
+     * @throws net.sf.saxon.trans.XPathException
+     *          if any error is detected
+     */
+
+    public void promote(PromotionOffer offer) throws XPathException {
+        // default implementation does nothing
     }
 
     /**

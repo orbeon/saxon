@@ -1,17 +1,20 @@
 package net.sf.saxon;
+//import net.sf.saxon.dom.NodeOverNodeInfo;
 import net.sf.saxon.event.CommentStripper;
 import net.sf.saxon.event.PipelineConfiguration;
 import net.sf.saxon.event.Sender;
 import net.sf.saxon.event.StartTagBuffer;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.NamePool;
+import net.sf.saxon.om.Validation;
 import net.sf.saxon.style.*;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.tree.DocumentImpl;
 import net.sf.saxon.tree.TreeBuilder;
-import net.sf.saxon.xpath.XPathException;
 import org.xml.sax.SAXParseException;
 
 import javax.xml.transform.*;
+import javax.xml.transform.dom.DOMSource;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -167,7 +170,7 @@ public class PreparedStylesheet implements Templates, Serializable {
         try {
             Sender sender = new Sender(pipe);
             AugmentedSource aug = AugmentedSource.makeAugmentedSource(styleSource);
-            aug.setSchemaValidation(Boolean.FALSE);
+            aug.setSchemaValidationMode(Validation.STRIP);
             if (aug.getXMLReader() == null) {
                 aug.setXMLReader(config.getStyleParser());
             }
@@ -201,6 +204,9 @@ public class PreparedStylesheet implements Templates, Serializable {
                 } else {
                     throw new TransformerConfigurationException(cause);
                 }
+            }
+            if (err.hasBeenReported()) {
+                throw new TransformerConfigurationException("One or more errors were found in the stylesheet");
             }
             throw new TransformerConfigurationException(err);
         }

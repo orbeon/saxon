@@ -4,11 +4,11 @@ import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamespaceConstant;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.QNameValue;
 import net.sf.saxon.value.SequenceExtent;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * Implement XPath function fn:error()
@@ -51,10 +51,10 @@ public class Error extends SystemFunction {
             description = "Error signalled by application call on error()";
         }
         DynamicError e = new DynamicError(description);
-        e.setErrorCode(qname.getQName());
+        e.setErrorCode(qname.getNamespaceURI(), qname.getLocalName());
         e.setXPathContext(context);
         if (argument.length > 2) {
-            e.setErrorObject(new SequenceExtent(argument[2].iterate(context)));
+            e.setErrorObject(SequenceExtent.makeSequenceExtent(argument[2].iterate(context)));
         }
         throw e;
     }

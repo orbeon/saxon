@@ -2,10 +2,10 @@ package net.sf.saxon.sort;
 
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.ObjectValue;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
 
 /**
  * A SortedTupleIterator is a modified SortedIterator. Whereas the sorted iterator
@@ -15,6 +15,9 @@ import net.sf.saxon.xpath.XPathException;
  */
 
 class SortedTupleIterator extends SortedIterator {
+
+    // Note, the sort key expression within the FixedSortKeyDefinition is not used
+    // in this subclass.
 
     public SortedTupleIterator(XPathContext context, SequenceIterator base,
                                FixedSortKeyDefinition[] sortKeys) throws XPathException {

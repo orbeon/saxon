@@ -2,10 +2,11 @@ package net.sf.saxon.expr;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.om.ValueRepresentation;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AnyItemType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -85,11 +86,11 @@ public class SuppliedParameterReference extends ComputedExpression {
     */
 
     public SequenceIterator iterate(XPathContext c) throws XPathException {
-        return c.evaluateLocalVariable(slotNumber).iterate(c);
+        return Value.getIterator(c.evaluateLocalVariable(slotNumber));
     }
 
     public Item evaluateItem(XPathContext c) throws XPathException {
-        Value actual = c.evaluateLocalVariable(slotNumber);
+        ValueRepresentation actual = c.evaluateLocalVariable(slotNumber);
         return Value.asItem(actual, c);
     }
 

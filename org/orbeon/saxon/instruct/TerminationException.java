@@ -1,5 +1,5 @@
 package net.sf.saxon.instruct;
-import net.sf.saxon.xpath.DynamicError;
+import net.sf.saxon.trans.DynamicError;
 
 /**
 * An exception thrown by xsl:message terminate="yes".

@@ -1,6 +1,7 @@
 package net.sf.saxon.expr;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.om.ValueRepresentation;
 
 /**
  * An EagerLetExpression is the same as a LetExpression except that the variable is evaluated using
@@ -15,7 +16,7 @@ public class EagerLetExpression extends LetExpression {
      * Evaluate the variable.
      */ 
     
-    protected Value eval(XPathContext context) throws XPathException {
+    protected ValueRepresentation eval(XPathContext context) throws XPathException {
         return ExpressionTool.eagerEvaluate(sequence, context);
     }
 

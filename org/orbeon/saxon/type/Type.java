@@ -21,7 +21,7 @@ import java.util.Set;
 
 public abstract class Type implements Serializable {
 
-    // Note that the integer codes representing node item types are the same as
+    // Note that the integer codes representing node kinds are the same as
     // the codes allocated in the DOM interface, while the codes for built-in
     // atomic type are fingerprints allocated in StandardNames. These two sets of
     // codes must not overlap!
@@ -508,11 +508,15 @@ public abstract class Type implements Serializable {
      * @return {@link #SAME_TYPE} if the types are the same; {@link #SUBSUMES} if the first
      * type subsumes the second (that is, all instances of the second type are also instances
      * of the first); {@link #SUBSUMED_BY} if the second type subsumes the first;
-     * {@link #OVERLAPS} if the two types overlap (have a non-empty intersection);
-     * {@link #DISJOINT} if the two types are disjoint (have an empty intersection)
+     * {@link #OVERLAPS} if the two types overlap (have a non-empty intersection, but neither
+     * subsumes the other); {@link #DISJOINT} if the two types are disjoint (have an empty intersection)
      */
 
     public static int relationship(ItemType t1, ItemType t2) {
+        // TODO: cache the results of this function to avoid expensive re-computation
+        if (t1 == t2) {
+            return SAME_TYPE;
+        }
         if (t1 instanceof AnyItemType) {
             if (t2 instanceof AnyItemType) {
                 return SAME_TYPE;
@@ -672,7 +676,7 @@ public abstract class Type implements Serializable {
         }
         SchemaType t1 = s1;
         while (true) {
-            t1 = t1.getKnownBaseType();
+            t1 = t1.getBaseType();
             if (t1 == null) {
                 break;
             }
@@ -682,11 +686,11 @@ public abstract class Type implements Serializable {
         }
         SchemaType t2 = s2;
         while (true) {
-            t2 = t2.getKnownBaseType();
+            t2 = t2.getBaseType();
             if (t2 == null) {
                 break;
             }
-            if (t2.isSameType(s2)) {
+            if (t2.isSameType(s1)) {
                 return SUBSUMES;
             }
         }
@@ -726,8 +730,8 @@ public abstract class Type implements Serializable {
 
     /**
      * Determine whether this type is a primitive type. The primitive types are
-     * the 19 primitive types of XML Schema, plus xs:integer; the 7 node kinds;
-     * xdt:untypedAtomic; and all supertypes of these (item(), node(), xdt:anyAtomicType,
+     * the 19 primitive types of XML Schema, plus xs:integer, xdt:dayTimeDuration and xdt:yearMonthDuration;
+     * xdt:untypedAtomic; the 7 node kinds; and all supertypes of these (item(), node(), xdt:anyAtomicType,
      * xdt:number, ...)
      * @param code the item type code to be tested
      * @return true if the type is considered primitive under the above rules
@@ -735,6 +739,7 @@ public abstract class Type implements Serializable {
     public static boolean isPrimitiveType(int code) {
         return code >= 0 && (code <= INTEGER || code == NUMBER ||
                 code == UNTYPED_ATOMIC || code == ATOMIC ||
+                code == DAY_TIME_DURATION || code == YEAR_MONTH_DURATION ||
                 code == StandardNames.XS_ANY_SIMPLE_TYPE);
     }
 
@@ -751,6 +756,8 @@ public abstract class Type implements Serializable {
         if (t1 == ATOMIC || t2 == ATOMIC) return true; // meaning we don't actually know at this stage
         if (t1 == UNTYPED_ATOMIC) t1 = STRING;
         if (t2 == UNTYPED_ATOMIC) t2 = STRING;
+        if (t1 == ANY_URI) t1 = STRING;
+        if (t2 == ANY_URI) t2 = STRING;
         if (t1 == INTEGER || t1 == DOUBLE || t1 == FLOAT || t1 == DECIMAL) t1 = NUMBER;
         if (t2 == INTEGER || t2 == DOUBLE || t2 == FLOAT || t2 == DECIMAL) t2 = NUMBER;
         return t1 == t2;
@@ -778,6 +785,8 @@ public abstract class Type implements Serializable {
             case DATE:
             case TIME:
             case DURATION:
+            case DAY_TIME_DURATION:
+            case YEAR_MONTH_DURATION:
                 return true;
                 // TODO: disallow ordering of durations, unless the subtypes are used
             default:

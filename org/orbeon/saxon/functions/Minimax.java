@@ -4,8 +4,8 @@ import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.sort.DescendingComparer;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.XPathException;
 
 import java.util.Comparator;
 
@@ -36,10 +36,10 @@ public class Minimax extends CollatingFunction {
         if (min == null) return null;
         if (min instanceof UntypedAtomicValue) {
             try {
-                min = new DoubleValue(Value.stringToNumber(min.getStringValue()));
+                min = new DoubleValue(Value.stringToNumber(min.getStringValueCS()));
             } catch (NumberFormatException e) {
                 dynamicError("Failure converting " +
-                                                 Err.wrap(min.getStringValue()) +
+                                                 Err.wrap(min.getStringValueCS()) +
                                                  " to a number", context);
             }
         }
@@ -50,10 +50,10 @@ public class Minimax extends CollatingFunction {
             AtomicValue test2 = test;
             if (test instanceof UntypedAtomicValue) {
                 try {
-                    test2 = new DoubleValue(Value.stringToNumber(test.getStringValue()));
+                    test2 = new DoubleValue(Value.stringToNumber(test.getStringValueCS()));
                 } catch (NumberFormatException e) {
                     dynamicError("Failure converting " +
-                                                     Err.wrap(test.getStringValue()) +
+                                                     Err.wrap(test.getStringValueCS()) +
                                                      " to a number", "FORG0001", context);
                 }
             }

@@ -1,7 +1,7 @@
 package net.sf.saxon;
 import net.sf.saxon.instruct.TerminationException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import org.xml.sax.InputSource;
 
 import javax.xml.transform.Source;

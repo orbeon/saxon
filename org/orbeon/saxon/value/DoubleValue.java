@@ -1,13 +1,15 @@
 package net.sf.saxon.value;
-import net.sf.saxon.Configuration;
 import net.sf.saxon.Err;
+import net.sf.saxon.om.FastStringBuffer;
 import net.sf.saxon.expr.Token;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.type.ValidationException;
+import net.sf.saxon.type.BuiltInAtomicType;
 
 import java.math.BigDecimal;
 import java.util.regex.Matcher;
@@ -25,15 +27,15 @@ public final class DoubleValue extends NumericValue {
 
     /**
      * Constructor supplying a string
-     * @throws DynamicError if the string does not have the correct lexical form for a double.
+     * @throws ValidationException if the string does not have the correct lexical form for a double.
      * Note that the error will contain no error code or context information.
      */
 
-    public DoubleValue(CharSequence val) throws DynamicError {
+    public DoubleValue(CharSequence val) throws ValidationException {
         try {
             value = Value.stringToNumber(val);
         } catch (NumberFormatException e) {
-            throw new DynamicError("Cannot convert string " + Err.wrap(val, Err.VALUE) + " to a double");
+            throw new ValidationException("Cannot convert string " + Err.wrap(val, Err.VALUE) + " to a double");
         }
     }
 
@@ -89,13 +91,12 @@ public final class DoubleValue extends NumericValue {
     * Convert to target data type
     * @param requiredType an integer identifying the required atomic type
     * @return an AtomicValue, a value of the required type
-    * @throws XPathException if the conversion is not possible
     */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
-        switch(requiredType) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+        switch(requiredType.getPrimitiveType()) {
         case Type.BOOLEAN:
-            return BooleanValue.get(effectiveBooleanValue(context));
+            return BooleanValue.get(effectiveBooleanValue(null));
         case Type.DOUBLE:
         case Type.NUMBER:
         case Type.ATOMIC:
@@ -103,35 +104,39 @@ public final class DoubleValue extends NumericValue {
             return this;
         case Type.INTEGER:
             if (Double.isNaN(value)) {
-                DynamicError err = new DynamicError("Cannot convert double NaN to an integer");
-                err.setXPathContext(context);
+                ValidationException err = new ValidationException("Cannot convert double NaN to an integer");
+                //err.setXPathContext(context);
                 err.setErrorCode("FORG0001");
-                throw err;
+                return new ErrorValue(err);
             }
             if (Double.isInfinite(value)) {
-                DynamicError err = new DynamicError("Cannot convert double infinity to an integer");
-                err.setXPathContext(context);
+                ValidationException err = new ValidationException("Cannot convert double infinity to an integer");
+                //err.setXPathContext(context);
                 err.setErrorCode("FORG0001");
-                throw err;
+                return new ErrorValue(err);
             }
             if (value > Long.MAX_VALUE || value < Long.MIN_VALUE) {
                 return new BigIntegerValue(new BigDecimal(value).toBigInteger());
             }
             return new IntegerValue((long)value);
         case Type.DECIMAL:
-            return new DecimalValue(value);
-        case Type.FLOAT:
+                try {
+                    return new DecimalValue(value);
+                } catch (ValidationException e) {
+                    return new ErrorValue(e);
+                }
+            case Type.FLOAT:
             return new FloatValue((float)value);
         case Type.STRING:
-            return new StringValue(getStringValue());
+            return new StringValue(getStringValueCS());
         case Type.UNTYPED_ATOMIC:
-            return new UntypedAtomicValue(getStringValue());
+            return new UntypedAtomicValue(getStringValueCS());
         default:
-            DynamicError err = new DynamicError("Cannot convert double to " +
-                                     StandardNames.getDisplayName(requiredType));
-            err.setXPathContext(context);
+            ValidationException err = new ValidationException("Cannot convert double to " +
+                                     requiredType.getDisplayName());
+            //err.setXPathContext(context);
             err.setErrorCode("FORG0001");
-            throw err;
+            return new ErrorValue(err);
         }
     }
 
@@ -139,6 +144,10 @@ public final class DoubleValue extends NumericValue {
             java.util.regex.Pattern.compile(
                     "(-?[0-9])([0-9]+?)(0*)\\.([0-9]*)");
 
+    /**
+     * Convert the double to a string according to the XPath 2.0 rules
+     * @return the string value
+     */
     public String getStringValue() {
         if (value==0.0) {
             return "0";
@@ -156,7 +165,7 @@ public final class DoubleValue extends NumericValue {
                 // need to use scientific notation, but Java isn't using it
                 // (Java's cutoff is 1.0E7, while XPath's is 1.0E6)
                 // So we have for example -2000000.0 rather than -2.0e6
-                StringBuffer sb = new StringBuffer(32);
+                FastStringBuffer sb = new FastStringBuffer(32);
                 Matcher matcher = nonExponentialPattern.matcher(s);
                 if (matcher.matches()) {
                     sb.append(matcher.group(1));
@@ -164,14 +173,12 @@ public final class DoubleValue extends NumericValue {
                     sb.append(matcher.group(2));
                     String fraction = matcher.group(4);
                     if ("0".equals(fraction)) {
-                        sb.append('E');
-                        sb.append(matcher.group(2).length() + matcher.group(3).length());
+                        sb.append("E" + (matcher.group(2).length() + matcher.group(3).length()));
                         return sb.toString();
                     } else {
                         sb.append(matcher.group(3));
                         sb.append(matcher.group(4));
-                        sb.append('E');
-                        sb.append(matcher.group(2).length() + matcher.group(3).length());
+                        sb.append("E" + (matcher.group(2).length() + matcher.group(3).length()));
                         return sb.toString();
                     }
                 } else {
@@ -367,14 +374,14 @@ public final class DoubleValue extends NumericValue {
                 case Token.DIV:
                     return new DoubleValue(value / ((DoubleValue)other).value);
                 case Token.IDIV:
-                    return (NumericValue)(new DoubleValue(value / ((DoubleValue)other).value).convert(Type.INTEGER, context));
+                    return (NumericValue)(new DoubleValue(value / ((DoubleValue)other).value).convert(Type.INTEGER));
                 case Token.MOD:
                     return new DoubleValue(value % ((DoubleValue)other).value);
                 default:
                     throw new UnsupportedOperationException("Unknown operator");
             }
         } else {
-            return arithmetic(operator, (DoubleValue)other.convert(Type.DOUBLE, context), context);
+            return arithmetic(operator, (DoubleValue)other.convert(Type.DOUBLE), context);
         }
     }
 
@@ -382,7 +389,7 @@ public final class DoubleValue extends NumericValue {
     * Convert to Java object (for passing to external functions)
     */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
+    public Object convertToJava(Class target, XPathContext context) throws XPathException {
         if (target==Object.class) {
             return new Double(value);
         } else if (target.isAssignableFrom(DoubleValue.class)) {
@@ -408,7 +415,7 @@ public final class DoubleValue extends NumericValue {
         } else if (target==char.class || target==Character.class) {
             return new Character((char)value);
         } else {
-            Object o = super.convertToJava(target, config, context);
+            Object o = super.convertToJava(target, context);
             if (o == null) {
                 DynamicError err = new DynamicError("Conversion of double to " + target.getName() +
                         " is not supported");

@@ -5,7 +5,7 @@ import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 /**
 * Implement the XPath 2.0 root() function
@@ -30,7 +30,9 @@ public class Root extends SystemFunction {
     */
 
     public int computeSpecialProperties() {
-        int prop = StaticProperty.ORDERED_NODESET | StaticProperty.NON_CREATIVE;
+        int prop = StaticProperty.ORDERED_NODESET |
+                StaticProperty.SINGLE_DOCUMENT_NODESET |
+                StaticProperty.NON_CREATIVE;
         if ((getNumberOfArguments() == 0) ||
                 (argument[0].getSpecialProperties() & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0) {
             prop |= StaticProperty.CONTEXT_DOCUMENT_NODESET;

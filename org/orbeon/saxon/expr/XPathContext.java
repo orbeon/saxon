@@ -7,13 +7,13 @@ import net.sf.saxon.instruct.RegexIterator;
 import net.sf.saxon.instruct.Template;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.om.ValueRepresentation;
 import net.sf.saxon.sort.GroupIterator;
 import net.sf.saxon.trace.InstructionInfoProvider;
+import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.Mode;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.SchemaType;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.Result;
 import java.util.Comparator;
@@ -198,13 +198,13 @@ public interface XPathContext {
      * Get the value of a local variable, identified by its slot number
      */
 
-    public Value evaluateLocalVariable(int slotnumber);
+    public ValueRepresentation evaluateLocalVariable(int slotnumber);
 
     /**
      * Set the value of a local variable, identified by its slot number
      */
 
-    public void setLocalVariable(int slotnumber, Value value);
+    public void setLocalVariable(int slotnumber, ValueRepresentation value);
 
     /**
      * Set a new output destination, supplying the output format details. <BR>

@@ -104,7 +104,7 @@ public abstract class Token {
      */
     public static final int DOLLAR = 21;
     /**
-     * Operator "!="
+     * Operator not-equals. That is, "!="
      */
     public static final int NE = 22;
     /**
@@ -287,9 +287,9 @@ public abstract class Token {
      */
     public static final int DECLARE_BASEURI = 74;
     /**
-     * "declare xmlspace"
+     * "declare boundary-space"
      */
-    public static final int DECLARE_XMLSPACE = 75;
+    public static final int DECLARE_BOUNDARY_SPACE = 75;
     /**
      * "import schema"
      */
@@ -316,9 +316,6 @@ public abstract class Token {
     public static final int VALIDATE = 81;
     public static final int VALIDATE_STRICT = 82;
     public static final int VALIDATE_LAX = 83;
-    //public static final int VALIDATE_SKIP = 84;
-    //public static final int VALIDATE_GLOBAL = 85;
-    //public static final int VALIDATE_CONTEXT = 86;
 
     /**
      * "declare xmlspace"
@@ -326,9 +323,13 @@ public abstract class Token {
     public static final int DECLARE_ORDERING = 84;
 
     /**
-     * "declare inherit-namespaces"
+     * "declare copy-namespaces"
      */
-    public static final int DECLARE_INHERIT_NAMESPACES = 85;
+    public static final int DECLARE_COPY_NAMESPACES = 85;
+    /**
+     * "declare option"
+     */
+    public static final int DECLARE_OPTION = 86;
     /**
      * semicolon separator
      */
@@ -392,7 +393,7 @@ public abstract class Token {
      */
     public static final int SUFFIX = 112;    // e.g. *:suffix
     /**
-     * "?" symbol
+     * Question mark symbol. That is, "?" 
      */
     public static final int QMARK = 113;
     /**
@@ -412,6 +413,12 @@ public abstract class Token {
      * follows is read character-by-character by the XQuery parser
      */
     public static final int TAG = 117;
+    /**
+     * A token representing an XQuery pragma.
+     * This construct "(# .... #)" is regarded as a single token, for the QueryParser to sort out.
+     */
+    public static final int PRAGMA = 118;
+
 
     /**
      * Unary minus sign
@@ -504,7 +511,7 @@ public abstract class Token {
         tokens [ LET ] = "let";
         tokens [ VALIDATE ] = "validate {";
         tokens [ TAG ] = "<element>";
-
+        tokens [ PRAGMA ] = "(# ... #)";
         tokens [ SEMICOLON ] = ";";
         tokens [ NEGATE ] = "-";
     }
@@ -518,6 +525,9 @@ public abstract class Token {
      */
     public static final int UNKNOWN = -1;
 
+    private Token() {
+    }
+
     static {
         mapDouble("instance of", INSTANCE_OF);
         mapDouble("cast as", CAST_AS);
@@ -528,9 +538,10 @@ public abstract class Token {
         mapDouble("declare default", DECLARE_DEFAULT);
         mapDouble("declare construction", DECLARE_CONSTRUCTION);
         mapDouble("declare base-uri", DECLARE_BASEURI);
-        mapDouble("declare xmlspace", DECLARE_XMLSPACE);
+        mapDouble("declare boundary-space", DECLARE_BOUNDARY_SPACE);
         mapDouble("declare ordering", DECLARE_ORDERING);
-        mapDouble("declare inherit-namespaces", DECLARE_INHERIT_NAMESPACES);
+        mapDouble("declare copy-namespaces", DECLARE_COPY_NAMESPACES);
+        mapDouble("declare option", DECLARE_OPTION);
         mapDouble("import schema", IMPORT_SCHEMA);
         mapDouble("import module", IMPORT_MODULE);
         mapDouble("declare variable", DECLARE_VARIABLE);
@@ -538,9 +549,6 @@ public abstract class Token {
         mapDouble("module namespace", MODULE_NAMESPACE);
         mapDouble("validate strict", VALIDATE_STRICT);
         mapDouble("validate lax", VALIDATE_LAX);
-        //mapDouble("validate skip", VALIDATE_SKIP);
-        //mapDouble("validate global", VALIDATE_GLOBAL);
-        //mapDouble("validate context", VALIDATE_CONTEXT);
 
     }
 
@@ -549,6 +557,33 @@ public abstract class Token {
         tokens[token] = doubleKeyword;
     }
 
+    /**
+	* Return the inverse of a relational operator, so that "a op b" can be
+	* rewritten as "b inverse(op) a"
+	*/
+
+    public static final int inverse(int operator) {
+        switch(operator) {
+            case LT:
+                return GT;
+            case LE:
+                return GE;
+            case GT:
+                return LT;
+            case GE:
+                return LE;
+            case FLT:
+                return FGT;
+            case FLE:
+                return FGE;
+            case FGT:
+                return FLT;
+            case FGE:
+                return FLE;
+            default:
+                return operator;
+        }
+    }
 }
 
 //

@@ -1,5 +1,5 @@
 package net.sf.saxon.event;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 import java.util.Properties;
 

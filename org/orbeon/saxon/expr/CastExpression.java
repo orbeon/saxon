@@ -1,13 +1,14 @@
 package net.sf.saxon.expr;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.AtomicValue;
+import net.sf.saxon.value.ErrorValue;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * Cast Expression: implements "cast as data-type ( expression )". It also allows an internal
@@ -18,12 +19,16 @@ import net.sf.saxon.xpath.XPathException;
 public final class CastExpression extends UnaryExpression  {
 
     private AtomicType targetType;
+    private AtomicType targetPrimitiveType;
     private boolean allowEmpty = false;
+    private boolean derived = false;
 
     public CastExpression(Expression source, AtomicType target, boolean allowEmpty) {
         super(source);
         this.allowEmpty = allowEmpty;
-        targetType = target;
+        targetType = target;        
+        targetPrimitiveType = (AtomicType)target.getPrimitiveItemType();
+        derived = (targetType.getFingerprint() != targetPrimitiveType.getFingerprint());
         adoptChildExpression(source);
     }
 
@@ -46,8 +51,7 @@ public final class CastExpression extends UnaryExpression  {
 
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
         operand = operand.analyze(env, contextItemType);
-        SequenceType atomicType =
-                new SequenceType(Type.ANY_ATOMIC_TYPE, getCardinality());
+        SequenceType atomicType = SequenceType.makeSequenceType(Type.ANY_ATOMIC_TYPE, getCardinality());
 
         RoleLocator role = new RoleLocator(RoleLocator.TYPE_OP, "cast as", 0, null);
         operand = TypeChecker.staticTypeCheck(operand, atomicType, false, role, env);
@@ -108,13 +112,21 @@ public final class CastExpression extends UnaryExpression  {
                 throw e;
             }
         }
-        try {
-            return value.convert(targetType, context);
-        } catch (XPathException err) {
-            // add location information
-            dynamicError(err.getMessage(), context);
-            return null;
+        AtomicValue result = value.convert(targetPrimitiveType, context, true);
+        if (result instanceof ErrorValue) {
+            XPathException err = ((ErrorValue)result).getException();
+            String code = err.getErrorCodeLocalPart();
+            dynamicError(err.getMessage(), code, context);
         }
+        if (derived) {
+            result = result.convert(targetType, context, true);
+            if (result instanceof ErrorValue) {
+                XPathException err = ((ErrorValue)result).getException();
+                String code = err.getErrorCodeLocalPart();
+                dynamicError(err.getMessage(), code, context);
+            }
+        }
+        return result;
     }
 
     /**

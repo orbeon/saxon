@@ -3,7 +3,6 @@ import net.sf.saxon.Loader;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.AttributeCollection;
-import net.sf.saxon.om.NamespaceException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
@@ -50,11 +49,10 @@ public class SaxonScript extends StyleElement {
             reportAbsence("implements-prefix");
             return;
         }
-        try {
-            short uriCode = getURICodeForPrefix(implementsAtt);
-            implementsURI = getNamePool().getURIFromURICode(uriCode);
-        } catch (NamespaceException err) {
-            compileError(err.getMessage());
+        implementsURI = getURIForPrefix(implementsAtt, false);
+        if (implementsURI == null) {
+            undeclaredNamespaceError(implementsAtt, null);
+            return;
         }
 
         if (languageAtt==null) {

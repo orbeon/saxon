@@ -3,8 +3,8 @@ import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.BooleanValue;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * This class supports the XPath functions boolean(), not(), true(), and false()
@@ -25,7 +25,7 @@ public class BooleanFn extends SystemFunction {
     public void checkArguments(StaticContext env) throws XPathException {
         super.checkArguments(env);
         if (operation==BOOLEAN || operation==NOT) {
-            argument[0] = ExpressionTool.unsorted(argument[0], false);
+            argument[0] = ExpressionTool.unsortedIfHomogeneous(argument[0], false);
         }
     }
 

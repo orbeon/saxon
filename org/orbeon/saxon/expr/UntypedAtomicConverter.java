@@ -3,14 +3,12 @@ import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.pattern.NodeTest;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AnyItemType;
 import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.value.SequenceExtent;
-import net.sf.saxon.value.UntypedAtomicValue;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.value.*;
 
 /**
 * An UntypedAtomicConverter is an expression that converts any untypedAtomic items in
@@ -52,7 +50,7 @@ public final class UntypedAtomicConverter extends UnaryExpression implements Map
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
         operand = operand.analyze(env, contextItemType);
         if (operand instanceof Value) {
-            return new SequenceExtent(iterate(null)).simplify(env);
+            return SequenceExtent.makeSequenceExtent(iterate(null)).simplify(env);
         }
         ItemType type = operand.getItemType();
         if (type instanceof NodeTest) {
@@ -95,7 +93,11 @@ public final class UntypedAtomicConverter extends UnaryExpression implements Map
         if (item==null) return null;
         if (item instanceof UntypedAtomicValue) {
             try {
-                return ((UntypedAtomicValue)item).convert(requiredItemType, context);
+                AtomicValue val = ((UntypedAtomicValue)item).convert(requiredItemType, context, true);
+                if (val instanceof ErrorValue) {
+                    throw ((ErrorValue)val).getException();
+                }
+                return val;
             } catch (XPathException e) {
                 if (e.getLocator() == null) {
                     e.setLocator(this);
@@ -114,22 +116,15 @@ public final class UntypedAtomicConverter extends UnaryExpression implements Map
 
     public Object map(Item item, XPathContext context, Object info) throws XPathException {
         if (item instanceof UntypedAtomicValue) {
-            return ((UntypedAtomicValue)item).convert(requiredItemType, (XPathContext)info);
+            Value val = ((UntypedAtomicValue)item).convert(requiredItemType, (XPathContext)info, true);
+            if (val instanceof ErrorValue) {
+                throw ((ErrorValue)val).getException();
+            }
+            return val;
         } else {
-            //testConformance(item, (XPathContext)info);
             return item;
         }
     }
-
-//    private void testConformance(Item item, XPathContext context) throws XPathException {
-//        if (!requiredItemType.matchesItem(item)) {
-//            NamePool namePool = context.getController().getNamePool();
-//            String message = "Required type of " + role.getMessage() +
-//                                             " is " + requiredItemType.toString(namePool) +
-//                                             "; supplied value has type " + Type.displayTypeName(item);
-//            typeError(message, "XP0004", context);
-//        }
-//    }
 
     /**
      * Give a string representation of the operator for use in diagnostics
@@ -141,8 +136,6 @@ public final class UntypedAtomicConverter extends UnaryExpression implements Map
     }
 
 }
-
-
 
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");

@@ -1,37 +1,39 @@
 package net.sf.saxon.functions;
+
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.xpath.XPathException;
 
 /**
-* This class supports the get_X_from_Y functions defined in XPath 2.0
-*/
+ * This class supports the get_X_from_Y functions defined in XPath 2.0
+ */
 
 public class Component extends SystemFunction {
 
-    public static final int YEAR        = 1;
-    public static final int MONTH       = 2;
-    public static final int DAY         = 3;
-    public static final int HOURS       = 4;
-    public static final int MINUTES     = 5;
-    public static final int SECONDS     = 6;
-    public static final int TIMEZONE    = 7;
-    public static final int LOCALNAME   = 8;
-    public static final int NAMESPACE   = 9;
+    public static final int YEAR = 1;
+    public static final int MONTH = 2;
+    public static final int DAY = 3;
+    public static final int HOURS = 4;
+    public static final int MINUTES = 5;
+    public static final int SECONDS = 6;
+    public static final int TIMEZONE = 7;
+    public static final int LOCALNAME = 8;
+    public static final int NAMESPACE = 9;
+    public static final int PREFIX = 10;
 
     int component;
 
-     public Expression simplify(StaticContext env) throws XPathException {
-        component = (operation>>16) & 0xffff;
+    public Expression simplify(StaticContext env) throws XPathException {
+        component = (operation >> 16) & 0xffff;
         return super.simplify(env);
     }
 
     /**
-    * Evaluate the expression
-    */
+     * Evaluate the expression
+     */
 
     public Item evaluateItem(XPathContext context) throws XPathException {
         AtomicValue arg = (AtomicValue)argument[0].evaluateItem(context);
@@ -45,9 +47,6 @@ public class Component extends SystemFunction {
     }
 
 }
-
-
-
 
 
 //

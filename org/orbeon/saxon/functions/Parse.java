@@ -1,15 +1,15 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.Controller;
 import net.sf.saxon.event.Builder;
+import net.sf.saxon.event.Receiver;
 import net.sf.saxon.event.Sender;
-import net.sf.saxon.event.Stripper;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.DocumentInfo;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 import org.xml.sax.InputSource;
 
 import javax.xml.transform.sax.SAXSource;
@@ -51,7 +51,10 @@ public class Parse extends SystemFunction {
         SAXSource source = new SAXSource(is);
         source.setSystemId(baseURI);
         Builder b = controller.makeBuilder();
-        Stripper s = controller.makeStripper(b);
+        Receiver s = controller.makeStripper(b);
+        if (controller.getExecutable().stripsInputTypeAnnotations()) {
+            s = controller.getConfiguration().getAnnotationStripper(s);
+        }
         try {
             new Sender(controller.makePipelineConfiguration()).send(source, s);
             return (DocumentInfo)b.getCurrentRoot();

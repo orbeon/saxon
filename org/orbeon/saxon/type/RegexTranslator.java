@@ -1,16 +1,16 @@
 package net.sf.saxon.type;
 
 import net.sf.saxon.om.XMLChar;
+import net.sf.saxon.om.FastStringBuffer;
 
 import java.math.BigDecimal;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Vector;
+import java.util.*;
 
 /**
  * This class translates XML Schema regex syntax into JDK 1.4 regex syntax.
  * Author: James Clark
+ * Modified by Michael Kay (a) to integrate the code into Saxon, and (b) to support XPath additions
+ * to the XML Schema regex syntax.
  */
 public class RegexTranslator {
 
@@ -22,27 +22,27 @@ public class RegexTranslator {
      * @see <a href="http://www.w3.org/TR/xmlschema-2/#regexs">XML Schema Part 2</a>
      */
 
-    private final String regExp;
+    private final CharSequence regExp;
     private boolean isXPath;
     private int pos = 0;
     private final int length;
     private char curChar;
     private boolean eos = false;
-    private final StringBuffer result = new StringBuffer();
+    private final FastStringBuffer result = new FastStringBuffer(32);
 
-    static private final String categories = "LMNPZSC";
-    static private final CharClass[] categoryCharClasses = new CharClass[categories.length()];
-    static private final String subCategories = "LuLlLtLmLoMnMcMeNdNlNoPcPdPsPePiPfPoZsZlZpSmScSkSoCcCfCoCn";
-    static private final CharClass[] subCategoryCharClasses = new CharClass[subCategories.length() / 2];
+    private static final String categories = "LMNPZSC";
+    private static final CharClass[] categoryCharClasses = new CharClass[categories.length()];
+    private static final String subCategories = "LuLlLtLmLoMnMcMeNdNlNoPcPdPsPePiPfPoZsZlZpSmScSkSoCcCfCoCn";
+    private static final CharClass[] subCategoryCharClasses = new CharClass[subCategories.length() / 2];
 
-    static private final int NONBMP_MIN = 0x10000;
-    static private final int NONBMP_MAX = 0x10FFFF;
-    static private final char SURROGATE2_MIN = '\uDC00';
-    static private final char SURROGATE2_MAX = '\uDFFF';
+    private static final int NONBMP_MIN = 0x10000;
+    private static final int NONBMP_MAX = 0x10FFFF;
+    private static final char SURROGATE2_MIN = '\uDC00';
+    private static final char SURROGATE2_MAX = '\uDFFF';
 
     //static final Localizer localizer = new Localizer(RegexTranslator.class);
 
-    static private final String[] blockNames = {
+    private static final String[] blockNames = {
         "BasicLatin",
         "Latin-1Supplement",
         "LatinExtended-A",
@@ -135,7 +135,7 @@ public class RegexTranslator {
     /**
      * Names of blocks including ranges outside the BMP.
      */
-    static private final String[] specialBlockNames = {
+    private static final String[] specialBlockNames = {
         "OldItalic",
         "Gothic",
         "Deseret",
@@ -319,7 +319,7 @@ public class RegexTranslator {
     /**
      * CharClass for each block name in specialBlockNames.
      */
-    static private final CharClass[] specialBlockCharClasses = {
+    private static final CharClass[] specialBlockCharClasses = {
         new CharRange(0x10300, 0x1032F),
         new CharRange(0x10330, 0x1034F),
         new CharRange(0x10400, 0x1044F),
@@ -339,17 +339,17 @@ public class RegexTranslator {
         Empty.getInstance()
     };
 
-    static private final CharClass DOT = new Complement(new Union(new CharClass[]{new SingleChar('\n'), new SingleChar('\r')}));
+    private static final CharClass DOT = new Complement(new Union(new CharClass[]{new SingleChar('\n'), new SingleChar('\r')}));
 
-    static private final CharClass ESC_d = new Property("Nd");
+    private static final CharClass ESC_d = new Property("Nd");
 
-    static private final CharClass ESC_D = new Complement(ESC_d);
+    private static final CharClass ESC_D = new Complement(ESC_d);
 
-    static private final CharClass ESC_W = new Union(new CharClass[]{new Property("P"), new Property("Z"), new Property("C")});
+    private static final CharClass ESC_W = new Union(new CharClass[]{new Property("P"), new Property("Z"), new Property("C")});
 
-    static private final CharClass ESC_w = new Complement(ESC_W);
+    private static final CharClass ESC_w = new Complement(ESC_W);
 
-    static private final CharClass ESC_s = new Union(new CharClass[]{
+    private static final CharClass ESC_s = new Union(new CharClass[]{
         new SingleChar(' '),
         new SingleChar('\n'),
         new SingleChar('\r'),
@@ -401,23 +401,23 @@ public class RegexTranslator {
     static final String NMCHAR_CATEGORIES = "LlLuLoLtNlMcMeMnLmNd";
 // end of generated code
 
-    static private final CharClass ESC_S = new Complement(ESC_s);
+    private static final CharClass ESC_S = new Complement(ESC_s);
 
-    static private final CharClass ESC_i = makeCharClass(NMSTRT_CATEGORIES,
+    private static final CharClass ESC_i = makeCharClass(NMSTRT_CATEGORIES,
                                                          NMSTRT_INCLUDES,
                                                          NMSTRT_EXCLUDE_RANGES);
 
-    static private final CharClass ESC_I = new Complement(ESC_i);
+    private static final CharClass ESC_I = new Complement(ESC_i);
 
-    static private final CharClass ESC_c = makeCharClass(NMCHAR_CATEGORIES,
+    private static final CharClass ESC_c = makeCharClass(NMCHAR_CATEGORIES,
                                                          NMCHAR_INCLUDES,
                                                          NMCHAR_EXCLUDE_RANGES);
 
-    static private final CharClass ESC_C = new Complement(ESC_c);
+    private static final CharClass ESC_C = new Complement(ESC_c);
 
-    static private final char EOS = '\0';
+    private static final char EOS = '\0';
 
-    private RegexTranslator(String regExp) {
+    private RegexTranslator(CharSequence regExp) {
         this.regExp = regExp;
         this.length = regExp.length();
         advance();
@@ -440,7 +440,7 @@ public class RegexTranslator {
      * @see java.util.regex.Pattern
      * @see <a href="http://www.w3.org/TR/xmlschema-2/#regexs">XML Schema Part 2</a>
      */
-    static public String translate(String regexp, boolean xpath) throws RegexSyntaxException {
+    public static String translate(CharSequence regexp, boolean xpath) throws RegexSyntaxException {
         RegexTranslator tr = new RegexTranslator(regexp);
         tr.isXPath = xpath;
         tr.translateTop();
@@ -498,26 +498,26 @@ public class RegexTranslator {
     }
 
     private void translateQuantity() throws RegexSyntaxException {
-        String lower = parseQuantExact();
+        String lower = parseQuantExact().toString();
         int lowerValue = -1;
         try {
             lowerValue = Integer.parseInt(lower);
             result.append(lower);
         } catch (NumberFormatException e) {
             // JDK 1.4 cannot handle ranges bigger than this
-            result.append(Integer.MAX_VALUE);
+            result.append(""+Integer.MAX_VALUE);
         }
         if (curChar == ',') {
             copyCurChar();
             if (curChar != '}') {
-                String upper = parseQuantExact();
+                String upper = parseQuantExact().toString();
                 try {
                     int upperValue = Integer.parseInt(upper);
                     result.append(upper);
                     if (lowerValue < 0 || upperValue < lowerValue)
                         throw makeException("invalid quantity range");
                 } catch (NumberFormatException e) {
-                    result.append(Integer.MAX_VALUE);
+                    result.append(""+Integer.MAX_VALUE);
                     if (lowerValue < 0 && new BigDecimal(lower).compareTo(new BigDecimal(upper)) > 0)
                         throw makeException("invalid quantity range");
                 }
@@ -525,15 +525,15 @@ public class RegexTranslator {
         }
     }
 
-    private String parseQuantExact() throws RegexSyntaxException {
-        StringBuffer buf = new StringBuffer();
+    private CharSequence parseQuantExact() throws RegexSyntaxException {
+        FastStringBuffer buf = new FastStringBuffer(10);
         do {
             if ("0123456789".indexOf(curChar) < 0)
                 throw makeException("expected digit");
             buf.append(curChar);
             advance();
         } while (curChar != ',' && curChar != '}');
-        return buf.toString();
+        return buf;
     }
 
     private void copyCurChar() {
@@ -600,7 +600,7 @@ public class RegexTranslator {
             return containsNonBmp;
         }
 
-        final void output(StringBuffer buf) {
+        final void output(FastStringBuffer buf) {
             switch (containsNonBmp) {
             case NONE:
                 if (containsBmp == NONE)
@@ -627,7 +627,7 @@ public class RegexTranslator {
                     needSep = true;
                     outputBmp(buf);
                 }
-                List ranges = new Vector();
+                List ranges = new ArrayList(10);
                 addNonBmpRanges(ranges);
                 sortRangeList(ranges);
                 String hi = highSurrogateRanges(ranges);
@@ -689,7 +689,7 @@ public class RegexTranslator {
         }
 
         static String highSurrogateRanges(List ranges) {
-            StringBuffer highRanges = new StringBuffer();
+            FastStringBuffer highRanges = new FastStringBuffer(ranges.size() * 2);
             for (int i = 0, len = ranges.size(); i < len; i++) {
                 Range r = (Range)ranges.get(i);
                 char min1 = XMLChar.highSurrogate(r.getMin());
@@ -709,7 +709,7 @@ public class RegexTranslator {
         }
 
         static String lowSurrogateRanges(List ranges) {
-            StringBuffer lowRanges = new StringBuffer();
+            FastStringBuffer lowRanges = new FastStringBuffer(ranges.size() * 2);
             for (int i = 0, len = ranges.size(); i < len; i++) {
                 Range r = (Range)ranges.get(i);
                 char min1 = XMLChar.highSurrogate(r.getMin());
@@ -738,11 +738,11 @@ public class RegexTranslator {
             return lowRanges.toString();
         }
 
-        abstract void outputBmp(StringBuffer buf);
+        abstract void outputBmp(FastStringBuffer buf);
 
-        abstract void outputComplementBmp(StringBuffer buf);
+        abstract void outputComplementBmp(FastStringBuffer buf);
 
-        int singleChar() {
+        int getSingleChar() {
             return -1;
         }
 
@@ -781,14 +781,14 @@ public class RegexTranslator {
             super(containsBmp, containsNonBmp);
         }
 
-        void outputBmp(StringBuffer buf) {
+        void outputBmp(FastStringBuffer buf) {
             buf.append('[');
             inClassOutputBmp(buf);
             buf.append(']');
         }
 
         // must not call if containsBmp == ALL
-        void outputComplementBmp(StringBuffer buf) {
+        void outputComplementBmp(FastStringBuffer buf) {
             if (getContainsBmp() == NONE)
                 buf.append("[\u0000-\uFFFF]");
             else {
@@ -798,7 +798,7 @@ public class RegexTranslator {
             }
         }
 
-        abstract void inClassOutputBmp(StringBuffer buf);
+        abstract void inClassOutputBmp(FastStringBuffer buf);
     }
 
     static class SingleChar extends SimpleCharClass {
@@ -809,18 +809,37 @@ public class RegexTranslator {
             this.c = c;
         }
 
-        int singleChar() {
+        int getSingleChar() {
             return c;
         }
 
-        void outputBmp(StringBuffer buf) {
+        void outputBmp(FastStringBuffer buf) {
             inClassOutputBmp(buf);
         }
 
-        void inClassOutputBmp(StringBuffer buf) {
-            if (isJavaMetaChar(c))
+        void inClassOutputBmp(FastStringBuffer buf) {
+            if (isJavaMetaChar(c)) {
                 buf.append('\\');
-            buf.append(c);
+                buf.append(c);
+            } else {
+                switch (c) {
+                    case '\r':
+                        buf.append("\\r");
+                        break;
+                    case '\n':
+                        buf.append("\\n");
+                        break;
+                    case '\t':
+                        buf.append("\\t");
+                        break;
+                    case ' ':
+                        buf.append("\\x20");
+                        break;
+                    default:
+                        buf.append(c);
+                }
+            }
+            return;
         }
 
     }
@@ -833,11 +852,11 @@ public class RegexTranslator {
             this.c = c;
         }
 
-        void inClassOutputBmp(StringBuffer buf) {
+        void inClassOutputBmp(FastStringBuffer buf) {
             throw new RuntimeException("BMP output botch");
         }
 
-        int singleChar() {
+        int getSingleChar() {
             return c;
         }
 
@@ -847,7 +866,7 @@ public class RegexTranslator {
     }
 
     static class Empty extends SimpleCharClass {
-        static private final Empty instance = new Empty();
+        private static final Empty instance = new Empty();
 
         private Empty() {
             super(NONE, NONE);
@@ -857,7 +876,7 @@ public class RegexTranslator {
             return instance;
         }
 
-        void inClassOutputBmp(StringBuffer buf) {
+        void inClassOutputBmp(FastStringBuffer buf) {
             throw new RuntimeException("BMP output botch");
         }
 
@@ -875,7 +894,7 @@ public class RegexTranslator {
             this.upper = upper;
         }
 
-        void inClassOutputBmp(StringBuffer buf) {
+        void inClassOutputBmp(FastStringBuffer buf) {
             if (lower >= NONBMP_MIN)
                 throw new RuntimeException("BMP output botch");
             if (isJavaMetaChar((char)lower))
@@ -904,17 +923,17 @@ public class RegexTranslator {
             this.name = name;
         }
 
-        void outputBmp(StringBuffer buf) {
+        void outputBmp(FastStringBuffer buf) {
             inClassOutputBmp(buf);
         }
 
-        void inClassOutputBmp(StringBuffer buf) {
+        void inClassOutputBmp(FastStringBuffer buf) {
             buf.append("\\p{");
             buf.append(name);
             buf.append('}');
         }
 
-        void outputComplementBmp(StringBuffer buf) {
+        void outputComplementBmp(FastStringBuffer buf) {
             buf.append("\\P{");
             buf.append(name);
             buf.append('}');
@@ -934,7 +953,7 @@ public class RegexTranslator {
             this.cc2 = cc2;
         }
 
-        void outputBmp(StringBuffer buf) {
+        void outputBmp(FastStringBuffer buf) {
             buf.append('[');
             cc1.outputBmp(buf);
             buf.append("&&");
@@ -942,7 +961,7 @@ public class RegexTranslator {
             buf.append(']');
         }
 
-        void outputComplementBmp(StringBuffer buf) {
+        void outputComplementBmp(FastStringBuffer buf) {
             buf.append('[');
             cc1.outputComplementBmp(buf);
             cc2.outputBmp(buf);
@@ -997,7 +1016,7 @@ public class RegexTranslator {
             this(toList(v));
         }
 
-        static private List toList(CharClass[] v) {
+        private static List toList(CharClass[] v) {
             List members = new Vector();
             for (int i = 0; i < v.length; i++)
                 members.add(v[i]);
@@ -1009,7 +1028,7 @@ public class RegexTranslator {
             this.members = members;
         }
 
-        void outputBmp(StringBuffer buf) {
+        void outputBmp(FastStringBuffer buf) {
             buf.append('[');
             for (int i = 0, len = members.size(); i < len; i++) {
                 CharClass cc = (CharClass)members.get(i);
@@ -1023,7 +1042,7 @@ public class RegexTranslator {
             buf.append(']');
         }
 
-        void outputComplementBmp(StringBuffer buf) {
+        void outputComplementBmp(FastStringBuffer buf) {
             boolean first = true;
             int len = members.size();
             for (int i = 0; i < len; i++) {
@@ -1084,30 +1103,29 @@ public class RegexTranslator {
             this.i = i;
         }
 
-        void outputBmp(StringBuffer buf) {
+        void outputBmp(FastStringBuffer buf) {
             inClassOutputBmp(buf);
         }
 
-        void outputComplementBmp(StringBuffer buf) {
+        void outputComplementBmp(FastStringBuffer buf) {
             inClassOutputBmp(buf);
         }
 
-        void inClassOutputBmp(StringBuffer buf) {
-            buf.append('\\');
-            buf.append(i);
+        void inClassOutputBmp(FastStringBuffer buf) {
+            buf.append("\\" + i);
         }
     }
 
     /**
      * Thrown when an syntactically incorrect regular expression is detected.
      */
-    static public class RegexSyntaxException extends Exception {
+    public static class RegexSyntaxException extends Exception {
         private final int position;
 
         /**
          * Represents an unknown position within a string containing a regular expression.
          */
-        static public final int UNKNOWN_POSITION = -1;
+        public static final int UNKNOWN_POSITION = -1;
 
         public RegexSyntaxException(String detail) {
             this(detail, UNKNOWN_POSITION);
@@ -1178,11 +1196,11 @@ public class RegexTranslator {
             this.cc = cc;
         }
 
-        void outputBmp(StringBuffer buf) {
+        void outputBmp(FastStringBuffer buf) {
             cc.outputComplementBmp(buf);
         }
 
-        void outputComplementBmp(StringBuffer buf) {
+        void outputComplementBmp(FastStringBuffer buf) {
             cc.outputBmp(buf);
         }
 
@@ -1233,7 +1251,8 @@ public class RegexTranslator {
             return true;
         case '.':
             if (isXPath) {
-                // TODO: in XPath, modify "." so that it matches a surrogate pair
+                // Note: "." matches a surrogate pair under JDK 1.5, but not under JDK 1.4
+                // We'll live with this problem until 1.4 goes away...
                 break;
             } else {
                 DOT.output(result);
@@ -1354,7 +1373,6 @@ public class RegexTranslator {
                 char c = curChar;
                 advance();
                 return new BackReference(c - '0');
-                // TODO: test multi-digit back-references
             } else {
                 throw makeException("digit not allowed after \\");
             }
@@ -1381,7 +1399,7 @@ public class RegexTranslator {
             if (!isAsciiAlnum(curChar) && curChar != '-')
                 expect('}');
         }
-        String propertyName = regExp.substring(start, pos - 1);
+        String propertyName = regExp.subSequence(start, pos - 1).toString();
         advance();
         switch (propertyName.length()) {
         case 0:
@@ -1410,14 +1428,14 @@ public class RegexTranslator {
         throw makeException("bad property name", propertyName);
     }
 
-    static private boolean isBlock(String name) {
+    private static boolean isBlock(String name) {
         for (int i = 0; i < blockNames.length; i++)
             if (name.equals(blockNames[i]))
                 return true;
         return false;
     }
 
-    static private boolean isAsciiAlnum(char c) {
+    private static boolean isAsciiAlnum(char c) {
         if ('a' <= c && c <= 'z')
             return true;
         if ('A' <= c && c <= 'Z')
@@ -1448,12 +1466,12 @@ public class RegexTranslator {
                 if (curChar == '[')
                     break;
                 CharClass upper = parseCharClassEscOrXmlChar();
-                if (lower.singleChar() < 0 || upper.singleChar() < 0)
+                if (lower.getSingleChar() < 0 || upper.getSingleChar() < 0)
                     throw makeException("multi_range");
-                if (lower.singleChar() > upper.singleChar())
+                if (lower.getSingleChar() > upper.getSingleChar())
                     throw makeException("invalid_range");
                 members.set(members.size() - 1,
-                            new CharRange(lower.singleChar(), upper.singleChar()));
+                            new CharRange(lower.getSingleChar(), upper.getSingleChar()));
                 if (curChar == '-') {
                     advance();
                     expect('[');
@@ -1514,10 +1532,10 @@ public class RegexTranslator {
     private RegexSyntaxException makeException(String key, String arg) {
         return new RegexSyntaxException("Error at character " + (pos - 1) +
                                         " in regular expression: " + key +
-                                        " (" + arg + ")");
+                                        " (" + arg + ')');
     }
 
-    static private boolean isJavaMetaChar(char c) {
+    private static boolean isJavaMetaChar(char c) {
         switch (c) {
         case '\\':
         case '^':
@@ -1540,27 +1558,27 @@ public class RegexTranslator {
         return false;
     }
 
-    static private synchronized CharClass getCategoryCharClass(int ci) {
+    private static synchronized CharClass getCategoryCharClass(int ci) {
         if (categoryCharClasses[ci] == null)
             categoryCharClasses[ci] = computeCategoryCharClass(categories.charAt(ci));
         return categoryCharClasses[ci];
     }
 
-    static private synchronized CharClass getSubCategoryCharClass(int sci) {
+    private static synchronized CharClass getSubCategoryCharClass(int sci) {
         if (subCategoryCharClasses[sci] == null)
             subCategoryCharClasses[sci] = computeSubCategoryCharClass(subCategories.substring(sci * 2, (sci + 1) * 2));
         return subCategoryCharClasses[sci];
     }
 
-    static private final char UNICODE_3_1_ADD_Lu = '\u03F4';   // added in 3.1
-    static private final char UNICODE_3_1_ADD_Ll = '\u03F5';   // added in 3.1
+    private static final char UNICODE_3_1_ADD_Lu = '\u03F4';   // added in 3.1
+    private static final char UNICODE_3_1_ADD_Ll = '\u03F5';   // added in 3.1
     // 3 characters changed from No to Nl between 3.0 and 3.1
-    static private final char UNICODE_3_1_CHANGE_No_to_Nl_MIN = '\u16EE';
-    static private final char UNICODE_3_1_CHANGE_No_to_Nl_MAX = '\u16F0';
-    static private final String CATEGORY_Pi = "\u00AB\u2018\u201B\u201C\u201F\u2039"; // Java doesn't know about category Pi
-    static private final String CATEGORY_Pf = "\u00BB\u2019\u201D\u203A"; // Java doesn't know about category Pf
+    private static final char UNICODE_3_1_CHANGE_No_to_Nl_MIN = '\u16EE';
+    private static final char UNICODE_3_1_CHANGE_No_to_Nl_MAX = '\u16F0';
+    private static final String CATEGORY_Pi = "\u00AB\u2018\u201B\u201C\u201F\u2039"; // Java doesn't know about category Pi
+    private static final String CATEGORY_Pf = "\u00BB\u2019\u201D\u203A"; // Java doesn't know about category Pf
 
-    static private CharClass computeCategoryCharClass(char code) {
+    private static CharClass computeCategoryCharClass(char code) {
         List classes = new Vector();
         classes.add(new Property(new String(new char[]{code})));
         for (int ci = CATEGORY_NAMES.indexOf(code); ci >= 0; ci = CATEGORY_NAMES.indexOf(code, ci + 1)) {
@@ -1592,7 +1610,7 @@ public class RegexTranslator {
         return new Union(classes);
     }
 
-    static private CharClass computeSubCategoryCharClass(String name) {
+    private static CharClass computeSubCategoryCharClass(String name) {
         CharClass base = new Property(name);
         int sci = CATEGORY_NAMES.indexOf(name);
         if (sci < 0) {

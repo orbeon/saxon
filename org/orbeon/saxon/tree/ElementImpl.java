@@ -2,12 +2,8 @@ package net.sf.saxon.tree;
 import net.sf.saxon.event.LocationCopier;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.om.*;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
-import org.w3c.dom.DOMException;
-import org.w3c.dom.Element;
-
-import java.util.List;
 
 /**
   * ElementImpl implements an element with no attributes or namespace declarations.<P>
@@ -16,14 +12,10 @@ import java.util.List;
   * @author Michael H. Kay
   */
 
-// The name of the element and its attributes are now namespace-resolved by the
-// parser. However, this class retains the ability to do namespace resolution for other
-// names, for example variable and template names in a stylesheet.
 
-public class ElementImpl extends ParentNodeImpl
-    implements Element {
+public class ElementImpl extends ParentNodeImpl {
 
-    private static AttributeCollection emptyAtts = new AttributeCollection(null);
+    private static final AttributeCollectionImpl emptyAtts = new AttributeCollectionImpl(null);
 
     protected int nameCode;
     protected DocumentImpl root;
@@ -52,7 +44,7 @@ public class ElementImpl extends ParentNodeImpl
      * @param sequenceNumber  Integer identifying this element within the document
      */
 
-    public void initialise(int nameCode, AttributeCollection atts, NodeInfo parent,
+    public void initialise(int nameCode, AttributeCollectionImpl atts, NodeInfo parent,
                             String baseURI, int lineNumber, int sequenceNumber) {
         this.nameCode = nameCode;
         this.parent = (ParentNodeImpl)parent;
@@ -140,86 +132,41 @@ public class ElementImpl extends ParentNodeImpl
     }
 
     /**
-    * Search the NamespaceList for a given prefix, returning the corresponding URI.
-    * @param prefix The prefix to be matched. To find the default namespace, supply ""
-    * @return The URI code corresponding to this namespace. If it is an unnamed default namespace,
-    * return Namespace.NULL_CODE.
-    * @throws NamespaceException if the prefix has not been declared on this NamespaceList.
-    */
-
-//    public short getURICodeForPrefix(String prefix) throws NamespaceException {
-//    	// this is actually never called; it's used only in a Stylesheet, and in a Stylesheet
-//    	// we always use the version on ElementWithAttributes
-//        if (prefix.equals("xml")) return Namespace.XML_CODE;
-//        if (parent.getItemType()==Type.DOCUMENT) {
-//            if (prefix.equals("")) {
-//            	return Namespace.NULL_CODE;
-//            }
-//            throw new NamespaceException(prefix);
-//        } else {
-//            return ((ElementImpl)parent).getURICodeForPrefix(prefix);
-//        }
-//    }
-
-    /**
-    * Search the NamespaceList for a given URI, returning the corresponding prefix.
-    * @param uri The URI to be matched.
-    * @return The prefix corresponding to this URI. If not found, return null. If there is
-    * more than one prefix matching the URI, the first one found is returned. If the URI matches
-    * the default namespace, return an empty string.
-    */
-
-//    public String getPrefixForURI(String uri) {
-//        if (parent.getItemType()==Type.DOCUMENT) {
-//            return null;
-//        } else {
-//            return ((ElementImpl)parent).getPrefixForURI(uri);
-//        }
-//    }
-
-    /**
-    * Make the set of all namespace nodes associated with this element.
-    * @param owner The element owning these namespace nodes.
-    * @param list a List containing NamespaceImpl objects representing the namespaces
-    * in scope for this element; the method appends nodes to this List, which should
-    * initially be empty. Note that the returned list will never contain the XML namespace
-    * (to get this, the NamespaceEnumeration class adds it itself). The list WILL include
-    * an entry for the undeclaration xmlns=""; again it is the job of NamespaceEnumeration
-    * to ignore this, since it doesn't represent a true namespace node.
-    * @param addXML Add the XML namespace node to the list
-    */
-
-    public void addNamespaceNodes(ElementImpl owner, List list, boolean addXML) {
-        // just add the namespaces defined on the ancestor nodes
-
-        if (parent.getNodeKind()!=Type.DOCUMENT) {
-            ((ElementImpl)parent).addNamespaceNodes(owner, list, false);
-        }
-        if (addXML) {
-        	int nsxml = (1<<16) + 1;
-            list.add(
-                new NamespaceImpl(this, nsxml, list.size()+1)
-                );
-        }
-    }
-
-    /**
     * Output all namespace nodes associated with this element.
     * @param out The relevant outputter
-    */
+     */
 
-    public void outputNamespaceNodes(Receiver out, boolean includeAncestors) throws XPathException {
+    public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors) throws XPathException {
 
         // just add the namespaces defined on the ancestor nodes. We rely on the outputter
         // to eliminate multiple declarations of the same prefix
 
         if (includeAncestors) {
             if (!(parent instanceof DocumentInfo)) {
-                parent.outputNamespaceNodes(out, true);
+                parent.sendNamespaceDeclarations(out, true);
             }
         }
     }
 
+    /**
+     * Get all namespace undeclarations and undeclarations defined on this element.
+     *
+     * @param buffer If this is non-null, and the result array fits in this buffer, then the result
+     *               may overwrite the contents of this array, to avoid the cost of allocating a new array on the heap.
+     * @return An array of integers representing the namespace declarations and undeclarations present on
+     *         this element. For a node other than an element, return null. Otherwise, the returned array is a
+     *         sequence of namespace codes, whose meaning may be interpreted by reference to the name pool. The
+     *         top half word of each namespace code represents the prefix, the bottom half represents the URI.
+     *         If the bottom half is zero, then this is a namespace undeclaration rather than a declaration.
+     *         The XML namespace is never included in the list. If the supplied array is larger than required,
+     *         then the first unused entry will be set to -1.
+     *         <p/>
+     *         <p>For a node other than an element, the method returns null.</p>
+     */
+
+    public int[] getDeclaredNamespaces(int[] buffer) {
+        return EMPTY_NAMESPACE_LIST;
+    }
 
 
     /**
@@ -258,15 +205,6 @@ public class ElementImpl extends ParentNodeImpl
 
 
     /**
-    * Set the value of an attribute on the current element.
-    * @throws org.w3c.dom.DOMException (always): the Saxon tree is immutable
-    */
-
-    public void setAttribute(String name, String value ) throws DOMException {
-        disallowUpdate();
-    }
-
-    /**
     * Copy this node to a given outputter (supporting xsl:copy-of)
     * @param out The outputter
     * @param whichNamespaces indicates which namespaces should be output: all, none, or local
@@ -285,7 +223,7 @@ public class ElementImpl extends ParentNodeImpl
         // output the namespaces
 
         if (whichNamespaces != NO_NAMESPACES) {
-            outputNamespaceNodes(out, whichNamespaces==ALL_NAMESPACES);
+            sendNamespaceDeclarations(out, whichNamespaces==ALL_NAMESPACES);
         }
 
         // output the children

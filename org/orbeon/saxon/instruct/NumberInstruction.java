@@ -8,16 +8,14 @@ import net.sf.saxon.number.Numberer;
 import net.sf.saxon.number.Numberer_en;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.Pattern;
+import net.sf.saxon.pattern.PatternSponsor;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.IntegerValue;
-import net.sf.saxon.value.NumericValue;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.value.*;
 
 import java.io.PrintStream;
 import java.util.*;
@@ -112,7 +110,6 @@ public class NumberInstruction extends ComputedExpression {
         if (lang != null) {
             adoptChildExpression(lang);
         }
-        // TODO: treat the patterns as regular subexpressions
     }
 
     public Expression simplify(StaticContext env) throws XPathException {
@@ -140,6 +137,12 @@ public class NumberInstruction extends ComputedExpression {
         if (lang != null) {
             lang = lang.simplify(env);
         }
+        if (count != null) {
+            count = count.simplify(env);
+        }
+        if (from != null) {
+            from = from.simplify(env);
+        }
         return this;
     }
 
@@ -156,7 +159,7 @@ public class NumberInstruction extends ComputedExpression {
      * variables will only be accurately known if they have been explicitly declared.</p>
      *
      * @param env the static context of the expression
-     * @exception net.sf.saxon.xpath.StaticError if an error is discovered during this phase
+     * @exception net.sf.saxon.trans.StaticError if an error is discovered during this phase
      *     (typically a type error)
      * @return the original expression, rewritten to perform necessary
      *     run-time type checks, and to perform other type-related
@@ -197,6 +200,12 @@ public class NumberInstruction extends ComputedExpression {
         if (lang != null) {
             lang = lang.analyze(env, contextItemType);
         }
+        if (count != null) {
+            count = count.analyze(env, contextItemType);
+        }
+        if (from != null) {
+            from = from.analyze(env, contextItemType);
+        }
         return this;
     }
 
@@ -208,7 +217,10 @@ public class NumberInstruction extends ComputedExpression {
      */
 
     public Iterator iterateSubExpressions() {
-        List sub = new ArrayList(8);
+        List sub = new ArrayList(9);
+        if (select != null) {
+            sub.add(select);
+        }
         if (value != null) {
             sub.add(value);
         }
@@ -230,7 +242,27 @@ public class NumberInstruction extends ComputedExpression {
         if (lang != null) {
             sub.add(lang);
         }
-       return sub.iterator();
+        if (count != null) {
+            sub.add(new PatternSponsor(count));
+        }
+        if (from != null) {
+            sub.add(new PatternSponsor(from));
+        }
+        return sub.iterator();
+    }
+
+    /**
+     * Determine the intrinsic dependencies of an expression, that is, those which are not derived
+     * from the dependencies of its subexpressions. For example, position() has an intrinsic dependency
+     * on the context position, while (position()+1) does not. The default implementation
+     * of the method returns 0, indicating "no dependencies".
+     *
+     * @return a set of bit-significant flags identifying the "intrinsic"
+     *         dependencies. The flags are documented in class net.sf.saxon.value.StaticProperty
+     */
+
+    public int getIntrinsicDependencies() {
+        return (select == null ? StaticProperty.DEPENDS_ON_CONTEXT_ITEM : 0);
     }
 
     public ItemType getItemType() {
@@ -241,9 +273,66 @@ public class NumberInstruction extends ComputedExpression {
         return StaticProperty.EXACTLY_ONE;
     }
 
+    /**
+     * Offer promotion for this subexpression. The offer will be accepted if the subexpression
+     * is not dependent on the factors (e.g. the context item) identified in the PromotionOffer.
+     * By default the offer is not accepted - this is appropriate in the case of simple expressions
+     * such as constant values and variable references where promotion would give no performance
+     * advantage. This method is always called at compile time.
+     *
+     * @param offer details of the offer, for example the offer to move
+     *              expressions that don't depend on the context to an outer level in
+     *              the containing expression
+     * @return if the offer is not accepted, return this expression unchanged.
+     *         Otherwise return the result of rewriting the expression to promote
+     *         this subexpression
+     * @throws net.sf.saxon.trans.XPathException
+     *          if any error is detected
+     */
+
+    public Expression promote(PromotionOffer offer) throws XPathException {
+        Expression exp = offer.accept(this);
+        if (exp!=null) {
+            return exp;
+        } else {
+            if (select != null) {
+                select = select.promote(offer);
+            }
+            if (value != null) {
+                value = value.promote(offer);
+            }
+            if (format != null) {
+                format = format.promote(offer);
+            }
+            if (groupSize != null) {
+                groupSize = groupSize.promote(offer);
+            }
+            if (groupSeparator != null) {
+                groupSeparator = groupSeparator.promote(offer);
+            }
+            if (letterValue != null) {
+                letterValue = letterValue.promote(offer);
+            }
+            if (ordinal != null) {
+                ordinal = ordinal.promote(offer);
+            }
+            if (lang != null) {
+                lang = lang.promote(offer);
+            }
+            if (count != null) {
+                count.promote(offer);
+            }
+            if (from != null) {
+                from.promote(offer);
+            }
+            return this;
+        }
+    }
+
     public Item evaluateItem(XPathContext context) throws XPathException {
         long value = -1;
-        List vec = null;
+        List vec = null;    // a list whose items may be of type either Long or
+                            // BigInteger or the string to be output (e.g. "NaN")
 
         if (this.value != null) {
 
@@ -266,31 +355,35 @@ public class NumberInstruction extends ComputedExpression {
                     }
                     num = num.round();
                     if (num.compareTo(IntegerValue.MAX_LONG) > 0) {
-                        DynamicError e = new DynamicError("A number is too large to be formatted");
-                        e.setXPathContext(context);
-                        e.setErrorCode("SAXON:0000");
-                        throw e;
+                        vec.add(((BigIntegerValue)num.convert(Type.INTEGER)).getBigInteger());
+//                        DynamicError e = new DynamicError("A number is too large to be formatted");
+//                        e.setXPathContext(context);
+//                        e.setErrorCode("SAXON:0000");
+//                        throw e;
+                    } else {
+                        if (num.compareTo(IntegerValue.ZERO) < 0) {
+                            DynamicError e = new DynamicError("The numbers to be formatted must not be negative");
+//                            e.setXPathContext(context);
+//                            e.setErrorCode("XT0980");
+                            throw e;
+                        }
+                        long i = ((NumericValue) num.convert(Type.INTEGER)).longValue();
+    //                    if (i < 0) {
+    //                        DynamicError e = new DynamicError("The numbers to be formatted must not be negative");
+    //                        e.setXPathContext(context);
+    //                        e.setErrorCode("XT0980");
+    //                        throw e;
+    //                    }
+                        vec.add(new Long(i));
                     }
-                    if (num.compareTo(IntegerValue.MIN_LONG) < 0) {
-                        DynamicError e = new DynamicError("The numbers to be formatted must not be negative");
-                        e.setXPathContext(context);
-                        e.setErrorCode("XT0980");
-                        throw e;
-                    }
-                    long i = ((NumericValue) num.convert(Type.INTEGER, context)).longValue();
-                    if (i < 0) {
-                        DynamicError e = new DynamicError("The numbers to be formatted must not be negative");
-                        e.setXPathContext(context);
-                        e.setErrorCode("XT0980");
-                        throw e;
-                    }
-                    vec.add(new Long(i));
                 } catch (DynamicError err) {
                     if (backwardsCompatible) {
                         vec.add("NaN");
                     } else {
                         vec.add(val.getStringValue());
-                        DynamicError e = new DynamicError("Cannot convert supplied value to an integer: " + err);
+                        DynamicError e = new DynamicError("Cannot convert supplied value to an integer. " + err.getMessage());
+                        err.setErrorCode("XT0980");
+                        e.setXPathContext(context);
                         recoverableError(e, context);
                     }
                 }
@@ -404,7 +497,7 @@ public class NumberInstruction extends ComputedExpression {
             nf = formatter;
         }
 
-        String s = nf.format(vec, gpsize, gpseparator, letterVal, ordinalVal, numb);
+        CharSequence s = nf.format(vec, gpsize, gpseparator, letterVal, ordinalVal, numb);
         return new StringValue(s);
     }
 

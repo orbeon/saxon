@@ -1,6 +1,6 @@
 package net.sf.saxon.instruct;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 
 /**
@@ -18,7 +18,7 @@ public interface TailCall {
     * @param context The dynamic context of the transformation
     * @return a further TailCall, if the recursion continues, or null, indicating that the
     * recursion has terminated.
-    * @throws XPathException if any error occurs processing the tail call
+    * @throws net.sf.saxon.trans.XPathException if any error occurs processing the tail call
     */
 
     public TailCall processLeavingTail(XPathContext context) throws XPathException;

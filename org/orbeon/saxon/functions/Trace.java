@@ -7,9 +7,9 @@ import net.sf.saxon.instruct.InstructionDetails;
 import net.sf.saxon.om.*;
 import net.sf.saxon.trace.Location;
 import net.sf.saxon.trace.TraceListener;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * This class supports the XPath 2.0 function trace().

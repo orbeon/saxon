@@ -1,5 +1,4 @@
 package net.sf.saxon.style;
-import net.sf.saxon.expr.Container;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.instruct.Choose;
@@ -7,11 +6,11 @@ import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.instruct.Instruction;
 import net.sf.saxon.instruct.TraceWrapper;
 import net.sf.saxon.om.*;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.BooleanValue;
 import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -72,7 +71,7 @@ public class XSLChoose extends StyleElement {
                     otherwise = (StyleElement)curr;
                 }
             } else if (curr.getNodeKind() == Type.TEXT &&
-                        Navigator.isWhite(curr.getStringValue())) {
+                        Navigator.isWhite(curr.getStringValueCS())) {
                 compileError("Text node inside xsl:choose", "XT0010");
                 // tolerate a whitespace text node; but it should have been stripped
                 // by now.
@@ -125,16 +124,15 @@ public class XSLChoose extends StyleElement {
                     b = EmptySequence.getInstance();
                 }
                 try {
-                    actions[w] = b.simplify(((XSLWhen)curr).getStaticContext());
+                    b = b.simplify(((XSLWhen)curr).getStaticContext());
+                    actions[w] = b;
                 } catch (XPathException e) {
                     compileError(e);
                 }
 
                 if (getConfiguration().getTraceListener() != null) {
                     TraceWrapper trace = makeTraceInstruction((XSLWhen)curr, actions[w]);
-                    if (b instanceof Container) {
-                        trace.setParentExpression((Container)b);
-                    }
+                    trace.setParentExpression((XSLWhen)curr);
                     actions[w] = trace;
                 }
 
@@ -159,15 +157,14 @@ public class XSLChoose extends StyleElement {
                     b = EmptySequence.getInstance();
                 }
                 try {
-                    actions[w] = b.simplify(((XSLOtherwise)curr).getStaticContext());
+                    b = b.simplify(((XSLOtherwise)curr).getStaticContext());
+                    actions[w] = b;
                 } catch (XPathException e) {
                     compileError(e);
                 }
                 if (getConfiguration().getTraceListener() != null) {
                     TraceWrapper trace = makeTraceInstruction((XSLOtherwise)curr, actions[w]);
-                    if (b instanceof Container) {
-                        trace.setParentExpression((Container)b);
-                    }
+                    trace.setParentExpression((XSLOtherwise)curr);
                     actions[w] = trace;
                 }
                 w++;

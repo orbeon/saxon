@@ -7,9 +7,9 @@ import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.pattern.NodeKindTest;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -67,7 +67,7 @@ public final class Comment extends SimpleNodeConstructor {
      * @param comment    the supplied content
      * @param context the dynamic context
      * @return the original content, unless adjustments are needed
-     * @throws net.sf.saxon.xpath.DynamicError
+     * @throws net.sf.saxon.trans.DynamicError
      *          if the content is invalid
      */
 

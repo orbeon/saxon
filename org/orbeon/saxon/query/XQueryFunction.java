@@ -8,15 +8,15 @@ import net.sf.saxon.om.NamespaceResolver;
 import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.trace.InstructionInfo;
 import net.sf.saxon.trace.Location;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-public class XQueryFunction implements InstructionInfo {
+public class XQueryFunction implements InstructionInfo, Container {
     private int nameCode;
     List arguments;              // A list of RangeVariableDeclaration objects
     SequenceType resultType;
@@ -119,10 +119,15 @@ public class XQueryFunction implements InstructionInfo {
                 // type-check the body of the function
 
                 body = body.simplify(env).analyze(env, null);
+                if (body instanceof ComputedExpression) {
+                    ((ComputedExpression)body).setParentExpression(this);
+                }
                 RoleLocator role =
                         new RoleLocator(RoleLocator.FUNCTION_RESULT, new Integer(nameCode), 0, env.getNamePool());
                 body = TypeChecker.staticTypeCheck(body, resultType, false, role, env);
-
+                if (body instanceof ComputedExpression) {
+                    ((ComputedExpression)body).setParentExpression(this);
+                }
                 ExpressionTool.allocateSlots(body, slot, map);
 
                 if (env.getConfiguration().getTraceListener() != null) {

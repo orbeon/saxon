@@ -36,7 +36,7 @@ public class Procedure implements Serializable, Container {
         }
     }
 
-    public Expression getBody() {
+    public final Expression getBody() {
         return body;
     }
 
@@ -48,7 +48,7 @@ public class Procedure implements Serializable, Container {
         return stackFrameMap;
     }
 
-    public Executable getExecutable() {
+    public final Executable getExecutable() {
         return executable;
     }
 

@@ -2,6 +2,9 @@ package net.sf.saxon.om;
 
 import net.sf.saxon.expr.LastPositionFinder;
 import net.sf.saxon.expr.ReversibleIterator;
+import net.sf.saxon.value.SequenceExtent;
+import net.sf.saxon.value.Value;
+import net.sf.saxon.value.SingletonNode;
 
 
 /**
@@ -9,7 +12,7 @@ import net.sf.saxon.expr.ReversibleIterator;
 */
 
 public class SingletonIterator implements AxisIterator,
-        ReversibleIterator, LastPositionFinder {
+        ReversibleIterator, LastPositionFinder, GroundedIterator {
 
     private Item value;
     private boolean gone;
@@ -69,6 +72,22 @@ public class SingletonIterator implements AxisIterator,
 
     public Item getValue() {
         return value;
+    }
+
+    /**
+     * Return a SequenceExtent containing all the items in the sequence returned by this
+     * SequenceIterator
+     *
+     * @return the corresponding SequenceExtent if it exists, or null if it doesn't; in this case
+     *         the caller must construct a new SequenceExtent by calling new SequenceExtent(iter.getAnother())
+     */
+
+    public Value materialize() {
+        if (value instanceof Value) {
+            return (Value)value;
+        } else {
+            return new SingletonNode((NodeInfo)value);
+        }
     }
 
 }

@@ -3,7 +3,7 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.instruct.Assign;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 

@@ -2,9 +2,9 @@ package net.sf.saxon.expr;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.SchemaType;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Iterator;
@@ -32,7 +32,7 @@ public interface Expression {
      * Simplify an expression. This performs any static optimization (by rewriting the expression
      * as a different expression). The default implementation does nothing.
      *
-     * @exception net.sf.saxon.xpath.StaticError if an error is discovered during expression
+     * @exception net.sf.saxon.trans.StaticError if an error is discovered during expression
      *     rewriting
      * @return the simplified expression
      */
@@ -56,7 +56,7 @@ public interface Expression {
      * The parameter is set to null if it is known statically that the context item will be undefined.
      * If the type of the context item is not known statically, the argument is set to
      * {@link net.sf.saxon.type.Type#ITEM_TYPE}
-     * @exception net.sf.saxon.xpath.StaticError if an error is discovered during this phase
+     * @exception net.sf.saxon.trans.StaticError if an error is discovered during this phase
      *     (typically a type error)
      * @return the original expression, rewritten to perform necessary
      *     run-time type checks, and to perform other type-related
@@ -75,7 +75,7 @@ public interface Expression {
      * @param offer details of the offer, for example the offer to move
      *     expressions that don't depend on the context to an outer level in
      *     the containing expression
-     * @exception net.sf.saxon.xpath.XPathException if any error is detected
+     * @exception net.sf.saxon.trans.XPathException if any error is detected
      * @return if the offer is not accepted, return this expression unchanged.
      *      Otherwise return the result of rewriting the expression to promote
      *      this subexpression
@@ -101,9 +101,9 @@ public interface Expression {
      * <p>This method should always return a result, though it may be the best approximation
      * that is available at the time.</p>
      *
-     * @return one of the values Cardinality.ONE_OR_MORE,
-     *     Cardinality.ZERO_OR_MORE, Cardinality.EXACTLY_ONE,
-     *     Cardinality.ZERO_OR_ONE, Cardinality.EMPTY. This default
+     * @return one of the values {@link StaticProperty#ALLOWS_ONE},
+     *     {@link StaticProperty#ALLOWS_ZERO_OR_MORE}, {@link StaticProperty#ALLOWS_ZERO_OR_ONE},
+     *     {@link StaticProperty#ALLOWS_ONE_OR_MORE}, {@link StaticProperty#EMPTY}. This default
      *     implementation returns ZERO_OR_MORE (which effectively gives no
      *     information).
      */
@@ -197,7 +197,7 @@ public interface Expression {
      * return singleton values: for non-singleton expressions, the subclass must
      * provide its own implementation.
      *
-     * @exception net.sf.saxon.xpath.XPathException if any dynamic error occurs evaluating the
+     * @exception net.sf.saxon.trans.XPathException if any dynamic error occurs evaluating the
      *     expression
      * @param context supplies the context for evaluation
      * @return a SequenceIterator that can be used to iterate over the result
@@ -212,7 +212,7 @@ public interface Expression {
      * false. Otherwise it returns true.
      *
      * @param context The context in which the expression is to be evaluated
-     * @exception net.sf.saxon.xpath.XPathException if any dynamic error occurs evaluating the
+     * @exception net.sf.saxon.trans.XPathException if any dynamic error occurs evaluating the
      *     expression
      * @return the effective boolean value
      */

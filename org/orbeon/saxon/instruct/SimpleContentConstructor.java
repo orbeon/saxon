@@ -1,14 +1,13 @@
 package net.sf.saxon.instruct;
 
 import net.sf.saxon.expr.*;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.om.*;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.value.Cardinality;
+import net.sf.saxon.value.AtomicValue;
 
 import java.io.PrintStream;
 import java.util.Iterator;
@@ -23,6 +22,8 @@ public class SimpleContentConstructor extends ComputedExpression {
 
     Expression select;
     Expression separator;
+    boolean isSingleton = false;
+    boolean isAtomic = false;
 
     public SimpleContentConstructor(Expression select, Expression separator) {
         this.select = select;
@@ -61,13 +62,19 @@ public class SimpleContentConstructor extends ComputedExpression {
      * @return the original expression, rewritten to perform necessary
      *         run-time type checks, and to perform other type-related
      *         optimizations
-     * @throws net.sf.saxon.xpath.StaticError if an error is discovered during this phase
+     * @throws net.sf.saxon.trans.StaticError if an error is discovered during this phase
      *                                        (typically a type error)
      */
 
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
         select = select.analyze(env, contextItemType);
         separator = separator.analyze(env, contextItemType);
+        if (!Cardinality.allowsMany(select.getCardinality())) {
+            isSingleton = true;
+        }
+        if (Type.isSubType(select.getItemType(), Type.ANY_ATOMIC_TYPE)) {
+            isAtomic = true;
+        }
         return this;
     }
 
@@ -108,7 +115,7 @@ public class SimpleContentConstructor extends ComputedExpression {
      * as a different expression). The default implementation does nothing.
      *
      * @return the simplified expression
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      *          if an error is discovered during expression
      *          rewriting
      */
@@ -132,6 +139,34 @@ public class SimpleContentConstructor extends ComputedExpression {
     }
 
     /**
+     * Offer promotion for this subexpression. The offer will be accepted if the subexpression
+     * is not dependent on the factors (e.g. the context item) identified in the PromotionOffer.
+     * By default the offer is not accepted - this is appropriate in the case of simple expressions
+     * such as constant values and variable references where promotion would give no performance
+     * advantage. This method is always called at compile time.
+     *
+     * @param offer details of the offer, for example the offer to move
+     *              expressions that don't depend on the context to an outer level in
+     *              the containing expression
+     * @return if the offer is not accepted, return this expression unchanged.
+     *         Otherwise return the result of rewriting the expression to promote
+     *         this subexpression
+     * @throws net.sf.saxon.trans.XPathException
+     *          if any error is detected
+     */
+
+    public Expression promote(PromotionOffer offer) throws XPathException {
+        Expression exp = offer.accept(this);
+        if (exp!=null) {
+            return exp;
+        } else {
+            select = select.promote(offer);
+            separator = separator.promote(offer);
+            return this;
+        }
+    }
+
+    /**
      * Evaluate an expression as a single item. This always returns either a single Item or
      * null (denoting the empty sequence). No conversion is done. This method should not be
      * used unless the static type of the expression is a subtype of "item" or "item?": that is,
@@ -142,31 +177,42 @@ public class SimpleContentConstructor extends ComputedExpression {
      * @return the node or atomic value that results from evaluating the
      *         expression; or null to indicate that the result is an empty
      *         sequence
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      *          if any dynamic error occurs evaluating the
      *          expression
      */
 
     public Item evaluateItem(XPathContext context) throws XPathException {
-        SequenceIterator iter = select.iterate(context);
-        StringBuffer sb = new StringBuffer(200);
+        SequenceIterator iter;
+        if (isSingleton) {
+            // optimize for this case
+            Item item = select.evaluateItem(context);
+            if (item instanceof StringValue) {
+                return item;
+            } else if (item instanceof AtomicValue) {
+                return ((AtomicValue)item).convert(Type.STRING);
+            } else {
+                iter = SingletonIterator.makeIterator(item);
+            }
+        } else {
+            iter = select.iterate(context);
+        }
+        FastStringBuffer sb = new FastStringBuffer(1024);
         boolean prevText = false;
         boolean first = true;
-        String sep = null;
+        CharSequence sep = null;
         while (true) {
             Item item = iter.next();
             if (item==null) {
                 break;
             }
             if (item instanceof NodeInfo) {
-                // TODO: this special handling of text nodes is incorrect for XQuery
-                // TODO: this anticipates changes to XSLT to align attribute value templates with xsl:attribute
                 if (((NodeInfo)item).getNodeKind() == Type.TEXT) {
-                    String s = item.getStringValue();
+                    CharSequence s = item.getStringValueCS();
                     if (s.length() > 0) {
                         if (!first && !prevText) {
                             if (sep == null) {
-                                sep = separator.evaluateItem(context).getStringValue();
+                                sep = separator.evaluateItem(context).getStringValueCS();
                             }
                             sb.append(sep);
                         }
@@ -184,27 +230,26 @@ public class SimpleContentConstructor extends ComputedExpression {
                         }
                         if (!first) {
                             if (sep == null) {
-                                sep = separator.evaluateItem(context).getStringValue();
+                                sep = separator.evaluateItem(context).getStringValueCS();
                             }
                             sb.append(sep);
                         }
                         first = false;
-                        sb.append(item2.getStringValue());
+                        sb.append(item2.getStringValueCS());
                     }
                 }
             } else {
                 if (!first) {
                     if (sep == null) {
-                        sep = separator.evaluateItem(context).getStringValue();
+                        sep = separator.evaluateItem(context).getStringValueCS();
                     }
                     sb.append(sep);
                 }
                 first = false;
-                String s = item.getStringValue();
-                sb.append(s);
+                sb.append(item.getStringValueCS());
             }
         }
-        return new StringValue(sb);
+        return new StringValue(sb.condense());
     }
 
     /**

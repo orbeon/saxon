@@ -1,10 +1,10 @@
 package net.sf.saxon.value;
-import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.om.FastStringBuffer;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.util.StringTokenizer;
 
@@ -92,18 +92,16 @@ public final class MonthDurationValue extends DurationValue implements Comparabl
         int y = mm / 12;
         int m = mm % 12;
 
-        StringBuffer sb = new StringBuffer(32);
+        FastStringBuffer sb = new FastStringBuffer(32);
         if (negative) {
             sb.append('-');
         }
         sb.append('P');
         if (y!=0) {
-            sb.append(y);
-            sb.append('Y');
+            sb.append(y + "Y");
         }
         if (m!=0 || y==0) {
-            sb.append(m);
-            sb.append('M');
+            sb.append(m + "M");
         }
         return sb.toString();
 
@@ -203,7 +201,7 @@ public final class MonthDurationValue extends DurationValue implements Comparabl
     * Convert to Java object (for passing to external functions)
     */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
+    public Object convertToJava(Class target, XPathContext context) throws XPathException {
         if (target.isAssignableFrom(DurationValue.class)) {
             return this;
         } else if (target==String.class || target==CharSequence.class) {

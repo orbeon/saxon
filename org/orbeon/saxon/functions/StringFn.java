@@ -3,8 +3,8 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * Implement XPath function string()
@@ -31,7 +31,7 @@ public class StringFn extends SystemFunction {
         if (arg==null) {
             return StringValue.EMPTY_STRING;
         } else {
-            return new StringValue(arg.getStringValue());
+            return new StringValue(arg.getStringValueCS());
         }
     }
 

@@ -1,5 +1,7 @@
 package net.sf.saxon.om;
 import net.sf.saxon.expr.LastPositionFinder;
+import net.sf.saxon.value.SequenceExtent;
+import net.sf.saxon.value.Value;
 
 import java.util.List;
 
@@ -9,7 +11,7 @@ import java.util.List;
 */
 
 public final class ListIterator
-        implements AxisIterator, LastPositionFinder, LookaheadIterator {
+        implements AxisIterator, LastPositionFinder, LookaheadIterator, GroundedIterator {
 
     int index=0;
     int length;
@@ -51,6 +53,17 @@ public final class ListIterator
 
     public SequenceIterator getAnother() {
         return new ListIterator(list);
+    }
+
+    /**
+     * Return a SequenceValue containing all the items in the sequence returned by this
+     * SequenceIterator
+     *
+     * @return the corresponding SequenceValue
+     */
+
+    public Value materialize() {
+        return new SequenceExtent(list);
     }
 
 }

@@ -6,22 +6,17 @@ import net.sf.saxon.expr.*;
 import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.*;
-import net.sf.saxon.sort.CodepointCollator;
 import net.sf.saxon.sort.SortKeyDefinition;
 import net.sf.saxon.trace.InstructionInfo;
 import net.sf.saxon.trace.Location;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.tree.ElementWithAttributes;
 import net.sf.saxon.type.*;
-import net.sf.saxon.value.DecimalValue;
-import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.value.*;
 import org.xml.sax.Locator;
 
-import javax.xml.namespace.QName;
 import javax.xml.transform.SourceLocator;
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
@@ -239,17 +234,22 @@ public abstract class StyleElement extends ElementWithAttributes
      * @param prefix     The namespace prefix: may be the empty string
      * @param useDefault True if the default namespace is to be used when the
      *                   prefix is "".
-     * @throws NamespaceException if the prefix is not declared
+     * @return the namespace URI if the prefix is bound to a namespace; "" if the
+     * prefix ("") is bound to no namespace; null if the prefix is not bound.
      */
 
-    public String getURIForPrefix(String prefix, boolean useDefault) throws NamespaceException {
-        if ("".equals(prefix) && !useDefault) {
-            return "";
-        } else {
-            short uricode = getURICodeForPrefix(prefix);
-            return getNamePool().getURIFromURICode(uricode);
-        }
-    }
+//    public String getURIForPrefix(String prefix, boolean useDefault)  {
+//        if ("".equals(prefix) && !useDefault) {
+//            return "";
+//        } else {
+//            try {
+//                short uricode = getURICodeForPrefix(prefix);
+//                return getNamePool().getURIFromURICode(uricode);
+//            } catch (NamespaceException e) {
+//                return null;
+//            }
+//        }
+//    }
 
     /**
      * Make a NameCode, using this Element as the context for namespace resolution, and
@@ -280,6 +280,9 @@ public abstract class StyleElement extends ElementWithAttributes
         } else {
 
             String uri = getURIForPrefix(prefix, false);
+            if (uri == null) {
+                throw new NamespaceException(prefix);
+            }
             if (NamespaceConstant.isReserved(uri)) {
                 StaticError err = new StaticError("Namespace prefix " + prefix + " refers to a reserved namespace");
                 err.setErrorCode("XT0080");
@@ -296,17 +299,7 @@ public abstract class StyleElement extends ElementWithAttributes
      */
 
     public SavedNamespaceContext makeNamespaceContext() {
-        // Get the namespace codes relative to the stylesheet namepool
-        int[] oldCodes = getNamespaceCodes();
-        int[] newCodes = new int[oldCodes.length];
-        NamePool oldPool = getNamePool();
-        NamePool newPool = getTargetNamePool();
-        for (int i = 0; i < oldCodes.length; i++) {
-            String prefix = oldPool.getPrefixFromNamespaceCode(oldCodes[i]);
-            String uri = oldPool.getURIFromNamespaceCode(oldCodes[i]);
-            newCodes[i] = newPool.allocateNamespaceCode(prefix, uri);
-        }
-        return new SavedNamespaceContext(newCodes, newPool);
+        return new SavedNamespaceContext(getInScopeNamespaceCodes(), getNamePool());
     }
 
     /**
@@ -485,7 +478,7 @@ public abstract class StyleElement extends ElementWithAttributes
     public Expression makeAttributeValueTemplate(String expression)
             throws TransformerConfigurationException {
         try {
-            return AttributeValueTemplate.make(expression + (char)0, 0, (char)0, getLineNumber(), staticContext);
+            return AttributeValueTemplate.make(expression, getLineNumber(), staticContext);
         } catch (XPathException err) {
             compileError(err);
             return new StringValue(expression);
@@ -556,7 +549,7 @@ public abstract class StyleElement extends ElementWithAttributes
         String ext = getAttributeValue(nc);
         if (ext != null) {
             if ("#all".equals(ext.trim())) {
-                int[] codes = getNamespaceCodes();
+                int[] codes = getInScopeNamespaceCodes();
                 excludedNamespaces = new short[codes.length];
                 for (int i = 0; i < codes.length; i++) {
                     excludedNamespaces[i] = (short)(codes[i] & 0xffff);
@@ -600,11 +593,11 @@ public abstract class StyleElement extends ElementWithAttributes
     protected void processVersionAttribute(String nc) throws TransformerConfigurationException {
         String v = getAttributeValue(nc);
         if (v != null) {
-            try {
-                version = new DecimalValue(v).getValue();
-            } catch (XPathException err) {
+            AtomicValue val = DecimalValue.makeDecimalValue(v, true);
+            if (val instanceof ErrorValue) {
                 throw new TransformerConfigurationException("The version attribute must be a decimal literal");
             }
+            version = ((DecimalValue)val).getValue();
         }
     }
 
@@ -615,7 +608,7 @@ public abstract class StyleElement extends ElementWithAttributes
 
     public BigDecimal getVersion() {
         if (version == null) {
-            NodeInfo node = (NodeInfo)getParentNode();
+            NodeInfo node = getParent();
             if (node instanceof StyleElement) {
                 version = ((StyleElement)node).getVersion();
             } else {
@@ -822,7 +815,10 @@ public abstract class StyleElement extends ElementWithAttributes
                 nameCode = getTargetNamePool().allocate(parts[0], uricode, lname);
             } else {
                 uri = getURIForPrefix(parts[0], false);
-
+                if (uri == null) {
+                    compileError("Namespace prefix for type annotation is undeclared", "XT0280");
+                    return null;
+                }
             }
             int nameCode = getTargetNamePool().allocate(parts[0], uri, lname);
             if (uri.equals(NamespaceConstant.SCHEMA)) {
@@ -856,8 +852,6 @@ public abstract class StyleElement extends ElementWithAttributes
             }
             return stype;
 
-        } catch (NamespaceException err) {
-            compileError("Namespace prefix for type annotation is undeclared", "XT0280");
         } catch (QNameException err) {
             compileError("Invalid type name. " + err.getMessage());
         }
@@ -919,7 +913,8 @@ public abstract class StyleElement extends ElementWithAttributes
             exp = exp.analyze(staticContext, Type.ITEM_TYPE);
             if (explaining) {
                 System.err.println("Attribute '" + name + "' of element '" + getDisplayName() + "' at line " + getLineNumber() + ':');
-                System.err.println("Static type: " + new SequenceType(exp.getItemType(), exp.getCardinality()));
+                System.err.println("Static type: " +
+                        SequenceType.makeSequenceType(exp.getItemType(), exp.getCardinality()));
                 System.err.println("Optimized expression tree:");
                 exp.display(10, getNamePool(), System.err);
             }
@@ -930,7 +925,6 @@ public abstract class StyleElement extends ElementWithAttributes
                 details.setSystemId(getSystemId());
                 details.setProperty("attribute-name", name);
                 TraceWrapper trace = new TraceInstruction(exp, details);
-                // TODO: Some redundancy here about location information...
                 trace.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
                 trace.setParentExpression(this);
                 exp = trace;
@@ -965,11 +959,8 @@ public abstract class StyleElement extends ElementWithAttributes
     public void allocateSlots(Expression exp) {
         SlotManager slotManager = getContainingSlotManager();
         if (slotManager == null) {
-            // this expression is not part of an XSLT procedure, so it needs
-            // its own stack frame to contain its variables.
-            // TODO: can this still happen? It originally handled situations like range variables in the
-            // select attribute of a global variable or the use attribute of xsl:key.
-            ExpressionTool.allocateSlots(exp, 0, null);
+            throw new AssertionError("Slot manager has not been allocated");
+            // previous code: ExpressionTool.allocateSlots(exp, 0, null);
         } else {
             int firstSlot = slotManager.getNumberOfVariables();
             int highWater = ExpressionTool.allocateSlots(exp, firstSlot, slotManager);
@@ -995,8 +986,7 @@ public abstract class StyleElement extends ElementWithAttributes
             return null;
         }
         try {
-            return pat.typeCheck(staticContext, Type.NODE_TYPE);
-            // TODO: do a more specific check where possible
+            return pat.analyze(staticContext, Type.NODE_TYPE);
         } catch (DynamicError err) {
             // we can't report a dynamic error such as divide by zero unless the pattern
             // is actually executed. We don't have an error pattern available, so we
@@ -1083,6 +1073,7 @@ public abstract class StyleElement extends ElementWithAttributes
      */
 
     protected void validateChildren() throws TransformerConfigurationException {
+        boolean containsInstructions = mayContainSequenceConstructor();
         AxisIterator kids = iterateAxis(Axis.CHILD);
         StyleElement lastChild = null;
         while (true) {
@@ -1091,6 +1082,12 @@ public abstract class StyleElement extends ElementWithAttributes
                 break;
             }
             if (child instanceof StyleElement) {
+                if (containsInstructions && !((StyleElement)child).isInstruction()
+                        && !isPermittedChild((StyleElement)child)) {
+                    ((StyleElement)child).compileError(
+                            "An " + getDisplayName() + " element must not contain an " +
+                            child.getDisplayName() + " element", "XT0010");
+                }
                 ((StyleElement)child).validateSubtree();
                 lastChild = (StyleElement)child;
             }
@@ -1099,6 +1096,14 @@ public abstract class StyleElement extends ElementWithAttributes
                 !(this instanceof XSLStylesheet)) {
             lastChild.compileWarning("A variable with no following sibling instructions has no effect");
         }
+    }
+
+    /**
+     * Specify that certain children are permitted for this element
+     */
+
+    protected boolean isPermittedChild(StyleElement child) {
+        return false;
     }
 
     /**
@@ -1135,12 +1140,11 @@ public abstract class StyleElement extends ElementWithAttributes
      */
 
     public void checkWithinTemplate() throws TransformerConfigurationException {
-        // TODO: restructure this check: we should check that elements have valid children, not that they have
-        // valid parents.
-        StyleElement parent = (StyleElement)getParentNode();
-        if (!parent.mayContainSequenceConstructor()) {
-            compileError("Element must be used only within a sequence constructor", "XT0010");
-        }
+//        Parent elements now check their children, not the other way around
+//        StyleElement parent = (StyleElement)getParent();
+//        if (!parent.mayContainSequenceConstructor()) {
+//            compileError("Element must be used only within a sequence constructor", "XT0010");
+//        }
     }
 
     /**
@@ -1168,7 +1172,7 @@ public abstract class StyleElement extends ElementWithAttributes
                 sortFound = true;
             } else if (child.getNodeKind() == Type.TEXT) {
                 // with xml:space=preserve, white space nodes may still be there
-                if (!Navigator.isWhite(child.getStringValue())) {
+                if (!Navigator.isWhite(child.getStringValueCS())) {
                     nonSortFound = true;
                 }
             } else {
@@ -1191,7 +1195,7 @@ public abstract class StyleElement extends ElementWithAttributes
         if (errorCode == null) {
             errorCode = "XT0010";
         }
-        if (!(getParentNode() instanceof XSLStylesheet)) {
+        if (!(getParent() instanceof XSLStylesheet)) {
             compileError("Element must be used only at top level of stylesheet", errorCode);
         }
     }
@@ -1240,67 +1244,6 @@ public abstract class StyleElement extends ElementWithAttributes
      * @return the array of children
      */
 
-//    public Expression[] compileChildren(Executable exec, InstructionWithChildren inst, boolean includeParams)
-//            throws TransformerConfigurationException {
-//
-//        inst.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
-//
-//        List list = new ArrayList(10);
-//        AxisIterator kids = iterateAxis(Axis.CHILD);
-//        while (true) {
-//            NodeInfo node = (NodeInfo)kids.next();
-//            if (node == null) {
-//                break;
-//            }
-//            if (node.getNodeKind() == Type.TEXT) {
-//                // handle literal text nodes by generating an xsl:text instruction
-//                Text text = new Text(false);
-//                try {
-//                    text.setSelect(new StringValue(node.getStringValue()));
-//                } catch (XPathException e) {
-//                    compileError(e);
-//                }
-//                text.setLocationId(allocateLocationId(getSystemId(), node.getLineNumber()));
-//                text.setParentExpression(inst);
-//                list.add(text);
-//
-//            } else if (node instanceof StyleElement) {
-//                StyleElement snode = (StyleElement)node;
-//                if (snode.validationError != null) {
-//                    fallbackProcessing(exec, snode, list);
-//                } else {
-//                    Expression child = snode.compile(exec);
-//                    if (child instanceof Instruction) {
-//                        Instruction childi = (Instruction)child;
-//                        childi.setLocationId(allocateLocationId(getSystemId(), snode.getLineNumber()));
-//                        childi.setParentExpression(inst);
-//                    }
-//                    if (child != null) {
-//                        if (getConfiguration().getTraceListener() != null) {
-//                            TraceWrapper trace = makeTraceInstruction(snode, child);
-//                            trace.setParentExpression(inst);
-//                            child = trace;
-//                        }
-//                        if (includeParams || !(node instanceof XSLParam)) {
-//                            list.add(child);
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//        Expression[] array = new Expression[list.size()];
-//        array = (Expression[])list.toArray(array);
-//        inst.setChildren(array);
-//        return array;
-//    }
-
-    /**
-     * Compile the children of this instruction on the stylesheet tree, adding the
-     * subordinate instructions to the parent instruction on the execution tree.
-     *
-     * @return the array of children
-     */
-
     public Expression compileSequenceConstructor(Executable exec, AxisIterator iter, boolean includeParams)
             throws TransformerConfigurationException {
 
@@ -1314,18 +1257,13 @@ public abstract class StyleElement extends ElementWithAttributes
         }
         if (node.getNodeKind() == Type.TEXT) {
             // handle literal text nodes by generating an xsl:value-of instruction
-            ValueOf text = new ValueOf(new StringValue(node.getStringValue()), false);
-//            try {
-//                text.setSelect(new StringValue(node.getStringValue()));
-//            } catch (XPathException e) {
-//                compileError(e);
-//            }
+            ValueOf text = new ValueOf(new StringValue(node.getStringValueCS()), false);
             text.setLocationId(allocateLocationId(getSystemId(), lineNumber));
             Expression tail = compileSequenceConstructor(exec, iter, includeParams);
             if (tail == null) {
                 return text;
             } else {
-                AppendExpression e = new AppendExpression(text, Token.COMMA, tail);
+                Block e = Block.makeBlock(text, tail);
                 e.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
                 return e;
             }
@@ -1339,8 +1277,8 @@ public abstract class StyleElement extends ElementWithAttributes
                 LocalVariable lv = (LocalVariable)var;
                 Expression tail = compileSequenceConstructor(exec, iter, includeParams);
                 if (tail == null) {
-                    // If there are no instructions following xsl:variable, the variable can be ignored
-                    // TODO: issue a warning that the variable is ignored
+                    // this doesn't happen, because if there are no instructions following
+                    // a variable, we'll have taken the var==null path above
                     return null;
                 } else {
                     LetExpression let = new LetExpression();
@@ -1354,7 +1292,15 @@ public abstract class StyleElement extends ElementWithAttributes
                     let.setSlotNumber(lv.getSlotNumber());
                     let.setAction(tail);
                     ((XSLVariable)node).fixupBinding(let);
-                    let.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
+                    let.setLocationId(allocateLocationId(node.getSystemId(), node.getLineNumber()));
+                    if (getConfiguration().getTraceListener() != null) {
+                        TraceExpression t = new TraceExpression(let);
+                        t.setConstructType(Location.LET_EXPRESSION);
+                        t.setObjectNameCode(lv.getNameCode());
+                        t.setSystemId(node.getSystemId());
+                        t.setLineNumber(node.getLineNumber());
+                        return t;
+                    }
                     return let;
                 }
             }
@@ -1385,7 +1331,8 @@ public abstract class StyleElement extends ElementWithAttributes
                 } else if (child == null) {
                     return tail;
                 } else {
-                    AppendExpression e = new AppendExpression(child, Token.COMMA, tail);
+                    //AppendExpression e = new AppendExpression(child, Token.COMMA, tail);
+                    Block e = Block.makeBlock(child, tail);
                     e.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
                     return e;
                 }
@@ -1437,7 +1384,8 @@ public abstract class StyleElement extends ElementWithAttributes
                 if (fallback == null) {
                     fallback = b;
                 } else {
-                    fallback = new AppendExpression(fallback, Token.COMMA,  b);
+                    //fallback = new AppendExpression(fallback, Token.COMMA,  b);
+                    fallback = Block.makeBlock(fallback, b);
                 }
             }
         }
@@ -1655,16 +1603,19 @@ public abstract class StyleElement extends ElementWithAttributes
      * @throws TransformerConfigurationException
      *
      */
-    protected void compileError(String message, QName errorCode)
-            throws TransformerConfigurationException {
+
+    protected void compileError(String message, String errorCode) throws TransformerConfigurationException {
         StaticError tce = new StaticError(message);
         tce.setErrorCode(errorCode);
         tce.setLocator(this);
         compileError(tce);
     }
 
-    protected void compileError(String message, String errorCode) throws TransformerConfigurationException {
-        compileError(message, new QName(NamespaceConstant.ERR, errorCode, "err"));
+    protected void undeclaredNamespaceError(String prefix, String errorCode) throws TransformerConfigurationException {
+        if (errorCode==null) {
+            errorCode = "XT0280";
+        }
+        compileError("Undeclared namespace prefix " + Err.wrap(prefix), errorCode);
     }
 
     protected void compileWarning(String message)
@@ -1709,7 +1660,7 @@ public abstract class StyleElement extends ElementWithAttributes
      */
 
     public boolean isTopLevel() {
-        return (getParentNode() instanceof XSLStylesheet);
+        return (getParent() instanceof XSLStylesheet);
     }
 
     /**
@@ -1718,7 +1669,7 @@ public abstract class StyleElement extends ElementWithAttributes
      *
      * @param fingerprint The fingerprint of the name of the variable
      * @return the XSLVariableDeclaration (that is, an xsl:variable or xsl:param instruction) for the variable
-     * @throws net.sf.saxon.xpath.StaticError if the variable has not been declared
+     * @throws net.sf.saxon.trans.StaticError if the variable has not been declared
      */
 
     public XSLVariableDeclaration bindVariable(int fingerprint) throws StaticError {

@@ -1,8 +1,8 @@
 package net.sf.saxon.instruct;
 import net.sf.saxon.Configuration;
-import net.sf.saxon.om.NamespaceConstant;
 import net.sf.saxon.event.Stripper;
 import net.sf.saxon.functions.FunctionLibrary;
+import net.sf.saxon.om.NamespaceConstant;
 import net.sf.saxon.query.StaticQueryContext;
 import net.sf.saxon.sort.CodepointCollator;
 import net.sf.saxon.trans.DecimalFormatManager;
@@ -69,6 +69,9 @@ public class Executable implements Serializable {
 
                 // hash table of query library modules
     private HashMap queryLibraryModules;
+
+                // flag to indicate that source documents are to have their type annotations stripped
+    private boolean stripsInputTypeAnnotations;
 
 
 
@@ -228,6 +231,22 @@ public class Executable implements Serializable {
 
     public boolean stripsWhitespace() {
         return stripsWhitespace;
+    }
+
+    /**
+     * Set whether source documents are to have their type annotations stripped
+     */
+
+    public void setStripsInputTypeAnnotations(boolean strips) {
+        stripsInputTypeAnnotations = strips;
+    }
+
+    /**
+     * Determine whether source documents are to have their type annotations stripped
+     */
+
+    public boolean stripsInputTypeAnnotations() {
+        return stripsInputTypeAnnotations;
     }
 
     /**

@@ -1,6 +1,7 @@
 package net.sf.saxon.event;
 
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.om.FastStringBuffer;
 
 /**
   * The CommentStripper class is a filter that removes all comments and processing instructions.
@@ -11,7 +12,7 @@ import net.sf.saxon.xpath.XPathException;
   
 public class CommentStripper extends ProxyReceiver {
 
-    private StringBuffer buffer = new StringBuffer(200);
+    private FastStringBuffer buffer = new FastStringBuffer(200);
 
     /**
     * Default constructor for use in subclasses
@@ -40,7 +41,7 @@ public class CommentStripper extends ProxyReceiver {
     */
 
     public void characters (CharSequence chars, int locationId, int properties) throws XPathException {
-        buffer.append(chars.toString());
+        buffer.append(chars);
     }
 
     /**

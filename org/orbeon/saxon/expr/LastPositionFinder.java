@@ -1,6 +1,6 @@
 package net.sf.saxon.expr;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 
 /**

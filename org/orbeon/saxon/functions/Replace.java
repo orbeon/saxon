@@ -3,15 +3,16 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.RegexTranslator;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.StringValue;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
+import java.util.regex.Matcher;
 
 
 /**
@@ -56,11 +57,11 @@ public class Replace extends SystemFunction {
 
         AtomicValue arg0 = (AtomicValue)argument[0].evaluateItem(c);
         if (arg0==null) {
-            return StringValue.EMPTY_STRING;
+            arg0 = StringValue.EMPTY_STRING;
         }
 
         AtomicValue arg2 = (AtomicValue)argument[2].evaluateItem(c);
-        String replacement = arg2.getStringValue();
+        CharSequence replacement = arg2.getStringValueCS();
         checkReplacement(replacement, c);
 
         Pattern re = regexp;
@@ -68,18 +69,18 @@ public class Replace extends SystemFunction {
 
             AtomicValue arg1 = (AtomicValue)argument[1].evaluateItem(c);
 
-            String flags;
+            CharSequence flags;
 
             if (argument.length == 3) {
                 flags = "";
             } else {
                 AtomicValue arg3 = (AtomicValue)argument[3].evaluateItem(c);
-                flags = arg3.getStringValue();
+                flags = arg3.getStringValueCS();
             }
 
             try {
                 String javaRegex = RegexTranslator.translate(
-                        arg1.getStringValue(), true);
+                        arg1.getStringValueCS(), true);
                 re = Pattern.compile(javaRegex, Matches.setFlags(flags));
             } catch (RegexTranslator.RegexSyntaxException err) {
                 DynamicError de = new DynamicError(err);
@@ -99,15 +100,35 @@ public class Replace extends SystemFunction {
                         "The regular expression must not be one that matches a zero-length string", "FORX0003", c);
             }
         }
-        String res = re.matcher(arg0.getStringValue()).replaceAll(replacement);
-        return new StringValue(res);
+        String input = arg0.getStringValue();
+        Matcher matcher = re.matcher(input);
+        try {
+            String res = matcher.replaceAll(replacement.toString());
+            return new StringValue(res);
+        } catch (IndexOutOfBoundsException e) {
+            // this occurs if the replacement string references a group $n and there are less than n
+            // capturing subexpressions in the regex. In this case we're supposed to replace $n by an
+            // empty string. We do this by modifying the replacement string.
+            int gps = matcher.groupCount();
+            if (gps >= 9) {
+                // don't know what's gone wrong here
+                throw e;
+            }
+            String r = replacement.toString();
+            // remove occurrences of $n from the replacement string, if n is greater than the number of groups
+            String f = "\\$[" + (gps+1) + "-9]";
+            String rep = Pattern.compile(f).matcher(r).replaceAll("");
+            String res = matcher.replaceAll(rep);
+            return new StringValue(res);
+        }
+
     }
 
     /**
     * Check the contents of the replacement string
     */
 
-    private void checkReplacement(String rep, XPathContext context) throws XPathException {
+    private void checkReplacement(CharSequence rep, XPathContext context) throws XPathException {
         for (int i=0; i<rep.length(); i++) {
             char c = rep.charAt(i);
             if (c == '$') {

@@ -1,7 +1,7 @@
 package net.sf.saxon;
 import net.sf.saxon.event.Builder;
+import net.sf.saxon.event.Receiver;
 import net.sf.saxon.event.ReceivingContentHandler;
-import net.sf.saxon.event.Stripper;
 import net.sf.saxon.om.DocumentInfo;
 import org.xml.sax.SAXException;
 
@@ -40,7 +40,10 @@ public class TransformerHandlerImpl extends ReceivingContentHandler implements T
         setPipelineConfiguration(controller.makePipelineConfiguration());
         builder = controller.makeBuilder();
         builder.setPipelineConfiguration(getPipelineConfiguration());
-        Stripper stripper = controller.makeStripper(builder);
+        Receiver stripper = controller.makeStripper(builder);
+        if (controller.getExecutable().stripsInputTypeAnnotations()) {
+            stripper = controller.getConfiguration().getAnnotationStripper(stripper);
+        }
         this.setReceiver(stripper);
     }
 

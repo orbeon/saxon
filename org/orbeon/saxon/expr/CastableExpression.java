@@ -1,15 +1,12 @@
 package net.sf.saxon.expr;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.type.BuiltInAtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.BooleanValue;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.value.*;
 
 /**
 * Castable Expression: implements "Expr castable as atomic-type?".
@@ -46,8 +43,8 @@ public final class CastableExpression extends UnaryExpression {
 
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
         operand = operand.analyze(env, contextItemType);
-        SequenceType atomicType =
-                new SequenceType(Type.ANY_ATOMIC_TYPE,
+        SequenceType atomicType = SequenceType.makeSequenceType(
+                Type.ANY_ATOMIC_TYPE,
                                  (allowEmpty ? StaticProperty.ALLOWS_ZERO_OR_ONE
                                              : StaticProperty.EXACTLY_ONE));
 
@@ -107,14 +104,16 @@ public final class CastableExpression extends UnaryExpression {
                 return allowEmpty;
             }
             if (targetType instanceof BuiltInAtomicType) {
-                value.convert(targetType, context);
-                return true;
+                return !(value.convert(targetType, context, true) instanceof ErrorValue);
             } else {
                 AtomicValue prim =
-                    value.convert(targetType.getBuiltInBaseType().getFingerprint(), context);
+                    value.convert((AtomicType)targetType.getBuiltInBaseType(), context, true);
+                if (prim instanceof ErrorValue) {
+                    return false;
+                }
                 AtomicValue val =
-                    targetType.makeDerivedValue(prim, prim.getStringValue(), false);
-                return val != null;
+                    targetType.makeDerivedValue(prim, prim.getStringValueCS(), true);
+                return !(val instanceof ErrorValue);
             }
         } catch (XPathException err) {
             return false;

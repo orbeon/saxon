@@ -1,8 +1,6 @@
 package net.sf.saxon.xpath;
 
 import net.sf.saxon.Configuration;
-import net.sf.saxon.Loader;
-import net.sf.saxon.om.ExternalObjectModel;
 import net.sf.saxon.om.NamespaceConstant;
 
 import javax.xml.XMLConstants;
@@ -22,10 +20,10 @@ public class XPathFactoryImpl extends XPathFactory {
      * is the Saxon object model, DOM, JDOM, or XOM
      * @param model The URI identifying the object model.
      * @return true if the object model is one of
-     * {@link NamespaceConstant.OBJECT_MODEL_SAXON},
-     * {@link XPathConstants.DOM_OBJECT_MODEL},
-     * {@link NamespaceConstant.OBJECT_MODEL_JDOM}, or
-     * {@link NamespaceConstant.OBJECT_MODEL_XOM}
+     * {@link NamespaceConstant#OBJECT_MODEL_SAXON},
+     * {@link XPathConstants#DOM_OBJECT_MODEL},
+     * {@link NamespaceConstant#OBJECT_MODEL_JDOM}, or
+     * {@link NamespaceConstant#OBJECT_MODEL_XOM}
      */
     public boolean isObjectModelSupported(String model) {
         if (model.equals(NamespaceConstant.OBJECT_MODEL_SAXON)) return true;
@@ -37,7 +35,7 @@ public class XPathFactoryImpl extends XPathFactory {
 
     /**
      * Set a feature of this XPath implementation. The only feature currently
-     * recognized is {@link XMLConstants.FEATURE_SECURE_PROCESSING}
+     * recognized is {@link XMLConstants#FEATURE_SECURE_PROCESSING}
      * @param feature a URI identifying the feature
      * @param b true to set the feature on, false to set it off
      * @throws XPathFactoryConfigurationException if the feature name is not recognized
@@ -53,7 +51,7 @@ public class XPathFactoryImpl extends XPathFactory {
 
     /**
      * Get a feature of this XPath implementation. The only feature currently
-     * recognized is {@link XMLConstants.FEATURE_SECURE_PROCESSING}
+     * recognized is {@link XMLConstants#FEATURE_SECURE_PROCESSING}
      * @param feature a URI identifying the feature
      * @return true if the feature is on, false if it is off
      * @throws XPathFactoryConfigurationException if the feature name is not recognized
@@ -98,26 +96,10 @@ public class XPathFactoryImpl extends XPathFactory {
         XPathEvaluator xpath = new XPathEvaluator(config);
         xpath.setXPathFunctionResolver(functionResolver);
         xpath.setXPathVariableResolver(variableResolver);
-
-        // Try to load the support classes for various object models, registering
-        // them in the Configuration
-        String[] models = {"net.sf.saxon.dom.DOMObjectModel",
-                           "net.sf.saxon.jdom.JDOMObjectModel",
-                           "net.sf.saxon.xom.XOMObjectModel"};
-
-        for (int i=0; i<models.length; i++) {
-            try {
-                ExternalObjectModel model = (ExternalObjectModel)Loader.getInstance(models[i]);
-                config.registerExternalObjectModel(model);
-            } catch (XPathException err) {
-                // ignore the failure. We can't report an exception here, and in any case a failure
-                // is legitimate if the object model isn't on the class path. We'll fail later when
-                // we try to process a node in the chosen object model: the node simply won't be
-                // recognized as one that Saxon can handle
-            }
-        }
+        //config.registerStandardObjectModels();
         return xpath;
     }
+
 
 
 }

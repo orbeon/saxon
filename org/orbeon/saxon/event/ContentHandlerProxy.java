@@ -1,21 +1,17 @@
 package net.sf.saxon.event;
 
-import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.om.AttributeCollectionImpl;
 import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.type.AnySimpleType;
-import net.sf.saxon.type.AnyType;
+import net.sf.saxon.om.Navigator;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.SchemaException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
-import org.w3c.dom.TypeInfo;
 import org.xml.sax.ContentHandler;
 import org.xml.sax.Locator;
 import org.xml.sax.SAXException;
 import org.xml.sax.ext.LexicalHandler;
 
 import javax.xml.transform.Result;
-import javax.xml.validation.TypeInfoProvider;
 import java.util.Properties;
 import java.util.Stack;
 
@@ -29,8 +25,8 @@ import java.util.Stack;
  * to deal with well-formed XML documents, so we only pass it the contents of the first
  * element encountered.
  * </p><p>
- * The ContentHandlerProxy also acts as a TypeInfoProvider, providing information
- * about the type of the current element or attribute.
+ * This ContentHandlerProxy provides no access to type information. For a ContentHandler that
+ * makes type information available, see {@link net.sf.saxon.dom.TypedContentHandler}
  */
 
 public class ContentHandlerProxy extends Emitter implements Locator {
@@ -41,10 +37,12 @@ public class ContentHandlerProxy extends Emitter implements Locator {
     private boolean requireWellFormed = false;
     private boolean undeclareNamespaces = false;
     private Stack elementStack = new Stack();
-    private AttributeCollection pendingAttributes;
+    private Stack namespaceStack = new Stack();
+    protected AttributeCollectionImpl pendingAttributes;
     private int pendingElement = -1;
-    private int pendingElementTypeCode;
     private int currentLocationId;
+
+    private static final String marker = "##";
 
     /**
      * Set the underlying content handler. This call is mandatory before using the Emitter.
@@ -92,7 +90,7 @@ public class ContentHandlerProxy extends Emitter implements Locator {
         if (prop != null) {
             requireWellFormed = prop.equals("yes");
         }
-        prop = details.getProperty(SaxonOutputKeys.UNDECLARE_NAMESPACES);
+        prop = details.getProperty(SaxonOutputKeys.UNDECLARE_PREFIXES);
         if (prop != null) {
             undeclareNamespaces = prop.equals("yes");
         }
@@ -140,20 +138,11 @@ public class ContentHandlerProxy extends Emitter implements Locator {
     }
 
     /**
-     * Get a TypeInfoProvider to provide type information for the current element or attribute
-     * event.
-     */
-
-    public TypeInfoProvider getTypeInfoProvider() {
-        return new TypeInfoProviderImpl();
-    }
-
-    /**
      * Start of document
      */
 
     public void open() throws XPathException {
-        pendingAttributes = new AttributeCollection(getPipelineConfiguration().getConfiguration().getNamePool());
+        pendingAttributes = new AttributeCollectionImpl(getPipelineConfiguration().getConfiguration().getNamePool());
         if (handler == null) {
             throw new DynamicError("ContentHandlerProxy.startDocument(): no underlying handler provided");
         }
@@ -204,8 +193,8 @@ public class ContentHandlerProxy extends Emitter implements Locator {
             notifyNotWellFormed();
         }
         pendingElement = nameCode;
-        pendingElementTypeCode = typeCode;
         currentLocationId = locationId;
+        namespaceStack.push(marker);
     }
 
     /**
@@ -214,6 +203,9 @@ public class ContentHandlerProxy extends Emitter implements Locator {
      */
 
     public void namespace(int namespaceCode, int properties) throws XPathException {
+        if (namespaceCode == NamespaceConstant.XML_NAMESPACE_CODE) {
+            return;
+        }
         String prefix = namePool.getPrefixFromNamespaceCode(namespaceCode);
         String uri = namePool.getURIFromNamespaceCode(namespaceCode);
         if ((!undeclareNamespaces) && "".equals(uri) && !("".equals(prefix))) {
@@ -221,7 +213,7 @@ public class ContentHandlerProxy extends Emitter implements Locator {
         }
         try {
             handler.startPrefixMapping(prefix, uri);
-            // TODO:BUG we are not calling the endPrefixMapping event!
+            namespaceStack.push(prefix);
         } catch (SAXException err) {
             throw new DynamicError(err);
         }
@@ -295,6 +287,18 @@ public class ContentHandlerProxy extends Emitter implements Locator {
                 throw new DynamicError(err);
             }
         }
+
+        while (true) {
+            String prefix = (String)namespaceStack.pop();
+            if (prefix.equals(marker)) {
+                break;
+            }
+            try {
+                handler.endPrefixMapping(prefix);
+            } catch (SAXException err) {
+                throw new DynamicError(err);
+            }
+        }
         depth--;
         // if this was the outermost element, and well formed output is required
         // then no further elements will be processed
@@ -316,9 +320,7 @@ public class ContentHandlerProxy extends Emitter implements Locator {
         }
         try {
             if (depth <= 0 && requireWellFormed) {
-                String s = chars.toString();
-                boolean isWhite = s.trim().length() == 0;
-                if (isWhite) {
+                if (Navigator.isWhite(chars)) {
                     // ignore top-level white space
                 } else {
                     notifyNotWellFormed();
@@ -431,98 +433,6 @@ public class ContentHandlerProxy extends Emitter implements Locator {
         return -1;
     }
 
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    // TypeInfoProvider
-    ///////////////////////////////////////////////////////////////////////////////////////////
-
-    public class TypeInfoProviderImpl extends TypeInfoProvider {
-
-        /**
-         * Returns the immutable {@link org.w3c.dom.TypeInfo} object for the current element.
-         *
-         * @return An immutable {@link org.w3c.dom.TypeInfo} object that represents the
-         *         type of the current element.
-         *         Note that the caller can keep references to the obtained
-         *         {@link org.w3c.dom.TypeInfo} longer than the callback scope.
-         *         <p/>
-         *         Otherwise, this method returns null if the validator is unable to
-         *         determine the type of the current element for some reason
-         */
-
-        public TypeInfo getElementTypeInfo() {
-            if (pendingElementTypeCode == -1) {
-                return AnyType.getInstance();
-            } else {
-                return getConfiguration().getSchemaType(pendingElementTypeCode);
-            }
-        }
-
-        /**
-         * Returns the immutable {@link org.w3c.dom.TypeInfo} object for the specified
-         * attribute of the current element.
-         * <p/>
-         * The method may only be called by the startElement event of
-         * the {@link org.xml.sax.ContentHandler} that the application sets to the
-         * {@link javax.xml.validation.ValidatorHandler}.
-         *
-         * @param index The index of the attribute. The same index for
-         *              the {@link org.xml.sax.Attributes} object passed to the
-         *              <tt>startElement</tt> callback.
-         * @return An immutable {@link org.w3c.dom.TypeInfo} object that represents the
-         *         type of the specified attribute.
-         *         Note that the caller can keep references to the obtained
-         *         {@link org.w3c.dom.TypeInfo} longer than the callback scope.
-         *         <p/>
-         *         Otherwise, this method returns null if the validator is unable to
-         *         determine the type.
-         * @throws IndexOutOfBoundsException If the index is invalid.
-         * @throws IllegalStateException     If this method is called from other {@link org.xml.sax.ContentHandler}
-         *                                   methods.
-         */
-        public TypeInfo getAttributeTypeInfo(int index) {
-            if (index < 0 || index > pendingAttributes.getLength()) {
-                throw new IndexOutOfBoundsException(""+index);
-            }
-            int type = pendingAttributes.getTypeAnnotation(index);
-            if (type == -1) {
-                return AnySimpleType.getInstance();
-            } else {
-                return getConfiguration().getSchemaType(type);
-            }
-        }
-
-        /**
-         * Returns <tt>true</tt> if the specified attribute is determined
-         * to be an ID.
-         * @param index The index of the attribute. The same index for
-         *              the {@link org.xml.sax.Attributes} object passed to the
-         *              <tt>startElement</tt> callback.
-         * @return true
-         *         if the type of the specified attribute is ID.
-         */
-        public boolean isIdAttribute(int index) {
-            int type = pendingAttributes.getTypeAnnotation(index);
-            return (type == StandardNames.XS_ID ||
-                    getAttributeTypeInfo(index).isDerivedFrom(
-                            NamespaceConstant.SCHEMA, "ID", TypeInfo.DERIVATION_RESTRICTION));
-        }
-
-        /**
-         * Returns <tt>false</tt> if the attribute was added by the validator.
-         *
-         * @param index The index of the attribute. The same index for
-         *              the {@link org.xml.sax.Attributes} object passed to the
-         *              <tt>startElement</tt> callback.
-         * @return <tt>true</tt> if the attribute was present before the validator
-         *         processes input. <tt>false</tt> if the attribute was added
-         *         by the validator.
-         */
-
-        public boolean isSpecified(int index) {
-            return (pendingAttributes.getProperties(index) & ReceiverOptions.DEFAULTED_ATTRIBUTE) == 0;
-        }
-
-    }
 }
 
 //

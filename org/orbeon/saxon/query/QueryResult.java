@@ -4,10 +4,12 @@ import net.sf.saxon.Configuration;
 import net.sf.saxon.event.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.tinytree.TinyBuilder;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.type.Type;
+import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.QNameValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Result;
@@ -61,11 +63,13 @@ public class QueryResult {
         int resultPI = pool.allocate("result", RESULT_NS, "processing-instruction");
         int resultNamespace = pool.allocate("result", RESULT_NS, "namespace");
         int resultAtomicValue = pool.allocate("result", RESULT_NS, "atomic-value");
-        int resultType = pool.allocate("", RESULT_NS, "type");
+        int xsiType = pool.allocate("xsi", NamespaceConstant.SCHEMA_INSTANCE, "type");
 
 
         tree.startElement(resultSequence, -1, 0, 0);
         tree.namespace(pool.allocateNamespaceCode("result", RESULT_NS), 0);
+        tree.namespace(pool.allocateNamespaceCode("xs", NamespaceConstant.SCHEMA), 0);
+        tree.namespace(pool.allocateNamespaceCode("xsi", NamespaceConstant.SCHEMA_INSTANCE), 0);
         tree.startContent();
 
         while (true) {
@@ -119,8 +123,23 @@ public class QueryResult {
                         break;
                 }
             } else {
+                // display an atomic value
                 tree.startElement(resultAtomicValue, -1, 0, 0);
-                tree.attribute(resultType, -1, Type.displayTypeName(next), 0, 0);
+                AtomicType type = (AtomicType)((AtomicValue)next).getItemType();
+                int nameCode = type.getNameCode();
+                String prefix = pool.getPrefix(nameCode);
+                String localName = pool.getLocalName(nameCode);
+                String uri = pool.getURI(nameCode);
+                if (prefix.equals("")) {
+                    prefix = pool.suggestPrefixForURI(uri);
+                    if (prefix == null) {
+                        prefix = "p" + uri.hashCode();
+                    }
+                }
+                int nscode = pool.allocateNamespaceCode(prefix, uri);
+                String displayName = prefix + ':' + localName;
+                tree.namespace(nscode, 0);
+                tree.attribute(xsiType, -1, displayName, 0, 0);
                 tree.startContent();
                 tree.characters(next.getStringValue(), 0, 0);
                 tree.endElement();
@@ -152,8 +171,7 @@ public class QueryResult {
             Receiver receiver =
                     ResultWrapper.getReceiver(destination,
                                               pipe,
-                                              outputProperties,
-                                              null);
+                                              outputProperties);
             NamespaceReducer reducer = new NamespaceReducer();
             reducer.setUnderlyingReceiver(receiver);
             reducer.setPipelineConfiguration(pipe);

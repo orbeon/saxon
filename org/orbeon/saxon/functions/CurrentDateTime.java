@@ -3,11 +3,12 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.DateTimeValue;
 import net.sf.saxon.value.DateValue;
+import net.sf.saxon.value.SecondsDurationValue;
 import net.sf.saxon.value.TimeValue;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * This class implements the XPath 2.0 functions
@@ -44,21 +45,30 @@ public class CurrentDateTime extends SystemFunction {
     */
 
     public Item evaluateItem(XPathContext context) throws XPathException {
-        DateTimeValue dt = new DateTimeValue(context);
+        DateTimeValue dt = DateTimeValue.getCurrentDateTime(context);
         int targetType = getItemType().getPrimitiveType();
         switch (targetType) {
             case Type.DATE_TIME:
                 return dt;
             case Type.DATE:
-                return (DateValue)dt.convert(Type.DATE, context);
+                return (DateValue)dt.convert(Type.DATE);
             case Type.TIME:
-                return (TimeValue)dt.convert(Type.TIME, context);
+                return (TimeValue)dt.convert(Type.TIME);
             case Type.DAY_TIME_DURATION:
             case Type.DURATION:
                 return dt.getComponent(Component.TIMEZONE);
             default:
                 throw new IllegalArgumentException("Wrong target type for current date/time");
         }
+    }
+
+    /**
+     * Get the implicit timezone
+     */
+
+    public static SecondsDurationValue getImplicitTimezone(XPathContext context) throws XPathException {
+        DateTimeValue dt = DateTimeValue.getCurrentDateTime(context);
+        return (SecondsDurationValue)dt.getComponent(Component.TIMEZONE);
     }
 
 }

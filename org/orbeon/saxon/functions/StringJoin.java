@@ -2,12 +2,14 @@ package net.sf.saxon.functions;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.expr.FunctionCall;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.om.FastStringBuffer;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.Cardinality;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * xf:string-join(string* $sequence, string $separator)
@@ -23,15 +25,23 @@ public class StringJoin extends SystemFunction {
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
         Expression exp = super.analyze(env, contextItemType);
         if (exp instanceof StringJoin) {
-            return ((StringJoin)exp).simplifySingleton();
+            return ((StringJoin)exp).simplifySingleton(env);
         } else {
             return exp;
         }
     }
 
-    private Expression simplifySingleton() {
-        if (!Cardinality.allowsMany(argument[0].getCardinality())) {
-            return argument[0];
+    private Expression simplifySingleton(StaticContext env) {
+        int card = argument[0].getCardinality();
+        if (!Cardinality.allowsMany(card)) {
+            if (Cardinality.allowsZero(card)) {
+                FunctionCall f = SystemFunction.makeSystemFunction("string", 1, env.getNamePool());
+                Expression[] args = {argument[0]};
+                f.setArguments(args);
+                return f;
+            } else {
+                return argument[0];
+            }
         }
         return this;
     }
@@ -54,21 +64,21 @@ public class StringJoin extends SystemFunction {
             return new StringValue(first);
         }
 
-        StringBuffer sb = new StringBuffer(200);
+        FastStringBuffer sb = new FastStringBuffer(1024);
         sb.append(first);
 
         // Type checking ensures that the separator is not an empty sequence
-        String sep = argument[1].evaluateItem(c).getStringValue();
+        CharSequence sep = argument[1].evaluateItem(c).getStringValueCS();
         sb.append(sep);
-        sb.append(it.getStringValue());
+        sb.append(it.getStringValueCS());
 
         while (true) {
             it = iter.next();
             if (it == null) {
-                return new StringValue(sb);
+                return new StringValue(sb.condense());
             }
             sb.append(sep);
-            sb.append(it.getStringValue());
+            sb.append(it.getStringValueCS());
         }
     }
 

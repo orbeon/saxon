@@ -1,7 +1,7 @@
 package net.sf.saxon.functions;
 
 import net.sf.saxon.expr.Expression;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 import java.io.Serializable;
 
@@ -44,7 +44,7 @@ public interface FunctionLibrary extends Serializable {
      * be used as part of the binding algorithm.
      * @return An object representing the function to be called, if one is found;
      * null if no function was found matching the required name and arity.
-     * @throws net.sf.saxon.xpath.XPathException if a function is found with the required name and arity, but
+     * @throws net.sf.saxon.trans.XPathException if a function is found with the required name and arity, but
      * the implementation of the function cannot be loaded or used; or if an error occurs
      * while searching for the function.
      */

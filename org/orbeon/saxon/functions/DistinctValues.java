@@ -3,8 +3,8 @@ import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.sort.AtomicSortComparer;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.xpath.XPathException;
 
 import java.util.HashSet;
 
@@ -63,7 +63,7 @@ public class DistinctValues extends CollatingFunction {
          * Get the next item in the sequence. <BR>
          *
          * @return the next item, or null if there are no more items.
-         * @throws net.sf.saxon.xpath.XPathException
+         * @throws net.sf.saxon.trans.XPathException
          *          if an error occurs retrieving the next item
          */
 
@@ -119,7 +119,7 @@ public class DistinctValues extends CollatingFunction {
          *
          * @return a SequenceIterator that iterates over the same items,
          *         positioned before the first item
-         * @throws net.sf.saxon.xpath.XPathException
+         * @throws net.sf.saxon.trans.XPathException
          *          if any error occurs
          */
 

@@ -4,7 +4,7 @@ import net.sf.saxon.Configuration;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.pattern.AnyNodeTest;
 import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 /**
  * This class represents a node that is a virtual copy of another node: that is, it behaves as a node that's the
@@ -142,6 +142,15 @@ public class VirtualCopy implements NodeInfo {
     }
 
     /**
+     * Get the value of the item as a CharSequence. This is in some cases more efficient than
+     * the version of the method that returns a String.
+     */
+
+    public CharSequence getStringValueCS() {
+        return original.getStringValueCS();
+    }
+
+    /**
      * Get name code. The name code is a coded form of the node name: two nodes
      * with the same name code have the same namespace URI, the same local name,
      * and the same prefix. By masking the name code with &0xfffff, you get a
@@ -194,6 +203,17 @@ public class VirtualCopy implements NodeInfo {
 
     public String getURI() {
         return original.getURI();
+    }
+
+    /**
+     * Get the prefix of the name of the node. This is defined only for elements and attributes.
+     * If the node has no prefix, or for other kinds of node, return a zero-length string.
+     *
+     * @return The prefix of the name of the node.
+     */
+
+    public String getPrefix() {
+        return original.getPrefix();
     }
 
     /**
@@ -399,7 +419,7 @@ public class VirtualCopy implements NodeInfo {
      *                        of element and attribute nodes should be copied
      * @param locationId      Identifies the location of the instruction
      *                        that requested this copy. Pass zero if no other information is available
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      *
      */
 
@@ -413,12 +433,30 @@ public class VirtualCopy implements NodeInfo {
      *
      * @param out              The relevant outputter
      * @param includeAncestors True if namespaces declared on ancestor
-     *                         elements must be output; false if it is known that these are
-     *                         already on the result tree
      */
 
-    public void outputNamespaceNodes(Receiver out, boolean includeAncestors) throws XPathException {
-        original.outputNamespaceNodes(out, includeAncestors);
+    public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors) throws XPathException {
+        original.sendNamespaceDeclarations(out, includeAncestors);
+    }
+
+    /**
+     * Get all namespace undeclarations and undeclarations defined on this element.
+     *
+     * @param buffer If this is non-null, and the result array fits in this buffer, then the result
+     *               may overwrite the contents of this array, to avoid the cost of allocating a new array on the heap.
+     * @return An array of integers representing the namespace declarations and undeclarations present on
+     *         this element. For a node other than an element, return null. Otherwise, the returned array is a
+     *         sequence of namespace codes, whose meaning may be interpreted by reference to the name pool. The
+     *         top half word of each namespace code represents the prefix, the bottom half represents the URI.
+     *         If the bottom half is zero, then this is a namespace undeclaration rather than a declaration.
+     *         The XML namespace is never included in the list. If the supplied array is larger than required,
+     *         then the first unused entry will be set to -1.
+     *         <p/>
+     *         <p>For a node other than an element, the method returns null.</p>
+     */
+
+    public int[] getDeclaredNamespaces(int[] buffer) {
+        return original.getDeclaredNamespaces(buffer);
     }
 
     /**
@@ -439,7 +477,7 @@ public class VirtualCopy implements NodeInfo {
      * Get the typed value of the item
      *
      * @return the typed value of the item. In general this will be a sequence
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      *          where no typed value is available, e.g. for
      *          an element with complex content
      */

@@ -1,17 +1,16 @@
 package net.sf.saxon.xom;
 
 import net.sf.saxon.Configuration;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.AnyNodeTest;
+import net.sf.saxon.pattern.NameTest;
+import net.sf.saxon.pattern.NodeKindTest;
 import net.sf.saxon.pattern.NodeTest;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.UntypedAtomicValue;
-import net.sf.saxon.xpath.XPathException;
 import nu.xom.*;
-
-import java.util.HashMap;
-import java.util.Iterator;
 
 /**
  * A node in the XML parse tree representing an XML element, character content,
@@ -26,7 +25,7 @@ import java.util.Iterator;
 
 public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 
-	protected Object node;
+	protected Node node;
 
 	protected short nodeKind;
 
@@ -47,7 +46,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 	 * @param index
 	 *            Position of this node among its siblings
 	 */
-	protected NodeWrapper(Object node, NodeWrapper parent, int index) {
+	protected NodeWrapper(Node node, NodeWrapper parent, int index) {
 		this.node = node;
 		this.parent = parent;
 		this.index = index;
@@ -63,7 +62,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 	 *            The wrapper for the Document containing this node
 	 * @return The new wrapper for the supplied node
 	 */
-	protected final NodeWrapper makeWrapper(Object node, DocumentWrapper docWrapper) {
+	protected final NodeWrapper makeWrapper(Node node, DocumentWrapper docWrapper) {
 		return makeWrapper(node, docWrapper, null, -1);
 	}
 
@@ -82,7 +81,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 	 * @return The new wrapper for the supplied node
 	 */
 
-	protected final NodeWrapper makeWrapper(Object node, DocumentWrapper docWrapper,
+	protected final NodeWrapper makeWrapper(Node node, DocumentWrapper docWrapper,
 			NodeWrapper parent, int index) {
 
 		short kind;
@@ -92,8 +91,6 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 			kind = Type.ATTRIBUTE;
 		} else if (node instanceof Text) {
 			kind = Type.TEXT;
-		} else if (node instanceof Namespace) {
-			kind = Type.NAMESPACE;
 		} else if (node instanceof Comment) {
 			kind = Type.COMMENT;
 		} else if (node instanceof ProcessingInstruction) {
@@ -101,14 +98,21 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 		} else if (node instanceof Document) {
 			return docWrapper;
 		} else {
-			throw new IllegalArgumentException("Bad node type in XOM! "
-					+ node.getClass() + " instance " + node.toString());
+			throwIllegalNode(node); // moved out of fast path to enable better inlining
+			return null; // keep compiler happy
 		}
 
 		NodeWrapper wrapper = new NodeWrapper(node, parent, index);
 		wrapper.nodeKind = kind;
 		wrapper.docWrapper = docWrapper;
 		return wrapper;
+	}
+
+	private static void throwIllegalNode(Object node) {
+		String str = node == null ?
+				"NULL" :
+				node.getClass() + " instance " + node.toString();
+		throw new IllegalArgumentException("Bad node type in XOM! " + str);
 	}
 
     /**
@@ -153,7 +157,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 
 	public SequenceIterator getTypedValue() {
 		return SingletonIterator.makeIterator(new UntypedAtomicValue(
-				getStringValue()));
+				getStringValueCS()));
 	}
 
     /**
@@ -179,18 +183,11 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 	 */
 
 	public boolean isSameNodeInfo(NodeInfo other) {
-		if (!(other instanceof NodeWrapper)) { return false; }
+		if (!(other instanceof NodeWrapper)) {
+            return false;
+        }
 		NodeWrapper ow = (NodeWrapper) other;
-//		if (getNodeKind() == Type.NAMESPACE) {
-//			if (ow.getNodeKind() != Type.NAMESPACE) return false;
-//			if (parent != ow.parent) return false;
-//			return ((Namespace) node).getPrefix().equals(((Namespace) ow.node).getPrefix());
-//			// how come the prefix matters but the URI shouldn't matter?
-//			// Well it makes test idkey131 pass, and probably only works because the
-//			// method is used in a certain contexts where this is the expected behaviour...
-//		}
 		return node.equals(ow.node);
-//         return node == ow.node; // In XOM equals() always means identity
 	}
 
 	/**
@@ -216,8 +213,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 	 */
 
 	public String getBaseURI() {
-		if (getNodeKind() == Type.NAMESPACE) return null;
-		return ((Node) node).getBaseURI();
+		return node.getBaseURI();
 	}
 
 	/**
@@ -245,7 +241,12 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 	 */
 
 	public int compareOrder(NodeInfo other) {
-		return Navigator.compareOrder(this, (SiblingCountingNode) other);
+        if (other instanceof SiblingCountingNode) {
+		    return Navigator.compareOrder(this, (SiblingCountingNode) other);
+        } else {
+            // it must be a namespace node
+            return -other.compareOrder(this);
+        }
 	}
 
 	/**
@@ -257,12 +258,17 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 	 */
 
 	public String getStringValue() {
-		if (node instanceof Node) {
-			return ((Node) node).getValue();
-		} else {
-			return ((Namespace) node).getURI();
-		}
+        return node.getValue();
 	}
+
+    /**
+     * Get the value of the item as a CharSequence. This is in some cases more efficient than
+     * the version of the method that returns a String.
+     */
+
+    public CharSequence getStringValueCS() {
+        return node.getValue();
+    }
 
 	/**
 	 * Get name code. The name code is a coded form of the node name: two nodes
@@ -295,9 +301,10 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 	 */
 
 	public int getFingerprint() {
-		// same as in net.sf.saxon.dom.NodeWrapper as advised by Michael Kay
 		int nc = getNameCode();
-		if (nc == -1) { return -1; }
+		if (nc == -1) {
+            return -1;
+        }
 		return nc & 0xfffff;
 	}
 
@@ -320,8 +327,6 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 				return "";
 			case Type.PROCESSING_INSTRUCTION:
 				return ((ProcessingInstruction) node).getTarget();
-			case Type.NAMESPACE:
-				return ((Namespace) node).getPrefix();
 			default:
 				return null;
 		}
@@ -395,11 +400,8 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 	public NodeInfo getParent() {
 		if (parent == null) {
 			if (node instanceof Node) {
-				ParentNode p = ((Node) node).getParent();
+				ParentNode p = node.getParent();
 				if (p != null) parent = makeWrapper(p, docWrapper);
-			} else if (node instanceof Namespace) {
-				throw new UnsupportedOperationException(
-						"Cannot find parent of XOM namespace node");
 			} else {
 				throw new IllegalStateException("Unknown XOM node type "
 						+ node.getClass());
@@ -427,26 +429,9 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 				}
 				throw new IllegalStateException("XOM node not linked to parent node");
 			}
-			case Type.NAMESPACE: {
-				//getParent(); // this will throw an UnsupportedOperationException
-				if (parent == null) throw new IllegalStateException("namespace has no parent");
-				Namespace ns = (Namespace) node;
-				Element elem = (Element) parent.node;
-				int size = elem.getNamespaceDeclarationCount();
-				for (int i=0; i < size; i++) {
-					String prefix = elem.getNamespacePrefix(i);
-					if (prefix.equals(ns.getPrefix())) {
-						String uri = elem.getNamespaceURI(prefix);
-						if (uri.equals(ns.getURI())) {
-							index = i;
-							return i;
-						}
-					}
-				}
-				throw new IllegalStateException("XOM node not linked to parent node");
-			}
+
 			default: {
-				Node self = (Node) node;
+				Node self = node;
 				ParentNode p = self.getParent();
 				int i = (p == null ? 0 : p.indexOf(self));
 				if (i == -1) throw new IllegalStateException("XOM node not linked to parent node");
@@ -485,90 +470,83 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 	public AxisIterator iterateAxis(byte axisNumber, NodeTest nodeTest) {
 		switch (axisNumber) {
 		case Axis.ANCESTOR:
-			if (nodeKind == Type.DOCUMENT) return EmptyIterator.getInstance();
-			return new Navigator.AxisFilter(new Navigator.AncestorEnumeration(
-					this, false), nodeTest);
+			return makeAncestorIterator(false, nodeTest);
 
 		case Axis.ANCESTOR_OR_SELF:
-			if (nodeKind == Type.DOCUMENT) return EmptyIterator.getInstance();
-			return new Navigator.AxisFilter(new Navigator.AncestorEnumeration(
-					this, true), nodeTest);
+			return makeAncestorIterator(true, nodeTest);
 
 		case Axis.ATTRIBUTE:
-			if (nodeKind != Type.ELEMENT || ((Element)node).getAttributeCount() == 0) {
-                return EmptyIterator.getInstance();
-            }
-			return new AttributeAxisIterator(this, nodeTest);
+			if (nodeKind != Type.ELEMENT || ((Element) node).getAttributeCount() == 0)
+				return EmptyIterator.getInstance();
+			else
+				return new AttributeAxisIterator(this, nodeTest);
 
 		case Axis.CHILD:
-			if (hasChildNodes()) {
-				return new ChildAxisIterator(this,
-						true, true, nodeTest);
-			} else {
+			if (hasChildNodes())
+				return new ChildAxisIterator(this, true, true, nodeTest);
+			else
 				return EmptyIterator.getInstance();
-			}
 
 		case Axis.DESCENDANT:
 			if (hasChildNodes()) {
-				return new Navigator.AxisFilter(
-						new Navigator.DescendantEnumeration(this, false, true),
-						nodeTest);
+				return new DescendantAxisIterator(this, false, false, nodeTest);
 			} else {
 				return EmptyIterator.getInstance();
 			}
 
 		case Axis.DESCENDANT_OR_SELF:
-			return new Navigator.AxisFilter(
-					new Navigator.DescendantEnumeration(this, true, true),
-					nodeTest);
+			if (nodeKind == Type.ATTRIBUTE || nodeKind == Type.NAMESPACE) {
+				return makeSingleIterator(this, nodeTest);
+            } else {
+				return new DescendantAxisIterator(this, true, false, nodeTest);
+            }
 
 		case Axis.FOLLOWING:
-			return new Navigator.AxisFilter(new Navigator.FollowingEnumeration(
-					this), nodeTest);
+			if (getParent() == null) {
+				return EmptyIterator.getInstance();
+            } else {
+				if (nodeKind == Type.NAMESPACE) // avoids ClassCastException
+					return new Navigator.AxisFilter(new Navigator.FollowingEnumeration(this), nodeTest);
+				else
+					return new DescendantAxisIterator(this, false, true, nodeTest);
+			}
 
 		case Axis.FOLLOWING_SIBLING:
-			switch (nodeKind) {
-				case Type.DOCUMENT:
-				case Type.ATTRIBUTE:
-				case Type.NAMESPACE:
-					return EmptyIterator.getInstance();
-				default:
-					return new ChildAxisIterator(this,
-							false, true, nodeTest);
-			}
+			if (nodeKind == Type.ATTRIBUTE || nodeKind == Type.NAMESPACE) {
+                return EmptyIterator.getInstance();
+            }
+			if (getParent() == null) {
+				return EmptyIterator.getInstance();
+            } else {
+				return new ChildAxisIterator(this, false, true, nodeTest);
+            }
 
 		case Axis.NAMESPACE:
-			if (nodeKind != Type.ELEMENT) { return EmptyIterator.getInstance(); }
-			return new Navigator.AxisFilter(new NamespaceEnumeration(this),
-					nodeTest);
+			if (nodeKind != Type.ELEMENT) {
+				return EmptyIterator.getInstance();
+            }
+            return new NamespaceIterator(this, nodeTest);
 
 		case Axis.PARENT:
-			getParent();
-			if (parent == null) return EmptyIterator.getInstance();
-			if (nodeTest.matches(parent)) { return SingletonIterator
-					.makeIterator(parent); }
-			return EmptyIterator.getInstance();
+			if (getParent() == null) {
+				return EmptyIterator.getInstance();
+            } else {
+				return makeSingleIterator(parent, nodeTest);
+            }
 
 		case Axis.PRECEDING:
-			return new Navigator.AxisFilter(new Navigator.PrecedingEnumeration(
-					this, false), nodeTest);
+			return new Navigator.AxisFilter(
+					new Navigator.PrecedingEnumeration(this, false), nodeTest);
 
 		case Axis.PRECEDING_SIBLING:
-			switch (nodeKind) {
-				case Type.DOCUMENT:
-				case Type.ATTRIBUTE:
-				case Type.NAMESPACE:
-					return EmptyIterator.getInstance();
-				default:
-					return new ChildAxisIterator(this,
-							false, false, nodeTest);
-			}
+			if (nodeKind == Type.ATTRIBUTE || nodeKind == Type.NAMESPACE) return EmptyIterator.getInstance();
+			if (getParent() == null)
+				return EmptyIterator.getInstance();
+			else
+				return new ChildAxisIterator(this, false, false, nodeTest);
 
 		case Axis.SELF:
-			if (nodeTest.matches(this)) {
-				return SingletonIterator.makeIterator(this);
-			}
-			return EmptyIterator.getInstance();
+			return makeSingleIterator(this, nodeTest);
 
 		case Axis.PRECEDING_OR_ANCESTOR:
 			return new Navigator.AxisFilter(new Navigator.PrecedingEnumeration(
@@ -577,6 +555,48 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 		default:
 			throw new IllegalArgumentException("Unknown axis number " + axisNumber);
 		}
+	}
+
+	/**
+	 * There are always few ancestors, and even fewer that match the nodeTest.
+	 * It's faster to materialize the matches in one swoop, rather than have a
+	 * stateful AncestorEnumeration, except in rare cases where the otherwise
+	 * lazy pipeline is shortcut. [thus says WH]
+     *
+     * MHK note: I'm not sure the ancestor::*[predicate][1] case is really "rare"...
+	 */
+	private AxisIterator makeAncestorIterator(boolean includeSelf, NodeTest nodeTest) {
+		if (nodeTest == AnyNodeTest.getInstance()) nodeTest = null;
+		int size = 0;
+		Item[] ancestors = new Item[8];
+		NodeInfo ancestor = includeSelf ? this : getParent();
+
+		while (ancestor != null) { // walk the tree upwards towards the root
+			if (nodeTest == null || nodeTest.matches(ancestor)) {
+				if (size >= ancestors.length) { // grow list
+					Item[] tmp = new Item[ancestors.length * 2];
+					System.arraycopy(ancestors, 0, tmp, 0, size);
+					ancestors = tmp;
+				}
+				ancestors[size++] = ancestor;
+			}
+			ancestor = ancestor.getParent();
+		}
+
+		if (size == 0) {
+            return EmptyIterator.getInstance(); // common case
+        }
+		if (size == 1) {
+            return SingletonIterator.makeIterator(ancestors[0]); // common case
+        }
+		return new ArrayIterator(ancestors, 0, size); // fast and implements ReversibleIterator
+	}
+
+	private static AxisIterator makeSingleIterator(NodeWrapper wrapper, NodeTest nodeTest) {
+		if (nodeTest == AnyNodeTest.getInstance() || nodeTest.matches(wrapper))
+			return SingletonIterator.makeIterator(wrapper);
+		else
+			return EmptyIterator.getInstance();
 	}
 
 	/**
@@ -625,7 +645,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 	 */
 
 	public boolean hasChildNodes() {
-        return ((Node)node).getChildCount() > 0;
+        return node.getChildCount() > 0;
 	}
 
 	/**
@@ -658,55 +678,59 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 				copyAnnotations, locationId);
 	}
 
-	/**
+    /**
 	 * Output all namespace nodes associated with this element. Does nothing if
 	 * the node is not an element.
 	 *
 	 * @param out
 	 *            The relevant outputter
-	 * @param includeAncestors
+     * @param includeAncestors
 	 *            True if namespaces declared on ancestor elements must be
-	 *            output; false if it is known that these are already on the
-	 *            result tree
-	 */
+     */
 
-	public void outputNamespaceNodes(Receiver out, boolean includeAncestors)
-			throws XPathException {
-		if (nodeKind == Type.ELEMENT) {
-			NamePool pool = docWrapper.getNamePool();
-			AxisIterator iter = iterateAxis(Axis.NAMESPACE);
-			while (true) {
-				NodeWrapper wrapper = (NodeWrapper) iter.next();
-				if (wrapper == null) {
-					break;
-				}
-				if (!includeAncestors && !wrapper.getParent().isSameNodeInfo(this)) {
-					break;
-				}
-				Namespace ns = (Namespace) wrapper.node;
-				int nscode = pool.allocateNamespaceCode(ns.getPrefix(), ns
-						.getURI());
-				out.namespace(nscode, 0);
-			}
-		}
-	}
+    public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors)
+        throws XPathException {
+        Navigator.sendNamespaceDeclarations(this, out, includeAncestors);
+    }
 
-	///////////////////////////////////////////////////////////////////////////////
-	// XOM has no explicit namespace class, so we define our own helper:
-	///////////////////////////////////////////////////////////////////////////////
-	private static final class Namespace {
-//		public static final Namespace XML_NAMESPACE =
-//			new Namespace("xml", "http://www.w3.org/XML/1998/namespace");
-		private String prefix; // The prefix mapped to this namespace
-		private String uri;    // The URI for this namespace
+    /**
+     * Get all namespace undeclarations and undeclarations defined on this element.
+     *
+     * @param buffer If this is non-null, and the result array fits in this buffer, then the result
+     *               may overwrite the contents of this array, to avoid the cost of allocating a new array on the heap.
+     * @return An array of integers representing the namespace declarations and undeclarations present on
+     *         this element. For a node other than an element, return null. Otherwise, the returned array is a
+     *         sequence of namespace codes, whose meaning may be interpreted by reference to the name pool. The
+     *         top half word of each namespace code represents the prefix, the bottom half represents the URI.
+     *         If the bottom half is zero, then this is a namespace undeclaration rather than a declaration.
+     *         The XML namespace is never included in the list. If the supplied array is larger than required,
+     *         then the first unused entry will be set to -1.
+     *         <p/>
+     *         <p>For a node other than an element, the method returns null.</p>
+     */
 
-		public Namespace(String prefix, String uri) {
-			this.prefix = prefix;
-			this.uri = uri;
-		}
-		public String getPrefix() { return prefix; }
-		public String getURI() { return uri; }
-	}
+    public int[] getDeclaredNamespaces(int[] buffer) {
+        if (node instanceof Element) {
+            Element elem = (Element)node;
+            int size = elem.getNamespaceDeclarationCount();
+            if (size == 0) {
+                return EMPTY_NAMESPACE_LIST;
+            }
+            int[] result = (size <= buffer.length ? buffer : new int[size]);
+            NamePool pool = getNamePool();
+            for (int i=0; i < size; i++) {
+                String prefix = elem.getNamespacePrefix(i);
+                String uri = elem.getNamespaceURI(prefix);
+                result[i] = pool.allocateNamespaceCode(prefix, uri);
+            }
+            if (size < result.length) {
+                result[size] = -1;
+            }
+            return result;
+        } else {
+            return null;
+        }
+    }
 
 	///////////////////////////////////////////////////////////////////////////////
 	// Axis enumeration classes
@@ -764,104 +788,8 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 		}
 
 	} // end of class AttributeAxisIterator
-	private final class NamespaceEnumeration extends Navigator.BaseEnumeration {
 
-		private Iterator prefixes;
-
-		private int ix = 0;
-//		private int size;
-
-		private NodeWrapper start;
-//		private NodeWrapper currElem;
-//		private ArrayList prefixHistory = new ArrayList(1);
-
-		public NamespaceEnumeration(NodeWrapper start) {
-			this.start = start;
-//			Element elem = (Element) start.node;
-//			size = elem.getNamespaceDeclarationCount();
-//			this.currElem = start;
-
-			// build the complete list of namespaces
-			// avoiding eager materialization seems too difficult for the moment...
-			NodeWrapper curr = start;
-			HashMap nslist = new HashMap(10);
-			do {
-				Element elem = (Element) curr.node;
-				int size = elem.getNamespaceDeclarationCount();
-				for (int i=0; i < size; i++) {
-					String prefix = elem.getNamespacePrefix(i);
-					String uri = elem.getNamespaceURI(prefix);
-					if (!(prefix.length() == 0 && uri.length() == 0)) {
-						if (!nslist.containsKey(prefix)) {
-							nslist.put(prefix, new Namespace(prefix, uri));
-						}
-					}
-				}
-				curr = (NodeWrapper) curr.getParent();
-			} while (curr.getNodeKind() == Type.ELEMENT);
-			nslist.put("xml", new Namespace("xml", "http://www.w3.org/XML/1998/namespace"));
-			//nslist.put("xml", Namespace.XML_NAMESPACE);
-			prefixes = nslist.values().iterator();
-		}
-
-		public SequenceIterator getAnother() {
-			return new NamespaceEnumeration(start);
-		}
-
-		public void advance() {
-			if (prefixes.hasNext()) {
-				Namespace ns = (Namespace) prefixes.next();
-				current = makeWrapper(ns, docWrapper, start, ix++);
-			} else {
-				current = null;
-			}
-		}
-
-//		public void advance() {
-//			if (ix < 0) { // iterator exhausted
-//				current = null;
-//				return;
-//			}
-//			if (ix < size) {
-//				// iterate over namespaces of currElem
-//				Element elem = (Element) currElem.node;
-//				String prefix = elem.getNamespacePrefix(ix++);
-//				if (	prefixHistory.contains(prefix)) { // eliminate duplicates
-//					advance();
-//					return;
-//				}
-//				String uri = elem.getNamespaceURI(prefix);
-//				if (prefix.length() == 0 && uri.length() == 0) { // skip it
-//					advance();
-//					return;
-//				}
-//				Namespace ns = new Namespace(prefix, uri);
-//				current = makeWrapper(ns, docWrapper, start, ix);
-//				prefixHistory.add(prefix);
-//			} else {
-//				currElem = (NodeWrapper) currElem.getParent();
-//				if (currElem != null && currElem.getNodeKind() == Type.ELEMENT) {
-//					// iterate over namespaces of parent
-//					size = ((Element) currElem.node).getNamespaceDeclarationCount();
-//					ix = 0;
-//					advance();
-//					return;
-//				}
-//				else {
-//					// manually add the required XML Namespace
-//					current = makeWrapper(Namespace.XML_NAMESPACE, docWrapper, start, ix);
-//					ix = -1;
-//					currElem = null;
-//					prefixHistory = null;
-//				}
-//			}
-//		}
-
-		// NB: namespace nodes in the XOM implementation do not support all
-		// XPath functions, for example namespace nodes have no parent.
-
-	} // end of class NamespaceEnumeration
-	/**
+    /**
 	 * The class ChildAxisIterator handles not only the child axis, but also the
 	 * following-sibling and preceding-sibling axes. It can also iterate the
 	 * children of the start node in reverse order, something that is needed to
@@ -902,11 +830,11 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 				ix = (forwards ? 0 : par.getChildCount());
 			} else {
 				// find the start node among the list of siblings
-				ix = start.getSiblingPosition();
+//				ix = start.getSiblingPosition();
+				ix = par.indexOf(start.node);
 				if (forwards) ix++;
 			}
 			cursor = ix;
-//			children = new ParentNodeIterator(par, ix);
 			if (!downwards && !forwards) ix--;
 		}
 
@@ -932,8 +860,8 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 					if (cursor == 0) return null;
 					nextChild = par.getChild(--cursor);
 				}
-			}
-			while (nextChild instanceof DocType);
+			} while (nextChild instanceof DocType);
+			// DocType is not an XPath node; can occur for /child::node()
 
 			NodeInfo curr = makeWrapper(nextChild, docWrapper, commonParent, ix);
 			ix += (forwards ? 1 : -1);
@@ -954,6 +882,145 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 
 	}
 
+	/**
+	 * A bit of a misnomer; efficiently takes care of descendants,
+	 * descentants-or-self as well as "following" axis.
+	 * "includeSelf" must be false for the following axis.
+	 * Uses simple and effective O(1) backtracking via indexOf().
+	 */
+    private final class DescendantAxisIterator implements AxisIterator {
+
+		private NodeWrapper start;
+		private boolean includeSelf;
+		private boolean following;
+
+		private Node anchor; // so we know where to stop the scan
+		private Node currNode;
+		private boolean moveToNextSibling;
+
+		private NodeInfo current;
+		private NodeTest nodeTest;
+		private int position;
+
+		private String testLocalName;
+		private String testURI;
+
+		public DescendantAxisIterator(NodeWrapper start, boolean includeSelf, boolean following, NodeTest test) {
+			this.start = start;
+			this.includeSelf = includeSelf;
+			this.following = following;
+			this.moveToNextSibling = following;
+
+			if (!following) anchor = start.node;
+			if (!includeSelf) currNode = start.node;
+
+			if (test == AnyNodeTest.getInstance()) {
+				test = null; // mark as AnyNodeTest
+			}
+			else if (test instanceof NameTest) {
+				NameTest nt = (NameTest) test;
+				if (nt.getPrimitiveType() == Type.ELEMENT) {
+					// mark as element name test
+					NamePool pool = getNamePool();
+					this.testLocalName = pool.getLocalName(nt.getFingerprint());
+					this.testURI = pool.getURI(nt.getFingerprint());
+				}
+			}
+			else if (test instanceof NodeKindTest) {
+				if (test.getPrimitiveType() == Type.ELEMENT) {
+					// mark as element type test
+					this.testLocalName = "";
+					this.testURI = null;
+				}
+			}
+			this.nodeTest = test;
+			this.position = 0;
+		}
+
+		public Item next() {
+			NodeInfo curr;
+			do { // until we find a match
+				curr = advance();
+			}
+			while (curr != null && nodeTest != null && (! nodeTest.matches(curr)));
+
+			if (curr != null) position++;
+			current = curr;
+			return curr;
+		}
+
+		private NodeInfo advance() {
+			if (currNode == null) { // if includeSelf
+				currNode = start.node;
+				return start;
+			}
+
+			int i;
+			do {
+				i = 0;
+				Node p = currNode;
+
+				if (p.getChildCount() == 0 || moveToNextSibling) { // move to next sibling
+
+					moveToNextSibling = false; // do it just once
+					while (true) {
+						// if we've the reached the root, we're done scanning
+						p = currNode.getParent();
+						if (p == null) return null;
+
+						// Note: correct even if currNode is an attribute.
+						// Performance is particularly good with the O(1) patch
+						// for XOM's ParentNode.indexOf()
+						i = currNode.getParent().indexOf(currNode) + 1;
+
+						if (i < p.getChildCount()) {
+							break; // break out of while(true) loop; move to next sibling
+						}
+						else { // reached last sibling; move up
+							currNode = p;
+							// if we've come all the way back to the start anchor we're done
+							if (p == anchor) return null;
+						}
+					}
+				}
+				currNode = p.getChild(i);
+			} while (!conforms(currNode));
+
+			// note the null here: makeNodeWrapper(parent, ...) is fast, so it
+			// doesn't really matter that we don't keep a link to it.
+			// In fact, it makes objects more short lived, easing pressure on
+			// the VM allocator and collector for tenured heaps.
+			return makeWrapper(currNode, docWrapper, null, i);
+		}
+
+		// avoids NodeWrapper allocation when there's clearly a mismatch (common case)
+		private boolean conforms(Node node) {
+			if (this.testLocalName != null) { // element test?
+				if (!(node instanceof Element)) return false;
+				if (this.testURI == null) return true; // pure element type test
+
+				// element name test
+				Element elem = (Element) node;
+				return this.testLocalName.equals(elem.getLocalName()) &&
+					this.testURI.equals(elem.getNamespaceURI());
+			}
+			else { // DocType is not an XPath node; can occur for /descendants::node()
+				return !(node instanceof DocType);
+			}
+		}
+
+		public Item current() {
+			return current;
+		}
+
+		public int position() {
+			return position;
+		}
+
+		public SequenceIterator getAnother() {
+			return new DescendantAxisIterator(start, includeSelf, following, nodeTest);
+		}
+	}
 
 }
 

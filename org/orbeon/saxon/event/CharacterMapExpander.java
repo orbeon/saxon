@@ -1,6 +1,7 @@
 package net.sf.saxon.event;
 import net.sf.saxon.om.XMLChar;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.om.FastStringBuffer;
+import net.sf.saxon.trans.XPathException;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -26,13 +27,13 @@ public class CharacterMapExpander extends ProxyReceiver {
      * They are merged into a single character map if there is more than one.
      */
 
-    protected void setCharacterMaps(List maps) {
+    public void setCharacterMaps(List maps) {
             // merge the character maps, allowing definitions in a later map
             // to overwrite definitions in an earlier map. (Note, we don't really
             // need to do this if there is only one map, but we want to scan the keys
             // anyway to extract the mimimum and maximum mapped characters.)
 
-        charMap = new HashMap();
+        charMap = new HashMap(64);
         for (int i = 0; i < maps.size(); i++) {
             HashMap hashMap = (HashMap)maps.get(i);
             Iterator keys = hashMap.keySet().iterator();
@@ -86,12 +87,12 @@ public class CharacterMapExpander extends ProxyReceiver {
 
     public void characters(CharSequence chars, int locationId, int properties) throws XPathException {
 
-        if ((properties & ReceiverOptions.DISABLE_ESCAPING) != 0) {
+        if ((properties & ReceiverOptions.DISABLE_ESCAPING) == 0) {
+            super.characters(map(chars, useNullMarkers), locationId, properties | ReceiverOptions.USE_NULL_MARKERS);
+        } else {
             // if the user requests disable-output-escaping, this overrides the character
             // mapping
             super.characters(chars, locationId, properties);
-        } else {
-            super.characters(map(chars, useNullMarkers), locationId, properties | ReceiverOptions.USE_NULL_MARKERS);
         }
 
     }
@@ -121,7 +122,7 @@ public class CharacterMapExpander extends ProxyReceiver {
             return in;
         }
 
-        StringBuffer buffer = new StringBuffer(in.length());
+        FastStringBuffer buffer = new FastStringBuffer(in.length());
         int i = 0;
         while(i < in.length()) {
             char c = in.charAt(i++);

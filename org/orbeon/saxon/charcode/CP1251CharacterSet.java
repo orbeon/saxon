@@ -2,7 +2,7 @@ package net.sf.saxon.charcode;
 
 /**
 * This class defines properties of the CP1251 Cyrillic character set,
-* as defined at http://www.microsoft.com/globaldev/reference/sbcs/1251.htm
+* as defined at <a href="http://www.microsoft.com/globaldev/reference/sbcs/1251.htm">http://www.microsoft.com/globaldev/reference/sbcs/1251.htm</a>.
 */
 
 public class CP1251CharacterSet implements CharacterSet {

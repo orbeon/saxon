@@ -7,15 +7,12 @@ import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.instruct.GeneralVariable;
 import net.sf.saxon.instruct.InstructionDetails;
 import net.sf.saxon.instruct.TailCall;
-import net.sf.saxon.om.AttributeCollection;
-import net.sf.saxon.om.Name;
-import net.sf.saxon.om.Navigator;
+import net.sf.saxon.om.*;
 import net.sf.saxon.style.XSLGeneralVariable;
 import net.sf.saxon.trace.InstructionInfo;
 import net.sf.saxon.trace.Location;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -78,7 +75,7 @@ public class SQLColumn extends XSLGeneralVariable {
 
 
     public void validate() throws TransformerConfigurationException {
-        if (!(getParentNode() instanceof SQLInsert)) {
+        if (!(getParent() instanceof SQLInsert)) {
             compileError("parent node must be sql:insert");
         }
         select = typeCheck("select", select);
@@ -122,7 +119,7 @@ public class SQLColumn extends XSLGeneralVariable {
          * Evaluate the variable (method exists only to satisfy the interface)
          */
 
-        public Value evaluateVariable(XPathContext context) throws XPathException {
+        public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException {
             throw new UnsupportedOperationException();
         }
 

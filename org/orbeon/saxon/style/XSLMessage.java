@@ -1,14 +1,12 @@
 package net.sf.saxon.style;
-import net.sf.saxon.expr.AppendExpression;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.Token;
+import net.sf.saxon.instruct.Block;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.instruct.Message;
 import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.Axis;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.value.EmptySequence;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -77,7 +75,7 @@ public final class XSLMessage extends StyleElement {
     }
 
     public void validate() throws TransformerConfigurationException {
-        if (!(getParentNode() instanceof XSLFunction)) {
+        if (!(getParent() instanceof XSLFunction)) {
             checkWithinTemplate();
         }
         select = typeCheck("select", select);
@@ -90,7 +88,8 @@ public final class XSLMessage extends StyleElement {
             if (select == null) {
                 select = b;
             } else {
-                select = new AppendExpression(select, Token.COMMA, b);
+                //select = new AppendExpression(select, Token.COMMA, b);
+                select = Block.makeBlock(select, b);
             }
         }
         if (select == null) {

@@ -1,9 +1,9 @@
 package net.sf.saxon.expr;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.Cardinality;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * A FirstItemExpression returns the first item in the sequence returned by a given

@@ -5,20 +5,14 @@ import net.sf.saxon.Loader;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.om.*;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ExternalObjectType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
 
-import javax.xml.namespace.QName;
 import java.io.PrintStream;
 import java.lang.reflect.*;
 import java.math.BigDecimal;
@@ -604,7 +598,7 @@ public class JavaExtensionLibrary implements FunctionLibrary {
 
     private static String toCamelCase(String name, boolean debug, PrintStream diag) {
         if (name.indexOf('-') >= 0) {
-            StringBuffer buff = new StringBuffer(name.length());
+            FastStringBuffer buff = new FastStringBuffer(name.length());
             boolean afterHyphen = false;
             for (int n = 0; n < name.length(); n++) {
                 char c = name.charAt(n);
@@ -630,14 +624,14 @@ public class JavaExtensionLibrary implements FunctionLibrary {
     /**
      * Get an array of integers representing the conversion distances of each "real" argument
      * to a given method
-     * @param argValues: the actual argument values supplied
+     * @param args: the actual expressions supplied in the function call
      * @param method: the method or constructor.
      * @return an array of integers, one for each argument, indicating the conversion
      * distances. A high number indicates low preference. If any of the arguments cannot
      * be converted to the corresponding type defined in the method signature, return null.
      */
 
-    private int[] getConversionPreferences(Expression[] argValues, AccessibleObject method) {
+    private int[] getConversionPreferences(Expression[] args, AccessibleObject method) {
 
         Class[] params;
         int firstArg;
@@ -657,7 +651,7 @@ public class JavaExtensionLibrary implements FunctionLibrary {
             throw new AssertionError("property " + method + " was neither constructor, method, nor field");
         }
 
-        int noOfArgs = argValues.length - firstArg;
+        int noOfArgs = args.length - firstArg;
         int preferences[] = new int[noOfArgs];
         int firstParam = 0;
 
@@ -665,7 +659,7 @@ public class JavaExtensionLibrary implements FunctionLibrary {
             firstParam = 1;
         }
         for (int i = 0; i < noOfArgs; i++) {
-            preferences[i] = getConversionPreference(argValues[i + firstArg], params[i + firstParam]);
+            preferences[i] = getConversionPreference(args[i + firstArg], params[i + firstParam]);
             if (preferences[i] == -1) {
                 return null;
             }
@@ -676,7 +670,8 @@ public class JavaExtensionLibrary implements FunctionLibrary {
 
     /**
      * Get the conversion preference from a given XPath type to a given Java class
-     * @param arg the static type of the supplied XPath expression
+     * @param arg the supplied XPath expression (the static type of this expression
+     * is used as input to the algorithm)
      * @param required the Java class of the relevant argument of the Java method
      * @return the conversion preference. A high number indicates a low preference;
      * -1 indicates that conversion is not possible.
@@ -690,17 +685,15 @@ public class JavaExtensionLibrary implements FunctionLibrary {
         } else if (Cardinality.allowsMany(cardinality)) {
             if (required.isAssignableFrom(SequenceIterator.class)) {
                 return 20;
-            } else if (required.isAssignableFrom(SequenceValue.class)) {
+            } else if (required.isAssignableFrom(Value.class)) {
                 return 21;
             } else if (Collection.class.isAssignableFrom(required)) {
                 return 22;
-            } else if (required.isAssignableFrom(NodeList.class)) {
-                return 23;
             } else if (required.isArray()) {
                 return 24;
                 // sort out at run-time whether the component type of the array is actually suitable
             } else {
-                return -1;    // conversion not possible
+                return 80;    // conversion possible only if external object model supports it
             }
         } else {
             if (Type.isNodeType(itemType)) {
@@ -708,12 +701,8 @@ public class JavaExtensionLibrary implements FunctionLibrary {
                     return 20;
                 } else if (required.isAssignableFrom(DocumentInfo.class)) {
                     return 21;
-                } else if (required.isAssignableFrom(Node.class)) {
-                    return 22;
-                } else if (required.isAssignableFrom(NodeList.class)) {
-                    return 23;
                 } else {
-                    return -1;
+                    return 80;
                 }
             } else if (itemType instanceof ExternalObjectType) {
                 Class ext = ((ExternalObjectType)itemType).getJavaClass();
@@ -823,7 +812,9 @@ public class JavaExtensionLibrary implements FunctionLibrary {
                 return -1;
             case Type.QNAME:
                 if (required.isAssignableFrom(QNameValue.class)) return 50;
-                if (required.isAssignableFrom(QName.class)) return 51;
+                //if (required.isAssignableFrom(QName.class)) return 51;
+                // TODO: reinstate above line under JDK 1.5
+                if (required.getClass().getName().equals("javax.xml.namespace.QName")) return 51;
                 return -1;
             case Type.BASE64_BINARY:
                 if (required.isAssignableFrom(Base64BinaryValue.class)) return 50;

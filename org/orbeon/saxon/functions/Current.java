@@ -4,7 +4,7 @@ import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 /**
  * Implement the XSLT current() function
@@ -20,6 +20,7 @@ public class Current extends SystemFunction implements XSLTFunction {
 
     public int computeSpecialProperties() {
         return StaticProperty.CONTEXT_DOCUMENT_NODESET |
+                StaticProperty.SINGLE_DOCUMENT_NODESET |
                 StaticProperty.ORDERED_NODESET |
                 StaticProperty.NON_CREATIVE;
     }

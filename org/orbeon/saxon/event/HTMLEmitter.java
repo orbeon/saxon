@@ -1,7 +1,8 @@
 package net.sf.saxon.event;
 import net.sf.saxon.charcode.UnicodeCharacterSet;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.om.FastStringBuffer;
 
 import javax.xml.transform.OutputKeys;
 
@@ -16,10 +17,10 @@ public class HTMLEmitter extends net.sf.saxon.event.XMLEmitter {
 	* Preferred character representations
 	*/
 
-	private final static int REP_NATIVE = 0;
-	private final static int REP_ENTITY = 1;
-	private final static int REP_DECIMAL = 2;
-	private final static int REP_HEX = 3;
+    private static final int REP_NATIVE = 0;
+	private static final int REP_ENTITY = 1;
+	private static final int REP_DECIMAL = 2;
+	private static final int REP_HEX = 3;
 
 	private int nonASCIIRepresentation = REP_ENTITY;
 	private int excludedRepresentation = REP_DECIMAL;
@@ -110,13 +111,13 @@ public class HTMLEmitter extends net.sf.saxon.event.XMLEmitter {
 
     private static void setBooleanAttribute(String element, String attribute) {
         booleanAttributes.add(attribute);
-        booleanCombinations.add(element + "+" + attribute);
+        booleanCombinations.add(element + '+' + attribute);
     }
 
     private static boolean isBooleanAttribute(String element, String attribute, String value) {
         if (!attribute.equalsIgnoreCase(value)) return false;
         if (!booleanAttributes.contains(attribute)) return false;
-        return booleanCombinations.contains(element + "+" + attribute);
+        return booleanCombinations.contains(element + '+' + attribute);
     }
 
     /**
@@ -160,12 +161,12 @@ public class HTMLEmitter extends net.sf.saxon.event.XMLEmitter {
 
     private static void setUrlAttribute(String element, String attribute) {
         urlAttributes.add(attribute);
-        urlCombinations.add(element + "+" + attribute);
+        urlCombinations.add(element + '+' + attribute);
     }
 
     public static boolean isUrlAttribute(String element, String attribute) {
         if (!urlAttributes.contains(attribute)) return false;
-        return urlCombinations.contains(element + "+" + attribute);
+        return urlCombinations.contains(element + '+' + attribute);
     }
 
     /**
@@ -198,8 +199,8 @@ public class HTMLEmitter extends net.sf.saxon.event.XMLEmitter {
 
         String byteOrderMark = outputProperties.getProperty(SaxonOutputKeys.BYTE_ORDER_MARK);
 
-        if ("yes".equals(byteOrderMark)) {
-            // TODO: default for UTF-16 is "yes"
+        if ("yes".equals(byteOrderMark) &&
+                !"UTF-16".equalsIgnoreCase(outputProperties.getProperty(OutputKeys.ENCODING))) {
             try {
                 writer.write('\uFEFF');
             } catch (java.io.IOException err) {
@@ -309,11 +310,11 @@ public class HTMLEmitter extends net.sf.saxon.event.XMLEmitter {
     * Escape characters. Overrides the XML behaviour
     */
 
-    protected void writeEscape(CharSequence chars, boolean inAttribute)
+    protected void writeEscape(final CharSequence chars, final boolean inAttribute)
     throws java.io.IOException {
 
         int segstart = 0;
-        boolean[] specialChars = (inAttribute ? specialInAtt : specialInText);
+        final boolean[] specialChars = (inAttribute ? specialInAtt : specialInText);
         boolean disabled = false;
 
         while (segstart < chars.length()) {
@@ -332,16 +333,23 @@ public class HTMLEmitter extends net.sf.saxon.event.XMLEmitter {
                 i++;
             }
 
-            // output this sequence
-            if (i > segstart) {
-                writer.write(chars.subSequence(segstart, i).toString());
+            // if this was the whole string, output the string and quit
+
+            if (i == chars.length()) {
+                if (segstart == 0) {
+                    writeCharSequence(chars);
+                } else {
+                    writeCharSequence(chars.subSequence(segstart, i));
+                }
+                return;
             }
 
-            // if this was the whole string, quit
+            // otherwise, output this sequence and continue
+            if (i > segstart) {
+                writeCharSequence(chars.subSequence(segstart, i));
+            }
 
-            if (i == chars.length()) return;
-
-            char c = chars.charAt(i);
+            final char c = chars.charAt(i);
 
             if (c==0) {
                 // used to switch escaping on and off
@@ -481,7 +489,7 @@ public class HTMLEmitter extends net.sf.saxon.event.XMLEmitter {
             writer.write("<?");
             writer.write(target);
             writer.write(' ');
-            writer.write(data.toString());
+            writeCharSequence(data);
             writer.write('>');
         } catch (java.io.IOException err) {
             throw new DynamicError(err);
@@ -489,7 +497,7 @@ public class HTMLEmitter extends net.sf.saxon.event.XMLEmitter {
     }
 
     private static CharSequence escapeURL(CharSequence url) {
-        StringBuffer sb = new StringBuffer();
+        FastStringBuffer sb = new FastStringBuffer(url.length() + 20);
         final String hex = "0123456789ABCDEF";
 
         for (int i=0; i<url.length(); i++) {
@@ -513,7 +521,7 @@ public class HTMLEmitter extends net.sf.saxon.event.XMLEmitter {
     }
 
 
-    private final static String[] latin1Entities = {
+    private static final String[] latin1Entities = {
 
         "nbsp",   // "&#160;" -- no-break space = non-breaking space,
                   //                        U+00A0 ISOnum -->

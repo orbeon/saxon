@@ -1,10 +1,10 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.*;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.NumericValue;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 
 public class Unicode extends SystemFunction {
@@ -34,7 +34,7 @@ public class Unicode extends SystemFunction {
             if (item==null) {
                 return EmptyIterator.getInstance();
             }
-            return stringToUnicode(item.getStringValue());
+            return stringToUnicode(item.getStringValueCS());
         case FROM_CODEPOINTS:
             return SingletonIterator.makeIterator(evaluateItem(c));
         default:
@@ -47,7 +47,7 @@ public class Unicode extends SystemFunction {
     * string.
     */
 
-    private static SequenceIterator stringToUnicode(String s) {
+    private static SequenceIterator stringToUnicode(CharSequence s) {
         return new StringValue(s).iterateCharacters();
     }
 
@@ -56,15 +56,15 @@ public class Unicode extends SystemFunction {
     */
 
     private static CharSequence unicodeToString(SequenceIterator chars, XPathContext context) throws XPathException {
-        StringBuffer sb = new StringBuffer();
+        FastStringBuffer sb = new FastStringBuffer(256);
         while (true) {
             NumericValue nextInt = (NumericValue)chars.next();
             if (nextInt == null) {
-                return sb;
+                return sb.condense();
             }
             long next = nextInt.longValue();
             if (next > Integer.MAX_VALUE || !XMLChar.isValid((int)next)) {
-                DynamicError e = new DynamicError("Invalid XML character [decimal " + next + "]");
+                DynamicError e = new DynamicError("Invalid XML character [decimal " + next + ']');
                 e.setErrorCode("FOCH0001");
                 e.setXPathContext(context);
                 throw e;

@@ -1,8 +1,8 @@
 package net.sf.saxon.charcode;
 
 /**
- * This class defines properties of the CP1252 character set,
- * as defined at http://www.microsoft.com/globaldev/reference/sbcs/1251.htm
+ * This class defines properties of the CP1252 (Latin 1) character set,
+ * as defined at <a ref="http://www.microsoft.com/globaldev/reference/sbcs/1252.htm">http://www.microsoft.com/globaldev/reference/sbcs/1252.htm</a>.
  *
  * <p>This file was kindly provided by Sectra AB, Sweden to the DocBook community.
  * Author: Pontus Haglund</p>

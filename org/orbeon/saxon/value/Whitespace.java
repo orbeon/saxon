@@ -1,6 +1,7 @@
 package net.sf.saxon.value;
 
 import net.sf.saxon.functions.NormalizeSpace;
+import net.sf.saxon.om.FastStringBuffer;
 
 /**
  * This class provides helper methods and constants for handling whitespace
@@ -32,7 +33,7 @@ public class Whitespace {
             case PRESERVE:
                 return value;
             case REPLACE:
-                StringBuffer sb = new StringBuffer(value.length());
+                FastStringBuffer sb = new FastStringBuffer(value.length());
                 for (int i=0; i<value.length(); i++) {
                     if ("\n\r\t".indexOf(value.charAt(i)) >= 0) {
                         sb.append(' ');

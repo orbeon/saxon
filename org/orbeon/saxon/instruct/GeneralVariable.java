@@ -1,15 +1,11 @@
 package net.sf.saxon.instruct;
 import net.sf.saxon.expr.*;
-import net.sf.saxon.om.EmptyIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.NoNodeTest;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Collections;
@@ -165,22 +161,24 @@ public abstract class GeneralVariable extends Instruction implements Binding {
         return this;
     }
 
-    // TODO: this is a copy of code in XSLGeneralVariable
+    /**
+     * Check the select expression against the required type.
+     * @param env
+     * @throws XPathException
+     */
+
     private void checkAgainstRequiredType(StaticContext env)
     throws XPathException {
+        // Note, in some cases we are doing this twice.
         RoleLocator role =
                 new RoleLocator(RoleLocator.VARIABLE, variableName, 0, null);
         SequenceType r = requiredType;
-        if (r != null) {
+        if (r != null && select != null) {
             // check that the expression is consistent with the required type
-
-            if (select != null) {
-                select = TypeChecker.staticTypeCheck(select, requiredType, false, role, env);
-            } else {
-                // TODO: check the type of the instruction sequence statically
-            }
+            select = TypeChecker.staticTypeCheck(select, requiredType, false, role, env);
         }
     }
+    
     /**
      * Evaluate an expression as a single item. This always returns either a single Item or
      * null (denoting the empty sequence). No conversion is done. This method should not be
@@ -229,7 +227,7 @@ public abstract class GeneralVariable extends Instruction implements Binding {
      * of the element otherwise, either as a tree or as a sequence
     */
 
-    public Value getSelectValue(XPathContext context) throws XPathException {
+    public ValueRepresentation getSelectValue(XPathContext context) throws XPathException {
         if (select==null) {
             throw new AssertionError("*** No select expression!!");
             // The value of the variable is a sequence of nodes and/or atomic values

@@ -2,6 +2,7 @@ package net.sf.saxon.expr;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
@@ -9,7 +10,6 @@ import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.Cardinality;
 import net.sf.saxon.value.SequenceExtent;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * An AtomicSequenceConverter is an expression that performs a cast on each member of
@@ -93,7 +93,7 @@ public final class AtomicSequenceConverter extends UnaryExpression implements Ma
     public Item evaluateItem(XPathContext context) throws XPathException {
         Item item = operand.evaluateItem(context);
         if (item==null) return null;
-        return ((AtomicValue)item).convert(requiredPrimitiveType, context);
+        return ((AtomicValue)item).convert(requiredPrimitiveType);
     }
 
     /**
@@ -101,7 +101,7 @@ public final class AtomicSequenceConverter extends UnaryExpression implements Ma
     */
 
     public Object map(Item item, XPathContext context, Object info) throws XPathException {
-        return ((AtomicValue)item).convert(requiredPrimitiveType, context);
+        return ((AtomicValue)item).convert(requiredPrimitiveType);
     }
 
     /**

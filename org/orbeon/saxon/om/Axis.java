@@ -1,6 +1,6 @@
 package net.sf.saxon.om;
+import net.sf.saxon.trans.StaticError;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.StaticError;
 
 /**
  * An axis, that is a direction of navigation in the document structure.
@@ -203,7 +203,7 @@ public final class Axis  {
      * Resolve an axis name into a symbolic constant representing the axis
      *
      * @param name
-     * @exception net.sf.saxon.xpath.StaticError
+     * @exception net.sf.saxon.trans.StaticError
      * @return integer value representing the named axis
      */
 

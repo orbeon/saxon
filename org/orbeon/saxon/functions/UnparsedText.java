@@ -4,9 +4,10 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.om.FastStringBuffer;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -92,15 +93,15 @@ public class UnparsedText extends SystemFunction implements XSLTFunction {
             BufferedReader reader = new BufferedReader(
                                         new InputStreamReader(is, encoding));
 
-            StringBuffer sb = new StringBuffer();
+            FastStringBuffer sb = new FastStringBuffer(2048);
             char[] buffer = new char[2048];
-            int actual=0;
+            int actual;
             while (true) {
                 actual = reader.read(buffer, 0, 2048);
                 if (actual<0) break;
                 sb.append(buffer, 0, actual);
             }
-            return sb;
+            return sb.condense();
         } catch (java.io.UnsupportedEncodingException encErr) {
             DynamicError e =  new DynamicError("Unknown encoding " + Err.wrap(encoding), encErr);
             e.setErrorCode("XT1190");

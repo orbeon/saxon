@@ -3,15 +3,12 @@ import net.sf.saxon.Controller;
 import net.sf.saxon.event.Emitter;
 import net.sf.saxon.event.TreeReceiver;
 import net.sf.saxon.expr.*;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.Validation;
+import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.NoNodeTest;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.OutputKeys;
 import java.io.OutputStreamWriter;
@@ -40,7 +37,7 @@ public class Message extends Instruction {
      * Simplify an expression. This performs any static optimization (by rewriting the expression
      * as a different expression). The default implementation does nothing.
      * @return the simplified expression
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      *          if an error is discovered during expression rewriting
      */
 
@@ -68,7 +65,7 @@ public class Message extends Instruction {
      * @return the original expression, rewritten to perform necessary
      *         run-time type checks, and to perform other type-related
      *         optimizations
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      *          if an error is discovered during this phase
      *          (typically a type error)
      */
@@ -163,7 +160,7 @@ public class Message extends Instruction {
                 if (item == null) {
                     break;
                 }
-                rec.append(item, locationId);
+                rec.append(item, locationId, NodeInfo.ALL_NAMESPACES);
             }
         }
         rec.close();

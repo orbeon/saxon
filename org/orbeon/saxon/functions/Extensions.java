@@ -5,11 +5,11 @@ import net.sf.saxon.expr.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.sort.GlobalOrderComparer;
 import net.sf.saxon.trace.Location;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -150,7 +150,7 @@ public class Extensions  {
             if (next == null) break;
             Item val = pexpression.expression.evaluateItem(c);
             if (val instanceof NumericValue) {
-                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE, context);
+                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE);
                 total += v.getDoubleValue();
             } else {
                 DynamicError e = new DynamicError("expression in saxon:sum() must return numeric values");
@@ -177,7 +177,7 @@ public class Extensions  {
             if (next==null) break;
             Item val = pexpression.expression.evaluateItem(c);
             if (val instanceof NumericValue) {
-                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE, context);
+                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE);
                 if (v.getDoubleValue()>max) max = v.getDoubleValue();
             } else {
                 DynamicError e = new DynamicError("expression in saxon:max() must return numeric values");
@@ -204,7 +204,7 @@ public class Extensions  {
             if (next==null) break;
             Item val = pexpression.expression.evaluateItem(c);
             if (val instanceof NumericValue) {
-                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE, context);
+                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE);
                 if (v.getDoubleValue()<min) min = v.getDoubleValue();
             } else {
                 DynamicError e = new DynamicError("expression in saxon:min() must return numeric values");
@@ -219,7 +219,7 @@ public class Extensions  {
     * Get the node with maximum numeric value of the string-value of each of a set of nodes
     */
 
-    public static SequenceValue highest (SequenceIterator nsv) throws XPathException {
+    public static Value highest (SequenceIterator nsv) throws XPathException {
         return net.sf.saxon.exslt.Math.highest(nsv);
     }
 
@@ -241,7 +241,7 @@ public class Extensions  {
             if (next==null) break;
             Item val = pexpression.expression.evaluateItem(c);
             if (val instanceof NumericValue) {
-                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE, context);
+                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE);
                 if (v.getDoubleValue()>max) {
                     max = v.getDoubleValue();
                     highest = nsv.current();
@@ -259,7 +259,7 @@ public class Extensions  {
     * Get the node with minimum numeric value of the string-value of each of a set of nodes
     */
 
-    public static SequenceValue lowest (SequenceIterator nsv) throws XPathException {
+    public static Value lowest (SequenceIterator nsv) throws XPathException {
         return net.sf.saxon.exslt.Math.lowest(nsv);
     }
 
@@ -280,7 +280,7 @@ public class Extensions  {
             if (next==null) break;
             Item val = pexpression.expression.evaluateItem(c);
             if (val instanceof NumericValue) {
-                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE, context);
+                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE);
                 if (v.getDoubleValue()<min) {
                     min = v.getDoubleValue();
                     lowest = nsv.current();
@@ -433,47 +433,6 @@ public class Extensions  {
         }
         return "type " + type.getDescription();
     }
-
-    /**
-    * Save a value associated with the context item
-    */
-
-//    public static void setUserData(XPathContext c, String name, Value value) throws XPathException {
-//            // System.err.println("Set user data " + name + " = " + value); value.display(10);
-//        Item item = c.getContextItem();
-//        if (item==null) {
-//            throw new XPathException.Dynamic("The context item for saxon:setUserData() is not set");
-//        }
-//        if (item instanceof NodeInfo) {
-//            c.getController().setUserData((NodeInfo)item, name, value);
-//        }
-//    }
-
-    /**
-    * Retrieve a value associated with the context item
-    */
-
-//    public static Value getUserData(XPathContext c, String name) throws XPathException {
-//        Item item = c.getContextItem();
-//        if (item==null) {
-//            throw new XPathException.Dynamic("The context item for saxon:getUserData() is not set");
-//        }
-//        if (item instanceof NodeInfo) {
-//            Object o = c.getController().getUserData(
-//                            (NodeInfo)item, name);
-//                // System.err.println("Get user data " + name + " = " + o);
-//            if (o==null) {
-//                return EmptySequence.getInstance();
-//            }
-//            if (o instanceof Value) {
-//                // System.err.println("Found:");((Value)o).display(10);
-//                return (Value)o;
-//            }
-//            return new ObjectValue(o);
-//        } else {
-//            return EmptySequence.getInstance();
-//        }
-//    }
 
 	/**
 	* Return the XPathContext object

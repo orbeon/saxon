@@ -3,13 +3,12 @@ import net.sf.saxon.expr.*;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.sort.SortKeyDefinition;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.text.Collator;
@@ -28,7 +27,7 @@ public class XSLSort extends StyleElement {
     private Expression dataType = null;
     private Expression caseOrder;
     private Expression lang;
-    private String collationName;
+    private Expression collationName;
 
     /**
       * Determine whether this type of element is allowed to contain a sequence constructor
@@ -100,9 +99,9 @@ public class XSLSort extends StyleElement {
             lang = makeAttributeValueTemplate(langAtt);
         }
 
-        collationName = collationAtt;
-        // TODO: allow the collation to be specified as an Attribute Value Template
-
+        if (collationAtt != null) {
+            collationName = makeAttributeValueTemplate(collationAtt);
+        }
 
     }
 
@@ -113,23 +112,15 @@ public class XSLSort extends StyleElement {
         if (select == null && !hasChildNodes()) {
             select = new ContextItemExpression();
         }
-        NodeInfo parent = (NodeInfo)getParentNode();
-        if (!((parent instanceof XSLApplyTemplates) ||
-                 (parent instanceof XSLForEach)
-                 || (parent instanceof XSLForEachGroup)
-                 || (parent instanceof XSLPerformSort)
-                 )) {
-            compileError("xsl:sort must be a child of xsl:apply-templates, xsl:for-each[-group], or xsl:perform-sort", "XT0010");
-        }
 
         // Get the named or default collation
 
-
         Comparator collator = null;
-        if (collationName != null) {
-            collator = getPrincipalStylesheet().findCollation(collationName);
+        if (collationName instanceof StringValue) {
+            String uri = ((StringValue)collationName).getStringValue();
+            collator = getPrincipalStylesheet().findCollation(uri);
             if (collator==null) {
-                compileError("No collation of this name has been defined");
+                compileError("Collation " + uri + " has not been defined");
                 collator = Collator.getInstance();     // for recovery paths
             }
         }
@@ -139,6 +130,7 @@ public class XSLSort extends StyleElement {
         caseOrder   = typeCheck("case-order", caseOrder);
         lang        = typeCheck("lang", lang);
         dataType    = typeCheck("data-type", dataType);
+        collationName = typeCheck("collation", collationName);
 
         if (select != null) {
             try {
@@ -158,6 +150,7 @@ public class XSLSort extends StyleElement {
         sortKeyDefinition.setLanguage(lang);
         sortKeyDefinition.setSortKey(select);
         sortKeyDefinition.setDataTypeExpression(dataType);
+        sortKeyDefinition.setCollationName(collationName);
         sortKeyDefinition.setCollation(collator);
 
 
@@ -194,7 +187,7 @@ public class XSLSort extends StyleElement {
         try {
             // Simplify the sort key definition - this is especially important in the case where
             // all aspects of the sort key are known statically.
-            sortKeyDefinition = sortKeyDefinition.simplify();
+            sortKeyDefinition = sortKeyDefinition.simplify(exec);
         } catch (XPathException err) {
             throw new TransformerConfigurationException(err);
         }

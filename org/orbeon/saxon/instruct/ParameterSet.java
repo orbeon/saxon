@@ -1,5 +1,5 @@
 package net.sf.saxon.instruct;
-import net.sf.saxon.value.Value;
+import net.sf.saxon.om.ValueRepresentation;
 
 /**
  * A ParameterSet is a set of parameters supplied when calling a template.
@@ -9,21 +9,35 @@ import net.sf.saxon.value.Value;
 
 public class ParameterSet
 {
-	private int[] keys = new int[10];
-    private Value[] values = new Value[10];
+	private int[] keys;
+    private ValueRepresentation[] values;
     private int used = 0;
+
+    public static ParameterSet EMPTY_PARAMETER_SET = new ParameterSet(0);
 
     /**
      * Create an empty parameter set
      */
 
-    public ParameterSet() {}
+    public ParameterSet() {
+        this(10);
+    }
+
+    /**
+     * Create a parameter set specifying the initial capacity
+     */
+
+    public ParameterSet(int capacity) {
+        keys = new int[capacity];
+        values = new ValueRepresentation[capacity];
+    }
 
     /**
      * Create a parameter set as a copy of an existing parameter set
      */
 
-    public ParameterSet(ParameterSet existing) {
+    public ParameterSet(ParameterSet existing, int extra) {
+        this(existing.used + extra);
         for (int i=0; i<existing.used; i++) {
             put(existing.keys[i], existing.values[i]);
         }
@@ -36,7 +50,7 @@ public class ParameterSet
      * @param value The value of the parameter
      */
 
-    public void put (int fingerprint, Value value) {
+    public void put (int fingerprint, ValueRepresentation value) {
         for (int i=0; i<used; i++) {
             if (keys[i]==fingerprint) {
                 values[i]=value;
@@ -44,8 +58,9 @@ public class ParameterSet
             }
         }
         if (used+1 > keys.length) {
-        	int[] newkeys = new int[used*2];
-            Value[] newvalues = new Value[used*2];
+            int newlength = (used<=5 ? 10 : used*2);
+        	int[] newkeys = new int[newlength];
+            ValueRepresentation[] newvalues = new ValueRepresentation[newlength];
             System.arraycopy(values, 0, newvalues, 0, used);
             System.arraycopy(keys, 0, newkeys, 0, used);
             values = newvalues;
@@ -62,7 +77,7 @@ public class ParameterSet
      * @return The value of the parameter, or null if not defined
      */
 
-    public Value get (int fingerprint) {
+    public ValueRepresentation get (int fingerprint) {
         for (int i=0; i<used; i++) {
             if (keys[i]==fingerprint) {
                 return values[i];

@@ -2,7 +2,7 @@ package net.sf.saxon.om;
 import net.sf.saxon.Configuration;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.Source;
 
@@ -14,7 +14,9 @@ import javax.xml.transform.Source;
  * @author Michael H. Kay
  */
 
-public interface NodeInfo extends Source, Item {
+public interface NodeInfo extends Source, Item, ValueRepresentation {
+
+    int[] EMPTY_NAMESPACE_LIST = new int[0];
 
     /**
      * Get the kind of node. This will be a value such as Type.ELEMENT or Type.ATTRIBUTE
@@ -149,6 +151,14 @@ public interface NodeInfo extends Source, Item {
     public String getDisplayName();
 
     /**
+     * Get the prefix of the name of the node. This is defined only for elements and attributes.
+     * If the node has no prefix, or for other kinds of node, return a zero-length string.
+     * @return The prefix of the name of the node.
+     */
+
+    public String getPrefix();
+
+    /**
      * Get the configuration
      */
 
@@ -275,8 +285,8 @@ public interface NodeInfo extends Source, Item {
      * @exception XPathException
      * @param out the Receiver to which the node should be copied
      * @param whichNamespaces in the case of an element, controls
-     *     which namespace nodes should be copied. Values are NO_NAMESPACES,
-     *     LOCAL_NAMESPACES, ALL_NAMESPACES
+     *     which namespace nodes should be copied. Values are {@link #NO_NAMESPACES},
+     *     {@link #LOCAL_NAMESPACES}, {@link #ALL_NAMESPACES}
      * @param copyAnnotations indicates whether the type annotations
      *     of element and attribute nodes should be copied
      * @param locationId If non-zero, identifies the location of the instruction
@@ -287,22 +297,51 @@ public interface NodeInfo extends Source, Item {
 
     public void copy(Receiver out, int whichNamespaces, boolean copyAnnotations, int locationId) throws XPathException;
 
+    /**
+     * Don't copy any namespace nodes.
+     */
+
     int NO_NAMESPACES = 0;
+
+    /**
+     * Copy namespaces declared (or undeclared) on this element, but not namespaces inherited from a parent element
+     */
     int LOCAL_NAMESPACES = 1;
+
+    /**
+     * Copy all in-scope namespaces
+     */
     int ALL_NAMESPACES = 2;
 
     /**
-     * Output all namespace nodes associated with this element. Does nothing if
+     * Output all namespace declarations associated with this element. Does nothing if
      * the node is not an element.
      *
-     * @param out The relevant outputter
+     * @param out The relevant Receiver
      * @param includeAncestors True if namespaces declared on ancestor
      *     elements must be output; false if it is known that these are
-     *     already on the result tree
+     *
      */
 
-    public void outputNamespaceNodes(Receiver out, boolean includeAncestors)
+    public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors)
         throws XPathException;
+
+    /**
+     * Get all namespace undeclarations and undeclarations defined on this element.
+     * @param buffer If this is non-null, and the result array fits in this buffer, then the result
+     * may overwrite the contents of this array, to avoid the cost of allocating a new array on the heap.
+     * @return An array of integers representing the namespace declarations and undeclarations present on
+     * this element. For a node other than an element, return null. Otherwise, the returned array is a
+     * sequence of namespace codes, whose meaning may be interpreted by reference to the name pool. The
+     * top half word of each namespace code represents the prefix, the bottom half represents the URI.
+     * If the bottom half is zero, then this is a namespace undeclaration rather than a declaration.
+     * The XML namespace is never included in the list. If the supplied array is larger than required,
+     * then the first unused entry will be set to -1.
+     *
+     * <p>For a node other than an element, the method returns null.</p>
+     */
+
+    public int[] getDeclaredNamespaces(int[] buffer);
 
 }
 

@@ -8,8 +8,6 @@ import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.pattern.NoNodeTest;
 import net.sf.saxon.pattern.Pattern;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.Serializable;
 
@@ -24,18 +22,26 @@ public class Mode implements Serializable {
 
     public static final int DEFAULT_MODE = -1;
     public static final int ALL_MODES = -2;
+    public static final int NAMED_MODE = -3;
+    public static final int STRIPPER_MODE = -4;
+
 
     private Rule[] ruleDict = new Rule[101 + Type.MAX_NODE_TYPE];
     private int sequence = 0;   // sequence number for the rules in this Mode
     private boolean isDefault;
+    private boolean isStripper;
 
     /**
      * Default constructor - creates a Mode containing no rules
+     * @param usage one of {@link #DEFAULT_MODE}, {@link #NAMED_MODE}, {@link #STRIPPER_MODE}
      */
 
-    public Mode(boolean isDefault) {
-        this.isDefault = isDefault;
+    public Mode(int usage) {
+        this.isDefault = (usage == DEFAULT_MODE);
+        this.isStripper = (usage == STRIPPER_MODE);
     }
+
+
 
     /**
      * Construct a new Mode, copying the contents of an existing Mode
@@ -45,6 +51,7 @@ public class Mode implements Serializable {
 
     public Mode(Mode omniMode) {
         isDefault = false;
+        isStripper = false;
         if (omniMode != null) {
             for (int i = 0; i < this.ruleDict.length; i++) {
                 if (omniMode.ruleDict[i] != null) {
@@ -542,20 +549,19 @@ public class Mode implements Serializable {
         Pattern pat1 = r1.pattern;
         Pattern pat2 = r2.pattern;
 
-        String path = "node";
-        try {
+        String path;
+        if (isStripper) {
+            path = "xsl:strip-space";
+        } else {
             path = Navigator.getPath(node);
-        } catch (Exception err) {
-            // can fail if the node is incomplete, e.g. during whitespace stripping
         }
 
         DynamicError err = new DynamicError("Ambiguous rule match for " + path + '\n' +
                 "Matches both \"" + pat1 + "\" on line " + pat1.getLineNumber() + " of " + pat1.getSystemId() +
                 "\nand \"" + pat2 + "\" on line " + pat2.getLineNumber() + " of " + pat2.getSystemId());
-        err.setErrorCode("XT0540");
+        err.setErrorCode((isStripper ? "XT0270" : "XT0540"));
         err.setLocator(c.getOrigin().getInstructionInfo());
         c.getController().recoverableError(err);
-        // TODO: in the case of strip-space, this should be error XT0270
     }
 
 

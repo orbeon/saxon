@@ -1,9 +1,7 @@
 package net.sf.saxon.tree;
 import net.sf.saxon.event.Receiver;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
-import org.w3c.dom.DOMException;
-import org.w3c.dom.ProcessingInstruction;
 
 /**
   * ProcInstImpl is an implementation of ProcInstInfo used by the Propagator to construct
@@ -12,7 +10,7 @@ import org.w3c.dom.ProcessingInstruction;
   */
 
 
-class ProcInstImpl extends NodeImpl implements ProcessingInstruction {
+class ProcInstImpl extends NodeImpl {
 
     String content;
     int nameCode;
@@ -95,15 +93,6 @@ class ProcInstImpl extends NodeImpl implements ProcessingInstruction {
         return content;
     }
 
-    /**
-     * Set the content of this PI. Always fails.
-     * @exception DOMException
-     *    NO_MODIFICATION_ALLOWED_ERR: Raised when the node is readonly.
-     */
-
-    public void setData(String data) throws DOMException {
-        disallowUpdate();
-    }
 
 }
 

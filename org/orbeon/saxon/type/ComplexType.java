@@ -41,7 +41,7 @@ public interface ComplexType extends SchemaType {
      * Otherwise, returns null.
      */
 
-    public SimpleType getSimpleContentType() throws ValidationException;
+    public SimpleType getSimpleContentType();
 
     /**
 	 * Test whether this complex type is derived by restriction
@@ -96,8 +96,8 @@ public interface ComplexType extends SchemaType {
      * Find an element particle within this complex type definition having a given element name
      * (identified by fingerprint), and return the cardinality associated with that element particle,
      * that is, the number of times the element can occur within this complex type. The value is one of
-     * {@link net.sf.saxon.expr.StaticProperty.EXACTLY_ONE}, {@link net.sf.saxon.expr.StaticProperty.ALLOWS_ZERO_OR_ONE},
-     * {@link net.sf.saxon.expr.StaticProperty.ALLOWS_ZERO_OR_MORE}, {@link net.sf.saxon.expr.StaticProperty.ALLOWS_ONE_OR_MORE},
+     * {@link net.sf.saxon.expr.StaticProperty#EXACTLY_ONE}, {@link net.sf.saxon.expr.StaticProperty#ALLOWS_ZERO_OR_ONE},
+     * {@link net.sf.saxon.expr.StaticProperty#ALLOWS_ZERO_OR_MORE}, {@link net.sf.saxon.expr.StaticProperty#ALLOWS_ONE_OR_MORE},
      * If there is no such particle, return zero.
      * @param fingerprint Identifies the name of the child element within this content model
      */

@@ -1,12 +1,11 @@
 package net.sf.saxon.expr;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.om.*;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AnyItemType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.value.SingletonNode;
 
 import java.io.PrintStream;
 
@@ -61,7 +60,9 @@ public class VariableReference extends ComputedExpression implements BindingRefe
         constantValue = value;
             // Although the variable may be a context document node-set at the point it is defined,
             // the context at the point of use may be different, so this property cannot be transferred.
-        staticProperties = (properties &~StaticProperty.CONTEXT_DOCUMENT_NODESET) | type.getCardinality();
+        staticProperties = (properties &~StaticProperty.CONTEXT_DOCUMENT_NODESET) |
+                type.getCardinality() |
+                getDependencies();
     }
 
     /**
@@ -149,7 +150,11 @@ public class VariableReference extends ComputedExpression implements BindingRefe
 
 
     public int getIntrinsicDependencies() {
-        return 0;
+        if (binding == null || !binding.isGlobal()) {
+            return StaticProperty.DEPENDS_ON_LOCAL_VARIABLES;
+        } else {
+            return 0;
+        }
     }
 
     /**
@@ -186,21 +191,27 @@ public class VariableReference extends ComputedExpression implements BindingRefe
     */
 
     public SequenceIterator iterate(XPathContext c) throws XPathException {
-        Value actual = evaluateVariable(c);
-        return actual.iterate(c);
+        ValueRepresentation actual = evaluateVariable(c);
+        return Value.getIterator(actual);
     }
 
     public Item evaluateItem(XPathContext c) throws XPathException {
-        Value actual = evaluateVariable(c);
-        return Value.asItem(actual, c);
+        ValueRepresentation actual = evaluateVariable(c);
+        if (actual instanceof Item) {
+            return (Item)actual;
+        }
+        return Value.asItem((Value)actual, c);
     }
 
     public void process(XPathContext c) throws XPathException {
-        Value actual = evaluateVariable(c);
-        actual.process(c);
+        ValueRepresentation actual = evaluateVariable(c);
+        if (actual instanceof NodeInfo) {
+            actual = new SingletonNode((NodeInfo)actual);
+        }
+        ((Value)actual).process(c);
     }
 
-    public Value evaluateVariable(XPathContext c) throws XPathException {
+    public ValueRepresentation evaluateVariable(XPathContext c) throws XPathException {
 
         if (binding==null) {
             // System.err.println("No binding for " + this);

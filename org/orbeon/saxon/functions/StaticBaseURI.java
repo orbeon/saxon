@@ -1,8 +1,8 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.value.AnyURIValue;
 
 /**
 * This class supports the static-base-uri() function in XPath 2.0
@@ -18,7 +18,7 @@ public class StaticBaseURI extends CompileTimeFunction {
     public Expression preEvaluate(StaticContext env) throws XPathException {
         String baseURI = env.getBaseURI();
         if (baseURI == null) return null;
-        return new StringValue(baseURI);
+        return new AnyURIValue(baseURI);
     }
 
 }

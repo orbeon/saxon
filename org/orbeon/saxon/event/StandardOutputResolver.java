@@ -1,7 +1,7 @@
 package net.sf.saxon.event;
 import net.sf.saxon.OutputURIResolver;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.Result;
 import javax.xml.transform.stream.StreamResult;

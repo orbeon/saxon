@@ -1,12 +1,10 @@
 package net.sf.saxon.value;
 
-import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.om.FastStringBuffer;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.type.*;
 
 import java.io.ByteArrayOutputStream;
 
@@ -49,28 +47,26 @@ public class Base64BinaryValue extends AtomicValue {
     /**
      * Convert to target data type
      * @param requiredType an integer identifying the required atomic type
-     * @return an AtomicValue, a value of the required type
-     * @throws XPathException if the conversion is not possible
+     * @return an AtomicValue, a value of the required type; or an ErrorValue
      */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
-        switch (requiredType) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+        switch (requiredType.getPrimitiveType()) {
         case Type.BASE64_BINARY:
         case Type.ATOMIC:
         case Type.ITEM:
             return this;
         case Type.STRING:
-            return new StringValue(getStringValue());
+            return new StringValue(getStringValueCS());
         case Type.UNTYPED_ATOMIC:
-            return new UntypedAtomicValue(getStringValue());
+            return new UntypedAtomicValue(getStringValueCS());
         case Type.HEX_BINARY:
             return new HexBinaryValue(binaryValue);
         default:
-            DynamicError err = new DynamicError("Cannot convert base64Binary to " +
-                                     StandardNames.getDisplayName(requiredType));
-            err.setXPathContext(context);
+            ValidationException err = new ValidationException("Cannot convert base64Binary to " +
+                                     requiredType.getDisplayName());
             err.setErrorCode("FORG0001");
-            throw err;
+            return new ErrorValue(err);
         }
     }
 
@@ -106,7 +102,7 @@ public class Base64BinaryValue extends AtomicValue {
      * Convert to Java object (for passing to external functions)
      */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
+    public Object convertToJava(Class target, XPathContext context) throws XPathException {
 
         if (target.isAssignableFrom(Base64BinaryValue.class)) {
             return this;
@@ -115,7 +111,7 @@ public class Base64BinaryValue extends AtomicValue {
         } else if (target == Object.class) {
             return getStringValue();
         } else {
-            Object o = super.convertToJava(target, config, context);
+            Object o = super.convertToJava(target, context);
             if (o == null) {
                 throw new DynamicError("Conversion of base64Binary to " + target.getName() +
                         " is not supported");
@@ -135,7 +131,7 @@ public class Base64BinaryValue extends AtomicValue {
             v2 = (Base64BinaryValue)other;
         } else if (other instanceof AtomicValue) {
             try {
-                v2 = (Base64BinaryValue)((AtomicValue)other).convert(Type.BASE64_BINARY, null);
+                v2 = (Base64BinaryValue)((AtomicValue)other).convert(Type.BASE64_BINARY);
             } catch (XPathException err) {
                 return false;
             }
@@ -199,7 +195,7 @@ public class Base64BinaryValue extends AtomicValue {
      */
     private static final class Base64Encoder {
 
-        private StringBuffer out = new StringBuffer(256);
+        private FastStringBuffer out = new FastStringBuffer(256);
 
         private int buf = 0;                     // a 24-bit quantity
 
@@ -211,7 +207,7 @@ public class Base64BinaryValue extends AtomicValue {
 
         //static private final byte crlf[] = "\r\n".getBytes();
 
-        static private final char map[] = {
+        private static final char map[] = {
             'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', // 0-7
             'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', // 8-15
             'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', // 16-23
@@ -354,11 +350,11 @@ public class Base64BinaryValue extends AtomicValue {
 
         private int token_length = 0;            // input buffer length
 
-        static private final byte NUL = 127;     // must be out of range 0-64
+        private static final byte NUL = 127;     // must be out of range 0-64
 
-        static private final byte EOF = 126;     // must be out of range 0-64
+        private static final byte EOF = 126;     // must be out of range 0-64
 
-        static private final byte map[] = {
+        private static final byte[] map = {
             NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, //   000-007
             NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, //   010-017
             NUL, NUL, NUL, NUL, NUL, NUL, NUL, NUL, //   020-027

@@ -14,7 +14,7 @@ public class XSLTTraceListener extends AbstractTraceListener {
      */
 
     protected String getOpeningAttributes() {
-        return "xmlns:xsl=\"" + NamespaceConstant.XSLT + "\"";
+        return "xmlns:xsl=\"" + NamespaceConstant.XSLT + '\"';
     }
 
     /**
@@ -31,6 +31,8 @@ public class XSLTTraceListener extends AbstractTraceListener {
                 return "LRE";
             case Location.LITERAL_RESULT_ATTRIBUTE:
                 return "ATTR";
+            case Location.LET_EXPRESSION:
+                return "xsl:variable";
             case Location.EXTENSION_INSTRUCTION:
                 return "extension-instruction";
             case Location.TRACE_CALL:

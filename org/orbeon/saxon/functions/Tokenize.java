@@ -2,16 +2,15 @@ package net.sf.saxon.functions;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.EmptyIterator;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.RegexTranslator;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.StringValue;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -41,8 +40,10 @@ public class Tokenize extends SystemFunction  {
             regexp = Matches.tryToCompile(argument, 1, 2);
             // check that it's not a pattern that matches ""
             if (regexp != null && regexp.matcher("").matches()) {
-                throw new StaticError(
+                StaticError err = new StaticError(
                         "The regular expression must not be one that matches a zero-length string");
+                err.setErrorCode("FORX0003");
+                throw err;
             }
         }
 
@@ -55,21 +56,23 @@ public class Tokenize extends SystemFunction  {
 
     public SequenceIterator iterate(XPathContext c) throws XPathException {
         AtomicValue sv = (AtomicValue)argument[0].evaluateItem(c);
-        if (sv==null) return EmptyIterator.getInstance();
-        String input = sv.getStringValue();
+        if (sv==null) {
+            sv = StringValue.EMPTY_STRING;
+        };
+        CharSequence input = sv.getStringValueCS();
 
         Pattern re = regexp;
         if (re == null) {
 
             sv = (AtomicValue)argument[1].evaluateItem(c);
-            String pattern = sv.getStringValue();
+            CharSequence pattern = sv.getStringValueCS();
 
-            String flags;
+            CharSequence flags;
             if (argument.length==2) {
                 flags = "";
             } else {
                 sv = (AtomicValue)argument[2].evaluateItem(c);
-                flags = sv.getStringValue();
+                flags = sv.getStringValueCS();
             }
 
             try {
@@ -98,10 +101,10 @@ public class Tokenize extends SystemFunction  {
 
     public static class TokenIterator implements SequenceIterator {
 
-        private String input;
+        private CharSequence input;
         private Pattern pattern;
         private Matcher matcher;
-        private String current;
+        private CharSequence current;
         private int position = 0;
         private int prevEnd = 0;
 
@@ -110,7 +113,7 @@ public class Tokenize extends SystemFunction  {
         * Construct a TokenIterator.
         */
 
-        public TokenIterator (String input, Pattern pattern) {
+        public TokenIterator (CharSequence input, Pattern pattern) {
             this.input = input;
             this.pattern = pattern;
             matcher = pattern.matcher(input);
@@ -123,10 +126,10 @@ public class Tokenize extends SystemFunction  {
             }
 
             if (matcher.find()) {
-                current = input.substring(prevEnd, matcher.start());
+                current = input.subSequence(prevEnd, matcher.start());
                 prevEnd = matcher.end();
             } else {
-                current = input.substring(prevEnd);
+                current = input.subSequence(prevEnd, input.length());
                 prevEnd = -1;
             }
             position++;

@@ -1,11 +1,14 @@
 package net.sf.saxon.xpath;
-import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.om.ValueRepresentation;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.value.Value;
+import net.sf.saxon.Configuration;
 
 import javax.xml.xpath.XPathFunction;
 import javax.xml.xpath.XPathFunctionException;
@@ -67,7 +70,7 @@ public class XPathFunctionCall extends FunctionCall {
     */
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
-        Value[] argValues = new Value[argument.length];
+        ValueRepresentation[] argValues = new ValueRepresentation[argument.length];
         for (int i=0; i<argValues.length; i++) {
             argValues[i] = ExpressionTool.lazyEvaluate(argument[i], context, true);
         }
@@ -82,15 +85,15 @@ public class XPathFunctionCall extends FunctionCall {
      * @return  The value returned by the extension function
      */
 
-    public SequenceIterator call(Value[] argValues, XPathContext context) throws XPathException {
-        Configuration config = context.getController().getConfiguration();
+    public SequenceIterator call(ValueRepresentation[] argValues, XPathContext context) throws XPathException {
         List convertedArgs = new ArrayList(argValues.length);
         for (int i=0; i<argValues.length; i++) {
-            convertedArgs.add(argValues[i].convertToJava(Object.class, config, context));
+            convertedArgs.add(Value.asValue(argValues[i]).convertToJava(Object.class, context));
         }
         try {
             Object result = function.evaluate(convertedArgs);
-            return Value.convertJavaObjectToXPath(result, SequenceType.ANY_SEQUENCE, context).iterate(context);
+            Configuration config = context.getController().getConfiguration();
+            return Value.convertJavaObjectToXPath(result, SequenceType.ANY_SEQUENCE, config).iterate(context);
         } catch (XPathFunctionException e) {
             throw new DynamicError(e);
         }

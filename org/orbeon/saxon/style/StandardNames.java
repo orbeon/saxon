@@ -132,90 +132,9 @@ public abstract class StandardNames {
     public static final int XML_BASE = XML + 1;
     public static final int XML_SPACE = XML + 2;
     public static final int XML_LANG = XML + 3;
+    public static final int XML_ID = XML + 4;
 
-//    public static final int ARCHIVE = DFLT + 0;
-//    public static final int AS = DFLT + 1;
-//    public static final int CASE_ORDER = DFLT + 2;
-//    public static final int CDATA_SECTION_ELEMENTS = DFLT + 3;
-//    public static final int CHARACTER = DFLT + 4;
-//    public static final int CLASS = DFLT + 5;
-//    public static final int COLLATION = DFLT + 6;
-//    public static final int COPY_NAMESPACES = DFLT + 7;
-//    public static final int COUNT = DFLT + 10;
-//    public static final int DATA_TYPE = DFLT + 11;
-//    public static final int DECIMAL_SEPARATOR = DFLT + 12;
-//    public static final int DECOMPOSITION = DFLT + 13;
-//    public static final int DEFAULT = DFLT + 14;
-//    public static final int DEFAULT_VALIDATION = DFLT + 15;
-//    public static final int DIGIT = DFLT + 16;
-//    public static final int DISABLE_OUTPUT_ESCAPING = DFLT + 17;
-//    public static final int DOCTYPE_PUBLIC = DFLT + 18;
-//    public static final int DOCTYPE_SYSTEM = DFLT + 20;
-//    public static final int ELEMENTS = DFLT + 21;
-//    public static final int ESCAPE_URI_ATTRIBUTES = DFLT + 22;
-//    public static final int ENCODING = DFLT + 23;
-//    public static final int EXCLUDE_RESULT_PREFIXES = DFLT + 24;
-//    public static final int EXTENSION_ELEMENT_PREFIXES = DFLT + 25;
-//    public static final int FLAGS = DFLT + 26;
-//    public static final int FORMAT = DFLT + 27;
-//    public static final int FROM = DFLT + 30;
-//    public static final int GROUP_ADJACENT = DFLT + 31;
-//    public static final int GROUP_BY = DFLT + 32;
-//    public static final int GROUP_ENDING_WITH = DFLT + 33;
-//    public static final int GROUP_STARTING_WITH = DFLT + 34;
-//    public static final int GROUPING_SEPARATOR = DFLT + 35;
-//    public static final int GROUPING_SIZE = DFLT + 36;
-//    public static final int HREF = DFLT + 37;
-//    public static final int ID = DFLT + 40;
-//    public static final int IMPLEMENTS_PREFIX = DFLT + 41;
-//    public static final int INCLUDE_CONTENT_TYPE = DFLT + 42;
-//    public static final int INDENT = DFLT + 43;
-//    public static final int INFINITY = DFLT + 44;
-//    public static final int LANG = DFLT + 45;
-//    public static final int LANGUAGE = DFLT + 46;
-//    public static final int LETTER_VALUE = DFLT + 47;
-//    public static final int LEVEL = DFLT + 50;
-//    public static final int MATCH = DFLT + 51;
-//    public static final int MEDIA_TYPE = DFLT + 52;
-//    public static final int METHOD = DFLT + 53;
-//    public static final int MINUS_SIGN = DFLT + 54;
-//    public static final int MODE = DFLT + 55;
-//    public static final int NAME = DFLT + 56;
-//    public static final int NAMESPACE = DFLT + 57;
-//    public static final int NAN = DFLT + 60;
-//    public static final int OMIT_XML_DECLARATION = DFLT + 61;
-//    public static final int ORDER = DFLT + 62;
-//    public static final int ORDINAL = DFLT + 63;
-//    public static final int OVERRIDE = DFLT + 64;
-//    public static final int PATTERN_SEPARATOR = DFLT + 65;
-//    public static final int PERCENT = DFLT + 66;
-//    public static final int PER_MILLE = DFLT + 67;
-//    public static final int PRIORITY = DFLT + 70;
-//    public static final int REGEX = DFLT + 71;
-//    public static final int REQUIRED = DFLT + 72;
-//    public static final int RESULT_PREFIX = DFLT + 73;
-//    public static final int RULES = DFLT + 74;
-//    public static final int SCHEMA_LOCATION = DFLT + 75;
-//    public static final int SELECT = DFLT + 76;
-//    public static final int SEPARATOR = DFLT + 77;
-//    public static final int SRC = DFLT + 80;
-//    public static final int STANDALONE = DFLT + 81;
-//    public static final int STRENGTH = DFLT + 82;
-//    public static final int STRING = DFLT + 83;
-//    public static final int STYLESHEET_PREFIX = DFLT + 84;
-//    public static final int TERMINATE = DFLT + 85;
-//    public static final int TEST = DFLT + 86;
-//    public static final int TUNNEL = DFLT + 87;
-//    public static final int TYPE = DFLT + 90;
-//    public static final int UNDECLARE_NAMESPACES = DFLT + 91;
-//    public static final int USE = DFLT + 92;
-//    public static final int USE_ATTRIBUTE_SETS = DFLT + 93;
-//    public static final int USE_CHARACTER_MAPS = DFLT + 94;
-//    public static final int VALIDATION = DFLT + 95;
-//    public static final int VALUE = DFLT + 96;
-//    public static final int VERSION = DFLT + 97;
-//    public static final int XPATH_DEFAULT_NAMESPACE = DFLT + 100;
-//    public static final int ZERO_DIGIT = DFLT + 101;
+
 
     public static final String ARCHIVE = "archive";
     public static final String AS = "as";
@@ -258,6 +177,7 @@ public abstract class StandardNames {
     public static final String INDENT = "indent";
     public static final String INFINITY = "infinity";
     public static final String INHERIT_NAMESPACES = "inherit-namespaces";
+    public static final String INPUT_TYPE_ANNOTATIONS = "input-type-annotations";    
     public static final String LANG = "lang";
     public static final String LANGUAGE = "language";
     public static final String LETTER_VALUE = "letter-value";
@@ -295,7 +215,7 @@ public abstract class StandardNames {
     public static final String TEST = "test";
     public static final String TUNNEL = "tunnel";
     public static final String TYPE = "type";
-    public static final String UNDECLARE_NAMESPACES = "undeclare-namespaces";
+    public static final String UNDECLARE_PREFIXES = "undeclare-prefixes";
     public static final String USE = "use";
     public static final String USE_ATTRIBUTE_SETS = "use-attribute-sets";
     public static final String USE_CHARACTER_MAPS = "use-character-maps";
@@ -438,11 +358,6 @@ public abstract class StandardNames {
         lookup.put('{' + NamespaceConstant.XML + '}' + localName, new Integer(constant));
     }
 
-//    private static void bindXSLTAttributeName(int constant, String localName) {
-//        localNames[constant] = localName;
-//        lookup.put("{}" + localName, new Integer(constant));
-//    }
-
     private static void bindXSName(int constant, String localName) {
         localNames[constant] = localName;
         lookup.put('{' + NamespaceConstant.SCHEMA + '}' + localName, new Integer(constant));
@@ -533,6 +448,7 @@ public abstract class StandardNames {
         bindXMLName(XML_BASE, "base");
         bindXMLName(XML_SPACE, "space");
         bindXMLName(XML_LANG, "lang");
+        bindXMLName(XML_ID, "id");
 
         bindXSName(XS_STRING, "string");
         bindXSName(XS_BOOLEAN, "boolean");
@@ -712,6 +628,9 @@ public abstract class StandardNames {
     public static String getDisplayName(int fingerprint) {
         if (fingerprint==-1) {
             return "(anonymous type)";
+        }
+        if (fingerprint > 1023) {
+            return "(" + fingerprint + ')'; 
         }
         if ((fingerprint>>7) == DFLT) {
             return getLocalName(fingerprint);

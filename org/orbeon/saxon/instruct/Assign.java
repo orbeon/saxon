@@ -3,11 +3,12 @@ import net.sf.saxon.expr.Binding;
 import net.sf.saxon.expr.BindingReference;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.Closure;
 import net.sf.saxon.value.SequenceExtent;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.om.ValueRepresentation;
 
 /**
 * saxon:assign element in stylesheet.
@@ -44,9 +45,9 @@ public class Assign extends GeneralVariable implements BindingReference {
         if (binding==null) {
             throw new IllegalStateException("saxon:assign binding has not been fixed up");
         }
-        Value value = getSelectValue(context);
+        ValueRepresentation value = getSelectValue(context);
         if (value instanceof Closure) {
-            value = new SequenceExtent(value.iterate(null));
+            value = SequenceExtent.makeSequenceExtent(((Closure)value).iterate(null));
         }
         if (binding instanceof GeneralVariable) {
             if (((GeneralVariable)binding).isGlobal()) {
@@ -64,7 +65,7 @@ public class Assign extends GeneralVariable implements BindingReference {
      * Evaluate the variable (method exists only to satisfy the interface)
      */
 
-    public Value evaluateVariable(XPathContext context) throws XPathException {
+    public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException {
         throw new UnsupportedOperationException();
     }
 }

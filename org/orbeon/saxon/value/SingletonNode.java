@@ -1,12 +1,11 @@
 package net.sf.saxon.value;
-import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.AnyNodeTest;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -46,7 +45,7 @@ public class SingletonNode extends Value {
 
     public void process(XPathContext context) throws XPathException {
         if (node != null) {
-            node.copy(context.getReceiver(), NodeInfo.ALL_NAMESPACES, true, 0);
+            context.getReceiver().append(node, 0, NodeInfo.ALL_NAMESPACES);
         }
     }
 
@@ -73,6 +72,29 @@ public class SingletonNode extends Value {
     }
 
     /**
+     * Get the length of the sequence
+     */
+
+    public int getLength() throws XPathException {
+        return (node==null ? 0 : 1);
+    }
+
+    /**
+     * Get the n'th item in the sequence (starting from 0). This is defined for all
+     * SequenceValues, but its real benefits come for a SequenceValue stored extensionally
+     * (or for a MemoClosure, once all the values have been read)
+     */
+
+    public Item itemAt(int n) throws XPathException {
+        if (n==0 && node!=null) {
+            return node;
+        } else {
+            return null;
+        }
+
+    }
+
+    /**
     * Get the node that forms the node-set. Return null if there is none.
     */
 
@@ -90,39 +112,6 @@ public class SingletonNode extends Value {
         return StaticProperty.ORDERED_NODESET |
                 StaticProperty.NON_CREATIVE;
     }
-
-    /**
-    * Set a flag to indicate whether the nodes are sorted. Used when the creator of the
-    * node-set knows that they are already in document order.
-    * @param isSorted true if the caller wishes to assert that the nodes are in document order
-    * and do not need to be further sorted
-    */
-
-//    public void setSorted(boolean isSorted) {}
-
-    /**
-    * Test whether the value is known to be sorted
-    * @return true if the value is known to be sorted in document order, false if it is not
-    * known whether it is sorted.
-    */
-
-//    public boolean isSorted() {
-//        return true;
-//    }
-
-    /**
-    * Convert to string value
-    * @return the value of the first node in the node-set if there
-    * is one, otherwise an empty string
-    */
-
-//    public String getStringValue() {
-//        if (node==null) {
-//            return "";
-//        } else {
-//            return node.getStringValue();
-//        }
-//    }
 
     /**
     * Return an enumeration of this nodeset value.
@@ -196,8 +185,17 @@ public class SingletonNode extends Value {
     * Convert to Java object (for passing to external functions)
     */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
-        return new SequenceExtent(iterate(null)).convertToJava(target, config, context);
+    public Object convertToJava(Class target, XPathContext context) throws XPathException {
+        if (node == null) {
+            return null;
+        }
+        if (target.isAssignableFrom(node.getClass())) {
+            return node;
+        }
+        if (target == String.class) {
+            return node.getStringValue();
+        }
+        return super.convertToJava(target, context);
     }
 
 }

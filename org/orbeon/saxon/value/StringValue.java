@@ -1,17 +1,15 @@
 package net.sf.saxon.value;
 
-import net.sf.saxon.Configuration;
 import net.sf.saxon.Err;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.type.AtomicType;
-import net.sf.saxon.type.BuiltInSchemaFactory;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.type.BuiltInAtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.type.ValidationException;
 
 
 /**
@@ -57,33 +55,37 @@ public class StringValue extends AtomicValue {
     }
 
     /**
-     * Convert to target data type
-     * @param requiredType an integer identifying the required atomic type
-     * @return an AtomicValue, a value of the required type
-     * @throws XPathException if the conversion is not possible
+     * Get the value of the item as a CharSequence. This is in some cases more efficient than
+     * the version of the method that returns a String.
      */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
+    public final CharSequence getStringValueCS() {
+        return value;
+    }
+
+    /**
+     * Convert a value to another primitive data type, with control over how validation is
+     * handled.
+     * @param requiredType type code of the required atomic type
+     * @param validate true if validation is required. If set to false, the caller guarantees that
+     * the value is valid for the target data type, and that further validation is therefore not required.
+     * Note that a validation failure may be reported even if validation was not requested.
+     * @return the result of the conversion, if successful. If unsuccessful, the value returned
+     * will be an ErrorValue. The caller must check for this condition. No exception is thrown, instead
+     * the exception will be encapsulated within the ErrorValue.
+     */
+
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
 
         try {
-            switch (requiredType) {
+            switch (requiredType.getFingerprint()) {
                 case Type.BOOLEAN: {
-                    String val = trimWhitespace(value).toString();
-                    if ("0".equals(val) || "false".equals(val)) {
-                        return BooleanValue.FALSE;
-                    } else if ("1".equals(val) || "true".equals(val)) {
-                        return BooleanValue.TRUE;
-                    } else {
-                        DynamicError err = new DynamicError(
-                                "The string " + Err.wrap(val, Err.VALUE) + " cannot be cast to a boolean");
-                        err.setXPathContext(context);
-                        err.setErrorCode("FORG0001");
-                        throw err;
-                    }
+                    return BooleanValue.fromString(value);
                 }
                 case Type.NUMBER:
                 case Type.DOUBLE:
                     return new DoubleValue(value);
+
                 case Type.INTEGER:
                     return IntegerValue.stringToInteger(value);
 
@@ -99,18 +101,22 @@ public class StringValue extends AtomicValue {
                 case Type.UNSIGNED_INT:
                 case Type.UNSIGNED_SHORT:
                 case Type.UNSIGNED_BYTE:
-                    NumericValue iv = IntegerValue.stringToInteger(value);
-                    AtomicType subtype = (AtomicType) BuiltInSchemaFactory.getSchemaType(requiredType);
+                    AtomicValue iv = IntegerValue.stringToInteger(value);
+                    if (iv instanceof ErrorValue) {
+                        // indicates that the conversion failed
+                        return iv;
+                    }
                     if (iv instanceof IntegerValue) {
-                        ((IntegerValue)iv).setSubType(subtype);
-                        return iv;
+                        ValidationException err = ((IntegerValue)iv).convertToSubtype(requiredType, validate);
+                        if (err != null) {
+                            return new ErrorValue(err);
+                        }
                     } else {
-                        ((BigIntegerValue)iv).setSubType(subtype);
+                        ((BigIntegerValue)iv).setSubType(requiredType);
                         return iv;
-                        //return subtype.makeDerivedValue(iv, value.toString(), true);
                     }
                 case Type.DECIMAL:
-                    return new DecimalValue(value);
+                    return DecimalValue.makeDecimalValue(value, validate);
                 case Type.FLOAT:
                     return new FloatValue(value);
                 case Type.DATE:
@@ -151,7 +157,7 @@ public class StringValue extends AtomicValue {
                 case Type.IDREF:
                 case Type.ENTITY:
                 case Type.NMTOKEN:
-                    return new RestrictedStringValue(value, requiredType);
+                    return RestrictedStringValue.makeRestrictedString(value, requiredType.getFingerprint(), validate);
                 case Type.ANY_URI:
                     return new AnyURIValue(value);
                 case Type.HEX_BINARY:
@@ -159,12 +165,19 @@ public class StringValue extends AtomicValue {
                 case Type.BASE64_BINARY:
                     return new Base64BinaryValue(value);
                 default:
-                    throw new DynamicError("Cannot convert string to " + StandardNames.getDisplayName(requiredType));
+                    throw new ValidationException("Cannot convert string to type " +
+                            Err.wrap(requiredType.getDisplayName()));
             }
-        } catch (DynamicError err) {
-            err.setXPathContext(context);
-            err.setErrorCode("FORG0001");
-            throw err;
+        } catch (ValidationException err) {
+            if (err.getErrorCodeLocalPart() == null) {
+                err.setErrorCode("FORG0001");
+            }
+            return new ErrorValue(err);
+        } catch (XPathException err) {
+            if (err.getErrorCodeLocalPart() == null) {
+                err.setErrorCode("FORG0001");
+            }
+            return new ErrorValue(new ValidationException(err));
         }
     }
 
@@ -182,10 +195,10 @@ public class StringValue extends AtomicValue {
      * as a Unicode surrogate pair counts as a single character
      */
 
-    public int getLength() {
+    public int getStringLength() {
         // memo function; only compute it the first time
         if (length == -1) {
-            length = getLength(value);
+            length = getStringLength(value);
         }
         return length;
     }
@@ -196,7 +209,7 @@ public class StringValue extends AtomicValue {
      * @param s The string whose length is required
      */
 
-    public static int getLength(CharSequence s) {
+    public static int getStringLength(CharSequence s) {
         int n = 0;
         for (int i = 0; i < s.length(); i++) {
             int c = (int) s.charAt(i);
@@ -218,7 +231,7 @@ public class StringValue extends AtomicValue {
      */
 
     public static int[] expand(CharSequence s) {
-        int[] array = new int[getLength(s)];
+        int[] array = new int[getStringLength(s)];
         int o = 0;
         for (int i = 0; i < s.length(); i++) {
             int charval;
@@ -236,11 +249,16 @@ public class StringValue extends AtomicValue {
     }
 
     /**
-     * Determine if two StringValues are equal
+     * Determine if two StringValues are equal, according to XML Schema rules. (This method
+     * is not used for XPath comparisons, which are always under the control of a collation.)
      * @throws ClassCastException if the values are not comparable
      */
 
     public boolean equals(Object other) {
+        // For XML Schema purposes a String is never equal to a URI
+        if (other instanceof AnyURIValue) {
+            throw new ClassCastException("Cannot compare string to anyURI");
+        }
         // Force a ClassCastException if the other value isn't a string or derived from string
         StringValue otherVal = (StringValue) ((AtomicValue) other).getPrimitiveValue();
         // cannot use equals() directly on two unlike CharSequences
@@ -251,7 +269,7 @@ public class StringValue extends AtomicValue {
         return getStringValue().hashCode();
     }
 
-    public boolean effectiveBooleanValue(XPathContext context) {
+    public boolean effectiveBooleanValue(XPathContext context) throws XPathException {
         return value.length() > 0;
     }
 
@@ -260,7 +278,7 @@ public class StringValue extends AtomicValue {
      * Convert to Java object (for passing to external functions)
      */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
+    public Object convertToJava(Class target, XPathContext context) throws XPathException {
         if (target == Object.class) {
             return value;
         } else if (target.isAssignableFrom(StringValue.class)) {
@@ -268,46 +286,46 @@ public class StringValue extends AtomicValue {
         } else if (target == String.class || target == CharSequence.class) {
             return getStringValue();
         } else if (target == boolean.class) {
-            BooleanValue bval = (BooleanValue) convert(Type.BOOLEAN, context);
+            BooleanValue bval = (BooleanValue) convert(Type.BOOLEAN);
             return Boolean.valueOf(bval.getBooleanValue());
         } else if (target == Boolean.class) {
-            BooleanValue bval = (BooleanValue) convert(Type.BOOLEAN, context);
+            BooleanValue bval = (BooleanValue) convert(Type.BOOLEAN);
             return Boolean.valueOf(bval.getBooleanValue());
         } else if (target == double.class) {
-            DoubleValue dval = (DoubleValue) convert(Type.DOUBLE, context);
+            DoubleValue dval = (DoubleValue) convert(Type.DOUBLE);
             return new Double(dval.getDoubleValue());
         } else if (target == Double.class) {
-            DoubleValue dval = (DoubleValue) convert(Type.DOUBLE, context);
+            DoubleValue dval = (DoubleValue) convert(Type.DOUBLE);
             return new Double(dval.getDoubleValue());
         } else if (target == float.class) {
-            DoubleValue dval = (DoubleValue) convert(Type.DOUBLE, context);
+            DoubleValue dval = (DoubleValue) convert(Type.DOUBLE);
             return new Float(dval.getDoubleValue());
         } else if (target == Float.class) {
-            DoubleValue dval = (DoubleValue) convert(Type.DOUBLE, context);
+            DoubleValue dval = (DoubleValue) convert(Type.DOUBLE);
             return new Float(dval.getDoubleValue());
         } else if (target == long.class) {
-            IntegerValue dval = (IntegerValue) convert(Type.INTEGER, context);
+            IntegerValue dval = (IntegerValue) convert(Type.INTEGER);
             return new Long(dval.longValue());
         } else if (target == Long.class) {
-            IntegerValue dval = (IntegerValue) convert(Type.INTEGER, context);
+            IntegerValue dval = (IntegerValue) convert(Type.INTEGER);
             return new Long(dval.longValue());
         } else if (target == int.class) {
-            IntegerValue dval = (IntegerValue) convert(Type.INTEGER, context);
+            IntegerValue dval = (IntegerValue) convert(Type.INTEGER);
             return new Integer((int) dval.longValue());
         } else if (target == Integer.class) {
-            IntegerValue dval = (IntegerValue) convert(Type.INTEGER, context);
+            IntegerValue dval = (IntegerValue) convert(Type.INTEGER);
             return new Integer((int) dval.longValue());
         } else if (target == short.class) {
-            IntegerValue dval = (IntegerValue) convert(Type.INTEGER, context);
+            IntegerValue dval = (IntegerValue) convert(Type.INTEGER);
             return new Short((short) dval.longValue());
         } else if (target == Short.class) {
-            IntegerValue dval = (IntegerValue) convert(Type.INTEGER, context);
+            IntegerValue dval = (IntegerValue) convert(Type.INTEGER);
             return new Short((short) dval.longValue());
         } else if (target == byte.class) {
-            IntegerValue dval = (IntegerValue) convert(Type.INTEGER, context);
+            IntegerValue dval = (IntegerValue) convert(Type.INTEGER);
             return new Byte((byte) dval.longValue());
         } else if (target == Byte.class) {
-            IntegerValue dval = (IntegerValue) convert(Type.INTEGER, context);
+            IntegerValue dval = (IntegerValue) convert(Type.INTEGER);
             return new Byte((byte) dval.longValue());
         } else if (target == char.class || target == Character.class) {
             if (value.length() == 1) {
@@ -319,7 +337,7 @@ public class StringValue extends AtomicValue {
                 throw de;
             }
         } else {
-            Object o = super.convertToJava(target, config, context);
+            Object o = super.convertToJava(target, context);
             if (o == null) {
                 DynamicError err = new DynamicError(
                         "Conversion of string to " + target.getName() + " is not supported");

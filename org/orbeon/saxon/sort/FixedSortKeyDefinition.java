@@ -4,10 +4,10 @@ import net.sf.saxon.expr.CardinalityChecker;
 import net.sf.saxon.expr.RoleLocator;
 import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.text.Collator;
 import java.util.Comparator;
@@ -22,6 +22,8 @@ import java.util.Locale;
 
 
 public class FixedSortKeyDefinition extends SortKeyDefinition {
+
+    public FixedSortKeyDefinition() {}
 
     private transient Comparator comparer = null;
     // Note, the "collation" defines the collating sequence for the sort key. The

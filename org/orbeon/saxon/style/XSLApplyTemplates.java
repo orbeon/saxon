@@ -7,9 +7,9 @@ import net.sf.saxon.om.*;
 import net.sf.saxon.sort.SortExpression;
 import net.sf.saxon.sort.SortKeyDefinition;
 import net.sf.saxon.trans.Mode;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -99,7 +99,7 @@ public class XSLApplyTemplates extends StyleElement {
                 // usesParams = true;
             } else if (child.getNodeKind() == Type.TEXT) {
                     // with xml:space=preserve, white space nodes may still be there
-                if (!Navigator.isWhite(child.getStringValue())) {
+                if (!Navigator.isWhite(child.getStringValueCS())) {
                     compileError("No character data is allowed within xsl:apply-templates", "XT0010");
                 }
             } else {

@@ -1,7 +1,9 @@
 package net.sf.saxon.event;
-import net.sf.saxon.om.*;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.om.AttributeCollectionImpl;
+import net.sf.saxon.om.NamePool;
+import net.sf.saxon.om.NamespaceConstant;
+import net.sf.saxon.om.NamespaceResolver;
+import net.sf.saxon.trans.XPathException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -26,7 +28,7 @@ public class StartTagBuffer extends ProxyReceiver implements NamespaceResolver
 
     // Details of pending attribute events
 
-    AttributeCollection bufferedAttributes;
+    AttributeCollectionImpl bufferedAttributes;
 
     // We keep track of namespaces. The namespaces
     // vector holds a list of all namespaces currently declared (organised as pairs of entries,
@@ -43,7 +45,7 @@ public class StartTagBuffer extends ProxyReceiver implements NamespaceResolver
 
     public void setPipelineConfiguration(PipelineConfiguration config) {
         super.setPipelineConfiguration(config);
-        bufferedAttributes = new AttributeCollection(getNamePool());
+        bufferedAttributes = new AttributeCollectionImpl(getNamePool());
     }
 
     /**
@@ -197,28 +199,6 @@ public class StartTagBuffer extends ProxyReceiver implements NamespaceResolver
                 return null;
             }
             return pool.getURIFromURICode(uriCode);
-        }
-    }
-
-    /**
-     * Use this NamespaceContext to resolve a lexical QName
-     *
-     * @param qname      the lexical QName; this must have already been lexically validated
-     * @param useDefault true if the default namespace is to be used to resolve an unprefixed QName
-     * @param pool       the NamePool to be used
-     * @return the integer fingerprint that uniquely identifies this name
-     * @throws net.sf.saxon.xpath.DynamicError
-     *          if the string is not a valid lexical QName or
-     *          if the namespace prefix has not been declared
-     */
-
-    public int getFingerprint(String qname, boolean useDefault, NamePool pool) throws DynamicError {
-        try {
-            String[] parts = Name.getQNameParts(qname);
-            String uri = getURIForPrefix(parts[0], useDefault);
-            return pool.allocate(parts[0], uri, parts[1]);
-        } catch (QNameException e) {
-            throw new DynamicError(e.getMessage());
         }
     }
 

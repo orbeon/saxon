@@ -5,12 +5,12 @@ import net.sf.saxon.expr.CastExpression;
 import net.sf.saxon.expr.ErrorExpression;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.om.NamespaceConstant;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
 
 /**
  * The ConstructorFunctionLibrary represents the collection of constructor functions for atomic types. These
@@ -67,7 +67,7 @@ public class ConstructorFunctionLibrary implements FunctionLibrary {
      * be used as part of the binding algorithm.
      * @return An object representing the extension function to be called, if one is found;
      * null if no extension function was found matching the required name and arity.
-     * @throws net.sf.saxon.xpath.XPathException if a function is found with the required name and arity, but
+     * @throws net.sf.saxon.trans.XPathException if a function is found with the required name and arity, but
      * the implementation of the function cannot be loaded or used; or if an error occurs
      * while searching for the function; or if this function library "owns" the namespace containing
      * the function call, but no function was found. 

@@ -163,6 +163,20 @@ public class Numberer_de extends Numberer_en {
         "Sunday", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag",
     };
 
+    /**
+     * Get an ordinal suffix for a particular component of a date/time.
+     *
+     * @param component the component specifier from a format-dateTime picture, for
+     *                  example "M" for the month or "D" for the day.
+     * @return a string that is acceptable in the ordinal attribute of xsl:number
+     *         to achieve the required ordinal representation. For example, "-e" for the day component
+     *         in German, to have the day represented as "dritte August".
+     */
+
+    public String getOrdinalSuffixForDateTime(String component) {
+        return "-e";
+    }
+
 }
 
 //

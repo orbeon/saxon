@@ -7,10 +7,10 @@ import net.sf.saxon.expr.*;
 import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.trace.TraceListener;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathEvaluator;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.value.Value;
 
 import javax.xml.transform.ErrorListener;
 import javax.xml.transform.Result;
@@ -102,7 +102,7 @@ public class XQueryExpression implements Container {
             if (item == null) {
                 return list;
             }
-            list.add(XPathEvaluator.convert(item));
+            list.add(Value.convert(item));
         }
     }
 
@@ -123,7 +123,7 @@ public class XQueryExpression implements Container {
         if (item == null) {
             return null;
         }
-        return XPathEvaluator.convert(item);
+        return Value.convert(item);
     }
 
     /**
@@ -223,15 +223,15 @@ public class XQueryExpression implements Container {
 
         // Validate the serialization properties requested
 
-        if (outputProperties == null) {
-            outputProperties = new Properties();
-        } else {
+        Properties baseProperties = controller.getOutputProperties();
+        if (outputProperties != null) {
             Enumeration iter = outputProperties.propertyNames();
             while (iter.hasMoreElements()) {
                 String key = (String)iter.nextElement();
                 String value = outputProperties.getProperty(key);
                 try {
                     SaxonOutputKeys.checkOutputProperty(key, value);
+                    baseProperties.setProperty(key, value);
                 } catch (DynamicError dynamicError) {
                     try {
                         controller.getErrorListener().fatalError(dynamicError);
@@ -267,11 +267,11 @@ public class XQueryExpression implements Container {
         
         boolean mustClose = (result instanceof StreamResult &&
             ((StreamResult)result).getOutputStream() == null);
-        context.changeOutputDestination(outputProperties, result, true, Validation.PRESERVE, null);
+        context.changeOutputDestination(baseProperties, result, true, Validation.PRESERVE, null);
 
         // Run the query
         try {
-            // TODO: this saves building a temporary tree for queries that construct a single element,
+            // This saves building a temporary tree for queries that construct a single element,
             // it also makes line number information available to a query debugger. But it's rather ad-hoc.
             if (expression instanceof ElementCreator) {
                 expression.process(context);

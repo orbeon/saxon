@@ -1,13 +1,10 @@
 package net.sf.saxon.style;
 import net.sf.saxon.Loader;
 import net.sf.saxon.event.LocationProvider;
-import net.sf.saxon.om.AttributeCollection;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.om.*;
+import net.sf.saxon.trans.StaticError;
 import net.sf.saxon.tree.ElementImpl;
 import net.sf.saxon.tree.NodeFactory;
-import net.sf.saxon.xpath.StaticError;
 
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactoryConfigurationError;
@@ -46,7 +43,7 @@ public class StyleNodeFactory implements NodeFactory {
     public ElementImpl makeElementNode(
                         NodeInfo parent,
                         int nameCode,
-                        AttributeCollection attlist,
+                        AttributeCollectionImpl attlist,
                         int[] namespaces,
                         int namespacesUsed,
                         LocationProvider locator,

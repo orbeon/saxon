@@ -2,8 +2,8 @@ package net.sf.saxon.style;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Doctype;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.Axis;
+import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.value.EmptySequence;
 
 import javax.xml.transform.TransformerConfigurationException;

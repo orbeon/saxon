@@ -52,13 +52,13 @@ public interface SimpleType extends SchemaType {
      * @param nsResolver a namespace resolver used to resolve namespace prefixes if the type
      * is namespace sensitive. The value supplied may be null; in this case any namespace-sensitive
      * content will throw an UnsupportedOperationException.
-     * @throws ValidationException if the content is invalid
+     * @return null if validation succeeds; return a ValidationException describing the validation failure
+     * if validation fails. Note that the exception is returned rather than being thrown.
      * @throws UnsupportedOperationException if the type is namespace-sensitive and no namespace
      * resolver is supplied
      */
 
-    void validateContent(CharSequence value, NamespaceResolver nsResolver)
-            throws ValidationException;
+    ValidationException validateContent(CharSequence value, NamespaceResolver nsResolver);
 
     /**
      * Test whether this type is namespace sensitive, that is, if a namespace context is needed

@@ -8,17 +8,26 @@ package net.sf.saxon.om;
 
 public final class Validation {
 
-    public final static int INVALID = -1;
+    public static final int INVALID = -1;
 
-    public final static int STRICT = 1;
-    public final static int LAX = 2;
-    public final static int PRESERVE = 3;
-    public final static int STRIP = 4;
-    public final static int SKIP = 4;   // synonym provided for the XQuery API
+    public static final int STRICT = 1;
+    public static final int LAX = 2;
+    public static final int PRESERVE = 3;
+    public static final int STRIP = 4;
+    public static final int SKIP = 4;   // synonym provided for the XQuery API
 
-    public final static int VALIDATION_MODE_MASK = 0xff;
+    public static final int DEFAULT = 0;
 
-    public final static int VALIDATE_OUTPUT = 0x10000;
+    public static final int VALIDATION_MODE_MASK = 0xff;
+
+    public static final int VALIDATE_OUTPUT = 0x10000;
+
+    /**
+     * This class is never instantiated
+     */
+
+    private Validation() {
+    }
 
     public static int getCode(String value) {
         if (value.equals("strict")) {

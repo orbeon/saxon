@@ -7,9 +7,9 @@ import net.sf.saxon.instruct.SimpleNodeConstructor;
 import net.sf.saxon.om.Axis;
 import net.sf.saxon.om.AxisIterator;
 import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.trans.StaticError;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.StaticError;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -59,7 +59,7 @@ public abstract class XSLStringConstructor extends StyleElement {
                     // there is exactly one child node
                     if (first.getNodeKind() == Type.TEXT) {
                         // it is a text node: optimize for this case
-                        select = new StringValue(first.getStringValue());
+                        select = new StringValue(first.getStringValueCS());
                     }
                 }
             }

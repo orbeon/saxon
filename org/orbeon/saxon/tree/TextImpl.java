@@ -1,15 +1,14 @@
 package net.sf.saxon.tree;
 import net.sf.saxon.event.Receiver;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
-import org.w3c.dom.Text;
 
 /**
   * A node in the XML parse tree representing character content<P>
   * @author Michael H. Kay
   */
 
-final class TextImpl extends NodeImpl implements Text {
+final class TextImpl extends NodeImpl {
 
     private String content;
 

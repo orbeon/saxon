@@ -1,6 +1,6 @@
 package net.sf.saxon.expr;
 import net.sf.saxon.om.Item;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 /**
 * MappingFunction is an interface that must be satisfied by an object passed to a

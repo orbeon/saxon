@@ -9,9 +9,9 @@ import net.sf.saxon.pattern.NameTest;
 import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.trace.InstructionInfo;
 import net.sf.saxon.trace.Location;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.*;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -65,7 +65,7 @@ public class FixedElement extends ElementCreator {
      * as a different expression). The default implementation does nothing.
      *
      * @return the simplified expression
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      *          if an error is discovered during expression rewriting
      */
 
@@ -81,7 +81,7 @@ public class FixedElement extends ElementCreator {
                     err.setLocator(this);
                     throw err;
                 }
-                schemaType = decl.getValidType();
+                schemaType = decl.getType();
                 itemType = new CombinedNodeTest(
                         new NameTest(Type.ELEMENT, nameCode, env.getNamePool()),
                         Token.INTERSECT,
@@ -99,7 +99,7 @@ public class FixedElement extends ElementCreator {
                                 BuiltInSchemaFactory.getSchemaType(StandardNames.XDT_UNTYPED),
                                 env.getConfiguration()));
                 } else {
-                    schemaType = decl.getValidType();
+                    schemaType = decl.getType();
                     itemType = new CombinedNodeTest(
                             new NameTest(Type.ELEMENT, nameCode, env.getNamePool()),
                             Token.INTERSECT,
@@ -140,7 +140,7 @@ public class FixedElement extends ElementCreator {
      * @return the original expression, rewritten to perform necessary
      *         run-time type checks, and to perform other type-related
      *         optimizations
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      *          if an error is discovered during this phase
      *          (typically a type error)
      */

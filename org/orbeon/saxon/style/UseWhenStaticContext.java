@@ -5,9 +5,8 @@ import net.sf.saxon.expr.VariableDeclaration;
 import net.sf.saxon.functions.*;
 import net.sf.saxon.instruct.LocationMap;
 import net.sf.saxon.om.*;
-import net.sf.saxon.sort.CodepointCollator;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.SourceLocator;
 import javax.xml.transform.TransformerException;
@@ -33,8 +32,7 @@ public class UseWhenStaticContext implements XSLTStaticContext {
         this.locationMap = new LocationMap();
 
         FunctionLibraryList lib = new FunctionLibraryList();
-        lib.addFunctionLibrary(new SystemFunctionLibrary(getConfiguration(), true));
-            // TODO: for some reason the spec restricts the use of XSLT functions
+        lib.addFunctionLibrary(new SystemFunctionLibrary(SystemFunctionLibrary.USE_WHEN));
         lib.addFunctionLibrary(getConfiguration().getVendorFunctionLibrary());
         lib.addFunctionLibrary(new ConstructorFunctionLibrary(getConfiguration()));
         if (config.isAllowExternalFunctions()) {
@@ -108,7 +106,7 @@ public class UseWhenStaticContext implements XSLTStaticContext {
      * when the prefix is empty.
      *
      * @param prefix The prefix
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      *          if the prefix is not declared
      */
 
@@ -214,7 +212,7 @@ public class UseWhenStaticContext implements XSLTStaticContext {
 
     /**
     * Determine if an extension element is available
-    * @throws XPathException if the name is invalid or the prefix is not declared
+    * @throws net.sf.saxon.trans.XPathException if the name is invalid or the prefix is not declared
     */
 
     public boolean isElementAvailable(String qname) throws XPathException {

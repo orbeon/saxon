@@ -9,13 +9,12 @@ import net.sf.saxon.expr.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.NoNodeTest;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
-import javax.xml.namespace.QName;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Result;
 import javax.xml.transform.TransformerException;
@@ -78,7 +77,7 @@ public class ResultDocument extends Instruction {
      * Simplify an expression. This performs any static optimization (by rewriting the expression
      * as a different expression). The default implementation does nothing.
      * @return the simplified expression
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      *          if an error is discovered during expression rewriting
      */
 
@@ -114,7 +113,7 @@ public class ResultDocument extends Instruction {
      * @return the original expression, rewritten to perform necessary
      *         run-time type checks, and to perform other type-related
      *         optimizations
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      *          if an error is discovered during this phase
      *          (typically a type error)
      */
@@ -206,7 +205,6 @@ public class ResultDocument extends Instruction {
         if (href == null) {
             result = controller.getPrincipalResult();
         } else {
-            // TODO: detect error XT1490 (writing twice to the same destination)
             try {
                 resolver = controller.getOutputURIResolver();
 
@@ -219,6 +217,14 @@ public class ResultDocument extends Instruction {
             } catch (TransformerException e) {
                 throw DynamicError.makeDynamicError(e);
             }
+        }
+
+        if (!controller.checkUniqueOutputDestination(result.getSystemId())) {
+            DynamicError err = new DynamicError("Cannot write more than one result document to the same URI: " +
+                    result.getSystemId());
+            err.setXPathContext(context);
+            err.setErrorCode("XT1490");
+            throw err;
         }
 
         boolean timing = controller.getConfiguration().isTiming();
@@ -249,8 +255,8 @@ public class ResultDocument extends Instruction {
                 try {
                     setSerializationProperty(props, key.intValue(), value, namePool, nsResolver);
                 } catch (DynamicError e) {
-                    if (NamespaceConstant.SAXON.equals(e.getErrorCode().getNamespaceURI()) &&
-                            "warning".equals(e.getErrorCode().getLocalPart())) {
+                    if (NamespaceConstant.SAXON.equals(e.getErrorCodeNamespace()) &&
+                            "warning".equals(e.getErrorCodeLocalPart())) {
                         try {
                             context.getController().getErrorListener().warning(e);
                         } catch (TransformerException e2) {
@@ -421,9 +427,18 @@ public class ResultDocument extends Instruction {
                 }
             } else
 
-            if (lname.equals(StandardNames.UNDECLARE_NAMESPACES)) {
+            if (lname.equals(StandardNames.USE_CHARACTER_MAPS)) {
+                String existing = details.getProperty(SaxonOutputKeys.USE_CHARACTER_MAPS);
+                if (existing == null) {
+                    existing = "";
+                }
+                details.put(SaxonOutputKeys.USE_CHARACTER_MAPS, existing + value);
+            } else
+
+
+            if (lname.equals(StandardNames.UNDECLARE_PREFIXES)) {
                 if (value.equals("yes") || value.equals("no")) {
-                    details.put(SaxonOutputKeys.UNDECLARE_NAMESPACES, value);
+                    details.put(SaxonOutputKeys.UNDECLARE_PREFIXES, value);
                 } else {
                     DynamicError err = new DynamicError("undeclare-namespaces value must be 'yes' or 'no'");
                     err.setErrorCode("XT0030");
@@ -464,14 +479,14 @@ public class ResultDocument extends Instruction {
                     details.put(SaxonOutputKeys.INDENT_SPACES, value);
                 } catch (NumberFormatException err) {
                     DynamicError e = new DynamicError("saxon:indent-spaces must be an integer");
-                    e.setErrorCode(new QName(NamespaceConstant.SAXON, "warning", "saxon"));
+                    e.setErrorCode(NamespaceConstant.SAXON, "warning");
                     throw e;
                 }
             } else
 
             if (lname.equals("next-in-chain")) {
                 DynamicError e = new DynamicError("saxon:next-in-chain value cannot be specified dynamically");
-                e.setErrorCode(new QName(NamespaceConstant.SAXON, "warning", "saxon"));
+                e.setErrorCode(NamespaceConstant.SAXON, "warning");
                 throw e;
             } else
 
@@ -480,7 +495,7 @@ public class ResultDocument extends Instruction {
                     details.put(SaxonOutputKeys.REQUIRE_WELL_FORMED, value);
                 } else {
                     DynamicError e = new DynamicError("saxon:require-well-formed value must be 'yes' or 'no'");
-                    e.setErrorCode(new QName(NamespaceConstant.SAXON, "warning", "saxon"));
+                    e.setErrorCode(NamespaceConstant.SAXON, "warning");
                     throw e;
                 }
             }

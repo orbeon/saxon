@@ -2,7 +2,7 @@ package net.sf.saxon.event;
 import net.sf.saxon.Configuration;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 /**
   * SequenceReceiver: this extension of the Receiver interface is used when processing
@@ -50,7 +50,7 @@ public abstract class SequenceReceiver implements Receiver {
     * Output an item (atomic value or node) to the sequence
     */
     
-    public abstract void append(Item item, int locationId) throws XPathException;
+    public abstract void append(Item item, int locationId, int copyNamespaces) throws XPathException;
 
     /**
     * Get the name pool

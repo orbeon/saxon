@@ -6,13 +6,13 @@ import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.trace.InstructionInfo;
 import net.sf.saxon.trace.Location;
 import net.sf.saxon.trace.TraceListener;
+import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.Mode;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -324,7 +324,7 @@ public class ApplyTemplates extends Instruction {
 	            // NOTE: I tried changing this to use the text node's copy() method, but
 	            // performance was worse
 	        case Type.ATTRIBUTE:
-	            context.getReceiver().characters(node.getStringValue(), 0, 0);
+	            context.getReceiver().characters(node.getStringValueCS(), 0, 0);
 	            return;
 	        case Type.COMMENT:
 	        case Type.PROCESSING_INSTRUCTION:
@@ -391,13 +391,13 @@ public class ApplyTemplates extends Instruction {
 
     private static class ApplyTemplatesPackage implements TailCall {
 
-        private Value selectedNodes;
+        private ValueRepresentation selectedNodes;
         private Mode mode;
         private ParameterSet params;
         private ParameterSet tunnelParams;
         private XPathContextMajor evaluationContext;
 
-        public ApplyTemplatesPackage(Value selectedNodes,
+        public ApplyTemplatesPackage(ValueRepresentation selectedNodes,
                                      Mode mode,
                                      ParameterSet params,
                                      ParameterSet tunnelParams,
@@ -412,7 +412,7 @@ public class ApplyTemplates extends Instruction {
 
         public TailCall processLeavingTail(XPathContext context) throws XPathException {
             TailCall tc = applyTemplates(
-                    selectedNodes.iterate(null), mode, params, tunnelParams, evaluationContext, false);
+                    Value.getIterator(selectedNodes), mode, params, tunnelParams, evaluationContext, false);
             return tc;
         }
     }

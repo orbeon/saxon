@@ -1,20 +1,14 @@
 package net.sf.saxon.functions;
-import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.*;
-import net.sf.saxon.om.EmptyIterator;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.SingletonIterator;
+import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.AnyNodeTest;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AnyItemType;
 import net.sf.saxon.type.ExternalObjectType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
 
 import javax.xml.transform.Source;
 import java.io.IOException;
@@ -29,6 +23,9 @@ import java.util.List;
 /**
 * This class acts as a container for an extension function defined to call a method
 * in a user-defined class.
+ *
+ * <p>Note that the binding of an XPath function call to a Java method is done in
+ * class {@link JavaExtensionLibrary}</p>
 */
 
 public class ExtensionFunctionCall extends FunctionCall {
@@ -110,15 +107,24 @@ public class ExtensionFunctionCall extends FunctionCall {
     * Evaluate the function. <br>
     * @param context The context in which the function is to be evaluated
     * @return a Value representing the result of the function.
-    * @throws net.sf.saxon.xpath.XPathException if the function cannot be evaluated.
+    * @throws net.sf.saxon.trans.XPathException if the function cannot be evaluated.
     */
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
-        Value[] argValues = new Value[argument.length];
+        ValueRepresentation[] argValues = new ValueRepresentation[argument.length];
         for (int i=0; i<argValues.length; i++) {
-            argValues[i] = ExpressionTool.lazyEvaluate(argument[i], context, true);
+            argValues[i] = ExpressionTool.lazyEvaluate(argument[i], context, false);
         }
-        return call(argValues, context);
+        try {
+            return call(argValues, context);
+        } catch (XPathException err) {
+            String msg = err.getMessage();
+            msg = "Error in call to extension function {" + theMethod.toString() + "}: " + msg;
+            DynamicError err2 = new DynamicError(msg, err.getException());
+            err2.setXPathContext(context);
+            err2.setLocator(this);
+            throw err2;
+        }
     }
 
     /**
@@ -145,10 +151,7 @@ public class ExtensionFunctionCall extends FunctionCall {
      * @return  The value returned by the extension function
      */
 
-    public SequenceIterator call(Value[] argValues, XPathContext context) throws XPathException {
-        Configuration config = context.getController().getConfiguration();
-
-        // now call it
+    private SequenceIterator call(ValueRepresentation[] argValues, XPathContext context) throws XPathException {
 
         Class[] theParameterTypes;
 
@@ -161,24 +164,18 @@ public class ExtensionFunctionCall extends FunctionCall {
 
             try {
                 Object result = invokeConstructor(constructor, params);
-                //Object result = constructor.newInstance(params);
-
                 return asIterator(result, context);
             } catch (InstantiationException err0) {
                 DynamicError e = new DynamicError("Cannot instantiate class", err0);
-                e.setXPathContext(context);
                 throw e;
             } catch (IllegalAccessException err1) {
                 DynamicError e =  new DynamicError("Constructor access is illegal", err1);
-                e.setXPathContext(context);
                 throw e;
             } catch (IllegalArgumentException err2) {
                 DynamicError e =  new DynamicError("Argument is of wrong type", err2);
-                e.setXPathContext(context);
                 throw e;
             } catch (NullPointerException err2) {
                 DynamicError e =  new DynamicError("Object is null");
-                e.setXPathContext(context);
                 throw e;
             } catch (InvocationTargetException err3) {
                 Throwable ex = err3.getTargetException();
@@ -191,7 +188,6 @@ public class ExtensionFunctionCall extends FunctionCall {
                     }
                     DynamicError e = new DynamicError("Exception in extension function: " +
                             err3.getTargetException().toString(), ex);
-                    e.setXPathContext(context);
                     throw e;
                 }
             }
@@ -207,11 +203,10 @@ public class ExtensionFunctionCall extends FunctionCall {
             } else {
                 if (argValues.length == 0) {
                     DynamicError e = new DynamicError("Must supply an argument for an instance-level extension function");
-                    e.setXPathContext(context);
                     throw e;
                 }
-                Value arg0 = argValues[0];
-                theInstance = arg0.convertToJava(theClass, config, context);
+                Value arg0 = Value.asValue(argValues[0]);
+                theInstance = arg0.convertToJava(theClass, context);
                 // this fails if the first argument is not of a suitable class
             }
 
@@ -268,11 +263,10 @@ public class ExtensionFunctionCall extends FunctionCall {
             } else {
                 if (argValues.length == 0) {
                     DynamicError e = new DynamicError("Must supply an argument for an instance-level extension function");
-                    e.setXPathContext(context);
                     throw e;
                 }
-                Value arg0 = argValues[0];
-                theInstance = arg0.convertToJava(theClass, config, context);
+                Value arg0 = Value.asValue(argValues[0]);
+                theInstance = arg0.convertToJava(theClass, context);
                 // this fails if the first argument is not of a suitable class
             }
 
@@ -282,11 +276,9 @@ public class ExtensionFunctionCall extends FunctionCall {
 
             } catch (IllegalAccessException err1) {
                 DynamicError e = new DynamicError("Field access is illegal", err1);
-                e.setXPathContext(context);
                 throw e;
             } catch (IllegalArgumentException err2) {
                 DynamicError e = new DynamicError("Argument is of wrong type", err2);
-                e.setXPathContext(context);
                 throw e;
             }
         } else {
@@ -301,7 +293,7 @@ public class ExtensionFunctionCall extends FunctionCall {
      * @param result the result returned by the Java extension function
      * @param context the dynamic context
      * @return an iterator over the items in the result
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      */
 
     private SequenceIterator asIterator(Object result, XPathContext context) throws XPathException {
@@ -317,7 +309,8 @@ public class ExtensionFunctionCall extends FunctionCall {
         if (result instanceof NodeInfo) {
             return SingletonIterator.makeIterator(((NodeInfo) result));
         }
-        Value actual = Value.convertJavaObjectToXPath(result, SequenceType.ANY_SEQUENCE, context);
+        Value actual = Value.convertJavaObjectToXPath(
+                result, SequenceType.ANY_SEQUENCE, context.getController().getConfiguration());
         return actual.iterate(context);
     }
 
@@ -330,10 +323,10 @@ public class ExtensionFunctionCall extends FunctionCall {
      * @param firstArg normally 0, but 1 if the first argument in the XPath call is the instance object whose method
      * is to be called
      * @param context The dynamic context, giving access to a NamePool and to schema information
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      */
 
-    private void setupParams(Value[] argValues,
+    private void setupParams(ValueRepresentation[] argValues,
                              Object[] params,
                              Class[] paramTypes,
                              int firstParam,
@@ -341,7 +334,8 @@ public class ExtensionFunctionCall extends FunctionCall {
                              XPathContext context) throws XPathException {
         int j = firstParam;
         for (int i = firstArg; i < argValues.length; i++) {
-            params[j] = argValues[i].convertToJava(paramTypes[j], context.getController().getConfiguration(), context);
+            argValues[i] = Value.asValue(argValues[i]);
+            params[j] = ((Value)argValues[i]).convertToJava(paramTypes[j], context);
             j++;
         }
     }
@@ -378,12 +372,10 @@ public class ExtensionFunctionCall extends FunctionCall {
                     resultClass==Short.class || resultClass==short.class ||
                     resultClass==Byte.class || resultClass==byte.class ) {
             return Type.INTEGER_TYPE;
-        } else if (SequenceValue.class.isAssignableFrom(resultClass) ||
+        } else if (Value.class.isAssignableFrom(resultClass) ||
                     SequenceIterator.class.isAssignableFrom(resultClass)) {
             return AnyItemType.getInstance();
-        } else if ( NodeList.class.isAssignableFrom(resultClass) ||
-                    NodeInfo.class.isAssignableFrom(resultClass) ||
-                    Node.class.isAssignableFrom(resultClass) ||
+        } else if ( NodeInfo.class.isAssignableFrom(resultClass) ||
                     Source.class.isAssignableFrom(resultClass)) {
             return AnyNodeTest.getInstance();
             // we could be more specific regarding the kind of node
@@ -400,9 +392,8 @@ public class ExtensionFunctionCall extends FunctionCall {
             // we don't know yet
             return StaticProperty.ALLOWS_ZERO_OR_MORE;
         }
-        if (SequenceValue.class.isAssignableFrom(resultClass) ||
+        if (Value.class.isAssignableFrom(resultClass) ||
                     SequenceIterator.class.isAssignableFrom(resultClass) ||
-                    NodeList.class.isAssignableFrom(resultClass) ||
                     List.class.isAssignableFrom(resultClass) ||
                     Closure.class.isAssignableFrom(resultClass)||
                     Source.class.isAssignableFrom(resultClass) ||
@@ -444,7 +435,7 @@ public class ExtensionFunctionCall extends FunctionCall {
      * Determine whether this method uses the focus. True if the first argument is of type XPathContext.
      */
 
-    public boolean usesFocus() {
+    public boolean usesFocus() {            // NOT CURRENTLY USED
         if (theMethod instanceof Method) {
             Class[] theParameterTypes = ((Method)theMethod).getParameterTypes();
             return theParameterTypes.length > 0 && (theParameterTypes[0] == XPathContext.class);

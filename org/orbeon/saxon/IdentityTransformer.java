@@ -1,6 +1,6 @@
 package net.sf.saxon;
 import net.sf.saxon.event.*;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 import org.xml.sax.SAXParseException;
 
 import javax.xml.transform.Result;
@@ -22,7 +22,7 @@ class IdentityTransformer extends Controller {
         try {
             PipelineConfiguration pipe = makePipelineConfiguration();
             Receiver receiver = ResultWrapper.getReceiver(
-                    result, pipe, getOutputProperties(), null);
+                    result, pipe, getOutputProperties());
             NamespaceReducer reducer = new NamespaceReducer();
             reducer.setUnderlyingReceiver(receiver);
             new Sender(pipe).send(source, reducer, true);

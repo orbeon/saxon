@@ -8,7 +8,7 @@ package net.sf.saxon.type;
  */
 public interface SchemaDeclaration {
 
-    public ValidSchemaType getValidType();
+    public SchemaType getType();
 
 }
 

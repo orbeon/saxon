@@ -5,12 +5,11 @@ import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.AnyNodeTest;
 import net.sf.saxon.pattern.NodeTest;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.UntypedAtomicValue;
-import net.sf.saxon.xpath.XPathException;
 import org.jdom.*;
 
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -84,8 +83,9 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
             wrapper = new NodeWrapper(node, parent, index);
             wrapper.nodeKind = Type.PROCESSING_INSTRUCTION;
         } else if (node instanceof Namespace) {
-            wrapper = new NodeWrapper(node, parent, index);
-            wrapper.nodeKind = Type.NAMESPACE;
+            throw new IllegalArgumentException("Cannot wrap JDOM namespace objects");
+            //wrapper = new NodeWrapper(node, parent, index);
+            //wrapper.nodeKind = Type.NAMESPACE;
         } else {
             throw new IllegalArgumentException("Bad node type in JDOM! " + node.getClass() + " instance " + node.toString());
         }
@@ -133,7 +133,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     */
 
     public SequenceIterator getTypedValue() {
-        return SingletonIterator.makeIterator(new UntypedAtomicValue(getStringValue()));
+        return SingletonIterator.makeIterator(new UntypedAtomicValue(getStringValueCS()));
     }
 
     /**
@@ -157,9 +157,9 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
             return false;
         }
         NodeWrapper ow = (NodeWrapper)other;
-        if (node instanceof Namespace) {
-            return this.getLocalPart().equals(ow.getLocalPart()) && this.getParent().isSameNodeInfo(ow.getParent());
-        }
+//        if (node instanceof Namespace) {
+//            return this.getLocalPart().equals(ow.getLocalPart()) && this.getParent().isSameNodeInfo(ow.getParent());
+//        }
         return node.equals(ow.node);
     }
 
@@ -223,7 +223,12 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     */
 
     public int compareOrder(NodeInfo other) {
-        return Navigator.compareOrder(this, (SiblingCountingNode)other);
+        if (other instanceof SiblingCountingNode) {
+            return Navigator.compareOrder(this, (SiblingCountingNode)other);
+        } else {
+            // it must be a namespace node
+            return -other.compareOrder(this);
+        }
     }
 
     /**
@@ -238,13 +243,22 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     }
 
     /**
+     * Get the value of the item as a CharSequence. This is in some cases more efficient than
+     * the version of the method that returns a String.
+     */
+
+    public CharSequence getStringValueCS() {
+        return getStringValue(node);
+    }
+
+    /**
      * Supporting method to get the string value of a node
      */
 
     private static String getStringValue(Object node) {
         if (node instanceof Document) {
             List children1 = ((Document)node).getContent();
-            StringBuffer sb1 = new StringBuffer(2048);
+            FastStringBuffer sb1 = new FastStringBuffer(2048);
             expandStringValue(children1, sb1);
             return sb1.toString();
         } else if (node instanceof Element) {
@@ -272,7 +286,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
      * @param list the list containing the nodes
      * @param sb the StringBuffer to contain the result
      */
-    private static void expandStringValue(List list, StringBuffer sb) {
+    private static void expandStringValue(List list, FastStringBuffer sb) {
         Iterator iter = list.iterator();
         while (iter.hasNext()) {
             Object obj = iter.next();
@@ -565,9 +579,10 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
                  if (nodeKind!=Type.ELEMENT) {
                      return EmptyIterator.getInstance();
                  }
-                 return new Navigator.AxisFilter(
-                                new NamespaceEnumeration(this),
-                                nodeTest);
+                 return new NamespaceIterator(this, nodeTest);
+//                 return new Navigator.AxisFilter(
+//                                new NamespaceEnumeration(this),
+//                                nodeTest);
 
             case Axis.PARENT:
                  getParent();
@@ -611,24 +626,6 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     }
 
     /**
-     * Find the value of a given attribute of this node. <BR>
-     * This method is defined on all nodes to meet XSL requirements, but for nodes
-     * other than elements it will always return null.
-     * @param uri the namespace uri of an attribute ("" if no namespace)
-     * @param localName the local name of the attribute
-     * @return the value of the attribute, if it exists, otherwise null
-     */
-
-//    public String getAttributeValue(String uri, String localName) {
-//        if (nodeKind==Type.ELEMENT) {
-//            Namespace ns = Namespace.getNamespace(uri);
-//            return ((Element)node).getAttributeValue(localName, ns);
-//        } else {
-//            return "";
-//        }
-//    }
-
-    /**
     * Get the value of a given attribute of this node
     * @param fingerprint The fingerprint of the attribute name
     * @return the attribute value if it exists, or null if not
@@ -639,7 +636,11 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
             NamePool pool = docWrapper.getNamePool();
             String uri = pool.getURI(fingerprint);
             String local = pool.getLocalName(fingerprint);
-            return ((Element)node).getAttributeValue(local, Namespace.getNamespace(uri));
+            return ((Element)node).getAttributeValue(local,
+                    (   uri.equals(NamespaceConstant.XML) ?
+                            Namespace.XML_NAMESPACE :
+                            Namespace.getNamespace(uri)));
+                // JDOM doesn't allow getNamespace() on the XML namespace URI
         }
         return null;
     }
@@ -710,32 +711,57 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     * Output all namespace nodes associated with this element. Does nothing if
     * the node is not an element.
     * @param out The relevant outputter
-    * @param includeAncestors True if namespaces declared on ancestor elements must
-    * be output; false if it is known that these are already on the result tree
-    */
+     * @param includeAncestors True if namespaces declared on ancestor elements must
+     */
 
-    public void outputNamespaceNodes(Receiver out, boolean includeAncestors)
+    public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors)
         throws XPathException {
-        if (nodeKind==Type.ELEMENT) {
-            NamePool pool = docWrapper.getNamePool();
-            AxisIterator iter = iterateAxis(Axis.NAMESPACE);
-            while (true) {
-                NodeWrapper wrapper = (NodeWrapper)iter.next();
-                if (wrapper == null) {
-                    break;
-                }
-                if (!includeAncestors && !wrapper.getParent().isSameNodeInfo(this)) {
-                    break;
-                }
-                Namespace ns = (Namespace)wrapper.node;
-                int nscode = pool.allocateNamespaceCode(
-                                ns.getPrefix(),
-                                ns.getURI());
-                out.namespace(nscode, 0);
-            }
-        }
+        Navigator.sendNamespaceDeclarations(this, out, includeAncestors);
     }
 
+    /**
+     * Get all namespace undeclarations and undeclarations defined on this element.
+     *
+     * @param buffer If this is non-null, and the result array fits in this buffer, then the result
+     *               may overwrite the contents of this array, to avoid the cost of allocating a new array on the heap.
+     * @return An array of integers representing the namespace declarations and undeclarations present on
+     *         this element. For a node other than an element, return null. Otherwise, the returned array is a
+     *         sequence of namespace codes, whose meaning may be interpreted by reference to the name pool. The
+     *         top half word of each namespace code represents the prefix, the bottom half represents the URI.
+     *         If the bottom half is zero, then this is a namespace undeclaration rather than a declaration.
+     *         The XML namespace is never included in the list. If the supplied array is larger than required,
+     *         then the first unused entry will be set to -1.
+     *         <p/>
+     *         <p>For a node other than an element, the method returns null.</p>
+     */
+
+    public int[] getDeclaredNamespaces(int[] buffer) {
+        if (node instanceof Element) {
+            Element elem = (Element)node;
+            List addl = elem.getAdditionalNamespaces();
+            int size = addl.size() + 1;
+            int[] result = (size <= buffer.length ? buffer : new int[size]);
+            NamePool pool = getNamePool();
+            Namespace ns = elem.getNamespace();
+            String prefix = ns.getPrefix();
+            String uri = ns.getURI();
+            result[0] = pool.allocateNamespaceCode(prefix, uri);
+            int i = 1;
+            if (addl.size() > 0) {
+                Iterator itr = addl.iterator();
+                while (itr.hasNext()) {
+                    ns = (Namespace) itr.next();
+                    result[i++] = pool.allocateNamespaceCode(ns.getPrefix(), ns.getURI());
+                }
+            }
+            if (size < buffer.length) {
+                result[size] = -1;
+            }
+            return result;
+        } else {
+            return null;
+        }
+    }
     ///////////////////////////////////////////////////////////////////////////////
     // Axis enumeration classes
     ///////////////////////////////////////////////////////////////////////////////
@@ -765,67 +791,6 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
         }
 
     }  // end of class AttributeEnumeration
-
-    private final class NamespaceEnumeration extends Navigator.BaseEnumeration {
-
-        private HashMap nslist = new HashMap(10);
-        private Iterator prefixes;
-        private int ix = 0;
-        private NodeWrapper start;
-
-        public NamespaceEnumeration(NodeWrapper start) {
-            this.start = start;
-            NodeWrapper curr = start;
-
-            // build the complete list of namespaces
-
-            do {
-                Element elem = (Element)curr.node;
-                Namespace ns = elem.getNamespace();
-                String prefix = ns.getPrefix();
-                String uri = ns.getURI();
-                if (!(prefix.equals("") && uri.equals(""))) {
-                    if (!nslist.containsKey(prefix)) {
-                        nslist.put(ns.getPrefix(), ns);
-                    }
-                }
-                List addl = elem.getAdditionalNamespaces();
-                if (addl.size() > 0) {
-                    Iterator itr = addl.iterator();
-                    while (itr.hasNext()) {
-                        ns = (Namespace) itr.next();
-                        if (!nslist.containsKey(ns.getPrefix())) {
-                            nslist.put(ns.getPrefix(), ns);
-                        }
-                    }
-                }
-                curr = (NodeWrapper)curr.getParent();
-            } while (curr.getNodeKind()==Type.ELEMENT);
-
-            nslist.put("xml", Namespace.XML_NAMESPACE);
-            prefixes = nslist.keySet().iterator();
-            //advance();
-        }
-
-        public void advance() {
-            if (prefixes.hasNext()) {
-                String prefix = (String)prefixes.next();
-                Namespace ns = (Namespace)nslist.get(prefix);
-                current = makeWrapper(ns, docWrapper, start, ix++);
-            } else {
-                current = null;
-            }
-        }
-
-        public SequenceIterator getAnother() {
-            return new NamespaceEnumeration(start);
-        }
-
-        // NB: namespace nodes in the JDOM implementation do not support all
-        // XPath functions, for example namespace nodes have no parent.
-
-
-    }  // end of class NamespaceEnumeration
 
 
     /**
@@ -937,7 +902,6 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
         }
 
     } // end of class ChildEnumeration
-
 
 }
 

@@ -4,14 +4,13 @@ import net.sf.saxon.Controller;
 import net.sf.saxon.event.SequenceOutputter;
 import net.sf.saxon.event.SequenceReceiver;
 import net.sf.saxon.event.TeeOutputter;
+import net.sf.saxon.expr.LastPositionFinder;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.ListIterator;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.om.*;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 
-import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A MemoClosure represents a value that has not yet been evaluated: the value is represented
@@ -49,7 +48,8 @@ import java.util.ArrayList;
 
 public final class MemoClosure extends Closure {
 
-    private ArrayList reservoir = null;
+    private Item[] reservoir = null;
+    private int used;
     private int state;
 
     // State in which no items have yet been read
@@ -65,12 +65,6 @@ public final class MemoClosure extends Closure {
     // State in which we are getting the base iterator. If the closure is called in this state,
     // it indicates a recursive entry, which is only possible on an error path
     private static final int BUSY = 4;
-
-    // The base iterator is used to copy items on demand from the underlying value
-    // to the reservoir. It only ever has one instance (for each Closure) and each
-    // item is read only once.
-
-    SequenceIterator inputIterator;
 
     /**
      * Protected constructor: instances must be created using the make() method
@@ -92,7 +86,13 @@ public final class MemoClosure extends Closure {
             case UNREAD:
                 state = BUSY;
                 inputIterator = expression.iterate(savedXPathContext);
-                reservoir = new ArrayList(50);
+                // TODO: following optimization looks OK, but it throws func20 into an infinite loop
+//                if (inputIterator instanceof GroundedIterator) {
+//                    state = UNREAD;
+//                    return inputIterator.getAnother();
+//                }
+                reservoir = new Item[50];
+                used = 0;
                 state = MAYBE_MORE;
                 return new ProgressiveIterator();
 
@@ -100,7 +100,7 @@ public final class MemoClosure extends Closure {
                 return new ProgressiveIterator();
 
             case ALL_READ:
-                return new ListIterator(reservoir);
+                return new ArrayIterator(reservoir, 0, used);
 
             case BUSY:
                 // this indicates a recursive entry, probably on an error path while printing diagnostics
@@ -129,7 +129,7 @@ public final class MemoClosure extends Closure {
             while (true) {
                 Item it = iter.next();
                 if (it==null) break;
-                out.append(it, 0);
+                out.append(it, 0, NodeInfo.ALL_NAMESPACES);
             }
         } else {
             Controller controller = context.getController();
@@ -147,7 +147,10 @@ public final class MemoClosure extends Closure {
             expression.process(c2);
 
             seq.close();
-            reservoir = seq.getList();
+            List list = seq.getList();
+            reservoir = new Item[list.size()];
+            reservoir = (Item[])list.toArray(reservoir);
+            used = list.size();
             state = ALL_READ;
         }
 
@@ -159,10 +162,68 @@ public final class MemoClosure extends Closure {
      */
 
     public Item itemAt(int n) throws XPathException {
-        if (n < reservoir.size()) {
-            return (Item)reservoir.get(n);
-        } else {
+        if (n < 0) {
+            return null;
+        }
+        if (reservoir != null && n < used) {
+            return reservoir[n];
+        }
+        if (state == ALL_READ) {
+            return null;
+        }
+        if (state == UNREAD) {
             return super.itemAt(n);
+            // this will read from the start of the sequence
+        }
+        // We have read some items from the input sequence but not enough. Read as many more as are needed.
+        int diff = n - used + 1;
+        while (diff-- > 0) {
+            Item i = inputIterator.next();
+            if (i == null) {
+                state = ALL_READ;
+                condense();
+                return itemAt(n);
+            }
+            append(i);
+            state = MAYBE_MORE;
+        }
+        return reservoir[n];
+    }
+
+    /**
+     * Get the length of the sequence
+     */
+
+    public int getLength() throws XPathException {
+        if (state == ALL_READ) {
+            return used;
+        } else {
+            return super.getLength();
+        }
+    }
+
+    /**
+     * Append an item to the reservoir
+     */
+
+    private void append(Item item) {
+        if (used >= reservoir.length) {
+            Item[] r2 = new Item[used*2];
+            System.arraycopy(reservoir, 0, r2, 0, used);
+            reservoir = r2;
+        }
+        reservoir[used++] = item;
+    }
+
+    /**
+     * Release unused space in the reservoir (provided the amount of unused space is worth reclaiming)
+     */
+
+    private void condense() {
+        if (reservoir.length - used > 30) {
+            Item[] r2 = new Item[used];
+            System.arraycopy(reservoir, 0, r2, 0, used);
+            reservoir = r2;
         }
     }
 
@@ -172,7 +233,7 @@ public final class MemoClosure extends Closure {
      * copying them into the reservoir as they are read.
      */
 
-    public final class ProgressiveIterator implements SequenceIterator {
+    public final class ProgressiveIterator implements SequenceIterator, LastPositionFinder, GroundedIterator {
 
         int position = -1;  // zero-based position in the reservoir of the
         // item most recently read
@@ -182,24 +243,25 @@ public final class MemoClosure extends Closure {
         }
 
         public Item next() throws XPathException {
-            if (++position < reservoir.size()) {
-                return (Item)reservoir.get(position);
+            if (++position < used) {
+                return reservoir[position];
             } else {
                 Item i = inputIterator.next();
                 if (i == null) {
                     state = ALL_READ;
+                    condense();
                     position--;     // leave position at last item
                     return null;
                 }
-                position = reservoir.size();
-                reservoir.add(i);
+                position = used;
+                append(i);
                 state = MAYBE_MORE;
                 return i;
             }
         }
 
         public Item current() {
-            return (Item)reservoir.get(position);
+            return reservoir[position];
         }
 
         public int position() {
@@ -208,6 +270,54 @@ public final class MemoClosure extends Closure {
 
         public SequenceIterator getAnother() {
             return new ProgressiveIterator();
+        }
+
+        /**
+         * Get the last position (that is, the number of items in the sequence)
+         */
+
+        public int getLastPosition() throws XPathException {
+            if (state == ALL_READ) {
+                return used;
+            } else {
+                // save the current position
+                int savePos = position;
+                // fill the reservoir
+                while (true) {
+                    Item item = next();
+                    if (item == null) {
+                        break;
+                    }
+                }
+                // reset the current position
+                position = savePos;
+                // return the total number of items
+                return used;
+            }
+        }
+
+        /**
+         * Return a SequenceValue containing all the items in the sequence returned by this
+         * SequenceIterator
+         *
+         * @return the corresponding SequenceValue if it exists, or null if it doesn't; in this case
+         *         the caller must construct a new SequenceExtent by calling new SequenceExtent(iter.getAnother())
+         */
+
+        public Value materialize() throws XPathException {
+            if (state == ALL_READ) {
+                return new SequenceExtent(reservoir);
+            } else if (state == UNREAD || used==0) {
+                SequenceIterator iter = expression.iterate(savedXPathContext);
+                if (iter instanceof GroundedIterator) {
+                    return ((GroundedIterator)iter).materialize();
+                } else {
+                    return new SequenceExtent(iter);
+                }
+            } else {
+                return new SequenceExtent(iterate(null));
+            }
+
         }
     }
 

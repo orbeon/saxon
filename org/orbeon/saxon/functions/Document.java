@@ -3,20 +3,21 @@ import net.sf.saxon.Controller;
 import net.sf.saxon.event.Builder;
 import net.sf.saxon.event.Sender;
 import net.sf.saxon.event.Stripper;
+import net.sf.saxon.event.Receiver;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.sort.DocumentOrderIterator;
 import net.sf.saxon.sort.GlobalOrderComparer;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.Cardinality;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.URIResolver;
 import javax.xml.transform.dom.DOMSource;
-import java.net.MalformedURLException;
-import java.net.URL;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 
 /**
@@ -168,17 +169,19 @@ public class Document extends SystemFunction implements MappingFunction, XSLTFun
         if (baseURL==null) {    // no base URI available
             try {
                 // the href might be an absolute URL
-                documentKey = (new URL(href)).toString();
-            } catch (MalformedURLException err) {
+                documentKey = (new URI(href)).toString();
+            } catch (URISyntaxException err) {
                 // it isn't; but the URI resolver might know how to cope
                 documentKey = baseURL + '/' + href;
                 baseURL = "";
             }
         } else {
             try {
-                URL url = new URL(new URL(baseURL), href);
+                URI url = new URI(baseURL).resolve(href);
                 documentKey = url.toString();
-            } catch (MalformedURLException err) {
+            } catch (URISyntaxException err) {
+                documentKey = baseURL + "/../" + href;
+            } catch (IllegalArgumentException err) {
                 documentKey = baseURL + "/../" + href;
             }
         }
@@ -212,7 +215,10 @@ public class Document extends SystemFunction implements MappingFunction, XSLTFun
                 newdoc = startNode.getDocumentRoot();
             } else {
                 Builder b = controller.makeBuilder();
-                Stripper s = controller.makeStripper(b);
+                Receiver s = controller.makeStripper(b);
+                if (controller.getExecutable().stripsInputTypeAnnotations()) {
+                    s = controller.getConfiguration().getAnnotationStripper(s);
+                }
                 new Sender(controller.makePipelineConfiguration()).send(source, s);
                 newdoc = (DocumentInfo)b.getCurrentRoot();
             }

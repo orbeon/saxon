@@ -1,8 +1,8 @@
 package net.sf.saxon.dom;
 
 import net.sf.saxon.Transform;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 

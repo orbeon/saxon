@@ -6,19 +6,17 @@ import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.trace.TraceListener;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Iterator;
 
 /**
- * Created by IntelliJ IDEA.
- * User: Mike
- * Date: 08-Sep-2004
- * Time: 12:55:09
- * To change this template use File | Settings | File Templates.
+ * This class is a tracing wrapper around any expression: it delivers the same result as the
+ * wrapped expression, but traces its evaluation to a TraceListener
  */
+
 public class TraceWrapper extends Instruction {
     Expression child;   // the instruction or other expression to be traced
 
@@ -26,7 +24,7 @@ public class TraceWrapper extends Instruction {
      * Simplify an expression. This performs any static optimization (by rewriting the expression
      * as a different expression). The default implementation does nothing.
      *
-     * @exception net.sf.saxon.xpath.XPathException if an error is discovered during expression
+     * @exception net.sf.saxon.trans.XPathException if an error is discovered during expression
      *     rewriting
      * @return the simplified expression
      */
@@ -49,7 +47,7 @@ public class TraceWrapper extends Instruction {
      * variables will only be accurately known if they have been explicitly declared.</p>
      *
      * @param env the static context of the expression
-     * @exception net.sf.saxon.xpath.XPathException if an error is discovered during this phase
+     * @exception net.sf.saxon.trans.XPathException if an error is discovered during this phase
      *     (typically a type error)
      * @return the original expression, rewritten to perform necessary
      *     run-time type checks, and to perform other type-related
@@ -67,7 +65,7 @@ public class TraceWrapper extends Instruction {
      * and invokes the instruction being traced.
      * @param context the dynamic execution context
      * @return either null, or a tail call that the caller must invoke on return
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      */
     public TailCall processLeavingTail(XPathContext context) throws XPathException {
         Controller controller = context.getController();
@@ -90,6 +88,22 @@ public class TraceWrapper extends Instruction {
 
     public ItemType getItemType() {
         return child.getItemType();
+    }
+
+    /**
+     * Determine the static cardinality of the expression. This establishes how many items
+     * there will be in the result of the expression, at compile time (i.e., without
+     * actually evaluating the result.
+     *
+     * @return one of the values Cardinality.ONE_OR_MORE,
+     *         Cardinality.ZERO_OR_MORE, Cardinality.EXACTLY_ONE,
+     *         Cardinality.ZERO_OR_ONE, Cardinality.EMPTY. This default
+     *         implementation returns ZERO_OR_MORE (which effectively gives no
+     *         information).
+     */
+
+    public int getCardinality() {
+        return child.getCardinality();
     }
 
     /**
@@ -143,7 +157,7 @@ public class TraceWrapper extends Instruction {
      * this condition will be detected.
      *
      * @param context The context in which the expression is to be evaluated
-     * @exception net.sf.saxon.xpath.XPathException if any dynamic error occurs evaluating the
+     * @exception net.sf.saxon.trans.XPathException if any dynamic error occurs evaluating the
      *     expression
      * @return the node or atomic value that results from evaluating the
      *     expression; or null to indicate that the result is an empty
@@ -169,7 +183,7 @@ public class TraceWrapper extends Instruction {
      * return singleton values: for non-singleton expressions, the subclass must
      * provide its own implementation.
      *
-     * @exception net.sf.saxon.xpath.XPathException if any dynamic error occurs evaluating the
+     * @exception net.sf.saxon.trans.XPathException if any dynamic error occurs evaluating the
      *     expression
      * @param context supplies the context for evaluation
      * @return a SequenceIterator that can be used to iterate over the result

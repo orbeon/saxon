@@ -4,9 +4,9 @@ import net.sf.saxon.expr.MappingFunction;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.XPathException;
 
 /**
  * Implements the XPath number() function
@@ -34,9 +34,9 @@ public class NumberFn extends SystemFunction implements MappingFunction {
             return DoubleValue.NaN;
         }
         if (arg0 instanceof BooleanValue || arg0 instanceof NumericValue) {
-            return ((AtomicValue)arg0).convert(Type.DOUBLE, context);
+            return ((AtomicValue)arg0).convert(Type.DOUBLE);
         }
-        String s = arg0.getStringValue();
+        CharSequence s = arg0.getStringValueCS();
         try {
             return new DoubleValue(Value.stringToNumber(s));
         } catch (NumberFormatException e) {
@@ -55,9 +55,9 @@ public class NumberFn extends SystemFunction implements MappingFunction {
                 return DoubleValue.NaN;
             }
             if (value instanceof BooleanValue || value instanceof NumericValue) {
-                return (DoubleValue)value.convert(Type.DOUBLE, null);
+                return (DoubleValue)value.convert(Type.DOUBLE);
             }
-            String s = value.getStringValue();
+            CharSequence s = value.getStringValueCS();
             return new DoubleValue(Value.stringToNumber(s));
         } catch (NumberFormatException e) {
             return DoubleValue.NaN;

@@ -1,7 +1,7 @@
 package net.sf.saxon.event;
 import net.sf.saxon.Configuration;
 import net.sf.saxon.om.NamePool;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
     /**
     * A ProxyReceiver is an Receiver that filters data before passing it to another

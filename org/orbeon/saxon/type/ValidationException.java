@@ -1,6 +1,6 @@
 package net.sf.saxon.type;
 
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 import org.xml.sax.Locator;
 
 import javax.xml.transform.SourceLocator;

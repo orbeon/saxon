@@ -2,6 +2,8 @@ package net.sf.saxon.om;
 
 import net.sf.saxon.expr.LastPositionFinder;
 import net.sf.saxon.expr.ReversibleIterator;
+import net.sf.saxon.value.SequenceExtent;
+import net.sf.saxon.value.Value;
 
 /**
  * ArrayIterator is used to enumerate items held in an array.
@@ -14,7 +16,8 @@ import net.sf.saxon.expr.ReversibleIterator;
 public final class ArrayIterator implements AxisIterator,
                                             ReversibleIterator,
                                             LastPositionFinder,
-                                            LookaheadIterator {
+                                            LookaheadIterator,
+                                            GroundedIterator {
 
     private Item[] items;
     private int index = 0;      // position in array of current item, zero-based
@@ -43,8 +46,7 @@ public final class ArrayIterator implements AxisIterator,
      *     the iterator
      * @param start the position of the first item to be processed
      *     (numbering from zero)
-     * @param end the number of items to be processed; any items after
-     *      the n'th are ignored
+     * @param end position of first item that is NOT returned, zero-based
      */
 
     public ArrayIterator(Item[] nodes, int start, int end) {
@@ -68,7 +70,7 @@ public final class ArrayIterator implements AxisIterator,
     public SequenceIterator makeSliceIterator(int min, int max) {
         Item[] items = getArray();
         int currentStart = getStartPosition();
-        int currentEnd = currentStart + getEndPosition();
+        int currentEnd = getEndPosition();
         if (min < 1) {
             min = 1;
         }
@@ -79,6 +81,9 @@ public final class ArrayIterator implements AxisIterator,
         int newEnd = newStart + (max - min + 1);
         if (newEnd > currentEnd) {
             newEnd = currentEnd;
+        }
+        if (newEnd <= newStart) {
+            return EmptyIterator.getInstance();
         }
         return new ArrayIterator(items, newStart, newEnd);
     }
@@ -190,6 +195,22 @@ public final class ArrayIterator implements AxisIterator,
 
     public int getEndPosition() {
         return end;
+    }
+
+    /**
+     * Return a SequenceValue containing all the items in the sequence returned by this
+     * SequenceIterator
+     *
+     * @return the corresponding SequenceValue
+     */
+
+    public Value materialize() {
+        if (start==0 && end == items.length) {
+            return new SequenceExtent(items);
+        } else {
+            SequenceExtent e = new SequenceExtent(items);
+            return new SequenceExtent(e, start, end-start);
+        }
     }
 }
 

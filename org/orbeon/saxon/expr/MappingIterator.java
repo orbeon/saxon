@@ -2,7 +2,7 @@ package net.sf.saxon.expr;
 import net.sf.saxon.om.AtomizableIterator;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 /**
 * MappingIterator merges a sequence of sequences into a single flat

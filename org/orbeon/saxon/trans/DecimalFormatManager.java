@@ -1,7 +1,6 @@
 package net.sf.saxon.trans;
 
 import net.sf.saxon.functions.FormatNumber2;
-import net.sf.saxon.xpath.StaticError;
 
 import java.io.Serializable;
 import java.text.DecimalFormatSymbols;

@@ -3,12 +3,14 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.SimpleExpression;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.instruct.ExtensionInstruction;
+import net.sf.saxon.om.Axis;
+import net.sf.saxon.om.AxisIterator;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.style.ExtensionInstruction;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.ObjectValue;
-import net.sf.saxon.xpath.XPathException;
-import org.w3c.dom.Node;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.sql.Connection;
@@ -27,11 +29,11 @@ public class SQLInsert extends ExtensionInstruction {
 
     public void prepareAttributes() throws TransformerConfigurationException {
 
-		table = getAttribute("table");
+		table = getAttributeList().getValue("", "table");
 		if (table==null) {
             reportAbsence("table");
         }
-        String connectAtt = getAttribute("connection");
+        String connectAtt = getAttributeList().getValue("", "connection");
         if (connectAtt==null) {
             reportAbsence("connection");
         } else {
@@ -48,18 +50,22 @@ public class SQLInsert extends ExtensionInstruction {
 
         // Collect names of columns to be added
 
-        StringBuffer statement = new StringBuffer();
+        StringBuffer statement = new StringBuffer(120);
         statement.append("INSERT INTO " + table + " (");
 
-        Node child = getFirstChild();
+        AxisIterator kids = iterateAxis(Axis.CHILD);
+        NodeInfo child;
 		int cols = 0;
-		while (child!=null) {
+		while (true) {
+            child = (NodeInfo)kids.next();
+            if (child == null) {
+                break;
+            }
 		    if (child instanceof SQLColumn) {
     			if (cols++ > 0)	statement.append(',');
     			String colname = ((SQLColumn)child).getColumnName();
     			statement.append(colname);
 		    }
-			child = child.getNextSibling();
 		}
         statement.append(") VALUES (");
 
@@ -78,14 +84,20 @@ public class SQLInsert extends ExtensionInstruction {
     }
 
     public List getColumnInstructions(Executable exec) throws TransformerConfigurationException {
-        List list = new ArrayList();
-        Node child = getFirstChild();
-		while (child!=null) {
+        List list = new ArrayList(10);
+
+        AxisIterator kids = iterateAxis(Axis.CHILD);
+        NodeInfo child;
+		while (true) {
+            child = (NodeInfo)kids.next();
+            if (child == null) {
+                break;
+            }
 		    if (child instanceof SQLColumn) {
     			list.add(((SQLColumn)child).compile(exec));
 		    }
-			child = child.getNextSibling();
 		}
+
 		return list;
     }
 

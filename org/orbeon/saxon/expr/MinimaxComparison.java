@@ -1,12 +1,12 @@
 package net.sf.saxon.expr;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.BooleanValue;
 import net.sf.saxon.value.NumericValue;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
 
 
 /**

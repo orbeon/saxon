@@ -10,11 +10,10 @@ import net.sf.saxon.sort.CodepointCollator;
 import net.sf.saxon.sort.CollationFactory;
 import net.sf.saxon.sort.GroupIterator;
 import net.sf.saxon.trace.InstructionInfoProvider;
+import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.Mode;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.SchemaType;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.Result;
 import javax.xml.transform.TransformerException;
@@ -310,7 +309,7 @@ public class XPathContextMinor implements XPathContext {
      * Get the value of a local variable, identified by its slot number
      */
 
-    public Value evaluateLocalVariable(int slotnumber) {
+    public ValueRepresentation evaluateLocalVariable(int slotnumber) {
         return getCaller().evaluateLocalVariable(slotnumber);
     }
 
@@ -318,7 +317,7 @@ public class XPathContextMinor implements XPathContext {
      * Set the value of a local variable, identified by its slot number
      */
 
-    public void setLocalVariable(int slotnumber, Value value) {
+    public void setLocalVariable(int slotnumber, ValueRepresentation value) {
         getCaller().setLocalVariable(slotnumber, value);
     }
 
@@ -365,8 +364,7 @@ public class XPathContextMinor implements XPathContext {
         Receiver receiver = ResultWrapper.getReceiver(
                                             result,
                                             pipe,
-                                            props,
-                                            controller.getExecutable().getCharacterMapIndex());
+                                            props);
 
         // add a validator to the pipeline if required
 

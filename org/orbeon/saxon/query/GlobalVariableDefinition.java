@@ -6,10 +6,10 @@ import net.sf.saxon.instruct.GlobalParam;
 import net.sf.saxon.instruct.GlobalVariable;
 import net.sf.saxon.instruct.SlotManager;
 import net.sf.saxon.om.NamePool;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -155,7 +155,7 @@ public class GlobalVariableDefinition implements VariableDeclaration {
             try {
                 ItemType itemType = value.getItemType();
                 int cardinality = value.getCardinality();
-                requiredType = new SequenceType(itemType, cardinality);
+                requiredType = SequenceType.makeSequenceType(itemType, cardinality);
                 var.setRequiredType(requiredType);
             } catch (Exception err) {
                 // exceptions can happen because references to variables and functions are still unbound

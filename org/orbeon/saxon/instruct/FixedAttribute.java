@@ -13,11 +13,11 @@ import net.sf.saxon.pattern.NodeKindTest;
 import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.trace.InstructionInfo;
 import net.sf.saxon.trace.Location;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.*;
 import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -92,10 +92,9 @@ public final class FixedAttribute extends SimpleNodeConstructor {
 
         // Attempt early validation if possible
         if (select instanceof AtomicValue && schemaType != null && !schemaType.isNamespaceSensitive()) {
-            String value = ((AtomicValue)select).getStringValue();
-            try {
-                schemaType.validateContent(value, DummyNamespaceResolver.getInstance());
-            } catch (ValidationException err) {
+            CharSequence value = ((AtomicValue)select).getStringValueCS();
+            XPathException err = schemaType.validateContent(value, DummyNamespaceResolver.getInstance());
+            if (err != null) {
                 throw new StaticError("Attribute value " + Err.wrap(value, Err.VALUE) +
                                                " does not the match the required type " +
                                                schemaType.getDescription() + ". " +
@@ -190,24 +189,31 @@ public final class FixedAttribute extends SimpleNodeConstructor {
         String value = expandChildren(context).toString();
         if (schemaType != null) {
             // test whether the value actually conforms to the given type
-            try {
-                schemaType.validateContent(value, DummyNamespaceResolver.getInstance());
-                if (schemaType.isNamespaceSensitive()) {
-                    opt |= ReceiverOptions.NEEDS_PREFIX_CHECK;
-                }
-            } catch (ValidationException err) {
-                throw new ValidationException("Attribute value " + Err.wrap(value, Err.VALUE) +
-                                               " does not the match the required type " +
-                                               schemaType.getDescription() + ". " +
-                                               err.getMessage());
+            XPathException err = schemaType.validateContent(value, DummyNamespaceResolver.getInstance());
+            if (err != null) {
+                ValidationException verr = new ValidationException(
+                        "Attribute value " + Err.wrap(value, Err.VALUE) +
+                        " does not the match the required type " +
+                        schemaType.getDescription() + ". " + err.getMessage());
+                verr.setLocator(this);
+                throw verr;
+            }
+            if (schemaType.isNamespaceSensitive()) {
+                opt |= ReceiverOptions.NEEDS_PREFIX_CHECK;
             }
         } else if (validationAction==Validation.STRICT ||
                 validationAction==Validation.LAX) {
-            long res = controller.getConfiguration().validateAttribute(nameCode,
-                                                                         value,
-                                                                         validationAction);
+            long res;
+            try {
+                res = controller.getConfiguration().validateAttribute(
+                        nameCode, value, validationAction);
+            } catch (ValidationException e) {
+                e.setLocator(this);
+                throw e;
+            }
             ann = (int)(res & 0xffffffff);
             opt |= (int)(res >> 32);
+
         }
         try {
             out.attribute(nameCode, ann, value, locationId, opt);
@@ -225,22 +231,22 @@ public final class FixedAttribute extends SimpleNodeConstructor {
     public Item evaluateItem(XPathContext context) throws XPathException {
         Orphan o = (Orphan)super.evaluateItem(context);
         if (schemaType != null) {
-            try {
-                schemaType.validateContent(o.getStringValue(), DummyNamespaceResolver.getInstance());
-                o.setTypeAnnotation(schemaType.getFingerprint());
-                if (schemaType.isNamespaceSensitive()) {
-                    throw new DynamicError("Cannot validate a parentless attribute whose content is namespace-sensitive");
-                }
-            } catch (ValidationException err) {
-                throw new ValidationException("Attribute value " + Err.wrap(o.getStringValue(), Err.VALUE) +
-                                               " does not the match the required type " +
-                                               schemaType.getDescription() + ". " +
-                                               err.getMessage());
+            XPathException err = schemaType.validateContent(
+                    o.getStringValueCS(), DummyNamespaceResolver.getInstance());
+            if (err != null) {
+                throw new ValidationException("Attribute value " + Err.wrap(o.getStringValueCS(), Err.VALUE) +
+                                           " does not the match the required type " +
+                                           schemaType.getDescription() + ". " +
+                                           err.getMessage());
+            }
+            o.setTypeAnnotation(schemaType.getFingerprint());
+            if (schemaType.isNamespaceSensitive()) {
+                throw new DynamicError("Cannot validate a parentless attribute whose content is namespace-sensitive");
             }
         } else if (validationAction==Validation.STRICT ||
                 validationAction==Validation.LAX) {
             long res = context.getController().getConfiguration().validateAttribute(nameCode,
-                                                                         o.getStringValue(),
+                                                                         o.getStringValueCS(),
                                                                          validationAction);
             int ann = (int)(res & 0xffffffff);
             int opt = (int)(res >> 32);

@@ -1,13 +1,10 @@
 package net.sf.saxon.style;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.om.AttributeCollection;
-import net.sf.saxon.om.Name;
-import net.sf.saxon.om.NamespaceException;
-import net.sf.saxon.om.QNameException;
+import net.sf.saxon.om.*;
 import net.sf.saxon.trans.DecimalFormatManager;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.text.DecimalFormatSymbols;
@@ -176,7 +173,7 @@ public class XSLDecimalFormat extends StyleElement {
             try {
                 dfm.setDefaultDecimalFormat(d, getPrecedence());
             } catch (StaticError err) {
-                compileError(err.getMessage(), err.getErrorCode());
+                compileError(err.getMessage(), err.getErrorCodeLocalPart());
             }
         } else {
             try {
@@ -186,7 +183,7 @@ public class XSLDecimalFormat extends StyleElement {
                 try {
                     dfm.setNamedDecimalFormat(uri, parts[1], d, getPrecedence());
                 } catch (StaticError err) {
-                    compileError(err.getMessage(), err.getErrorCode());
+                    compileError(err.getMessage(), err.getErrorCodeLocalPart());
                 }
             } catch (XPathException err) {
                 compileError("Invalid decimal format name. " + err.getMessage(), "XT0020");

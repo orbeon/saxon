@@ -1,13 +1,10 @@
 package net.sf.saxon.functions;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.expr.*;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.IntegerValue;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
 
 /**
  * Implement the XPath string-length() function
@@ -26,6 +23,24 @@ public class StringLength extends SystemFunction {
      public Expression simplify(StaticContext env) throws XPathException {
         //useContextItemAsDefault();
         return simplifyArguments(env);
+    }
+
+    /**
+     * Determine the intrinsic dependencies of an expression, that is, those which are not derived
+     * from the dependencies of its subexpressions. For example, position() has an intrinsic dependency
+     * on the context position, while (position()+1) does not. The default implementation
+     * of the method returns 0, indicating "no dependencies".
+     *
+     * @return a set of bit-significant flags identifying the "intrinsic"
+     *         dependencies. The flags are documented in class net.sf.saxon.value.StaticProperty
+     */
+
+    public int getIntrinsicDependencies() {
+        int d = super.getIntrinsicDependencies();
+        if (argument.length == 0) {
+            d |= StaticProperty.DEPENDS_ON_CONTEXT_ITEM;
+        }
+        return d;
     }
 
     /**
@@ -56,19 +71,19 @@ public class StringLength extends SystemFunction {
     public Item evaluateItem(XPathContext c) throws XPathException {
         AtomicValue sv;
         if (argument.length == 0) {
-            sv = new StringValue(c.getContextItem().getStringValue());
+            sv = new StringValue(c.getContextItem().getStringValueCS());
         } else {
             sv = (AtomicValue)argument[0].evaluateItem(c);
         }
         if (sv==null) {
             return IntegerValue.ZERO;
         }
-        String s = sv.getStringValue();
+        CharSequence s = sv.getStringValueCS();
 
         if (shortcut) {
             return new IntegerValue((s.length()>0 ? 1 : 0));
         } else {
-            return new IntegerValue(StringValue.getLength(s));
+            return new IntegerValue(StringValue.getStringLength(s));
         }
     }
 

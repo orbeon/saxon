@@ -5,9 +5,9 @@ import net.sf.saxon.expr.XPathContextMajor;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.Mode;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 /**
 * An xsl:next-match element in the stylesheet

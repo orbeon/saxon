@@ -3,8 +3,8 @@ package net.sf.saxon.sort;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.XPathException;
 
 /**
  * A DocumentSorter is an expression that sorts a sequence of nodes into
@@ -16,7 +16,9 @@ public class DocumentSorter extends UnaryExpression {
 
     public DocumentSorter(Expression base) {
         super(base);
-        if ((base.getSpecialProperties() & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0) {
+        int props = base.getSpecialProperties();
+        if (((props & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0) ||
+                (props & StaticProperty.SINGLE_DOCUMENT_NODESET) != 0) {
             comparer = LocalOrderComparer.getInstance();
         } else {
             comparer = GlobalOrderComparer.getInstance();

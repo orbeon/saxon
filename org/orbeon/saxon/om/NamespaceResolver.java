@@ -1,7 +1,5 @@
 package net.sf.saxon.om;
 
-import net.sf.saxon.xpath.DynamicError;
-
 import java.util.Iterator;
 
 /**
@@ -13,28 +11,18 @@ import java.util.Iterator;
 public interface NamespaceResolver {
 
     /**
-    * Get the namespace URI corresponding to a given prefix. Return null
-    * if the prefix is not in scope.
-    * @param prefix the namespace prefix
-    * @param useDefault true if the default namespace is to be used when the
-    * prefix is ""
-    * @return the uri for the namespace, or null if the prefix is not in scope
+     * Get the namespace URI corresponding to a given prefix. Return null
+     * if the prefix is not in scope.
+     * @param prefix the namespace prefix. May be the zero-length string, indicating
+     * that there is no prefix. This indicates either the default namespace or the
+     * null namespace, depending on the value of useDefault.
+     * @param useDefault true if the default namespace is to be used when the
+     * prefix is "". If false, the method returns "" when the prefix is "".
+     * @return the uri for the namespace, or null if the prefix is not in scope.
+     * The "null namespace" is represented by the pseudo-URI "".
     */
 
     public abstract String getURIForPrefix(String prefix, boolean useDefault);
-
-    /**
-    * Use this NamespaceContext to resolve a lexical QName
-    * @param qname the lexical QName; this must have already been lexically validated
-    * @param useDefault true if the default namespace is to be used to resolve an unprefixed QName
-    * @param pool the NamePool to be used
-    * @return the integer fingerprint that uniquely identifies this name
-     * @throws net.sf.saxon.xpath.DynamicError if the string is not a valid lexical QName or
-     * if the namespace prefix has not been declared
-    */
-
-    public abstract int getFingerprint(String qname, boolean useDefault, NamePool pool)
-    throws DynamicError;
 
     /**
      * Get an iterator over all the prefixes declared in this namespace context. This will include

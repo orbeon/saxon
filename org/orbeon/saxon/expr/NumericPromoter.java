@@ -3,11 +3,11 @@ import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * A NumericPromoter performs numeric promotion on each item in a supplied sequence
@@ -38,7 +38,7 @@ public final class NumericPromoter extends UnaryExpression implements MappingFun
      public Expression simplify(StaticContext env) throws XPathException {
         operand = operand.simplify(env);
         if (operand instanceof Value) {
-            return new SequenceExtent(iterate(null));
+            return SequenceExtent.makeSequenceExtent(iterate(null));
         }
         return this;
     }
@@ -91,7 +91,7 @@ public final class NumericPromoter extends UnaryExpression implements MappingFun
             err.setXPathContext(context);
             throw err;
         }
-        return v.convert(requiredType, context);
+        return v.convert(requiredType);
     }
 
     /**

@@ -1,8 +1,8 @@
 package net.sf.saxon.event;
 import net.sf.saxon.om.NamespaceConstant;
 import net.sf.saxon.om.Navigator;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.OutputKeys;
 import java.util.ArrayList;

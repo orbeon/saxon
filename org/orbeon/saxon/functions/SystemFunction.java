@@ -2,12 +2,12 @@ package net.sf.saxon.functions;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.NamespaceConstant;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AnyItemType;
 import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -250,7 +250,7 @@ public abstract class SystemFunction extends FunctionCall {
         a.add(new Id());
         a.add(new Idref());
         a.add(new IndexOf());
-        a.add(new InScopeNamespaces());
+        a.add(new InScopePrefixes());
         a.add(new Insert());
         a.add(new Key());
         a.add(new Lang());

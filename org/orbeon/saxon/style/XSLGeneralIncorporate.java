@@ -5,16 +5,12 @@ import net.sf.saxon.StandardURIResolver;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.AttributeCollection;
-import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.tree.DocumentImpl;
 import net.sf.saxon.tree.ElementImpl;
-import net.sf.saxon.xpath.DynamicError;
-import org.w3c.dom.Node;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
-import javax.xml.transform.dom.DOMSource;
 
 
 /**
@@ -71,7 +67,7 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
         checkTopLevel((this instanceof XSLInclude ? "XT0170" : "XT0190"));
 
         try {
-            XSLStylesheet thisSheet = (XSLStylesheet)getParentNode();
+            XSLStylesheet thisSheet = (XSLStylesheet)getParent();
             PreparedStylesheet pss = getPreparedStylesheet();
             Configuration config = pss.getConfiguration();
 
@@ -82,14 +78,6 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
             // (Note, the standard URI resolver never returns null)
             if (source==null) {
                 source = (new StandardURIResolver(config)).resolve(href, getBaseURI());
-            }
-
-            if (source instanceof NodeInfo) {
-                if (source instanceof Node) {
-                    source = new DOMSource((Node)source);
-                } else {
-                    throw new DynamicError("URIResolver must not return a " + source.getClass());
-                }
             }
 
             // check for recursion
@@ -107,18 +95,18 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
                 }
             }
 
-            StyleNodeFactory snFactory = new StyleNodeFactory(getNamePool(),
-                                        config.isAllowExternalFunctions());
-            includedDoc = pss.loadStylesheetModule(source, config, getNamePool(), snFactory);
+            StyleNodeFactory snFactory =
+                    new StyleNodeFactory(getNamePool(), config.isAllowExternalFunctions());
+            includedDoc = PreparedStylesheet.loadStylesheetModule(source, config, getNamePool(), snFactory);
 
             // allow the included document to use "Literal Result Element as Stylesheet" syntax
 
-            ElementImpl outermost = (ElementImpl)includedDoc.getDocumentElement();
+            ElementImpl outermost = includedDoc.getDocumentElement();
 
             if (outermost instanceof LiteralResultElement) {
                 includedDoc = ((LiteralResultElement)outermost)
                         .makeStylesheet(getPreparedStylesheet(), snFactory);
-                outermost = (ElementImpl)includedDoc.getDocumentElement();
+                outermost = includedDoc.getDocumentElement();
             }
 
             if (!(outermost instanceof XSLStylesheet)) {
@@ -139,6 +127,10 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
             incSheet.setPrecedence(precedence);
             incSheet.setImporter(importer);
             incSheet.spliceIncludes();          // resolve any nested includes;
+
+            // Check the consistency of input-type-annotations
+            thisSheet.setInputTypeAnnotations(incSheet.getInputTypeAnnotationsAttribute() |
+                    incSheet.getInputTypeAnnotations());
 
             return incSheet;
 

@@ -2,12 +2,11 @@ package net.sf.saxon.tree;
 import net.sf.saxon.event.LocationCopier;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.om.*;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
-import org.w3c.dom.*;
+import net.sf.saxon.pattern.AnyNodeTest;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
   * A node in the XML parse tree representing an XML element.<P>
@@ -20,8 +19,7 @@ import java.util.List;
 // parser. However, this class retains the ability to do namespace resolution for other
 // names, for example variable and template names in a stylesheet.
 
-public class ElementWithAttributes extends ElementImpl
-    implements Element, NamedNodeMap {
+public class ElementWithAttributes extends ElementImpl {
 
     protected AttributeCollection attributeList;      // this excludes namespace attributes
     protected int[] namespaceList = null;             // list of namespace codes
@@ -36,7 +34,7 @@ public class ElementWithAttributes extends ElementImpl
     * @param parent The parent node
     */
 
-    public void initialise(int nameCode, AttributeCollection atts, NodeInfo parent,
+    public void initialise(int nameCode, AttributeCollectionImpl atts, NodeInfo parent,
                             String baseURI, int lineNumber, int sequenceNumber) {
         this.nameCode = nameCode;
         this.attributeList = atts;
@@ -56,6 +54,53 @@ public class ElementWithAttributes extends ElementImpl
         System.arraycopy(namespaces, 0, namespaceList, 0, namespacesUsed);
     }
 
+    /**
+     * Get the namespace URI corresponding to a given prefix. Return null
+     * if the prefix is not in scope.
+     *
+     * @param prefix     the namespace prefix. May be the zero-length string, indicating
+     *                   that there is no prefix. This indicates either the default namespace or the
+     *                   null namespace, depending on the value of useDefault.
+     * @param useDefault true if the default namespace is to be used when the
+     *                   prefix is "". If false, the method returns "" when the prefix is "".
+     * @return the uri for the namespace, or null if the prefix is not in scope.
+     *         The "null namespace" is represented by the pseudo-URI "".
+     */
+
+    public String getURIForPrefix(String prefix, boolean useDefault) {
+        if (prefix.equals("xml")) {
+            return NamespaceConstant.XML;
+        }
+        if (prefix.equals("") && !useDefault) {
+            return "";
+        }
+
+		NamePool pool = getNamePool();
+		int prefixCode = pool.getCodeForPrefix(prefix);
+		if (prefixCode==-1) {
+		    return null;
+		}
+        try {
+            short uriCode = getURICodeForPrefixCode(prefixCode);
+            return pool.getURIFromURICode(uriCode);
+        } catch (NamespaceException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Get an iterator over all the prefixes declared in this namespace context. This will include
+     * the default namespace (prefix="") and the XML namespace where appropriate
+     */
+
+    public Iterator iteratePrefixes() {
+        Set inScope = new HashSet(10);
+        Set outOfScope = new HashSet(10);
+        inScope.add("");
+        inScope.add("xml");
+        gatherNamespacePrefixes(getNamePool(), inScope, outOfScope);
+        return inScope.iterator();
+    }
 
     /**
     * Search the NamespaceList for a given prefix, returning the corresponding URI.
@@ -84,7 +129,7 @@ public class ElementWithAttributes extends ElementImpl
                 }
             }
         }
-        NodeImpl next = parent;
+        NodeInfo next = parent;
         while (true) {
 	        if (next.getNodeKind()==Type.DOCUMENT) {
 	        	// prefixCode==0 represents the empty namespace prefix ""
@@ -93,7 +138,7 @@ public class ElementWithAttributes extends ElementImpl
 	        } else if (next instanceof ElementWithAttributes) {
 	            return ((ElementWithAttributes)next).getURICodeForPrefixCode(prefixCode);
 	        } else {
-	        	next = (NodeImpl)next.getParentNode();
+	        	next = next.getParent();
 	        }
 	    }
 	}
@@ -123,75 +168,50 @@ public class ElementWithAttributes extends ElementImpl
                 }
             }
         }
-        NodeImpl next = parent;
+        NodeInfo next = parent;
         while (true) {
 	        if (next instanceof DocumentInfo) {
 	            return null;
 	        } else if (next instanceof ElementWithAttributes) {
 	            return ((ElementWithAttributes)next).getPrefixForURICode(code);
 	        } else {
-	        	next = (NodeImpl)next.getParentNode();
+	        	next = next.getParent();
 	        }
 	    }
     }
 
-    /**
-    * Make the set of all namespace nodes associated with this element.
-    * @param owner The element owning these namespace nodes.
-    * @param list a List containing NamespaceImpl objects representing the namespaces
-    * in scope for this element; the method appends nodes to this List, which should
-    * initially be empty. Note that the returned list will never contain the XML namespace
-    * (to get this, the NamespaceEnumeration class adds it itself). The list WILL include
-    * an entry for the undeclaration xmlns=""; again it is the job of NamespaceEnumeration
-    * to ignore this, since it doesn't represent a true namespace node.
-    * @param addXML Add a namespace node for the XML namespace
-    */
-
-    public void addNamespaceNodes(ElementImpl owner, List list, boolean addXML) {
+    private void gatherNamespacePrefixes(NamePool pool, Set inScope, Set outOfScope) {
         if (namespaceList!=null) {
-            int max = list.size();
             for (int i=0; i<namespaceList.length; i++) {
             	int nscode = namespaceList[i];
-                int prefixCode = nscode>>16;
-
-                boolean found = false;
-
-                // Don't add a node if the prefix is already in the list
-                for (int j=0; j<max; ) {
-                    NamespaceImpl ns = (NamespaceImpl)list.get(j++);
-                    if ((ns.getNamespaceCode()>>16) == prefixCode) {
-                        found=true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    list.add(
-                        new NamespaceImpl(
-                            owner, nscode, list.size()+1));
+                String prefix = pool.getPrefixFromNamespaceCode(nscode);
+                if ((nscode & 0xffff) == 0) {
+                    // this is an undeclaration
+                    outOfScope.add(prefix);
+                } else if (!outOfScope.contains(prefix)) {
+                    inScope.add(prefix);
+                    outOfScope.add(prefix);
                 }
             }
         }
 
         // now add the namespaces defined on the ancestor nodes
 
-        if (parent.getNodeKind()!=Type.DOCUMENT) {
-            ((ElementImpl)parent).addNamespaceNodes(owner, list, false);
-        }
-
-        if (addXML) {
-        	int nsxml = (1<<16) + 1;
-            list.add(
-                new NamespaceImpl(this, nsxml, list.size()+1)
-                );
+        NodeInfo parent = getParent();
+        while (parent != null) {
+            if (parent instanceof ElementWithAttributes) {
+                ((ElementWithAttributes)parent).gatherNamespacePrefixes(pool, inScope, outOfScope);
+            }
         }
     }
+
 
     /**
     * Output all namespace nodes associated with this element.
     * @param out The relevant outputter
-    */
+     */
 
-    public void outputNamespaceNodes(Receiver out, boolean includeAncestors) throws XPathException {
+    public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors) throws XPathException {
 
         if (namespaceList!=null) {
             for (int i=0; i<namespaceList.length; i++) {
@@ -204,9 +224,29 @@ public class ElementWithAttributes extends ElementImpl
 
         if (includeAncestors) {
             if (parent.getNodeKind()!=Type.DOCUMENT) {
-                parent.outputNamespaceNodes(out, true);
+                parent.sendNamespaceDeclarations(out, true);
             }
         }
+    }
+
+    /**
+     * Get all namespace undeclarations and undeclarations defined on this element.
+     *
+     * @param buffer If this is non-null, and the result array fits in this buffer, then the result
+     *               may overwrite the contents of this array, to avoid the cost of allocating a new array on the heap.
+     * @return An array of integers representing the namespace declarations and undeclarations present on
+     *         this element. For a node other than an element, return null. Otherwise, the returned array is a
+     *         sequence of namespace codes, whose meaning may be interpreted by reference to the name pool. The
+     *         top half word of each namespace code represents the prefix, the bottom half represents the URI.
+     *         If the bottom half is zero, then this is a namespace undeclaration rather than a declaration.
+     *         The XML namespace is never included in the list. If the supplied array is larger than required,
+     *         then the first unused entry will be set to -1.
+     *         <p/>
+     *         <p>For a node other than an element, the method returns null.</p>
+     */
+
+    public int[] getDeclaredNamespaces(int[] buffer) {
+        return namespaceList;
     }
 
     /**
@@ -214,17 +254,8 @@ public class ElementWithAttributes extends ElementImpl
     * namespace codes. (Used by LiteralResultElement)
     */
 
-    public int[] getNamespaceCodes() {
-    	ArrayList namespaceNodes = new ArrayList();
-        addNamespaceNodes(this, namespaceNodes, true);
-
-        // copy to the namespace code list
-        int[] namespaceCodes = new int[namespaceNodes.size()];
-        for (int i=0; i<namespaceNodes.size(); i++) {
-        	NamespaceImpl nsi = (NamespaceImpl)namespaceNodes.get(i);
-        	namespaceCodes[i] = nsi.getNamespaceCode();
-        }
-        return namespaceCodes;
+    public int[] getInScopeNamespaceCodes() {
+    	return new NamespaceIterator(this, null).getInScopeNamespaceCodes();
     }
 
     /**
@@ -239,17 +270,6 @@ public class ElementWithAttributes extends ElementImpl
     }
 
     /**
-     * Returns whether this node (if it is an element) has any attributes.
-     * @return <code>true</code> if this node has any attributes,
-     *   <code>false</code> otherwise.
-     * @since DOM Level 2
-     */
-
-    public boolean hasAttributes() {
-        return attributeList.getLength() > 0;
-    }
-
-    /**
     * Get the value of a given attribute of this node
     * @param fingerprint The fingerprint of the attribute name
     * @return the attribute value if it exists or null if not
@@ -257,19 +277,6 @@ public class ElementWithAttributes extends ElementImpl
 
     public String getAttributeValue(int fingerprint) {
     	return attributeList.getValueByFingerprint(fingerprint);
-    }
-
-    /**
-    * Set the value of an attribute on the current element. This affects subsequent calls
-    * of getAttribute() for that element.
-    * @param name The name of the attribute to be set. Any prefix is interpreted relative
-    * to the namespaces defined for this element.
-    * @param value The new value of the attribute. Set this to null to remove the attribute.
-    * @throws DOMException (always): Saxon trees are immutable.
-    */
-
-    public void setAttribute(String name, String value ) throws DOMException {
-        disallowUpdate();
     }
 
     /**
@@ -291,7 +298,7 @@ public class ElementWithAttributes extends ElementImpl
         // output the namespaces
 
         if (whichNamespaces != NO_NAMESPACES) {
-            outputNamespaceNodes(out, whichNamespaces==ALL_NAMESPACES);
+            sendNamespaceDeclarations(out, whichNamespaces==ALL_NAMESPACES);
         }
 
         // output the attributes
@@ -313,279 +320,6 @@ public class ElementWithAttributes extends ElementImpl
         }
 
         out.endElement();
-    }
-
-    ////////////////////////////////////////////////////////////////////////////
-    // Following interfaces are provided to implement the DOM Element interface
-    ////////////////////////////////////////////////////////////////////////////
-
-
-    /**
-     * Retrieves an attribute value by name. Namespace declarations are not
-     * returned.
-     * @param name  The name of the attribute to retrieve.
-     * @return  The <code>Attr</code> value as a string, or the empty string if
-     *    that attribute does not have a specified or default value. (Note the
-     * difference from getAttributeValue(), which returns null if there is no
-     * value).
-     */
-
-    public String getAttribute(String name) {
-        int index = attributeList.getIndex(name);
-        if (index<0) return "";
-        return attributeList.getValue(index);
-    }
-
-    /**
-     * A <code>NamedNodeMap</code> containing the attributes of this element. This
-     * is a DOM method, so the list of attributes includes namespace declarations.
-     */
-
-    public NamedNodeMap getAttributes() {
-        return this;
-    }
-
-    /**
-     * Removes an attribute by name.
-     * @param name  The name of the attribute to remove.
-     */
-
-    public void removeAttribute(String name) {
-        setAttribute(name, null);
-    }
-
-    /**
-     * Retrieves an attribute node by name. Namespace declarations are not
-     * returned.
-     * <br> To retrieve an attribute node by qualified name and namespace URI,
-     * use the <code>getAttributeNodeNS</code> method.
-     * @param name  The name (<code>nodeName</code> ) of the attribute to
-     *   retrieve.
-     * @return  The <code>Attr</code> node with the specified name (
-     *   <code>nodeName</code> ) or <code>null</code> if there is no such
-     *   attribute.
-     */
-
-    public Attr getAttributeNode(String name) {
-        int index = getAttributeList().getIndex(name);
-        if (index<0) {
-            return null;
-        }
-        return new AttributeImpl(this, index);
-    }
-
-    /**
-     * Adds a new attribute node. Always fails
-     * @exception DOMException
-     *    NO_MODIFICATION_ALLOWED_ERR: Raised if this node is readonly.
-     */
-
-    public Attr setAttributeNode(Attr newAttr) throws DOMException {
-        disallowUpdate();
-        return null;
-    }
-
-    /**
-     * Removes the specified attribute node. Always fails
-     * @exception DOMException
-     *    NO_MODIFICATION_ALLOWED_ERR: Raised if this node is readonly.
-     */
-
-    public Attr removeAttributeNode(Attr oldAttr) throws DOMException {
-        disallowUpdate();
-        return null;
-    }
-
-    /**
-     * Retrieves an attribute value by local name and namespace URI.
-     * HTML-only DOM implementations do not need to implement this method.
-     * @param namespaceURI  The  namespace URI of the attribute to retrieve.
-     * @param localName  The  local name of the attribute to retrieve.
-     * @return  The <code>Attr</code> value as a string, or the empty string if
-     *    that attribute does not have a specified or default value.
-     * @since DOM Level 2
-     */
-
-    public String getAttributeNS(String namespaceURI, String localName) {
-        String value = Navigator.getAttributeValue(this, namespaceURI, localName);
-        return (value==null ? "" : value);
-    }
-
-    /**
-     * Adds a new attribute. Always fails.
-     * @param namespaceURI  The  namespace URI of the attribute to create or
-     *   alter.
-     * @param qualifiedName  The  qualified name of the attribute to create or
-     *   alter.
-     * @param value  The value to set in string form.
-     * @exception DOMException
-     *   NO_MODIFICATION_ALLOWED_ERR: Raised if this node is readonly.
-     */
-
-    public void setAttributeNS(String namespaceURI,
-                               String qualifiedName,
-                               String value)
-                               throws DOMException {
-        disallowUpdate();
-    }
-
-    /**
-     * Removes an attribute by local name and namespace URI. Always fails
-     * @exception DOMException
-     *    NO_MODIFICATION_ALLOWED_ERR: Raised if this node is readonly.
-     * @since DOM Level 2
-     */
-
-    public void removeAttributeNS(String namespaceURI,
-                                  String localName)
-                                  throws DOMException{
-        disallowUpdate();
-    }
-
-    /**
-     * Retrieves an <code>Attr</code> node by local name and namespace URI.
-     * DOM method, so namespace declarations count as attributes.
-     * @param namespaceURI  The  namespace URI of the attribute to retrieve.
-     * @param localName  The  local name of the attribute to retrieve.
-     * @return  The <code>Attr</code> node with the specified attribute local
-     *   name and namespace URI or <code>null</code> if there is no such
-     *   attribute.
-     * @since DOM Level 2
-     */
-
-    public Attr getAttributeNodeNS(String namespaceURI, String localName) {
-    	int index = attributeList.getIndex(namespaceURI, localName);
-    	if (index<0) return null;
-    	return new AttributeImpl(this, index);
-    }
-
-    /**
-     * Add a new attribute. Always fails.
-     * @param newAttr  The <code>Attr</code> node to add to the attribute list.
-     * @return  If the <code>newAttr</code> attribute replaces an existing
-     *   attribute with the same  local name and  namespace URI , the
-     *   replaced <code>Attr</code> node is returned, otherwise
-     *   <code>null</code> is returned.
-     * @exception DOMException
-     *   <br> NO_MODIFICATION_ALLOWED_ERR: Raised if this node is readonly.
-     * @since DOM Level 2
-     */
-
-    public Attr setAttributeNodeNS(Attr newAttr)
-                                   throws DOMException{
-        disallowUpdate();
-        return null;
-    }
-
-    /**
-     * Returns <code>true</code> when an attribute with a given name is
-     * specified on this element or has a default value, <code>false</code>
-     * otherwise. Namespace declarations are not included.
-     * @param name  The name of the attribute to look for.
-     * @return <code>true</code> if an attribute with the given name is
-     *   specified on this element or has a default value, <code>false</code>
-     *   otherwise.
-     * @since DOM Level 2
-     */
-
-    public boolean hasAttribute(String name) {
-        return attributeList.getIndex(name) >= 0;
-    }
-
-    /**
-     * Returns <code>true</code> when an attribute with a given local name
-     * and namespace URI is specified on this element or has a default value,
-     * <code>false</code> otherwise. This is a DOM method so namespace declarations
-     * are treated as attributes.
-     * @param namespaceURI  The  namespace URI of the attribute to look for.
-     * @param localName  The  local name of the attribute to look for.
-     * @return <code>true</code> if an attribute with the given local name and
-     *   namespace URI is specified or has a default value on this element,
-     *   <code>false</code> otherwise.
-     * @since DOM Level 2
-     */
-
-    public boolean hasAttributeNS(String namespaceURI, String localName) {
-    	return (Navigator.getAttributeValue(this, namespaceURI, localName) != null);
-    }
-
-    //////////////////////////////////////////////////////////////////////
-    // Methods to implement DOM NamedNodeMap (the set of attributes)
-    //////////////////////////////////////////////////////////////////////
-
-    /**
-    * Get named attribute (DOM NamedNodeMap method)
-    * Treats namespace declarations as attributes.
-    */
-
-    public Node getNamedItem(String name) {
-        return getAttributeNode(name);
-    }
-
-    /**
-    * Set named attribute (DOM NamedNodeMap method: always fails)
-    */
-
-    public Node setNamedItem(Node arg) throws DOMException {
-        disallowUpdate();
-        return null;
-    }
-
-    /**
-    * Remove named attribute (DOM NamedNodeMap method: always fails)
-    */
-
-    public Node removeNamedItem(String name) throws DOMException {
-        disallowUpdate();
-        return null;
-    }
-
-    /**
-    * Get n'th attribute (DOM NamedNodeMap method). Namespace declarations are
-    * not returned.
-    */
-
-    public Node item(int index) {
-        if (index<0 || index>=attributeList.getLength()) {
-            return null;
-        }
-        return new AttributeImpl(this, index);
-    }
-
-    /**
-    * Get number of attributes (DOM NamedNodeMap method).
-    * Treats namespace declarations as attributes.
-    */
-
-    public int getLength() {
-        return attributeList.getLength();
-    }
-
-    /**
-    * Get named attribute (DOM NamedNodeMap method)
-    * Treats namespace declarations as attributes.
-    */
-
-    public Node getNamedItemNS(String uri, String localName) {
-        return getAttributeNodeNS(uri, localName);
-    }
-
-    /**
-    * Set named attribute (DOM NamedNodeMap method: always fails)
-    */
-
-    public Node setNamedItemNS(Node arg) throws DOMException {
-        disallowUpdate();
-        return null;
-    }
-
-    /**
-    * Remove named attribute (DOM NamedNodeMap method: always fails)
-    */
-
-    public Node removeNamedItemNS(String uri, String localName) throws DOMException {
-        disallowUpdate();
-        return null;
     }
 
 }

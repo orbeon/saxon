@@ -3,7 +3,7 @@ import net.sf.saxon.event.Stripper;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.NamespaceConstant;
 import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 /**
   * The StylesheetStripper refines the Stripper class to do stripping of

@@ -2,10 +2,13 @@ package net.sf.saxon.value;
 
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.type.ValidationException;
+import net.sf.saxon.type.BuiltInAtomicType;
+import net.sf.saxon.om.FastStringBuffer;
 
 import java.util.Calendar;
 import java.util.regex.Matcher;
@@ -45,32 +48,31 @@ public class GDayValue extends DateValue {
     /**
     * Convert to target data type
     * @param requiredType an integer identifying the required atomic type
-    * @return an AtomicValue, a value of the required type
-    * @throws XPathException if the conversion is not possible
+    * @return an AtomicValue, a value of the required type; or an ErrorValue
     */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
-        switch(requiredType) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+        switch(requiredType.getPrimitiveType()) {
         case Type.G_DAY:
         case Type.ATOMIC:
         case Type.ITEM:
             return this;
 
         case Type.STRING:
-            return new StringValue(getStringValue());
+            return new StringValue(getStringValueCS());
         case Type.UNTYPED_ATOMIC:
-            return new UntypedAtomicValue(getStringValue());
+            return new UntypedAtomicValue(getStringValueCS());
         default:
-            DynamicError err = new DynamicError("Cannot convert gDay to " +
-                    StandardNames.getDisplayName(requiredType));
+            ValidationException err = new ValidationException("Cannot convert gDay to " +
+                    requiredType.getDisplayName());
             err.setErrorCode("FORG0001");
-            throw err;
+            return new ErrorValue(err);
         }
     }
 
     public String getStringValue() {
 
-        StringBuffer sb = new StringBuffer();
+        FastStringBuffer sb = new FastStringBuffer(16);
 
         sb.append("---");
         DateTimeValue.appendString(sb, calendar.get(Calendar.DATE), 2);

@@ -1,6 +1,6 @@
 package net.sf.saxon.sort;
 import net.sf.saxon.om.Item;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 import java.util.Comparator;
 
@@ -34,17 +34,17 @@ public class TextComparer implements Comparator, java.io.Serializable {
 
         String s1, s2;
 
-        try {
+        //try {
             s1 = (a instanceof String ? (String)a : ((Item)a).getStringValue());
-        } catch (XPathException err) {
-            throw new ClassCastException("Cannot convert sort key from " + a.getClass() + " to a string");
-        }
+        //} catch (XPathException err) {
+        //    throw new ClassCastException("Cannot convert sort key from " + a.getClass() + " to a string");
+        //}
 
-        try {
+        //try {
             s2 = (b instanceof String ? (String)b : ((Item)b).getStringValue());
-        } catch (XPathException err) {
-            throw new ClassCastException("Cannot convert sort key from " + b.getClass() + " to a string");
-        }
+        //} catch (XPathException err) {
+        //    throw new ClassCastException("Cannot convert sort key from " + b.getClass() + " to a string");
+        //}
 
         int x = collator.compare(s1, s2);
         //System.err.println(((RuleBasedCollator)collator).getStrength() + " comparing " + s1 + " with " + s2 + " => " + x);

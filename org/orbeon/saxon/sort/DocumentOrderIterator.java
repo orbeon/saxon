@@ -2,8 +2,8 @@ package net.sf.saxon.sort;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.SequenceExtent;
-import net.sf.saxon.xpath.XPathException;
 
 /**
 * DocumentOrderIterator takes as input an iteration of nodes in any order, and

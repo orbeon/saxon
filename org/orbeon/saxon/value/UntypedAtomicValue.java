@@ -1,10 +1,9 @@
 package net.sf.saxon.value;
-import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AtomicType;
+import net.sf.saxon.type.BuiltInAtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.util.Comparator;
 
@@ -45,21 +44,28 @@ public class UntypedAtomicValue extends StringValue {
     * Convert to target data type
     */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
-        if (requiredType==Type.STRING) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+        int req = requiredType.getFingerprint();
+        if (req==Type.STRING) {
             if (value.length() == 0) {
                 // this case is common!
                 return StringValue.EMPTY_STRING;
             } else {
                 return new StringValue(value);
             }
-        } else if (requiredType==Type.DOUBLE) {
+        } else if (req==Type.DOUBLE || req==Type.NUMBER) {
+            // for conversion to double (common in 1.0 mode), cache the result
             if (doubleValue==null) {
-                doubleValue = (DoubleValue)super.convert(requiredType, context);
+                AtomicValue v = super.convertPrimitive(requiredType, validate);
+                if (v instanceof DoubleValue) {
+                    // the alternative is that it's an ErrorValue
+                    doubleValue = (DoubleValue)v;
+                }
+                return v;
             }
             return doubleValue;
         } else {
-            return super.convert(requiredType, context);
+            return super.convertPrimitive(requiredType, validate);
         }
     }
 
@@ -77,26 +83,26 @@ public class UntypedAtomicValue extends StringValue {
         if (other instanceof NumericValue) {
             if (doubleValue == null) {
                 try {
-                    doubleValue = (DoubleValue)convert(Type.DOUBLE, null);
+                    doubleValue = (DoubleValue)convert(Type.DOUBLE);
                 } catch (XPathException err) {
                 throw new ClassCastException("Cannot convert untyped value " +
-                        '\"' + getStringValue() + "\" to a double");
+                        '\"' + getStringValueCS() + "\" to a double");
                 }
             }
             return doubleValue.compareTo(other);
         } else if (other instanceof StringValue) {
-                return collator.compare(getStringValue(), ((StringValue)other).getStringValue());
+            return collator.compare(getStringValue(), ((StringValue)other).getStringValue());
         } else if (other instanceof AtomicValue) {
-            try {
-                AtomicValue conv = convert((AtomicType)((Value)other).getItemType(), null);
-                if (!(conv instanceof Comparable)) {
-                    throw new DynamicError("Type " + ((Value)other).getItemType() + " is not ordered");
-                }
-                return ((Comparable)conv).compareTo(other);
-            } catch (XPathException err) {
+            AtomicValue conv =
+                    convert((AtomicType)((Value)other).getItemType(), null, true);
+            if (conv instanceof ErrorValue) {
                 throw new ClassCastException("Cannot convert untyped atomic value '" + getStringValue()
-                            + "' to type " + ((Value)other).getItemType());
+                        + "' to type " + ((Value)other).getItemType());
             }
+            if (!(conv instanceof Comparable)) {
+                throw new ClassCastException("Type " + ((Value)other).getItemType() + " is not ordered");
+            }
+            return ((Comparable)conv).compareTo(other);
 
         } else {
             // I'm not sure if we need this, but it does no harm

@@ -8,12 +8,12 @@ import net.sf.saxon.om.Name;
 import net.sf.saxon.om.NamespaceResolver;
 import net.sf.saxon.om.QNameException;
 import net.sf.saxon.trans.DecimalFormatManager;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.NumericValue;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;

@@ -1,5 +1,6 @@
 package net.sf.saxon.style;
 import net.sf.saxon.Configuration;
+import net.sf.saxon.Err;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.instruct.AttributeSet;
@@ -81,8 +82,10 @@ public class XSLElement extends StyleElement {
         } else {
             elementName = makeAttributeValueTemplate(nameAtt);
             if (elementName instanceof StringValue) {
-                if (!Name.isQName(nameAtt)) {
-                    compileError("Element name is not a valid QName");
+                if (!Name.isQName(((StringValue)elementName).getStringValue())) {
+                    compileError("Element name " +
+                            Err.wrap(((StringValue)elementName).getStringValue(), Err.ELEMENT) +
+                            " is not a valid QName", "XT0820");
                     // to prevent duplicate error messages:
                     elementName = new StringValue("saxon-error-element");
                 }
@@ -144,7 +147,7 @@ public class XSLElement extends StyleElement {
         // deal specially with the case where the element name is known statically
 
         if (elementName instanceof StringValue) {
-            String qName = ((StringValue)elementName).getStringValue();
+            CharSequence qName = ((StringValue)elementName).getStringValueCS();
 
             String[] parts;
             try {
@@ -161,12 +164,10 @@ public class XSLElement extends StyleElement {
                     parts[0] = "";
                 }
             } else if (namespace==null) {
-                try {
-          		    nsuri = getURIForPrefix(parts[0], true);
-          		} catch (NamespaceException err) {
-          		    compileError(err.getMessage(), "XT0280");
-          		    return null;
-          		}
+                nsuri = getURIForPrefix(parts[0], true);
+                if (nsuri == null) {
+                    undeclaredNamespaceError(parts[0], "XT0280");
+                }
             }
             if (nsuri != null) {
                 int nameCode = getTargetNamePool().allocate(parts[0], nsuri, parts[1]);

@@ -7,9 +7,9 @@ import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.Axis;
 import net.sf.saxon.sort.SortExpression;
 import net.sf.saxon.sort.SortKeyDefinition;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -29,6 +29,14 @@ public class XSLForEach extends StyleElement {
 
     public boolean isInstruction() {
         return true;
+    }
+
+    /**
+     * Specify that xsl:sort is a permitted child
+     */
+
+    protected boolean isPermittedChild(StyleElement child) {
+        return (child instanceof XSLSort);
     }
 
     /**

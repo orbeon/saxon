@@ -4,8 +4,8 @@ import net.sf.saxon.om.ArrayIterator;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Iterator;
@@ -32,8 +32,8 @@ public class TailExpression extends ComputedExpression {
         this.start = start;
     }
 
-    public Expression analyze(StaticContext env, ItemType contextItemType) {
-        // by the time we get here, the analysis has all been done
+    public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
+        base = base.analyze(env, contextItemType);
         return this;
     }
 
@@ -75,7 +75,8 @@ public class TailExpression extends ComputedExpression {
 
     public boolean equals(Object other) {
         return other instanceof TailExpression &&
-                base.equals(((TailExpression)other).base);
+                base.equals(((TailExpression)other).base) &&
+                start == ((TailExpression)other).start;
     }
 
     public int hashCode() {
@@ -110,10 +111,6 @@ public class TailExpression extends ComputedExpression {
                 base.next();
             }
         }
-
-//        public boolean hasNext() throws XPathException {
-//            return base.hasNext();
-//        }
 
         public Item next() throws XPathException {
             return base.next();

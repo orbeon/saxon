@@ -2,11 +2,11 @@ package net.sf.saxon.tree;
 import net.sf.saxon.event.Builder;
 import net.sf.saxon.event.LocationProvider;
 import net.sf.saxon.event.ReceiverOptions;
-import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.om.AttributeCollectionImpl;
 import net.sf.saxon.om.DocumentInfo;
 import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 
 import java.util.ArrayList;
 
@@ -20,8 +20,8 @@ import java.util.ArrayList;
 public class TreeBuilder extends Builder
 
 {
-    private static AttributeCollection emptyAttributeCollection =
-    				new AttributeCollection(null);
+    private static AttributeCollectionImpl emptyAttributeCollection =
+    				new AttributeCollectionImpl(null);
 
     private ParentNodeImpl currentNode;
 
@@ -31,7 +31,7 @@ public class TreeBuilder extends Builder
     private ArrayList arrays = new ArrayList(20);       // reusable arrays for creating nodes
     private int pendingElement;
     private int pendingLocationId;
-    private AttributeCollection attributes;
+    private AttributeCollectionImpl attributes;
     private int[] namespaces;
     private int namespacesUsed;
 
@@ -125,12 +125,6 @@ public class TreeBuilder extends Builder
     * Notify the start of an element
     */
 
-    // TODO: splitting the namespaces and attributes into separate calls means that the
-    // way the NodeFactory works should probably change. Rather than accumulate all the attributes
-    // and namespaces in memory, these ought to be supplied to the newly constructed element node
-    // one by one. But this would cause some problems, e.g. in deciding whether to use ElementImpl
-    // or ElementWithAttributesImpl.
-
     public void startElement (int nameCode, int typeCode, int locationId, int properties) throws XPathException {
         // System.err.println("TreeBuilder: " + this + " Start element depth=" + depth);
 
@@ -161,7 +155,7 @@ public class TreeBuilder extends Builder
         }
 
         if (attributes==null) {
-            attributes = new AttributeCollection(namePool);
+            attributes = new AttributeCollectionImpl(namePool);
         }
 //        String attType = "CDATA";
 //        if (typeCode == Type.ID || (properties & ReceiverOptions.DTD_ID_ATTRIBUTE) != 0) {
@@ -229,7 +223,7 @@ public class TreeBuilder extends Builder
         // System.err.println("End element depth=" + depth);
         currentNode.compact(size[depth]);
         depth--;
-        currentNode = (ParentNodeImpl)currentNode.getParentNode();
+        currentNode = (ParentNodeImpl)currentNode.getParent();
     }
 
     /**
@@ -308,7 +302,7 @@ public class TreeBuilder extends Builder
         public ElementImpl makeElementNode(
                 NodeInfo parent,
                 int nameCode,
-                AttributeCollection attlist,
+                AttributeCollectionImpl attlist,
                 int[] namespaces,
                 int namespacesUsed,
                 LocationProvider locator,

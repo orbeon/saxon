@@ -7,10 +7,10 @@ import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.XMLChar;
 import net.sf.saxon.pattern.NodeKindTest;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -123,7 +123,7 @@ public class ProcessingInstruction extends SimpleNodeConstructor {
      *
      * @param data the supplied content
      * @return the original content, unless adjustments are needed
-     * @throws net.sf.saxon.xpath.DynamicError
+     * @throws net.sf.saxon.trans.DynamicError
      *          if the content is invalid
      */
 

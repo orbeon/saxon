@@ -2,7 +2,7 @@ package net.sf.saxon.functions;
 import net.sf.saxon.expr.Atomizer;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 /**
 * Implement XPath function fn:data()

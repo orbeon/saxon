@@ -1,6 +1,6 @@
 package net.sf.saxon.expr;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.om.ValueRepresentation;
+import net.sf.saxon.trans.XPathException;
 
 /**
 * Binding is a interface used to represent the run-time properties and methods
@@ -14,7 +14,14 @@ public interface Binding  {
     * Evaluate the variable
     */
 
-    public Value evaluateVariable(XPathContext context) throws XPathException;
+    public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException;
+
+    /**
+     * Indicate whether the binding is local or global. A global binding is one that has a fixed
+     * value for the life of a query or transformation; any other binding is local.
+     */
+
+    public boolean isGlobal();
 
 }
 

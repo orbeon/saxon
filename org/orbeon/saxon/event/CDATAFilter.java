@@ -2,7 +2,8 @@ package net.sf.saxon.event;
 import net.sf.saxon.charcode.CharacterSet;
 import net.sf.saxon.charcode.CharacterSetFactory;
 import net.sf.saxon.om.XMLChar;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.om.FastStringBuffer;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.OutputKeys;
 import java.nio.CharBuffer;
@@ -20,13 +21,13 @@ import java.util.StringTokenizer;
 
 public class CDATAFilter extends ProxyReceiver {
 
-    private StringBuffer buffer = new StringBuffer();
+    private FastStringBuffer buffer = new FastStringBuffer(256);
     private Stack stack = new Stack();
     private int[] nameList;             // fingerprints of cdata elements
     private CharacterSet characterSet;
 
     /**
-    * Set the properties for this indenter
+    * Set the properties for this CDATA filter
     */
 
     public void setOutputProperties (Properties details)
@@ -70,13 +71,13 @@ public class CDATAFilter extends ProxyReceiver {
 
     public void characters(CharSequence chars, int locationId, int properties) throws XPathException {
 
-        if ((properties & ReceiverOptions.DISABLE_ESCAPING) != 0) {
+        if ((properties & ReceiverOptions.DISABLE_ESCAPING) == 0) {
+            buffer.append(chars.toString());
+        } else {
             // if the user requests disable-output-escaping, this overrides the CDATA request. We end
             // the CDATA section and output the characters as supplied.
             flush(buffer);
             super.characters(chars, locationId, properties);
-        } else {
-            buffer.append(chars.toString());
         }
     }
 
@@ -95,7 +96,7 @@ public class CDATAFilter extends ProxyReceiver {
     * generating it as CDATA where appropriate
     */
 
-    public void flush(StringBuffer buffer) throws XPathException {
+    public void flush(FastStringBuffer buffer) throws XPathException {
         boolean cdata;
         int end = buffer.length();
         if (end==0) return;
@@ -121,7 +122,9 @@ public class CDATAFilter extends ProxyReceiver {
                     next = XMLChar.supplemental((char)next, buffer.charAt(k+1));
                     skip = 2;
                 }
-                if (!characterSet.inCharset(next)) {
+                if (characterSet.inCharset(next)) {
+                    k++;
+                } else {
 
                     // flush out the preceding characters as CDATA
 
@@ -146,8 +149,6 @@ public class CDATAFilter extends ProxyReceiver {
                         }
                     }
                     start=k;
-                } else {
-                    k++;
                 }
             }
             char[] rest = new char[end-start];

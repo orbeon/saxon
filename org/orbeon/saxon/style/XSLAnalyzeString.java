@@ -6,15 +6,12 @@ import net.sf.saxon.expr.TypeChecker;
 import net.sf.saxon.functions.Matches;
 import net.sf.saxon.instruct.AnalyzeString;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.om.AttributeCollection;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.om.*;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.RegexTranslator;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.regex.Pattern;
@@ -102,13 +99,13 @@ public class XSLAnalyzeString extends StyleElement {
         if (regex instanceof StringValue && flags instanceof StringValue) {
             int jflags = 0;
             try {
-                jflags = Matches.setFlags(((StringValue)flags).getStringValue());
+                jflags = Matches.setFlags(((StringValue)flags).getStringValueCS());
             } catch (XPathException err) {
                 compileError("Invalid value of flags attribute: " + err, "XT1145");
             }
             try {
                 String javaRegex = RegexTranslator.translate(
-                        ((StringValue)regex).getStringValue(), true);
+                        ((StringValue)regex).getStringValueCS(), true);
                 pattern = Pattern.compile(javaRegex, jflags);
                 if (pattern.matcher("").matches()) {
                     compileError("The regular expression must not be one that matches a zero-length string", "XT1150");
@@ -131,7 +128,9 @@ public class XSLAnalyzeString extends StyleElement {
             if (curr == null) {
                 break;
             }
-            if (curr instanceof XSLMatchingSubstring) {
+            if (curr instanceof XSLFallback) {
+                // no-op
+            } else if (curr instanceof XSLMatchingSubstring) {
                 boolean b = curr.getLocalPart().equals("matching-substring");
                 if (b) {
                     if (matching!=null) {

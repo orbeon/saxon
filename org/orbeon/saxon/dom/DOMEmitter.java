@@ -1,8 +1,8 @@
 package net.sf.saxon.dom;
 import net.sf.saxon.event.Emitter;
 import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import org.w3c.dom.*;
 
 
@@ -158,6 +158,9 @@ public class DOMEmitter extends Emitter
     */
 
     public void setNode (Node node) {
+        if (node == null) {
+            return;
+        }
         currentNode = node;
         if (node instanceof Document) {
             document = (Document)node;

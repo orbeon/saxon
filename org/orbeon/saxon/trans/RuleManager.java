@@ -4,7 +4,6 @@ import net.sf.saxon.instruct.Template;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.pattern.Pattern;
 import net.sf.saxon.pattern.UnionPattern;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.Serializable;
 import java.util.HashMap;
@@ -35,8 +34,8 @@ public class RuleManager implements Serializable {
     */
 
     public void resetHandlers() {
-        defaultMode = new Mode(true);
-        modes = new HashMap();
+        defaultMode = new Mode(Mode.DEFAULT_MODE);
+        modes = new HashMap(5);
     }
 
     /**
@@ -53,7 +52,7 @@ public class RuleManager implements Serializable {
         }
         if (modeNameCode==Mode.ALL_MODES) {
             if (omniMode==null) {
-                omniMode = new Mode(false);
+                omniMode = new Mode(Mode.NAMED_MODE);
             }
             return omniMode;
         }

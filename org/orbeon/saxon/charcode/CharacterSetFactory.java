@@ -1,7 +1,7 @@
 package net.sf.saxon.charcode;
 import net.sf.saxon.Loader;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.OutputKeys;
 import java.nio.charset.Charset;
@@ -93,7 +93,7 @@ public class CharacterSetFactory {
                 Charset charset;
                 try {
                     charset = Charset.forName(encoding);
-                    CharacterSet res = new UnknownCharacterSet(charset);
+                    CharacterSet res = UnknownCharacterSet.makeCharSet(charset);
 
                     // Some JDK1.4 charsets are known to be buggy, for example SJIS.
                     // We'll see whether the charset claims to be able to encode some
@@ -104,7 +104,7 @@ public class CharacterSetFactory {
                             res.inCharset(0xa90) &&
                             res.inCharset(0x2200) &&
                             res.inCharset(0x3400)) {
-                        res = new BuggyCharacterSet(charset);
+                        res = BuggyCharacterSet.makeCharSet(charset);
                     }
                     return res;
                 } catch (IllegalCharsetNameException err) {

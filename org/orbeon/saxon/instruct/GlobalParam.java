@@ -2,10 +2,10 @@ package net.sf.saxon.instruct;
 import net.sf.saxon.Controller;
 import net.sf.saxon.expr.ErrorExpression;
 import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.om.ValueRepresentation;
 import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 
 /**
 * The compiled form of a global xsl:param element in the stylesheet or an
@@ -30,12 +30,12 @@ public final class GlobalParam extends GlobalVariable {
     * Evaluate the variable
     */
 
-    public Value evaluateVariable(XPathContext context) throws XPathException {
+    public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException {
         Controller controller = context.getController();
         Bindery b = controller.getBindery();
         boolean wasSupplied = b.useGlobalParameter(getVariableFingerprint(), this, context);
 
-        Value val = b.getGlobalVariableValue(this);
+        ValueRepresentation val = b.getGlobalVariableValue(this);
         if (wasSupplied || val!=null) {
             return val;
         } else {
@@ -55,7 +55,7 @@ public final class GlobalParam extends GlobalVariable {
 
             try {
                 b.setExecuting(this, true);
-                Value value = getSelectValue(context);
+                ValueRepresentation value = getSelectValue(context);
                 b.defineGlobalVariable(this, value);
                 b.setExecuting(this, false);
                 return value;

@@ -1,11 +1,15 @@
 package net.sf.saxon.value;
 import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.pattern.AnyNodeTest;
+import net.sf.saxon.pattern.NoNodeTest;
 import net.sf.saxon.type.AnyItemType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 
 import java.io.Serializable;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * SequenceType: a sequence type consists of a primary type, which indicates the type of item,
@@ -16,24 +20,24 @@ import java.io.Serializable;
 
 public final class SequenceType implements Serializable {
 
-    // TODO: avoid creating multiple objects representing the same SequenceType
-
     private ItemType primaryType;    // the primary type of the item, e.g. "element", "comment", or "integer"
     private int cardinality;    // the required cardinality
+
+    private static Map pool = Collections.synchronizedMap(new HashMap(50));
 
     /**
      * A type that allows any sequence of items
      */
 
     public static final SequenceType ANY_SEQUENCE =
-            new SequenceType(AnyItemType.getInstance(), StaticProperty.ALLOWS_ZERO_OR_MORE);
+            makeSequenceType(AnyItemType.getInstance(), StaticProperty.ALLOWS_ZERO_OR_MORE);
 
     /**
      * A type that allows exactly one item, of any kind
      */
 
     public static final SequenceType SINGLE_ITEM =
-            new SequenceType(AnyItemType.getInstance(), StaticProperty.EXACTLY_ONE);
+            makeSequenceType(AnyItemType.getInstance(), StaticProperty.EXACTLY_ONE);
 
      /**
      * A type that allows zero or one items, of any kind
@@ -47,7 +51,7 @@ public final class SequenceType implements Serializable {
     */
 
    public static final SequenceType SINGLE_ATOMIC =
-            new SequenceType(Type.ANY_ATOMIC_TYPE,
+            makeSequenceType(Type.ANY_ATOMIC_TYPE,
                              StaticProperty.EXACTLY_ONE);
 
     /**
@@ -55,14 +59,14 @@ public final class SequenceType implements Serializable {
     */
 
    public static final SequenceType OPTIONAL_ATOMIC =
-            new SequenceType(Type.ANY_ATOMIC_TYPE,
+            makeSequenceType(Type.ANY_ATOMIC_TYPE,
                              StaticProperty.ALLOWS_ZERO_OR_ONE);
     /**
     * A type that allows zero or more atomic values
     */
 
    public static final SequenceType ATOMIC_SEQUENCE =
-            new SequenceType(Type.ANY_ATOMIC_TYPE,
+            makeSequenceType(Type.ANY_ATOMIC_TYPE,
                              StaticProperty.ALLOWS_ZERO_OR_MORE);
 
     /**
@@ -70,7 +74,7 @@ public final class SequenceType implements Serializable {
      */
 
     public static final SequenceType SINGLE_STRING =
-            new SequenceType(Type.STRING_TYPE,
+            makeSequenceType(Type.STRING_TYPE,
                              StaticProperty.EXACTLY_ONE);
 
     /**
@@ -78,7 +82,7 @@ public final class SequenceType implements Serializable {
      */
 
     public static final SequenceType SINGLE_INTEGER =
-            new SequenceType(Type.INTEGER_TYPE,
+            makeSequenceType(Type.INTEGER_TYPE,
                              StaticProperty.EXACTLY_ONE);
 
     /**
@@ -86,7 +90,7 @@ public final class SequenceType implements Serializable {
      */
 
     public static final SequenceType OPTIONAL_INTEGER =
-            new SequenceType(Type.INTEGER_TYPE,
+            makeSequenceType(Type.INTEGER_TYPE,
                              StaticProperty.ALLOWS_ZERO_OR_ONE);
 
     /**
@@ -94,7 +98,7 @@ public final class SequenceType implements Serializable {
      */
 
     public static final SequenceType OPTIONAL_NODE =
-            new SequenceType(AnyNodeTest.getInstance(),
+            makeSequenceType(AnyNodeTest.getInstance(),
                              StaticProperty.ALLOWS_ZERO_OR_ONE);
 
     /**
@@ -102,7 +106,7 @@ public final class SequenceType implements Serializable {
      */
 
     public static final SequenceType SINGLE_NODE =
-            new SequenceType(AnyNodeTest.getInstance(),
+            makeSequenceType(AnyNodeTest.getInstance(),
                              StaticProperty.EXACTLY_ONE);
 
 
@@ -111,7 +115,7 @@ public final class SequenceType implements Serializable {
      */
 
     public static final SequenceType NODE_SEQUENCE =
-            new SequenceType(AnyNodeTest.getInstance(),
+            makeSequenceType(AnyNodeTest.getInstance(),
                              StaticProperty.ALLOWS_ZERO_OR_MORE);
 
     /**
@@ -119,17 +123,52 @@ public final class SequenceType implements Serializable {
      */
 
     public static final SequenceType NUMERIC_SEQUENCE =
-            new SequenceType(Type.NUMBER_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
+            makeSequenceType(Type.NUMBER_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
 
     /**
-     * Construct an instance of SequenceType
+     * Construct an instance of SequenceType. This is a private constructor: all external
+     * clients use the factory method makeSequenceType(), to allow object pooling.
      *
      * @param primaryType The item type
      * @param cardinality The required cardinality
      */
-    public SequenceType(ItemType primaryType, int cardinality) {
+    private SequenceType(ItemType primaryType, int cardinality) {
         this.primaryType = primaryType;
-        this.cardinality = cardinality;
+        if (primaryType instanceof NoNodeTest) {
+            this.cardinality = StaticProperty.EMPTY;
+        } else {
+            this.cardinality = cardinality;
+        }
+    }
+
+    /**
+     * Construct an instance of SequenceType. This is a factory method: it maintains a
+     * pool of SequenceType objects to reduce the amount of object creation.
+     *
+     * @param primaryType The item type
+     * @param cardinality The required cardinality
+     */
+
+    public static SequenceType makeSequenceType(ItemType primaryType, int cardinality) {
+
+        // For each ItemType, there is an array of 8 SequenceTypes, one for each possible
+        // cardinality (including impossible cardinalities, such as "0 or many"). The pool
+        // is a static HashMap that obtains this array, given an ItemType. The array contains null
+        // entries for cardinalities that have not been requested.
+
+        SequenceType[] array = (SequenceType[])pool.get(primaryType);
+        if (array == null) {
+            array = new SequenceType[8];
+            pool.put(primaryType, array);
+        }
+        int code = StaticProperty.getCardinalityCode(cardinality);
+        if (array[code] == null) {
+            SequenceType s = new SequenceType(primaryType, cardinality);
+            array[code] = s;
+            return s;
+        } else {
+            return array[code];
+        }
     }
 
     /**
@@ -171,6 +210,23 @@ public final class SequenceType implements Serializable {
         return s;
     }
 
+    /**
+     * Returns a hash code value for the object.
+     */
+    public int hashCode() {
+        return primaryType.hashCode() ^ cardinality;
+    }
+
+    /**
+     * Indicates whether some other object is "equal to" this one.
+     */
+    public boolean equals(Object obj) {
+        if (obj instanceof SequenceType) {
+            return this.primaryType.equals(((SequenceType)obj).primaryType) &&
+                    this.cardinality == ((SequenceType)obj).cardinality;
+        }
+        return false;
+    }
 
 
 }

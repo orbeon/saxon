@@ -1,8 +1,8 @@
 package net.sf.saxon.sort;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.NumericValue;
 import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
 
 import java.util.Comparator;
 
@@ -40,8 +40,8 @@ public class NumericComparer implements Comparator, java.io.Serializable {
             try {
                 String s1 = (a instanceof String ? (String)a : ((Item)a).getStringValue());
                 d1 = Value.stringToNumber(s1);
-            } catch (XPathException err) {
-                d1 = Double.NaN;
+            //} catch (XPathException err) {
+            //    d1 = Double.NaN;
             } catch (NumberFormatException err) {
                 d1 = Double.NaN;
             }
@@ -53,8 +53,8 @@ public class NumericComparer implements Comparator, java.io.Serializable {
             try {
                 String s2 = (b instanceof String ? (String)b : ((Item)b).getStringValue());
                 d2 = Value.stringToNumber(s2);
-            } catch (XPathException err) {
-                d2 = Double.NaN;
+            //} catch (XPathException err) {
+            //    d2 = Double.NaN;
             } catch (NumberFormatException err) {
                 d2 = Double.NaN;
             }

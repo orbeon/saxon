@@ -48,14 +48,6 @@ public final class AnyChildNodePattern extends NodeTest {
     }
 
     /**
-     * Indicate whether this NodeTest is capable of matching text nodes
-     */
-
-    public boolean allowsTextNodes() {
-        return true;
-    }
-
-    /**
      * Get a mask indicating which kinds of nodes this NodeTest can match. This is a combination
      * of bits: 1<<Type.ELEMENT for element nodes, 1<<Type.TEXT for text nodes, and so on.
      */
@@ -65,7 +57,7 @@ public final class AnyChildNodePattern extends NodeTest {
     }
 
     public String toString() {
-        return "child::node()";
+        return "node()";
     }
 
     /**

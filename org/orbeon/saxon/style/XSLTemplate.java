@@ -11,15 +11,17 @@ import net.sf.saxon.pattern.NoNodeTest;
 import net.sf.saxon.pattern.Pattern;
 import net.sf.saxon.trans.Mode;
 import net.sf.saxon.trans.RuleManager;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.Err;
 
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
 import java.util.StringTokenizer;
+import java.math.BigDecimal;
 
 /**
 * An xsl:template element in the style sheet.
@@ -49,6 +51,14 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
 
     public boolean mayContainSequenceConstructor() {
         return true;
+    }
+
+    /**
+     * Specify that xsl:param is a permitted child
+     */
+
+    protected boolean isPermittedChild(StyleElement child) {
+        return (child instanceof XSLParam);
     }
 
     /**
@@ -90,7 +100,7 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
     }
 
     private int getMinImportPrecedence() {
-        return ((XSLStylesheet)getDocumentElement()).getMinImportPrecedence();
+        return getContainingStylesheet().getMinImportPrecedence();
     }
 
     public void prepareAttributes() throws TransformerConfigurationException {
@@ -178,9 +188,10 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
                 compileError("The priority attribute must be absent if the match attribute is absent", "XT0500");
             }
             try {
+                // it's got to be a valid decimal, but we want it as a double, so parse it twice
+                new BigDecimal(priorityAtt.trim());
                 priority = Double.parseDouble(priorityAtt.trim());
             } catch (NumberFormatException err) {
-                // TODO: the value is now constrained to be an xs:decimal
                 compileError("Invalid numeric value for priority (" + priority + ')', "XT0530");
             }
         }
@@ -211,7 +222,7 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
             if (match.getNodeTest() instanceof NoNodeTest) {
                 try {
                     getConfiguration().getErrorListener().warning(
-                            new TransformerException("Match pattern does not match any nodes", this));
+                            new TransformerException("Match pattern cannot match any nodes", this));
                 } catch (TransformerException e) {
                     compileError(e);
                 }
@@ -278,6 +289,7 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
             trace.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
             trace.setParentExpression(compiledTemplate);
             exp = trace;
+            compiledTemplate.setBody(exp);
         }
 
 
@@ -294,6 +306,7 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
             Expression exp2 = exp.analyze(staticContext, contextItemType);
             if (exp != exp2) {
                 compiledTemplate.setBody(exp2);
+                exp = exp2;
             }
         } catch (XPathException e) {
             compileError(e);

@@ -9,9 +9,9 @@ import net.sf.saxon.om.NamespaceException;
 import net.sf.saxon.pattern.Pattern;
 import net.sf.saxon.trans.KeyDefinition;
 import net.sf.saxon.trans.KeyManager;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.text.Collator;
@@ -99,21 +99,21 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
         if (use!=null) {
             // the value can be supplied as a content constructor in place of a use expression
             if (hasChildNodes()) {
-                compileError("An xsl:key element with a use attribute must be empty", "XT1205");
+                compileError("An xsl:key element with a @use attribute must be empty", "XT1205");
             }
             try {
                 RoleLocator role =
                     new RoleLocator(RoleLocator.INSTRUCTION, "xsl:key/use", 0, null);
                 use = TypeChecker.staticTypeCheck(
                                 use,
-                                new SequenceType(Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE),
+                                SequenceType.makeSequenceType(Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE),
                                 false, role, getStaticContext());
             } catch (XPathException err) {
                 compileError(err);
             }
         } else {
             if (!hasChildNodes()) {
-                compileError("An xsl:key element must either have a use attribute or have content", "XT1205");
+                compileError("An xsl:key element must either have a @use attribute or have content", "XT1205");
             }
         }
         use = typeCheck("use", use);
@@ -149,7 +149,7 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
                     new RoleLocator(RoleLocator.INSTRUCTION, "xsl:key/use", 0, null);
                 use = TypeChecker.staticTypeCheck(
                                 use,
-                                new SequenceType(Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE),
+                                SequenceType.makeSequenceType(Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE),
                                 false, role, getStaticContext());
 
             } catch (XPathException err) {

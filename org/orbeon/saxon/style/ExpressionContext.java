@@ -1,11 +1,12 @@
 package net.sf.saxon.style;
 import net.sf.saxon.Configuration;
+import net.sf.saxon.Err;
 import net.sf.saxon.expr.VariableDeclaration;
 import net.sf.saxon.functions.FunctionLibrary;
 import net.sf.saxon.instruct.LocationMap;
 import net.sf.saxon.om.*;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.SourceLocator;
 import java.util.Comparator;
@@ -92,13 +93,13 @@ public class ExpressionContext implements XSLTStaticContext {
     */
 
     public String getURIForPrefix(String prefix) throws XPathException {
-        try {
-            return element.getURIForPrefix(prefix, false);
-        } catch (NamespaceException err) {
-            StaticError e = new StaticError(err);
-            e.setErrorCode("XT0280");
-            throw e;
+        String uri = element.getURIForPrefix(prefix, false);
+        if (uri == null) {
+            StaticError err = new StaticError("Undeclared namespace prefix " + Err.wrap(prefix));
+            err.setErrorCode("XY0280");
+            throw err;
         }
+        return uri;
     }
 
     /**
@@ -147,7 +148,7 @@ public class ExpressionContext implements XSLTStaticContext {
     * Bind a variable to an object that can be used to refer to it
     * @param fingerprint The fingerprint of the variable name
     * @return a VariableDeclaration object that can be used to identify it in the Bindery
-    * @throws net.sf.saxon.xpath.StaticError if the variable has not been declared
+    * @throws net.sf.saxon.trans.StaticError if the variable has not been declared
     */
 
     public VariableDeclaration bindVariable(int fingerprint) throws StaticError {

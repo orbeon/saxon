@@ -4,8 +4,8 @@ import net.sf.saxon.event.Receiver;
 import net.sf.saxon.event.Stripper;
 import net.sf.saxon.pattern.NodeKindTest;
 import net.sf.saxon.pattern.NodeTest;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
 
 
 /**
@@ -181,22 +181,31 @@ public class StrippedNode implements NodeInfo, VirtualNode {
     */
 
     public String getStringValue() {
+        return getStringValueCS().toString();
+    }
+
+    /**
+     * Get the value of the item as a CharSequence. This is in some cases more efficient than
+     * the version of the method that returns a String.
+     */
+
+    public CharSequence getStringValueCS() {
         // Might not be the same as the string value of the underlying node because of space stripping
         switch (getNodeKind()) {
             case Type.DOCUMENT:
             case Type.ELEMENT:
                 AxisIterator iter = iterateAxis(Axis.DESCENDANT, NodeKindTest.makeNodeKindTest(Type.TEXT));
-                StringBuffer sb = new StringBuffer(1024);
+                FastStringBuffer sb = new FastStringBuffer(1024);
                 while(true) {
                     NodeInfo it = (NodeInfo)iter.next();
                     if (it == null) {
                         break;
                     }
-                    sb.append(it.getStringValue());
+                    sb.append(it.getStringValueCS());
                 }
-                return sb.toString();
+                return sb.condense();
             default:
-                return node.getStringValue();
+                return node.getStringValueCS();
         }
     }
 
@@ -243,6 +252,17 @@ public class StrippedNode implements NodeInfo, VirtualNode {
 
     public String getURI() {
         return node.getURI();
+    }
+
+    /**
+     * Get the prefix of the name of the node. This is defined only for elements and attributes.
+     * If the node has no prefix, or for other kinds of node, return a zero-length string.
+     *
+     * @return The prefix of the name of the node.
+     */
+
+    public String getPrefix() {
+        return node.getPrefix();
     }
 
     /**
@@ -304,31 +324,7 @@ public class StrippedNode implements NodeInfo, VirtualNode {
     */
 
     public AxisIterator iterateAxis(byte axisNumber, NodeTest nodeTest) {
-        if (nodeTest.allowsTextNodes()) {
-            return new Navigator.AxisFilter(iterateAxis(axisNumber), nodeTest);
-        } else {
-            return new WrappingIterator(node.iterateAxis(axisNumber, nodeTest), this);
-//            // Following code is wrong. Surely if we've established that the step doesn't return
-//            // text nodes, then we don't need to strip them?
-//            switch (axisNumber) {
-//                case Axis.ATTRIBUTE:
-//                case Axis.NAMESPACE:
-//                    return new WrappingIterator(node.iterateAxis(axisNumber, nodeTest), this);
-//                case Axis.CHILD:
-//                    return new StrippingIterator(node.iterateAxis(axisNumber, nodeTest), this);
-//                case Axis.FOLLOWING_SIBLING:
-//                case Axis.PRECEDING_SIBLING:
-//                    StrippedNode parent = (StrippedNode)getParent();
-//                    if (parent == null) {
-//                        return EmptyIterator.getInstance();
-//                    } else {
-//                        return new StrippingIterator(node.iterateAxis(axisNumber, nodeTest),
-//                                                parent);
-//                    }
-//                default:
-//                    return new StrippingIterator(node.iterateAxis(axisNumber, nodeTest), null);
-//            }
-        }
+        return new Navigator.AxisFilter(iterateAxis(axisNumber), nodeTest);
     }
 
     /**
@@ -406,13 +402,32 @@ public class StrippedNode implements NodeInfo, VirtualNode {
     * Output all namespace nodes associated with this element. Does nothing if
     * the node is not an element.
     * @param out The relevant outputter
-    * @param includeAncestors True if namespaces declared on ancestor elements must
-    * be output; false if it is known that these are already on the result tree
-    */
+     * @param includeAncestors True if namespaces declared on ancestor elements must
+     */
 
-    public void outputNamespaceNodes(Receiver out, boolean includeAncestors)
+    public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors)
     throws XPathException {
-        node.outputNamespaceNodes(out, includeAncestors);
+        node.sendNamespaceDeclarations(out, includeAncestors);
+    }
+
+    /**
+     * Get all namespace undeclarations and undeclarations defined on this element.
+     *
+     * @param buffer If this is non-null, and the result array fits in this buffer, then the result
+     *               may overwrite the contents of this array, to avoid the cost of allocating a new array on the heap.
+     * @return An array of integers representing the namespace declarations and undeclarations present on
+     *         this element. For a node other than an element, return null. Otherwise, the returned array is a
+     *         sequence of namespace codes, whose meaning may be interpreted by reference to the name pool. The
+     *         top half word of each namespace code represents the prefix, the bottom half represents the URI.
+     *         If the bottom half is zero, then this is a namespace undeclaration rather than a declaration.
+     *         The XML namespace is never included in the list. If the supplied array is larger than required,
+     *         then the first unused entry will be set to -1.
+     *         <p/>
+     *         <p>For a node other than an element, the method returns null.</p>
+     */
+
+    public int[] getDeclaredNamespaces(int[] buffer) {
+        return node.getDeclaredNamespaces(buffer);
     }
 
     /**
@@ -525,7 +540,7 @@ public class StrippedNode implements NodeInfo, VirtualNode {
                 if (nextRealNode.getNodeKind() != Type.TEXT) {
                     break;
                 }
-                if (!Navigator.isWhite(nextRealNode.getStringValue())) {
+                if (!Navigator.isWhite(nextRealNode.getStringValueCS())) {
                     break;
                 }
                 NodeInfo actualParent =

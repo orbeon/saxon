@@ -1,8 +1,7 @@
 package net.sf.saxon.tree;
 import net.sf.saxon.event.Receiver;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
-import org.w3c.dom.Comment;
 
 /**
   * CommentImpl is an implementation of a Comment node
@@ -10,21 +9,12 @@ import org.w3c.dom.Comment;
   */
 
 
-final class CommentImpl extends NodeImpl implements Comment {
+final class CommentImpl extends NodeImpl {
 
     String comment;
 
     public CommentImpl(String content) {
         this.comment = content;
-    }
-
-    /**
-    * Get the name of this node, following the DOM rules
-    * @return "#comment"
-    */
-
-    public final String getNodeName() {
-        return "#comment";
     }
 
     public final String getStringValue() {

@@ -1,9 +1,9 @@
 package net.sf.saxon.event;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.Result;
 /**
-  * Receiver: This interface represents a recipient of XML tree-walking events. It is
+  * Receiver: This interface represents a recipient of XML tree-walking (push) events. It is
   * based on SAX2's ContentHandler, but adapted to handle additional events, and
   * to use Saxon's name pool. Namespaces and Attributes are handled by separate events
   * following the startElement event. Schema types can be defined for elements and attributes.
@@ -72,16 +72,24 @@ public interface Receiver extends Result {
             throws XPathException;
 
     /**
-    * Notify a namespace. Namespaces are notified <b>after</b> the startElement event, and before
-    * any children for the element. The namespaces that are reported are only required
-    * to include those that are different from the parent element; however, duplicates may be reported.
-    * A namespace must not conflict with any namespaces already used for element or attribute names.
-    * @param namespaceCode an integer: the top half is a prefix code, the bottom half a URI code.
-    * These may be translated into an actual prefix and URI using the name pool. A prefix code of
-    * zero represents the empty prefix (that is, the default namespace). A URI code of zero represents
-    * a URI of "", that is, a namespace undeclaration.
-    * @throws IllegalStateException: attempt to output a namespace when there is no open element
-    * start tag
+     * Notify a namespace. Namespaces are notified <b>after</b> the startElement event, and before
+     * any children for the element. The namespaces that are reported are only required
+     * to include those that are different from the parent element. The events represent namespace
+     * declarations and undeclarations rather than in-scope namespace nodes: an undeclaration is represented
+     * by a namespace code of zero. If the sequence of namespace events contains two
+     * A namespace must not conflict with any namespaces already used for element or attribute names.
+     * @param namespaceCode an integer: the top half is a prefix code, the bottom half a URI code.
+     * These may be translated into an actual prefix and URI using the name pool. A prefix code of
+     * zero represents the empty prefix (that is, the default namespace). A URI code of zero represents
+     * a URI of "", that is, a namespace undeclaration.
+     * @param properties The most important property is REJECT_DUPLICATES. If this property is set, the
+     * namespace declaration will be rejected if it conflicts with a previous declaration of the same
+     * prefix. If the property is not set, the namespace declaration will be ignored if it conflicts
+     * with a previous declaration. This reflects the fact that when copying a tree, namespaces for child
+     * elements are emitted before the namespaces of their parent element. Unfortunately this conflicts
+     * with the XSLT rule for complex content construction, where the recovery action in the event of
+     * conflicts is to take the namespace that comes last. XSLT therefore doesn't recover from this error:
+     * it sets the REJECT_DUPLICATES flag, and this is treated as a hard error.
     */
 
     public void namespace(int namespaceCode, int properties) throws XPathException;

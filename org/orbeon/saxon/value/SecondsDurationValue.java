@@ -1,10 +1,10 @@
 package net.sf.saxon.value;
-import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.om.FastStringBuffer;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.util.StringTokenizer;
 
@@ -94,6 +94,21 @@ public final class SecondsDurationValue extends DurationValue {
     }
 
     /**
+     * Create a dayTimeDuration given the number of days, hours, minutes, and seconds
+     */
+
+    public SecondsDurationValue(int sign, int days, int hours, int minutes, int seconds, int milliseconds) {
+        this.negative = (sign<0);
+        this.years = 0;
+        this.months = 0;
+        this.days = days;
+        this.hours = hours;
+        this.minutes = minutes;
+        this.seconds = seconds;
+        this.milliseconds = milliseconds;
+    }
+
+    /**
     * Convert to string
     * @return ISO 8601 representation.
     */
@@ -115,28 +130,25 @@ public final class SecondsDurationValue extends DurationValue {
         long d = h / 24;
         h = h % 24;
 
-        StringBuffer sb = new StringBuffer(32);
+        FastStringBuffer sb = new FastStringBuffer(32);
         if (negative) {
             sb.append('-');
         }
         sb.append('P');
         if (d != 0) {
-            sb.append(d);
-            sb.append('D');
+            sb.append(d + "D");
         }
         if ( d==0 || h!=0 || m!=0 || s!=0 || millis!=0) {
             sb.append('T');
         }
         if (h != 0) {
-            sb.append(h);
-            sb.append('H');
+            sb.append(h + "H");
         }
         if (m != 0) {
-            sb.append(m);
-            sb.append('M');
+            sb.append(m + "M");
         }
         if (s != 0 || millis != 0 || (d==0 && m==0 && h==0)) {
-            sb.append(s);
+            sb.append(s + "");
             if (milliseconds!=0) {
                 sb.append('.');
                 DateTimeValue.appendString(sb, millis, 3);
@@ -229,7 +241,8 @@ public final class SecondsDurationValue extends DurationValue {
     public static SecondsDurationValue fromMilliseconds(long milliseconds) throws XPathException {
         SecondsDurationValue sdv = new SecondsDurationValue();
         sdv.negative = (milliseconds<0);
-        long seconds = Math.abs(milliseconds)/1000;
+        milliseconds = Math.abs(milliseconds);
+        long seconds = milliseconds/1000;
         sdv.days = (int)(seconds / (3600*24));
         sdv.seconds = (int)(seconds % (3600*24));
         sdv.milliseconds = (int)(milliseconds % 1000);
@@ -308,7 +321,7 @@ public final class SecondsDurationValue extends DurationValue {
     * Convert to Java object (for passing to external functions)
     */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
+    public Object convertToJava(Class target, XPathContext context) throws XPathException {
         if (target.isAssignableFrom(DurationValue.class)) {
             return this;
         } else if (target==String.class || target==CharSequence.class) {

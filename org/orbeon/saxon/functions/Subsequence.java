@@ -2,11 +2,14 @@ package net.sf.saxon.functions;
 import net.sf.saxon.expr.PositionIterator;
 import net.sf.saxon.expr.TailExpression;
 import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.expr.Token;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.om.EmptyIterator;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.NumericValue;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.value.IntegerValue;
 
 /**
 * Implements the XPath 2.0 subsequence()  function
@@ -46,21 +49,101 @@ public class Subsequence extends SystemFunction {
         SequenceIterator seq = argument[0].iterate(context);
         AtomicValue startVal0 = (AtomicValue)argument[1].evaluateItem(context);
         NumericValue startVal = (NumericValue)startVal0.getPrimitiveValue();
-        int start = (int)startVal.round().longValue();
 
-        if (argument.length==3) {
+        if (argument.length == 2) {
+            long lstart;
+            if (startVal instanceof IntegerValue) {
+                lstart = ((IntegerValue)startVal).longValue();
+                if (lstart <= 1) {
+                    return seq;
+                }
+            } else {
+                startVal = startVal.round();
+                if (startVal.compareTo(IntegerValue.PLUS_ONE) <= 0) {
+                    return seq;
+                } else if (startVal.compareTo(IntegerValue.MAX_LONG) > 0) {
+                    return EmptyIterator.getInstance();
+                } else if (startVal.isNaN()) {
+                    return EmptyIterator.getInstance();
+                } else {
+                    lstart = startVal.longValue();
+                }
+            }
+
+            if (lstart > Integer.MAX_VALUE) {
+                // we don't allow sequences longer than an this
+                return EmptyIterator.getInstance();
+            }
+
+            return new TailExpression.TailIterator(seq, (int)lstart);
+
+        } else {
+
+            // There are three arguments
+
             AtomicValue lengthVal0 = (AtomicValue)argument[2].evaluateItem(context);
             NumericValue lengthVal = (NumericValue)lengthVal0.getPrimitiveValue();
-            int end = start + (int)lengthVal.round().longValue() - 1;
-            if (start < 1) {
-                start = 1;
-            }
-            return PositionIterator.make(seq, start, end);
-        } else {
-            if (start <= 1) {
-                return seq;
+
+            if (startVal instanceof IntegerValue && lengthVal instanceof IntegerValue) {
+                long lstart = ((IntegerValue)startVal).longValue();
+                if (lstart > Integer.MAX_VALUE) {
+                    return EmptyIterator.getInstance();
+                }
+                long llength = ((IntegerValue)lengthVal).longValue();
+                if (llength > Integer.MAX_VALUE) {
+                    llength = Integer.MAX_VALUE;
+                }
+                if (llength < 1) {
+                    return EmptyIterator.getInstance();
+                }
+                long lend = lstart + llength - 1;
+                if (lend < 1) {
+                    return EmptyIterator.getInstance();
+                }
+                int start = (lstart < 1 ? 1 : (int)lstart);
+                return PositionIterator.make(seq, start, (int)lend);
             } else {
-                return new TailExpression.TailIterator(seq, start);
+                if (startVal.isNaN()) {
+                    return EmptyIterator.getInstance();
+                }
+                if (startVal.compareTo(IntegerValue.MAX_LONG) > 0) {
+                    return EmptyIterator.getInstance();
+                }
+                startVal = startVal.round();
+
+                if (lengthVal.isNaN()) {
+                    return EmptyIterator.getInstance();
+                }
+                lengthVal = lengthVal.round();
+
+                if (lengthVal.compareTo(IntegerValue.ZERO) <= 0) {
+                    return EmptyIterator.getInstance();
+                }
+                NumericValue rend = startVal
+                        .arithmetic(Token.PLUS, lengthVal, context)
+                        .arithmetic(Token.MINUS, IntegerValue.PLUS_ONE, context);
+                if (rend.compareTo(IntegerValue.ZERO) <= 0) {
+                    return EmptyIterator.getInstance();
+                }
+
+                long lstart;
+                if (startVal.compareTo(IntegerValue.PLUS_ONE) <= 0) {
+                    lstart = 1;
+                } else {
+                    lstart = startVal.longValue();
+                }
+                if (lstart > Integer.MAX_VALUE) {
+                    return EmptyIterator.getInstance();
+                }
+
+                long lend;
+                if (rend.compareTo(IntegerValue.MAX_LONG) >= 0) {
+                    lend = Integer.MAX_VALUE;
+                } else {
+                    lend = rend.longValue();
+                }
+                return PositionIterator.make(seq, (int)lstart, (int)lend);
+
             }
         }
     }

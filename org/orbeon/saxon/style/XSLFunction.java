@@ -2,9 +2,9 @@ package net.sf.saxon.style;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.*;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.ArrayList;
@@ -112,6 +112,13 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
     }
 
     /**
+     * Specify that xsl:param is a permitted child
+     */
+
+    protected boolean isPermittedChild(StyleElement child) {
+        return (child instanceof XSLParam);
+    }
+    /**
     * Is override="yes"?.
     * @return true if override="yes" was specified, otherwise false
     */
@@ -146,16 +153,25 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
 
         XSLStylesheet root = getPrincipalStylesheet();
         List toplevel = root.getTopLevel();
+        boolean isDuplicate = false;
         for (int i=toplevel.size()-1; i>=0; i--) {
             Object child = toplevel.get(i);
             if (child instanceof XSLFunction &&
                     !(child == this) &&
                     ((XSLFunction)child).getFunctionFingerprint() == getFunctionFingerprint() &&
-                    ((XSLFunction)child).getNumberOfArguments() == numberOfArguments &&
-                    ((XSLFunction)child).getPrecedence() == getPrecedence()) {
-                compileError("Duplicate function declaration", "XT0770");
-                // TODO: this is not an error if there is another function with higher precedence
+                    ((XSLFunction)child).getNumberOfArguments() == numberOfArguments) {
+                if (((XSLFunction)child).getPrecedence() == getPrecedence()) {
+                    isDuplicate = true;
+                }
+                if (((XSLFunction)child).getPrecedence() > getPrecedence()) {
+                    // it's not an error to have duplicates if there is another with higher precedence
+                    isDuplicate = false;
+                    break;
+                }
             }
+        }
+        if (isDuplicate) {
+            compileError("Duplicate function declaration", "XT0770");
         }
     }
 

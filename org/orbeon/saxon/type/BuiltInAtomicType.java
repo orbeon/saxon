@@ -7,9 +7,9 @@ import net.sf.saxon.functions.NormalizeSpace;
 import net.sf.saxon.instruct.ValueOf;
 import net.sf.saxon.om.*;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.Serializable;
 
@@ -18,9 +18,7 @@ import java.io.Serializable;
  * (such as xs:decimal or xs:anyURI) or a derived type (such as xs:ID or xdt:dayTimeDuration).
  */
 
-public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializable {
-
-    // TODO: make this class final, and define ExternalObjectType independently
+public class BuiltInAtomicType implements AtomicType, Serializable {
 
     int fingerprint;
     int baseFingerprint = -1;
@@ -49,7 +47,7 @@ public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializa
     
     /**
      * Returns the value of the 'block' attribute for this type, as a bit-signnificant
-     * integer with fields such as {@link org.w3c.dom.TypeInfo#DERIVATION_LIST} and {@link org.w3c.dom.TypeInfo#DERIVATION_EXTENSION}
+     * integer with fields such as {@link SchemaType#DERIVATION_LIST} and {@link SchemaType#DERIVATION_EXTENSION}
      *
      * @return the value of the 'block' attribute for this type
      */
@@ -62,18 +60,18 @@ public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializa
      * Gets the integer code of the derivation method used to derive this type from its
      * parent. Returns zero for primitive types.
      *
-     * @return a numeric code representing the derivation method, for example {@link org.w3c.dom.TypeInfo#DERIVATION_RESTRICTION}
+     * @return a numeric code representing the derivation method, for example {@link SchemaType#DERIVATION_RESTRICTION}
      */
 
     public final int getDerivationMethod() {
-        return org.w3c.dom.TypeInfo.DERIVATION_RESTRICTION;
+        return SchemaType.DERIVATION_RESTRICTION;
     }
 
     /**
      * Determines whether derivation (of a particular kind)
      * from this type is allowed, based on the "final" property
      *
-     * @param derivation the kind of derivation, for example {@link org.w3c.dom.TypeInfo#DERIVATION_LIST}
+     * @param derivation the kind of derivation, for example {@link SchemaType#DERIVATION_LIST}
      * @return true if this kind of derivation is allowed
      */
 
@@ -92,6 +90,16 @@ public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializa
      */
 
     public int getFingerprint() {
+        return fingerprint;
+    }
+
+    /**
+     * Get the namecode of the name of this type. This includes the prefix from the original
+     * type declaration: in the case of built-in types, there may be a conventional prefix
+     * or there may be no prefix.
+     */
+
+    public int getNameCode() {
         return fingerprint;
     }
 
@@ -185,7 +193,7 @@ public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializa
         if (Type.isPrimitiveType(getFingerprint())) {
              return this;
          } else {
-             ItemType s = (ItemType)getKnownBaseType();
+             ItemType s = (ItemType)getBaseType();
              if (s instanceof AtomicType) {
                  return s.getPrimitiveItemType();
              } else {
@@ -208,7 +216,7 @@ public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializa
         if (Type.isPrimitiveType(x)) {
             return x;
         } else {
-            SchemaType s = getKnownBaseType();
+            SchemaType s = getBaseType();
             if (s instanceof AtomicType) {
                 return ((AtomicType)s).getPrimitiveType();
             } else {
@@ -274,7 +282,7 @@ public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializa
      * @throws SchemaException if the derivation is not allowed
      */
 
-    public void checkDerivation(SchemaType type, int block) throws SchemaException, ValidationException {
+    public void isTypeDerivationOK(SchemaType type, int block) throws SchemaException, ValidationException {
         //To change body of implemented methods use File | Settings | File Templates.
     }
 
@@ -344,7 +352,7 @@ public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializa
             case Whitespace.PRESERVE:
                 return value;
             case Whitespace.REPLACE:
-                StringBuffer sb = new StringBuffer(value.length());
+                FastStringBuffer sb = new FastStringBuffer(value.length());
                 for (int i = 0; i < value.length(); i++) {
                     if ("\n\r\t".indexOf(value.charAt(i)) >= 0) {
                         sb.append(' ');
@@ -384,7 +392,7 @@ public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializa
         BuiltInAtomicType base = this;
         int fp = base.getFingerprint();
         while (fp > 1023) {
-            base = (BuiltInAtomicType)base.getKnownBaseType();
+            base = (BuiltInAtomicType)base.getBaseType();
             fp = base.getFingerprint();
         }
 
@@ -395,79 +403,27 @@ public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializa
     }
 
     /**
-     * The name of a type declared for the associated element or attribute,
-     * or <code>null</code> if unknown.
-     */
-    public String getTypeName() {
-        return StandardNames.getLocalName(fingerprint);
-    }
-
-    /**
-     * The namespace of the type declared for the associated element or
-     * attribute or <code>null</code> if the element does not have
-     * declaration or if no namespace information is available.
-     */
-    public String getTypeNamespace() {
-        return StandardNames.getURI(fingerprint);
-    }
-
-    /**
-     * This method returns if there is a derivation between the reference
-     * type definition, i.e. the <code>TypeInfo</code> on which the method
-     * is being called, and the other type definition, i.e. the one passed
-     * as parameters.
-     *
-     * @param typeNamespaceArg the namespace of the other type definition.
-     * @param typeNameArg      the name of the other type definition.
-     * @param derivationMethod the type of derivation and conditions applied
-     *                         between two types, as described in the list of constants provided
-     *                         in this interface.
-     * @return If the document's schema is a DTD or no schema is associated
-     *         with the document, this method will always return <code>false</code>
-     *         .  If the document's schema is an XML Schema, the method will
-     *         <code>true</code> if the reference type definition is derived from
-     *         the other type definition according to the derivation parameter. If
-     *         the value of the parameter is <code>0</code> (no bit is set to
-     *         <code>1</code> for the <code>derivationMethod</code> parameter),
-     *         the method will return <code>true</code> if the other type
-     *         definition can be reached by recursing any combination of {base
-     *         type definition}, {item type definition}, or {member type
-     *         definitions} from the reference type definition.
-     */
-    public boolean isDerivedFrom(String typeNamespaceArg, String typeNameArg, int derivationMethod) {
-        int other = StandardNames.getFingerprint(typeNamespaceArg, typeNameArg);
-        if (other == -1 || other > 1023) {
-            return false;
-        }
-        SchemaType otherType = BuiltInSchemaFactory.getSchemaType(other);
-        if (otherType instanceof ItemType) {
-            return Type.isSubType(this, (ItemType)otherType);
-        } else {
-            return (other==StandardNames.XS_ANY_TYPE || other==StandardNames.XS_ANY_SIMPLE_TYPE);
-        }
-    }
-
-    /**
      * Check whether a given input string is valid according to this SimpleType
      *
      * @param value      the input string to be checked
      * @param nsResolver a namespace resolver used to resolve namespace prefixes if the type
      *                   is namespace sensitive. The value supplied may be null; in this case any namespace-sensitive
      *                   content will throw an UnsupportedOperationException.
-     * @throws ValidationException           if the content is invalid
+     * @return XPathException if the value is invalid. Note that the exception is returned rather than being thrown.
+     * Returns null if the value is valid.
      * @throws UnsupportedOperationException if the type is namespace-sensitive and no namespace
      *                                       resolver is supplied
      */
 
-    public void validateContent(CharSequence value, NamespaceResolver nsResolver)
-            throws ValidationException {
+    public ValidationException validateContent(CharSequence value, NamespaceResolver nsResolver) {
         int f = getFingerprint();
         if (f==StandardNames.XS_STRING ||
                 f==StandardNames.XS_ANY_SIMPLE_TYPE ||
                 f==StandardNames.XDT_UNTYPED_ATOMIC ||
                 f==StandardNames.XDT_ANY_ATOMIC_TYPE) {
-            return;
+            return null;
         }
+        ValidationException result = null;
         if (isNamespaceSensitive()) {
             if (nsResolver == null) {
                 throw new UnsupportedOperationException("Cannot validate a QName without a namespace resolver");
@@ -476,22 +432,23 @@ public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializa
                 String[] parts = Name.getQNameParts(value.toString());
                 String uri = nsResolver.getURIForPrefix(parts[0], true);
                 if (uri == null) {
-                    throw new ValidationException("Namespace prefix " + Err.wrap(parts[0]) +
+                    result = new ValidationException("Namespace prefix " + Err.wrap(parts[0]) +
                             " has not been declared");
                 }
                 new QNameValue(parts[0], uri, parts[1]);
             } catch (QNameException err) {
-                throw new ValidationException("Invalid lexical QName " + Err.wrap(value));
+                result = new ValidationException("Invalid lexical QName " + Err.wrap(value));
             } catch (XPathException err) {
-                throw new ValidationException(err.getMessage());
+                result = new ValidationException(err.getMessage());
             }
         } else {
-            try {
-                new StringValue(value).convert(this, null);
-            } catch (XPathException err) {
-                throw new ValidationException(err.getMessage());
+            Value v = new StringValue(value).convert(this, null, true);
+            if (v instanceof ErrorValue) {
+                result = new ValidationException("Value " + Err.wrap(value, Err.VALUE) + " is invalid for type "
+                        + getDisplayName() + ". " + ((ErrorValue)v).getException().getMessage());
             }
         }
+        return result;
     }
 
     /**
@@ -531,11 +488,11 @@ public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializa
         } else if (fingerprint == StandardNames.XDT_UNTYPED_ATOMIC) {
             return SingletonIterator.makeIterator(new UntypedAtomicValue(value));
         }
-        try {
-            return SingletonIterator.makeIterator(new StringValue(value).convert(this, null));
-        } catch (XPathException e) {
-            throw new ValidationException(e.getMessage());
+        AtomicValue val = new StringValue(value).convert(this, null, true);
+        if (val instanceof ErrorValue) {
+            throw ((ErrorValue)val).getException();
         }
+        return SingletonIterator.makeIterator(val);
     }
 
 
@@ -546,15 +503,11 @@ public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializa
      *
      * @param primValue    the value in the value space of the primitive type
      * @param lexicalValue the value in the lexical space. If null, the string value of primValue
-     *                     is used. This value is checked against the pattern facet (if any)
-     * @param throwError   true if an exception is to be thrown when the value is
-     *                     invalid (if false, the method returns null instead)
-     * @throws net.sf.saxon.xpath.XPathException
-     *          if the value is invalid
+     * @param validate     true if the value is to be validated against the facets of the derived
+     *                     type; false if the caller knows that the value is already valid.
      */
 
-    public AtomicValue makeDerivedValue(AtomicValue primValue, String lexicalValue, boolean throwError)
-            throws XPathException {
+    public AtomicValue makeDerivedValue(AtomicValue primValue, CharSequence lexicalValue, boolean validate) {
         throw new UnsupportedOperationException("makeDerivedValue is not supported for built-in types");
     }
 
@@ -563,10 +516,10 @@ public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializa
      * type.
      *
      * @param expression the expression that delivers the content
-     * @param kind       the node kind whose content is being delivered: {@link Type.ELEMENT},
-     *                   {@link Type.ATTRIBUTE}, or {@link Type.DOCUMENT}
+     * @param kind       the node kind whose content is being delivered: {@link Type#ELEMENT},
+     *                   {@link Type#ATTRIBUTE}, or {@link Type#DOCUMENT}
      * @param env
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws net.sf.saxon.trans.XPathException
      *          if the expression will never deliver a value of the correct type
      */
 
@@ -579,9 +532,9 @@ public class BuiltInAtomicType implements AtomicType, ValidSchemaType, Serializa
      * type.
      * @param simpleType the simple type against which the expression is to be checked
      * @param expression the expression that delivers the content
-     * @param kind       the node kind whose content is being delivered: {@link Type.ELEMENT},
-     *                   {@link Type.ATTRIBUTE}, or {@link Type.DOCUMENT}
-     * @throws net.sf.saxon.xpath.XPathException
+     * @param kind       the node kind whose content is being delivered: {@link Type#ELEMENT},
+     *                   {@link Type#ATTRIBUTE}, or {@link Type#DOCUMENT}
+     * @throws net.sf.saxon.trans.XPathException
      *          if the expression will never deliver a value of the correct type
      */
 

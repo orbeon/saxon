@@ -4,8 +4,8 @@ import net.sf.saxon.functions.FunctionLibrary;
 import net.sf.saxon.instruct.LocationMap;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.NamespaceResolver;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.SourceLocator;
 import java.util.Comparator;

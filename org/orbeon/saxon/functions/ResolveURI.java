@@ -3,9 +3,10 @@ import net.sf.saxon.Err;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
+import net.sf.saxon.value.AnyURIValue;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -67,12 +68,13 @@ public class ResolveURI extends SystemFunction {
             return null;
         }
         if (!baseURI.isAbsolute()) {
+            // TODO: this rule has been removed from the spec
             dynamicError("Base URI " + Err.wrap(base) + " is not an absolute URI",
                     "FORG0009", context);
             return null;
         }
         URI resolvedURI = baseURI.resolve(relativeURI);
-        return new StringValue(resolvedURI.toString());
+        return new AnyURIValue(resolvedURI.toString());
     }
 
 }

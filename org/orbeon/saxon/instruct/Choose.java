@@ -5,10 +5,10 @@ import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -41,6 +41,12 @@ public class Choose extends Instruction {
     public Choose(Expression[] conditions, Expression[] actions) {
         this.conditions = conditions;
         this.actions = actions;
+        for (int i=0; i<conditions.length; i++) {
+            adoptChildExpression(conditions[i]);
+        }
+        for (int i=0; i<actions.length; i++) {
+            adoptChildExpression(actions[i]);
+        }
     }
 
     /**
