@@ -1,8 +1,8 @@
-package net.sf.saxon;
+package org.orbeon.saxon;
 import javax.xml.transform.Result;
 import javax.xml.transform.TransformerException;
 
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 /**

@@ -1,9 +1,9 @@
-package net.sf.saxon.event;
+package org.orbeon.saxon.event;
 
-import net.sf.saxon.Configuration;
-import net.sf.saxon.om.*;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * A TreeReceiver acts as a bridge between a SequenceReceiver, which can receive

@@ -1,13 +1,13 @@
-package net.sf.saxon.tree;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.type.Type;
+package org.orbeon.saxon.tree;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.type.Type;
 
-import net.sf.saxon.event.Receiver;
+import org.orbeon.saxon.event.Receiver;
 
 import org.w3c.dom.Attr;
 import org.w3c.dom.Node;
 
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 /**

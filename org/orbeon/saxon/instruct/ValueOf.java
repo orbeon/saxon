@@ -1,16 +1,16 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.event.ReceiverOptions;
-import net.sf.saxon.event.SequenceReceiver;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.Orphan;
-import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.style.StandardNames;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.event.ReceiverOptions;
+import org.orbeon.saxon.event.SequenceReceiver;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.Orphan;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.style.StandardNames;
 
 import java.io.PrintStream;
 

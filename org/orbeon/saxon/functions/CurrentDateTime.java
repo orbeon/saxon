@@ -1,13 +1,13 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.value.DateTimeValue;
-import net.sf.saxon.value.DateValue;
-import net.sf.saxon.value.TimeValue;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.value.DateTimeValue;
+import org.orbeon.saxon.value.DateValue;
+import org.orbeon.saxon.value.TimeValue;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * This class implements the XPath 2.0 functions

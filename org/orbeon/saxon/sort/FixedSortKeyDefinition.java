@@ -1,13 +1,13 @@
-package net.sf.saxon.sort;
-import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.CardinalityChecker;
-import net.sf.saxon.expr.RoleLocator;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.Configuration;
+package org.orbeon.saxon.sort;
+import org.orbeon.saxon.expr.StaticProperty;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.CardinalityChecker;
+import org.orbeon.saxon.expr.RoleLocator;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.EmptySequence;
+import org.orbeon.saxon.Configuration;
 
 import java.util.Comparator;
 import java.util.Locale;

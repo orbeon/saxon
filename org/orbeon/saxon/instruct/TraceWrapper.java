@@ -1,13 +1,13 @@
-package net.sf.saxon.instruct;
+package org.orbeon.saxon.instruct;
 
-import net.sf.saxon.expr.*;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.Controller;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.trace.TraceListener;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.trace.TraceListener;
 
 import java.util.Iterator;
 import java.io.PrintStream;
@@ -26,7 +26,7 @@ public class TraceWrapper extends Instruction {
      * Simplify an expression. This performs any static optimization (by rewriting the expression
      * as a different expression). The default implementation does nothing.
      *
-     * @exception net.sf.saxon.xpath.XPathException if an error is discovered during expression
+     * @exception org.orbeon.saxon.xpath.XPathException if an error is discovered during expression
      *     rewriting
      * @return the simplified expression
      */
@@ -49,7 +49,7 @@ public class TraceWrapper extends Instruction {
      * variables will only be accurately known if they have been explicitly declared.</p>
      *
      * @param env the static context of the expression
-     * @exception net.sf.saxon.xpath.XPathException if an error is discovered during this phase
+     * @exception org.orbeon.saxon.xpath.XPathException if an error is discovered during this phase
      *     (typically a type error)
      * @return the original expression, rewritten to perform necessary
      *     run-time type checks, and to perform other type-related
@@ -67,7 +67,7 @@ public class TraceWrapper extends Instruction {
      * and invokes the instruction being traced.
      * @param context the dynamic execution context
      * @return either null, or a tail call that the caller must invoke on return
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws org.orbeon.saxon.xpath.XPathException
      */
     public TailCall processLeavingTail(XPathContext context) throws XPathException {
         Controller controller = context.getController();
@@ -94,8 +94,8 @@ public class TraceWrapper extends Instruction {
 
     /**
      * Determine which aspects of the context the expression depends on. The result is
-     * a bitwise-or'ed value composed from constants such as {@link net.sf.saxon.expr.StaticProperty#DEPENDS_ON_CONTEXT_ITEM} and
-     * {@link net.sf.saxon.expr.StaticProperty#DEPENDS_ON_CURRENT_ITEM}. The default implementation combines the intrinsic
+     * a bitwise-or'ed value composed from constants such as {@link org.orbeon.saxon.expr.StaticProperty#DEPENDS_ON_CONTEXT_ITEM} and
+     * {@link org.orbeon.saxon.expr.StaticProperty#DEPENDS_ON_CURRENT_ITEM}. The default implementation combines the intrinsic
      * dependencies of this expression with the dependencies of the subexpressions,
      * computed recursively. This is overridden for expressions such as FilterExpression
      * where a subexpression's dependencies are not necessarily inherited by the parent
@@ -133,7 +133,7 @@ public class TraceWrapper extends Instruction {
      * this condition will be detected.
      *
      * @param context The context in which the expression is to be evaluated
-     * @exception net.sf.saxon.xpath.XPathException if any dynamic error occurs evaluating the
+     * @exception org.orbeon.saxon.xpath.XPathException if any dynamic error occurs evaluating the
      *     expression
      * @return the node or atomic value that results from evaluating the
      *     expression; or null to indicate that the result is an empty
@@ -159,7 +159,7 @@ public class TraceWrapper extends Instruction {
      * return singleton values: for non-singleton expressions, the subclass must
      * provide its own implementation.
      *
-     * @exception net.sf.saxon.xpath.XPathException if any dynamic error occurs evaluating the
+     * @exception org.orbeon.saxon.xpath.XPathException if any dynamic error occurs evaluating the
      *     expression
      * @param context supplies the context for evaluation
      * @return a SequenceIterator that can be used to iterate over the result

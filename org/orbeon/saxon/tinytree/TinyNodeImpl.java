@@ -1,13 +1,13 @@
-package net.sf.saxon.tinytree;
-import net.sf.saxon.om.*;
-import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.pattern.NameTest;
-import net.sf.saxon.pattern.AnyNodeTest;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.type.Type;
+package org.orbeon.saxon.tinytree;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.pattern.NameTest;
+import org.orbeon.saxon.pattern.AnyNodeTest;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.type.Type;
 
 import org.w3c.dom.Node;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 /**

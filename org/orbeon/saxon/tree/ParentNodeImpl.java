@@ -1,10 +1,10 @@
-package net.sf.saxon.tree;
-import net.sf.saxon.om.ArrayIterator;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.EmptyIterator;
-import net.sf.saxon.om.SingletonIterator;
-import net.sf.saxon.pattern.AnyNodeTest;
-import net.sf.saxon.pattern.NodeTest;
+package org.orbeon.saxon.tree;
+import org.orbeon.saxon.om.ArrayIterator;
+import org.orbeon.saxon.om.AxisIterator;
+import org.orbeon.saxon.om.EmptyIterator;
+import org.orbeon.saxon.om.SingletonIterator;
+import org.orbeon.saxon.pattern.AnyNodeTest;
+import org.orbeon.saxon.pattern.NodeTest;
 import org.w3c.dom.Node;
 
 /**

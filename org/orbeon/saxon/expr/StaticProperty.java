@@ -1,4 +1,4 @@
-package net.sf.saxon.expr;
+package org.orbeon.saxon.expr;
 
 /**
 * This class contains constants identifying dependencies that an XPath expression

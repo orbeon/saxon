@@ -1,9 +1,9 @@
-package net.sf.saxon.jdom;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.Configuration;
+package org.orbeon.saxon.jdom;
+import org.orbeon.saxon.om.DocumentInfo;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.Configuration;
 import org.jdom.Document;
 
 /**
@@ -17,6 +17,7 @@ import org.jdom.Document;
 public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
 
     protected Configuration config;
+    protected NamePool namePool;
     protected String baseURI;
     protected int documentNumber;
 

@@ -1,8 +1,8 @@
-package net.sf.saxon.event;
-import net.sf.saxon.charcode.CharacterSet;
-import net.sf.saxon.charcode.CharacterSetFactory;
-import net.sf.saxon.om.XMLChar;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.event;
+import org.orbeon.saxon.charcode.CharacterSet;
+import org.orbeon.saxon.charcode.CharacterSetFactory;
+import org.orbeon.saxon.om.XMLChar;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.OutputKeys;
 import java.nio.CharBuffer;

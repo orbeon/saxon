@@ -1,17 +1,17 @@
-package net.sf.saxon.value;
+package org.orbeon.saxon.value;
 
-import net.sf.saxon.Configuration;
-import net.sf.saxon.Err;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.Token;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.type.AtomicType;
-import net.sf.saxon.type.BuiltInSchemaFactory;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.Err;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.Token;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.type.AtomicType;
+import org.orbeon.saxon.type.BuiltInSchemaFactory;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;

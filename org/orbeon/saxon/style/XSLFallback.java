@@ -1,7 +1,7 @@
-package net.sf.saxon.style;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.tree.AttributeCollection;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.tree.AttributeCollection;
 
 import javax.xml.transform.TransformerConfigurationException;
 

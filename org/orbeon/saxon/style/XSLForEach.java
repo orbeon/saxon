@@ -1,12 +1,12 @@
-package net.sf.saxon.style;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.instruct.*;
-import net.sf.saxon.sort.SortExpression;
-import net.sf.saxon.sort.SortKeyDefinition;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.instruct.*;
+import org.orbeon.saxon.sort.SortExpression;
+import org.orbeon.saxon.sort.SortKeyDefinition;
+import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 

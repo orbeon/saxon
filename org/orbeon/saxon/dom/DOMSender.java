@@ -1,14 +1,14 @@
-package net.sf.saxon.dom;
-import net.sf.saxon.om.Name;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.event.SaxonLocator;
+package org.orbeon.saxon.dom;
+import org.orbeon.saxon.om.Name;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.event.SaxonLocator;
 import org.w3c.dom.*;
 import org.xml.sax.helpers.AttributesImpl;
 import org.xml.sax.helpers.NamespaceSupport;
 
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 import java.util.HashMap;
 import java.util.Iterator;

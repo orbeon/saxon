@@ -1,10 +1,10 @@
-package net.sf.saxon.exslt;
+package org.orbeon.saxon.exslt;
 
-import net.sf.saxon.value.DoubleValue;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.AxisIteratorImpl;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.value.DoubleValue;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.AxisIteratorImpl;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * This class implements extension functions in the

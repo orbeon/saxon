@@ -1,8 +1,8 @@
-package net.sf.saxon;
-import net.sf.saxon.event.Builder;
-import net.sf.saxon.event.ReceivingContentHandler;
-import net.sf.saxon.event.Stripper;
-import net.sf.saxon.om.DocumentInfo;
+package org.orbeon.saxon;
+import org.orbeon.saxon.event.Builder;
+import org.orbeon.saxon.event.ReceivingContentHandler;
+import org.orbeon.saxon.event.Stripper;
+import org.orbeon.saxon.om.DocumentInfo;
 
 import javax.xml.transform.*;
 import javax.xml.transform.sax.TransformerHandler;

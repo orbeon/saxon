@@ -1,8 +1,8 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.value.Value;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.value.Value;
 
 /**
 * Handler for local xsl:variable elements in stylesheet. Not used in XQuery. <br>

@@ -1,20 +1,20 @@
-package net.sf.saxon;
-import net.sf.saxon.event.CommentStripper;
-import net.sf.saxon.event.Sender;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.style.LiteralResultElement;
-import net.sf.saxon.style.StyleElement;
-import net.sf.saxon.style.StyleNodeFactory;
-import net.sf.saxon.style.StylesheetStripper;
-import net.sf.saxon.style.XSLStylesheet;
-import net.sf.saxon.tree.DocumentImpl;
-import net.sf.saxon.tree.TreeBuilder;
+package org.orbeon.saxon;
+import org.orbeon.saxon.event.CommentStripper;
+import org.orbeon.saxon.event.Sender;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.style.LiteralResultElement;
+import org.orbeon.saxon.style.StyleElement;
+import org.orbeon.saxon.style.StyleNodeFactory;
+import org.orbeon.saxon.style.StylesheetStripper;
+import org.orbeon.saxon.style.XSLStylesheet;
+import org.orbeon.saxon.tree.DocumentImpl;
+import org.orbeon.saxon.tree.TreeBuilder;
 import org.xml.sax.SAXParseException;
 
 import javax.xml.transform.*;
 
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 import java.io.Serializable;
 import java.util.Properties;
 
@@ -46,7 +46,7 @@ public class PreparedStylesheet implements Templates, Serializable {
      * Make a Transformer from this Templates object.
      *
      * @return the new Transformer (always a Controller)
-     * @see net.sf.saxon.Controller
+     * @see org.orbeon.saxon.Controller
      */
 
     public Transformer newTransformer() {

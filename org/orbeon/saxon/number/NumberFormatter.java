@@ -1,4 +1,4 @@
-package net.sf.saxon.number;
+package org.orbeon.saxon.number;
 import java.util.ArrayList;
 import java.util.List;
 

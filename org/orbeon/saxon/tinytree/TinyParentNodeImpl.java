@@ -1,5 +1,5 @@
-package net.sf.saxon.tinytree;
-import net.sf.saxon.type.Type;
+package org.orbeon.saxon.tinytree;
+import org.orbeon.saxon.type.Type;
 
 /**
   * TinyParentNodeImpl is an implementation of a non-leaf node (specifically, an Element node

@@ -1,9 +1,9 @@
-package net.sf.saxon.dom;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.type.Type;
+package org.orbeon.saxon.dom;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.om.DocumentInfo;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.type.Type;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 

@@ -1,14 +1,14 @@
-package net.sf.saxon.value;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.SingletonIterator;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.type.AtomicType;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.value;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.expr.StaticProperty;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.SingletonIterator;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.type.AtomicType;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -46,7 +46,7 @@ public abstract class AtomicValue extends Value implements Item {
      * Determine the static cardinality
      *
      * @return code identifying the cardinality
-     * @see net.sf.saxon.value.Cardinality
+     * @see org.orbeon.saxon.value.Cardinality
      */
 
     public final int getCardinality() {
@@ -147,7 +147,7 @@ public abstract class AtomicValue extends Value implements Item {
      * annotation. Note that getItemType() when applied to the result of this
      * function does not not necessarily return a primitive type: for example, this
      * function may return a value of type xdt:dayTimeDuration, which is not a
-     * primitive type as defined by {@link net.sf.saxon.type.Type#isPrimitiveType(int)} 
+     * primitive type as defined by {@link org.orbeon.saxon.type.Type#isPrimitiveType(int)}
      */
 
     public AtomicValue getPrimitiveValue() {

@@ -1,16 +1,16 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.Err;
-import net.sf.saxon.Loader;
-import net.sf.saxon.instruct.TraceExpression;
-import net.sf.saxon.om.*;
-import net.sf.saxon.pattern.*;
-import net.sf.saxon.sort.Reverser;
-import net.sf.saxon.trace.Location;
-import net.sf.saxon.type.*;
-import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.Err;
+import org.orbeon.saxon.Loader;
+import org.orbeon.saxon.instruct.TraceExpression;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.*;
+import org.orbeon.saxon.sort.Reverser;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.type.*;
+import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -63,7 +63,7 @@ public class ExpressionParser {
      * Expect a given token, fail if the current token is different
      *
      * @param token the expected token
-     * @throws net.sf.saxon.xpath.StaticError if the current token is not the expected
+     * @throws org.orbeon.saxon.xpath.StaticError if the current token is not the expected
      *     token
      */
 
@@ -77,7 +77,7 @@ public class ExpressionParser {
      * Report a parsing error
      *
      * @param message the error message
-     * @throws net.sf.saxon.xpath.StaticError always thrown: an exception containing the
+     * @throws org.orbeon.saxon.xpath.StaticError always thrown: an exception containing the
      *     supplied message
      */
 
@@ -133,7 +133,7 @@ public class ExpressionParser {
 	/**
 	 * Parse a string representing an expression
 	 *
-	 * @throws net.sf.saxon.xpath.StaticError if the expression contains a syntax error
+	 * @throws org.orbeon.saxon.xpath.StaticError if the expression contains a syntax error
 	 * @param expression the expression expressed as a String
 	 * @param env the static context for the expression
 	 * @return an Expression object representing the result of parsing
@@ -158,7 +158,7 @@ public class ExpressionParser {
     /**
      * Parse a string representing an XSLT pattern
      *
-     * @throws net.sf.saxon.xpath.StaticError if the pattern contains a syntax error
+     * @throws org.orbeon.saxon.xpath.StaticError if the pattern contains a syntax error
      * @param pattern the pattern expressed as a String
      * @param env the static context for the pattern
      * @return a Pattern object representing the result of parsing
@@ -187,7 +187,7 @@ public class ExpressionParser {
      * @param input the string, which should conform to the XPath SequenceType
      *      production
      * @param env the static context
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return a SequenceType object representing the type
      */
 
@@ -215,7 +215,7 @@ public class ExpressionParser {
      * Parse a top-level Expression:
      * ExprSingle ( ',' ExprSingle )*
      *
-     * @throws net.sf.saxon.xpath.StaticError if the expression contains a syntax error
+     * @throws org.orbeon.saxon.xpath.StaticError if the expression contains a syntax error
      * @return the Expression object that results from parsing
      */
 
@@ -232,7 +232,7 @@ public class ExpressionParser {
     /**
      * Parse an ExprSingle
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -287,7 +287,7 @@ public class ExpressionParser {
      * Parse an OrExpression:
      * AndExpr ( 'or' AndExpr )*
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -305,7 +305,7 @@ public class ExpressionParser {
      * Parse an AndExpr:
      * EqualityExpr ( 'and' EqualityExpr )*
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -323,7 +323,7 @@ public class ExpressionParser {
      * Parse a FOR expression:
      * for $x in expr (',' $y in expr)* 'return' expr
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -338,7 +338,7 @@ public class ExpressionParser {
      * Parse a quantified expression:
      * (some|every) $x in expr 'satisfies' expr
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -357,7 +357,7 @@ public class ExpressionParser {
      * <p>On entry, the current token indicates whether a for, some, or every
      * expression is expected.</p>
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -457,7 +457,7 @@ public class ExpressionParser {
      * Parse an IF expression:
      * if '(' expr ')' 'then' expr 'else' expr
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -485,7 +485,7 @@ public class ExpressionParser {
      * Parse an "instance of"  expression
      * Expr ("instance" "of") SequenceType
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -503,7 +503,7 @@ public class ExpressionParser {
      * Parse a "treat as" expression
      * castable-expression ("treat" "as" SequenceType )?
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -522,7 +522,7 @@ public class ExpressionParser {
      * Parse a "castable as" expression
      * Expr "castable as" AtomicType "?"?
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -547,7 +547,7 @@ public class ExpressionParser {
      * Parse a "cast as" expression
      * castable-expression ("cast" "as" AtomicType "?"?)
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -573,7 +573,7 @@ public class ExpressionParser {
      * and return the object representing the atomic type.
      * @param qname The lexical QName of the atomic type
      * @return The atomic type
-     * @throws net.sf.saxon.xpath.StaticError if the QName is invalid or if no atomic type of that
+     * @throws org.orbeon.saxon.xpath.StaticError if the QName is invalid or if no atomic type of that
      * name exists as a built-in type or a type in an imported schema
      */
     private AtomicType getAtomicType(String qname) throws StaticError {
@@ -647,7 +647,7 @@ public class ExpressionParser {
      * eq, lt, gt, ne, le, ge,
      * is, isnot, <<, >>
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -696,7 +696,7 @@ public class ExpressionParser {
      * Parse a RangeExpr:<br>
      * AdditiveExpr ('to' AdditiveExpr )?
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -718,7 +718,7 @@ public class ExpressionParser {
      * We also allow "element of type QName" and "attribute of type QName"
      * The QName must be the name of a built-in schema-defined data type.
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -778,7 +778,7 @@ public class ExpressionParser {
      * Parse an AdditiveExpr:
      * MultiplicativeExpr ( (+|-) MultiplicativeExpr )*
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -798,7 +798,7 @@ public class ExpressionParser {
      * Parse a MultiplicativeExpr:<br>
      * UnionExpr ( (*|div|idiv|mod) UnionExpr )*
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -821,7 +821,7 @@ public class ExpressionParser {
      * ('+'|'-')* ValueExpr
      * parsed as ('+'|'-')? UnaryExpr
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -861,7 +861,7 @@ public class ExpressionParser {
      * Parse a UnionExpr:<br>
      * IntersectExceptExpr ( "|" | "union" IntersectExceptExpr )*
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -879,7 +879,7 @@ public class ExpressionParser {
      * Parse an IntersectExceptExpr:<br>
      * PathExpr ( ( 'intersect' | 'except') PathExpr )*
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -929,7 +929,7 @@ public class ExpressionParser {
      * constructs that may start a path expression such as a variable reference $name or a
      * parenthesed expression (A|B). Numeric and string literals also come under this heading.
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -970,7 +970,7 @@ public class ExpressionParser {
      * Parse a relative path (a sequence of steps). Called when the current token immediately
      * follows a separator (/ or //), or an implicit separator (XYZ is equivalent to ./XYZ)
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -997,7 +997,7 @@ public class ExpressionParser {
     /**
      * Parse a step (including an optional sequence of predicates)
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -1027,7 +1027,7 @@ public class ExpressionParser {
     /**
      * Parse a basic step expression (without the predicates)
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -1194,7 +1194,7 @@ public class ExpressionParser {
      * One of QName, prefix:*, *:suffix, *, text(), node(), comment(), or
      * processing-instruction(literal?), or element(~,~), attribute(~,~), etc.
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @param nodeType the node type being sought if one is specified
      * @return the resulting NodeTest object
      */
@@ -1504,7 +1504,7 @@ public class ExpressionParser {
      * kinds such as element and attribute, the generic types node() and item(), and the pseudo-type empty()
      *
      * @param name
-     * @exception net.sf.saxon.xpath.StaticError
+     * @exception org.orbeon.saxon.xpath.StaticError
      */
     private static int getSystemType(String name) throws StaticError {
         if ("item".equals(name))                   return Type.ITEM;
@@ -1527,7 +1527,7 @@ public class ExpressionParser {
      * Parse a function call
      * function-name '(' ( Expression (',' Expression )* )? ')'
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -1613,7 +1613,7 @@ public class ExpressionParser {
      * from a variable declared in the context.
      *
      * @param declaration the VariableDeclaration to be added to the stack
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      */
 
     protected void declareRangeVariable(VariableDeclaration declaration) throws StaticError {
@@ -1681,7 +1681,7 @@ public class ExpressionParser {
      * Parse a Union Pattern:<br>
      * pathPattern ( | pathPattern )*
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the pattern that results from parsing
      */
 
@@ -1703,7 +1703,7 @@ public class ExpressionParser {
     /**
      * Parse a Location Path Pattern:
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the pattern that results from parsing
      */
 
@@ -1841,7 +1841,7 @@ public class ExpressionParser {
     /**
      * Parse a pattern step (after any axis name or @)
      *
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @param principalNodeType is ELEMENT if we're on the child axis, ATTRIBUTE for
      *     the attribute axis
      * @return the pattern that results from parsing
@@ -1885,7 +1885,7 @@ public class ExpressionParser {
      *
      * @param path the LocationPathPattern to which the filters are to be
      *     added
-     * @throws net.sf.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
      */
 
     private void parseFilters(LocationPathPattern path) throws StaticError {
@@ -1903,7 +1903,7 @@ public class ExpressionParser {
     /**
      * Make a NameCode, using this Element as the context for namespace resolution
      *
-     * @throws net.sf.saxon.xpath.StaticError if the name is invalid, or the prefix
+     * @throws org.orbeon.saxon.xpath.StaticError if the name is invalid, or the prefix
      *     undeclared
      * @param qname The name as written, in the form "[prefix:]localname"
      * @param useDefault Defines the action when there is no prefix. If
@@ -1950,7 +1950,7 @@ public class ExpressionParser {
 	 * @param qname the lexical QName of the required node
 	 * @param useDefault true if the default namespace should be used when
 	 *     the QName is unprefixed
-	 * @throws net.sf.saxon.xpath.StaticError if the QName is invalid
+	 * @throws org.orbeon.saxon.xpath.StaticError if the QName is invalid
 	 * @return a NameTest, representing a pattern that tests for a node of a
 	 *     given node kind and a given name
 	 */
@@ -1968,7 +1968,7 @@ public class ExpressionParser {
 	 *
 	 * @param nodeType integer code identifying the type of node required
 	 * @param prefix the namespace prefix
-	 * @throws net.sf.saxon.xpath.StaticError if the namespace prefix is not declared
+	 * @throws org.orbeon.saxon.xpath.StaticError if the namespace prefix is not declared
 	 * @return the NamespaceTest, a pattern that matches all nodes in this
 	 *     namespace
 	 */
@@ -1996,7 +1996,7 @@ public class ExpressionParser {
 	 *
 	 * @param nodeType the kind of node to be matched
 	 * @param localName the requred local name
-	 * @throws net.sf.saxon.xpath.StaticError if the local name is invalid
+	 * @throws org.orbeon.saxon.xpath.StaticError if the local name is invalid
 	 * @return a LocalNameTest, a pattern which matches all nodes of a given
 	 *     local name, regardless of namespace
 	 */

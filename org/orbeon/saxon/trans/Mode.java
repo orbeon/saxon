@@ -1,15 +1,15 @@
-package net.sf.saxon.trans;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.Controller;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.XPathContextMajor;
-import net.sf.saxon.om.Navigator;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.pattern.NoNodeTest;
-import net.sf.saxon.pattern.Pattern;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.trans;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.XPathContextMajor;
+import org.orbeon.saxon.om.Navigator;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.pattern.NoNodeTest;
+import org.orbeon.saxon.pattern.Pattern;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.Serializable;
 

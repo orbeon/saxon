@@ -1,16 +1,16 @@
-package net.sf.saxon.style;
-import net.sf.saxon.instruct.*;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.Navigator;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.value.BooleanValue;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.instruct.*;
+import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.om.AxisIterator;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.Navigator;
+import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.value.BooleanValue;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 

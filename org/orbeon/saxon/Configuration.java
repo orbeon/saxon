@@ -1,20 +1,20 @@
-package net.sf.saxon;
+package org.orbeon.saxon;
 
-import net.sf.saxon.event.Builder;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.event.StandardOutputResolver;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.trace.TraceListener;
-import net.sf.saxon.type.*;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.functions.FunctionLibrary;
-import net.sf.saxon.functions.JavaExtensionLibrary;
-import net.sf.saxon.functions.ExtensionFunctionFactory;
-import net.sf.saxon.functions.VendorFunctionLibrary;
-import net.sf.saxon.instruct.SlotManager;
-import net.sf.saxon.instruct.Debugger;
-import net.sf.saxon.expr.Optimizer;
+import org.orbeon.saxon.event.Builder;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.event.StandardOutputResolver;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.trace.TraceListener;
+import org.orbeon.saxon.type.*;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.functions.FunctionLibrary;
+import org.orbeon.saxon.functions.JavaExtensionLibrary;
+import org.orbeon.saxon.functions.ExtensionFunctionFactory;
+import org.orbeon.saxon.functions.VendorFunctionLibrary;
+import org.orbeon.saxon.instruct.SlotManager;
+import org.orbeon.saxon.instruct.Debugger;
+import org.orbeon.saxon.expr.Optimizer;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXNotRecognizedException;
 import org.xml.sax.SAXNotSupportedException;
@@ -43,7 +43,7 @@ public class Configuration implements Serializable {
     private FunctionLibrary extensionBinder;
     protected VendorFunctionLibrary vendorFunctionLibrary;
     private int recoveryPolicy = RECOVER_WITH_WARNINGS;
-    private String messageEmitterClass = "net.sf.saxon.event.MessageEmitter";
+    private String messageEmitterClass = "org.orbeon.saxon.event.MessageEmitter";
     private String sourceParserClass;
     private String styleParserClass;
     private transient OutputURIResolver outputURIResolver;
@@ -329,7 +329,7 @@ public class Configuration implements Serializable {
      * Set the name of the class that will be instantiated to create a MessageEmitter,
      * to process the output of xsl:message instructions.
      * @param messageEmitterClass the full class name of the message emitter class. This
-     * must implement net.sf.saxon.event.Emitter.
+     * must implement org.orbeon.saxon.event.Emitter.
      */
 
     public void setMessageEmitterClass(String messageEmitterClass) {

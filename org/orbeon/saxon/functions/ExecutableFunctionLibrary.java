@@ -1,12 +1,12 @@
-package net.sf.saxon.functions;
+package org.orbeon.saxon.functions;
 
-import net.sf.saxon.instruct.UserFunction;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.StandaloneContext;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.UserFunctionCall;
-import net.sf.saxon.functions.FunctionLibrary;
+import org.orbeon.saxon.instruct.UserFunction;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.StandaloneContext;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.UserFunctionCall;
+import org.orbeon.saxon.functions.FunctionLibrary;
 
 import java.util.HashMap;
 
@@ -79,7 +79,7 @@ public class ExecutableFunctionLibrary implements FunctionLibrary {
      * be used as part of the binding algorithm.
      * @return An object representing the extension function to be called, if one is found;
      * null if no extension function was found matching the required name and arity.
-     * @throws net.sf.saxon.xpath.XPathException if a function is found with the required name and arity, but
+     * @throws org.orbeon.saxon.xpath.XPathException if a function is found with the required name and arity, but
      * the implementation of the function cannot be loaded or used; or if an error occurs
      * while searching for the function; or if this function library "owns" the namespace containing
      * the function call, but no function was found.

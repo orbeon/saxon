@@ -1,4 +1,4 @@
-package net.sf.saxon.tree;
+package org.orbeon.saxon.tree;
 import org.w3c.dom.*;
 
 /**

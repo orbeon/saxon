@@ -1,4 +1,4 @@
-package net.sf.saxon.charcode;
+package org.orbeon.saxon.charcode;
 
 /**
 * This class defines properties of the cp1250 character set

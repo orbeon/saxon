@@ -1,12 +1,12 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.AnyItemType;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.AnyItemType;
 
 import java.io.PrintStream;
 import java.util.ArrayList;

@@ -1,13 +1,13 @@
-package net.sf.saxon.instruct;
+package org.orbeon.saxon.instruct;
 
-import net.sf.saxon.Controller;
-import net.sf.saxon.event.*;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.*;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.type.*;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.event.*;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.type.*;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.Iterator;
 import java.io.PrintStream;

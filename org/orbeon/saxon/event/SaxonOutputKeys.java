@@ -1,7 +1,7 @@
-package net.sf.saxon.event;
-import net.sf.saxon.Err;
-import net.sf.saxon.om.XMLChar;
-import net.sf.saxon.xpath.DynamicError;
+package org.orbeon.saxon.event;
+import org.orbeon.saxon.Err;
+import org.orbeon.saxon.om.XMLChar;
+import org.orbeon.saxon.xpath.DynamicError;
 
 import javax.xml.transform.OutputKeys;
 import java.util.StringTokenizer;

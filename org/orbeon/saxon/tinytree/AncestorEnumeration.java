@@ -1,8 +1,8 @@
-package net.sf.saxon.tinytree;
-import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.om.AxisIteratorImpl;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
+package org.orbeon.saxon.tinytree;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.om.AxisIteratorImpl;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
 
 /**
 * This class enumerates the ancestor:: or ancestor-or-self:: axes,

@@ -1,19 +1,19 @@
-package net.sf.saxon.expr;
+package org.orbeon.saxon.expr;
 
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.instruct.Instruction;
-import net.sf.saxon.instruct.InstructionDetails;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.SingletonIterator;
-import net.sf.saxon.trace.InstructionInfo;
-import net.sf.saxon.trace.InstructionInfoProvider;
-import net.sf.saxon.trace.Location;
-import net.sf.saxon.value.Cardinality;
-import net.sf.saxon.value.DerivedAtomicValue;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.instruct.Instruction;
+import org.orbeon.saxon.instruct.InstructionDetails;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.SingletonIterator;
+import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.trace.InstructionInfoProvider;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.value.Cardinality;
+import org.orbeon.saxon.value.DerivedAtomicValue;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.SourceLocator;
 import java.io.Serializable;
@@ -27,7 +27,7 @@ import java.util.Iterator;
  *
  * <p>There are three principal methods for evaluating an expression: iterate(), which
  * an iterator over the result of the expression as a sequence; evaluateItem(), which returns an
- * object that is an instance of net.sf.saxon.om.Item; and process(), which pushes the results of
+ * object that is an instance of org.orbeon.saxon.om.Item; and process(), which pushes the results of
  * the expression to a Receiver. All three methods take an
  * XPathContext object to supply the evaluation context; for an expression that is
  * a Value, this argument is ignored and may be null. This root class provides an implementation
@@ -312,7 +312,7 @@ public abstract class ComputedExpression
      * of the method returns 0, indicating "no dependencies".
      *
      * @return a set of bit-significant flags identifying the "intrinsic"
-     *     dependencies. The flags are documented in class net.sf.saxon.value.StaticProperty
+     *     dependencies. The flags are documented in class org.orbeon.saxon.value.StaticProperty
      */
 
     public int getIntrinsicDependencies() {

@@ -1,15 +1,15 @@
-package net.sf.saxon.value;
+package org.orbeon.saxon.value;
 
-import net.sf.saxon.Configuration;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.functions.Component;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.XMLChar;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.functions.Component;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.XMLChar;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 /**

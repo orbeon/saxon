@@ -1,15 +1,15 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.TailExpression;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.value.IntegerValue;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.NumericValue;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.type.ItemType;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.TailExpression;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.value.IntegerValue;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.NumericValue;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.type.ItemType;
 
 /**
 * The XPath 2.0 remove() function

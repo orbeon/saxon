@@ -1,13 +1,13 @@
-package net.sf.saxon.type;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.pattern.AnyNodeTest;
-import net.sf.saxon.pattern.DocumentNodeTest;
-import net.sf.saxon.pattern.NoNodeTest;
-import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.value.AtomicValue;
+package org.orbeon.saxon.type;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.pattern.AnyNodeTest;
+import org.orbeon.saxon.pattern.DocumentNodeTest;
+import org.orbeon.saxon.pattern.NoNodeTest;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.value.AtomicValue;
 
 import java.io.Serializable;
 import java.util.Set;

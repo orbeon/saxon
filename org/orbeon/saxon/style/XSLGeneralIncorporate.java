@@ -1,21 +1,21 @@
-package net.sf.saxon.style;
-import net.sf.saxon.instruct.Instruction;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.StandardURIResolver;
-import net.sf.saxon.PreparedStylesheet;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.tree.DocumentImpl;
-import net.sf.saxon.tree.ElementImpl;
-import net.sf.saxon.tree.AttributeCollection;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.instruct.Instruction;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.StandardURIResolver;
+import org.orbeon.saxon.PreparedStylesheet;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.tree.DocumentImpl;
+import org.orbeon.saxon.tree.ElementImpl;
+import org.orbeon.saxon.tree.AttributeCollection;
 import javax.xml.transform.Source;
 
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
 
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 import javax.xml.transform.dom.DOMSource;
 

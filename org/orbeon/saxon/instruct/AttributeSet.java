@@ -1,11 +1,11 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.XPathContextMajor;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.trace.InstructionInfoProvider;
-import net.sf.saxon.trace.InstructionInfo;
-import net.sf.saxon.trace.Location;
-import net.sf.saxon.style.StandardNames;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.XPathContextMajor;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trace.InstructionInfoProvider;
+import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.style.StandardNames;
 
 /**
 * The compiled form of an xsl:attribute-set element in the stylesheet.

@@ -1,19 +1,19 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.Controller;
-import net.sf.saxon.event.Builder;
-import net.sf.saxon.event.Sender;
-import net.sf.saxon.event.Stripper;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.style.ExpressionContext;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.event.Builder;
+import org.orbeon.saxon.event.Sender;
+import org.orbeon.saxon.event.Stripper;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.style.ExpressionContext;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.xpath.XPathException;
 import org.xml.sax.InputSource;
 
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 import javax.xml.transform.sax.SAXSource;
 import java.io.StringReader;

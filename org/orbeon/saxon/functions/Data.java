@@ -1,8 +1,8 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.expr.Atomizer;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.Atomizer;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * Implement XPath function fn:data()

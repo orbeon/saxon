@@ -1,12 +1,12 @@
-package net.sf.saxon.trans;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.instruct.Template;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.pattern.Pattern;
-import net.sf.saxon.pattern.UnionPattern;
-import net.sf.saxon.om.NodeInfo;
+package org.orbeon.saxon.trans;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.instruct.Template;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.pattern.Pattern;
+import org.orbeon.saxon.pattern.UnionPattern;
+import org.orbeon.saxon.om.NodeInfo;
 
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.HashMap;
 import java.util.Iterator;

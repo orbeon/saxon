@@ -1,6 +1,6 @@
-package net.sf.saxon.event;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.event;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.OutputKeys;
 import java.util.Properties;

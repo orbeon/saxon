@@ -1,11 +1,11 @@
-package net.sf.saxon.style;
-import net.sf.saxon.event.Stripper;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.Navigator;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.event.Stripper;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.Navigator;
 
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
   * The StylesheetStripper refines the Stripper class to do stripping of

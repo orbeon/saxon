@@ -1,10 +1,10 @@
-package net.sf.saxon.sort;
+package org.orbeon.saxon.sort;
 
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.value.SequenceExtent;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.value.SequenceExtent;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * A Reverser is an expression that reverses the order of a sequence of items.

@@ -1,16 +1,16 @@
-package net.sf.saxon.style;
-import net.sf.saxon.Err;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.instruct.ApplyTemplates;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.om.*;
-import net.sf.saxon.sort.SortExpression;
-import net.sf.saxon.sort.SortKeyDefinition;
-import net.sf.saxon.trans.Mode;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.Err;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.instruct.ApplyTemplates;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.sort.SortExpression;
+import org.orbeon.saxon.sort.SortKeyDefinition;
+import org.orbeon.saxon.trans.Mode;
+import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 

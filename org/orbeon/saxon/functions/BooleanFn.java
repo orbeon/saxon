@@ -1,10 +1,10 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.value.BooleanValue;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.value.BooleanValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * This class supports the XPath functions boolean(), not(), true(), and false()

@@ -1,15 +1,15 @@
-package net.sf.saxon;
-import net.sf.saxon.event.NamespaceReducer;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.event.ResultWrapper;
-import net.sf.saxon.event.Sender;
+package org.orbeon.saxon;
+import org.orbeon.saxon.event.NamespaceReducer;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.event.ResultWrapper;
+import org.orbeon.saxon.event.Sender;
 import org.xml.sax.SAXParseException;
 
 import javax.xml.transform.Result;
 import javax.xml.transform.Source;
 import javax.xml.transform.TransformerException;
 
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 
 class IdentityTransformer extends Controller {
 

@@ -1,11 +1,11 @@
-package net.sf.saxon.dom;
+package org.orbeon.saxon.dom;
 
-import net.sf.saxon.Transform;
-import net.sf.saxon.dom.DocumentWrapper;
+import org.orbeon.saxon.Transform;
+import org.orbeon.saxon.dom.DocumentWrapper;
 
 import javax.xml.transform.sax.SAXSource;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -18,7 +18,7 @@ import org.xml.sax.SAXException;
 
 
 /**
- * Variant of command line net.sf.saxon.Transform do build the source document
+ * Variant of command line org.orbeon.saxon.Transform do build the source document
  * in DOM and then proceed with the transformation. This class is provided largely for
  * testing purposes.
  */

@@ -1,15 +1,15 @@
-package net.sf.saxon.style;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.instruct.Block;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.sort.SortKeyDefinition;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.instruct.Block;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.sort.SortKeyDefinition;
+import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.value.EmptySequence;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.text.Collator;

@@ -1,19 +1,19 @@
-package net.sf.saxon.style;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.RoleLocator;
-import net.sf.saxon.expr.TypeChecker;
-import net.sf.saxon.instruct.*;
-import net.sf.saxon.om.NamespaceException;
-import net.sf.saxon.pattern.NoNodeTest;
-import net.sf.saxon.pattern.Pattern;
-import net.sf.saxon.trans.Mode;
-import net.sf.saxon.trans.RuleManager;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.RoleLocator;
+import org.orbeon.saxon.expr.TypeChecker;
+import org.orbeon.saxon.instruct.*;
+import org.orbeon.saxon.om.NamespaceException;
+import org.orbeon.saxon.pattern.NoNodeTest;
+import org.orbeon.saxon.pattern.Pattern;
+import org.orbeon.saxon.trans.Mode;
+import org.orbeon.saxon.trans.RuleManager;
+import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
@@ -340,7 +340,7 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
 
     /**
      * Get the type of construct. This will be a constant in
-     * class {@link net.sf.saxon.trace.Location}. This method is part of the {@link net.sf.saxon.trace.InstructionInfo} interface
+     * class {@link org.orbeon.saxon.trace.Location}. This method is part of the {@link org.orbeon.saxon.trace.InstructionInfo} interface
      */
 
     public int getConstructType() {

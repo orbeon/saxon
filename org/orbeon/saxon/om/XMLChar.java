@@ -1,4 +1,4 @@
-package net.sf.saxon.om;
+package org.orbeon.saxon.om;
 
 // Copied without change from Xerces module org.apache.xerces.util.XMLChar, version 2.5.0
 
@@ -80,7 +80,7 @@ package net.sf.saxon.om;
  * @author Arnaud  Le Hors, IBM
  * @author Rahul Srivastava, Sun Microsystems Inc.
  *
- * @version $Id: XMLChar.java,v 1.1 2005/03/18 20:32:44 dsmall Exp $
+ * @version $Id: XMLChar.java,v 1.2 2005/03/18 20:42:19 dsmall Exp $
  */
 public class XMLChar {
 

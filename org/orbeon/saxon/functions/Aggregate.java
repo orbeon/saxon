@@ -1,12 +1,12 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.type.ItemType;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.type.ItemType;
 
 /**
 * This class implements the sum(), avg(), count() functions,

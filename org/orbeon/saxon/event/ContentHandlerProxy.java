@@ -1,8 +1,8 @@
-package net.sf.saxon.event;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.type.SchemaException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.event;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.type.SchemaException;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 import org.xml.sax.ContentHandler;
 import org.xml.sax.Locator;
 import org.xml.sax.SAXException;

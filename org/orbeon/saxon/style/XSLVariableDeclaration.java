@@ -1,12 +1,12 @@
-package net.sf.saxon.style;
-import net.sf.saxon.expr.Binding;
-import net.sf.saxon.expr.BindingReference;
-import net.sf.saxon.expr.VariableDeclaration;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.expr.Binding;
+import org.orbeon.saxon.expr.BindingReference;
+import org.orbeon.saxon.expr.VariableDeclaration;
 
-import net.sf.saxon.value.Value;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.instruct.SlotManager;
-import net.sf.saxon.type.Type;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.instruct.SlotManager;
+import org.orbeon.saxon.type.Type;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.List;

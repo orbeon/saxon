@@ -1,7 +1,7 @@
-package net.sf.saxon.om;
+package org.orbeon.saxon.om;
 
-import net.sf.saxon.expr.LastPositionFinder;
-import net.sf.saxon.expr.ReversibleIterator;
+import org.orbeon.saxon.expr.LastPositionFinder;
+import org.orbeon.saxon.expr.ReversibleIterator;
 
 /**
  * ArrayIterator is used to enumerate items held in an array.

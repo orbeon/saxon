@@ -1,10 +1,10 @@
-package net.sf.saxon.sort;
-import net.sf.saxon.expr.LastPositionFinder;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.trace.Location;
+package org.orbeon.saxon.sort;
+import org.orbeon.saxon.expr.LastPositionFinder;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trace.Location;
 
 import java.util.Comparator;
 

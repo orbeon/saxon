@@ -1,5 +1,5 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.om.SequenceIterator;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.om.SequenceIterator;
 
 
 /**

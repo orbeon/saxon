@@ -1,14 +1,14 @@
-package net.sf.saxon;
-import net.sf.saxon.event.Builder;
-import net.sf.saxon.instruct.TerminationException;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.query.*;
-import net.sf.saxon.trace.XQueryTraceListener;
-import net.sf.saxon.trace.TraceListener;
-import net.sf.saxon.value.UntypedAtomicValue;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+package org.orbeon.saxon;
+import org.orbeon.saxon.event.Builder;
+import org.orbeon.saxon.instruct.TerminationException;
+import org.orbeon.saxon.om.DocumentInfo;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.query.*;
+import org.orbeon.saxon.trace.XQueryTraceListener;
+import org.orbeon.saxon.trace.TraceListener;
+import org.orbeon.saxon.value.UntypedAtomicValue;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 import org.xml.sax.InputSource;
 
 import javax.xml.transform.*;
@@ -52,7 +52,7 @@ public class Query {
     /**
      * Main program, can be used directly from the command line.
      * <p>The format is:</P>
-     * <p>java net.sf.saxon.Query [options] <I>query-file</I> &gt;<I>output-file</I></P>
+     * <p>java org.orbeon.saxon.Query [options] <I>query-file</I> &gt;<I>output-file</I></P>
      * <p>followed by any number of parameters in the form {keyword=value}... which can be
      * referenced from within the query.</p>
      * <p>This program executes the query in query-file.</p>
@@ -66,7 +66,7 @@ public class Query {
         throws Exception
     {
         // the real work is delegated to another routine so that it can be used in a subclass
-        (new Query()).doMain(args, "java net.sf.saxon.Query");
+        (new Query()).doMain(args, "java org.orbeon.saxon.Query");
     }
 
     /**

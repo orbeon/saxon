@@ -1,18 +1,18 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.sort.AtomicComparer;
-import net.sf.saxon.value.BooleanValue;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.pattern.NameTest;
-import net.sf.saxon.Configuration;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.om.AxisIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.sort.AtomicComparer;
+import org.orbeon.saxon.value.BooleanValue;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.pattern.NameTest;
+import org.orbeon.saxon.Configuration;
 
 /**
 * XSLT 2.0 deep-equal() function.

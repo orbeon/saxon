@@ -1,12 +1,12 @@
-package net.sf.saxon.style;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.functions.FunctionLibrary;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.VariableDeclaration;
-import net.sf.saxon.instruct.LocationMap;
-import net.sf.saxon.om.*;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.StaticError;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.functions.FunctionLibrary;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.VariableDeclaration;
+import org.orbeon.saxon.instruct.LocationMap;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.StaticError;
 
 import java.util.Comparator;
 
@@ -145,7 +145,7 @@ public class ExpressionContext implements StaticContext {
     * Bind a variable to an object that can be used to refer to it
     * @param fingerprint The fingerprint of the variable name
     * @return a VariableDeclaration object that can be used to identify it in the Bindery
-    * @throws net.sf.saxon.xpath.StaticError if the variable has not been declared
+    * @throws org.orbeon.saxon.xpath.StaticError if the variable has not been declared
     */
 
     public VariableDeclaration bindVariable(int fingerprint) throws StaticError {

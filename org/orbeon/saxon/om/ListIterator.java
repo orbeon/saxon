@@ -1,5 +1,5 @@
-package net.sf.saxon.om;
-import net.sf.saxon.expr.LastPositionFinder;
+package org.orbeon.saxon.om;
+import org.orbeon.saxon.expr.LastPositionFinder;
 
 import java.util.List;
 

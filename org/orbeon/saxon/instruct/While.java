@@ -1,9 +1,9 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.type.ItemType;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.type.ItemType;
 
 import java.util.Iterator;
 import java.io.PrintStream;

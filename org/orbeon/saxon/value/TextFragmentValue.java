@@ -1,11 +1,11 @@
-package net.sf.saxon.value;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.om.*;
-import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.type.Type;
+package org.orbeon.saxon.value;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.type.Type;
 
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.Configuration;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.Configuration;
 
 /**
 * This class represents a temporary tree whose root document node owns a single text node. <BR>
@@ -254,7 +254,7 @@ public final class TextFragmentValue extends AbstractNode implements DocumentInf
     * Return an iteration over the nodes reached by the given axis from this node
     * @param axisNumber The axis to be iterated over
     * @return a AxisIterator that scans the nodes reached by the axis in turn.
-    * @see net.sf.saxon.om.Axis
+    * @see org.orbeon.saxon.om.Axis
     */
 
     public AxisIterator iterateAxis(byte axisNumber) {
@@ -292,7 +292,7 @@ public final class TextFragmentValue extends AbstractNode implements DocumentInf
     * @param axisNumber The axis to be iterated over
     * @param nodeTest A pattern to be matched by the returned nodes
     * @return a AxisIterator that scans the nodes reached by the axis in turn.
-    * @see net.sf.saxon.om.Axis
+    * @see org.orbeon.saxon.om.Axis
     */
 
     public AxisIterator iterateAxis(byte axisNumber, NodeTest nodeTest) {

@@ -1,6 +1,6 @@
-package net.sf.saxon.event;
+package org.orbeon.saxon.event;
 
-import net.sf.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.DynamicError;
 
 /**
 * Exception indicating that an attribute or namespace node has been written when
@@ -12,10 +12,10 @@ public class NoOpenStartTagException extends DynamicError {
     public NoOpenStartTagException(int nodeKind, boolean topLevel) {
         super((topLevel ?
                 ("Cannot create " +
-                    (nodeKind==net.sf.saxon.type.Type.ATTRIBUTE ? "an attribute" : "a namespace") +
+                    (nodeKind==org.orbeon.saxon.type.Type.ATTRIBUTE ? "an attribute" : "a namespace") +
                     " node whose parent is a document node")
                 :
-                (nodeKind==net.sf.saxon.type.Type.ATTRIBUTE ? "Attribute" : "Namespace") +
+                (nodeKind==org.orbeon.saxon.type.Type.ATTRIBUTE ? "Attribute" : "Namespace") +
                     " nodes must be created before the children of an element node"
                 ));
         setErrorCode(topLevel ? "XT0410" : "XT0420");

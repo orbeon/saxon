@@ -1,9 +1,9 @@
-package net.sf.saxon.instruct;
+package org.orbeon.saxon.instruct;
 
-import net.sf.saxon.expr.ComputedExpression;
-import net.sf.saxon.expr.Container;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.ComputedExpression;
+import org.orbeon.saxon.expr.Container;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionTool;
 
 import java.io.Serializable;
 

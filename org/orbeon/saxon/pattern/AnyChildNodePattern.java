@@ -1,7 +1,7 @@
-package net.sf.saxon.pattern;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
+package org.orbeon.saxon.pattern;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
 
 /**
 * An AnyChildNodePattern is the pattern node(), which matches any node except a root node,

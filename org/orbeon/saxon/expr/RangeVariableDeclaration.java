@@ -1,9 +1,9 @@
-package net.sf.saxon.expr;
+package org.orbeon.saxon.expr;
 
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.Value;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.Value;
 
 import java.util.ArrayList;
 import java.util.Iterator;

@@ -1,18 +1,18 @@
-package net.sf.saxon.tree;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.NamespaceException;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.style.StandardNames;
+package org.orbeon.saxon.tree;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.DocumentInfo;
+import org.orbeon.saxon.om.NamespaceException;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.style.StandardNames;
 
 import java.util.List;
 import org.w3c.dom.Element;
 import org.w3c.dom.DOMException;
 
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
   * ElementImpl implements an element with no attributes or namespace declarations.<P>

@@ -1,8 +1,8 @@
-package net.sf.saxon.event;
+package org.orbeon.saxon.event;
 
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * Sends an entire document to a Receiver.

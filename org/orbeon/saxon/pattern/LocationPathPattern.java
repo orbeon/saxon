@@ -1,17 +1,17 @@
-package net.sf.saxon.pattern;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.SingletonIterator;
-import net.sf.saxon.style.ExpressionContext;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.value.BooleanValue;
-import net.sf.saxon.value.IntegerValue;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.trace.Location;
+package org.orbeon.saxon.pattern;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.SingletonIterator;
+import org.orbeon.saxon.style.ExpressionContext;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.value.BooleanValue;
+import org.orbeon.saxon.value.IntegerValue;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.trace.Location;
 
 /**
 * A LocationPathPattern represents a path, for example of the form A/B/C... The components are represented

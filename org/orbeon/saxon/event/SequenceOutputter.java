@@ -1,14 +1,14 @@
-package net.sf.saxon.event;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.om.*;
-import net.sf.saxon.tinytree.TinyBuilder;
-import net.sf.saxon.tinytree.TinyDocumentImpl;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.value.SequenceExtent;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.event;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.tinytree.TinyBuilder;
+import org.orbeon.saxon.tinytree.TinyDocumentImpl;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.EmptySequence;
+import org.orbeon.saxon.value.SequenceExtent;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 import java.util.List;

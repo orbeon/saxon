@@ -1,4 +1,4 @@
-package net.sf.saxon.type;
+package org.orbeon.saxon.type;
 
 /**
  * A complex type as defined in XML Schema: either a user-defined complex type, or xs:anyType.

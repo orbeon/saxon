@@ -1,15 +1,15 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.Controller;
-import net.sf.saxon.event.SequenceOutputter;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.*;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.StaticError;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.event.SequenceOutputter;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.StaticError;
 
 import java.io.PrintStream;
 import java.util.ArrayList;

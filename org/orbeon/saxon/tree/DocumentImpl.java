@@ -1,18 +1,18 @@
-package net.sf.saxon.tree;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.ListIterator;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.XMLChar;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.type.Type;
+package org.orbeon.saxon.tree;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.DocumentInfo;
+import org.orbeon.saxon.om.AxisIterator;
+import org.orbeon.saxon.om.ListIterator;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.XMLChar;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.type.Type;
 
 import java.util.HashMap;
 import java.util.ArrayList;
 import org.xml.sax.Attributes;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.Configuration;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.Configuration;
 
 import org.w3c.dom.*;
 

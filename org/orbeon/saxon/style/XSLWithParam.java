@@ -1,12 +1,12 @@
-package net.sf.saxon.style;
-import net.sf.saxon.instruct.WithParam;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.instruct.WithParam;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.om.AxisIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionTool;
 
 import javax.xml.transform.TransformerConfigurationException;
 

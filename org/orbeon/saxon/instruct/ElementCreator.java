@@ -1,14 +1,14 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.Controller;
-import net.sf.saxon.event.*;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.type.*;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.event.*;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.type.*;
+import org.orbeon.saxon.xpath.XPathException;
 
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 
 /**

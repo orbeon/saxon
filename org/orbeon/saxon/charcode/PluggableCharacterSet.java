@@ -1,4 +1,4 @@
-package net.sf.saxon.charcode;
+package org.orbeon.saxon.charcode;
 
 
 /**

@@ -1,4 +1,4 @@
-package net.sf.saxon.number;
+package org.orbeon.saxon.number;
 
 /**
   * Class Numberer_de is designed simply to demonstrate how to write a number formatter

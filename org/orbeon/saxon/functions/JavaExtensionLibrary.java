@@ -1,18 +1,18 @@
-package net.sf.saxon.functions;
+package org.orbeon.saxon.functions;
 
-import net.sf.saxon.Configuration;
-import net.sf.saxon.Loader;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.Loader;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.DocumentInfo;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
@@ -67,12 +67,12 @@ public class JavaExtensionLibrary implements FunctionLibrary {
      * a subclass.
      */
     protected void setDefaultURIMappings() {
-        declareJavaClass(NamespaceConstant.SAXON, net.sf.saxon.functions.Extensions.class);
-        declareJavaClass(NamespaceConstant.EXSLT_COMMON, net.sf.saxon.exslt.Common.class);
-        declareJavaClass(NamespaceConstant.EXSLT_SETS, net.sf.saxon.exslt.Sets.class);
-        declareJavaClass(NamespaceConstant.EXSLT_MATH, net.sf.saxon.exslt.Math.class);
-        declareJavaClass(NamespaceConstant.EXSLT_DATES_AND_TIMES, net.sf.saxon.exslt.Date.class);
-        declareJavaClass(NamespaceConstant.EXSLT_RANDOM, net.sf.saxon.exslt.Random.class);
+        declareJavaClass(NamespaceConstant.SAXON, org.orbeon.saxon.functions.Extensions.class);
+        declareJavaClass(NamespaceConstant.EXSLT_COMMON, org.orbeon.saxon.exslt.Common.class);
+        declareJavaClass(NamespaceConstant.EXSLT_SETS, org.orbeon.saxon.exslt.Sets.class);
+        declareJavaClass(NamespaceConstant.EXSLT_MATH, org.orbeon.saxon.exslt.Math.class);
+        declareJavaClass(NamespaceConstant.EXSLT_DATES_AND_TIMES, org.orbeon.saxon.exslt.Date.class);
+        declareJavaClass(NamespaceConstant.EXSLT_RANDOM, org.orbeon.saxon.exslt.Random.class);
     }
 
     /**
@@ -718,11 +718,11 @@ public class JavaExtensionLibrary implements FunctionLibrary {
     /**
      * Get the conversion preference from an XPath primitive atomic type to a Java class
      * @param primitiveType integer code identifying the XPath primitive type, for example
-     * {@link net.sf.saxon.type.Type#INTEGER} or {@link net.sf.saxon.type.Type#STRING}
+     * {@link org.orbeon.saxon.type.Type#INTEGER} or {@link org.orbeon.saxon.type.Type#STRING}
      * @param required The Java Class named in the method signature
      * @return an integer indicating the relative preference for converting this primitive type
      * to this Java class. A high number indicates a low preference. All values are in the range
-     * 50 to 100. For example, the conversion of an XPath String to {@link net.sf.saxon.value.StringValue} is 50, while
+     * 50 to 100. For example, the conversion of an XPath String to {@link org.orbeon.saxon.value.StringValue} is 50, while
      * XPath String to {@link java.lang.String} is 51. The value -1 indicates that the conversion is not allowed.
      */
 

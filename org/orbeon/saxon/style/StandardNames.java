@@ -1,5 +1,5 @@
-package net.sf.saxon.style;
-import net.sf.saxon.om.NamespaceConstant;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.om.NamespaceConstant;
 
 import java.util.HashMap;
 

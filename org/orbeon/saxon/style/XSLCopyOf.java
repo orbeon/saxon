@@ -1,13 +1,13 @@
-package net.sf.saxon.style;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.instruct.CopyOf;
-import net.sf.saxon.instruct.Instruction;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.om.Validation;
-import net.sf.saxon.type.SchemaType;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.Configuration;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.instruct.CopyOf;
+import org.orbeon.saxon.instruct.Instruction;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.Validation;
+import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.Configuration;
 
 import javax.xml.transform.TransformerConfigurationException;
 

@@ -1,7 +1,7 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.Iterator;
 

@@ -1,11 +1,11 @@
-package net.sf.saxon;
+package org.orbeon.saxon;
 import org.xml.sax.InputSource;
 import org.xml.sax.XMLReader;
 
 import javax.xml.parsers.SAXParserFactory;
 import javax.xml.transform.Source;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 import javax.xml.transform.URIResolver;
 import javax.xml.transform.sax.SAXSource;

@@ -1,15 +1,15 @@
-package net.sf.saxon.style;
-import net.sf.saxon.expr.ComputedExpression;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.instruct.GeneralVariable;
-import net.sf.saxon.instruct.GlobalVariable;
-import net.sf.saxon.instruct.LocalVariable;
-import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.value.SequenceType;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.expr.ComputedExpression;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.StaticProperty;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.instruct.GeneralVariable;
+import org.orbeon.saxon.instruct.GlobalVariable;
+import org.orbeon.saxon.instruct.LocalVariable;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.value.EmptySequence;
+import org.orbeon.saxon.value.SequenceType;
 
 import javax.xml.transform.TransformerConfigurationException;
 

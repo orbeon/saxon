@@ -40,13 +40,13 @@
  *
  * Copyright 1999-2000 (C) Intalio Inc. All Rights Reserved.
  *
- * $Id: SchemaType.java,v 1.1 2005/03/18 20:32:45 dsmall Exp $
+ * $Id: SchemaType.java,v 1.2 2005/03/18 20:42:20 dsmall Exp $
  */
 
-package net.sf.saxon.type;
+package org.orbeon.saxon.type;
 
-import net.sf.saxon.om.*;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.SourceLocator;
 import java.io.Serializable;
@@ -424,7 +424,7 @@ public abstract class SchemaType implements TypeInfo, Serializable, SourceLocato
      * Get the typed value of a node that is annotated with this schema type
      * @param node the node whose typed value is required
      * @return a SequenceIterator over the atomic values making up the typed value of the specified
-     * node. The objects returned by this iterator are of type {@link net.sf.saxon.value.AtomicValue}
+     * node. The objects returned by this iterator are of type {@link org.orbeon.saxon.value.AtomicValue}
      */
 
     public abstract SequenceIterator getTypedValue(NodeInfo node)

@@ -1,8 +1,8 @@
-package net.sf.saxon.tinytree;
-import net.sf.saxon.om.AxisIteratorImpl;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.pattern.NodeTest;
+package org.orbeon.saxon.tinytree;
+import org.orbeon.saxon.om.AxisIteratorImpl;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.pattern.NodeTest;
 
 /**
 * This class supports both the child:: and following-sibling:: axes, which are

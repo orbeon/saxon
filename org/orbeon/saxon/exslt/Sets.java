@@ -1,13 +1,13 @@
-package net.sf.saxon.exslt;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.sort.GlobalOrderComparer;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.value.SingletonNode;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+package org.orbeon.saxon.exslt;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.sort.GlobalOrderComparer;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.value.SingletonNode;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 import java.util.HashSet;
 
@@ -134,7 +134,7 @@ public abstract class Sets  {
                      XPathContext c,
                      SequenceIterator ns1, SequenceIterator ns2) throws XPathException {
 
-        return net.sf.saxon.functions.Extensions.after(c, ns1, ns2);
+        return org.orbeon.saxon.functions.Extensions.after(c, ns1, ns2);
     }
 
 }

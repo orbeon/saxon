@@ -1,15 +1,15 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.om.*;
-import net.sf.saxon.pattern.AnyNodeTest;
-import net.sf.saxon.pattern.DocumentNodeTest;
-import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.type.AtomicType;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.AnyNodeTest;
+import org.orbeon.saxon.pattern.DocumentNodeTest;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.type.AtomicType;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -32,10 +32,10 @@ public final class AxisExpression extends ComputedExpression {
     /**
     * Constructor
     * @param axis       The axis to be used in this AxisExpression: relevant constants are defined
-     *                  in class net.sf.saxon.om.Axis.
+     *                  in class org.orbeon.saxon.om.Axis.
     * @param nodeTest   The conditions to be satisfied by selected nodes. May be null,
      *                  indicating that any node on the axis is acceptable
-     * @see net.sf.saxon.om.Axis
+     * @see org.orbeon.saxon.om.Axis
     */
 
     public AxisExpression(byte axis, NodeTest nodeTest) {

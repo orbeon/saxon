@@ -1,17 +1,17 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.Version;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.Name;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.om.QNameException;
-import net.sf.saxon.om.NamespaceResolver;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.StaticError;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.Version;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.Name;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.om.QNameException;
+import org.orbeon.saxon.om.NamespaceResolver;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.StaticError;
 
 
 public class SystemProperty extends SystemFunction implements XSLTFunction {

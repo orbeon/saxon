@@ -1,10 +1,10 @@
-package net.sf.saxon.style;
-import net.sf.saxon.instruct.Assign;
-import net.sf.saxon.instruct.Instruction;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.instruct.Assign;
+import org.orbeon.saxon.instruct.Instruction;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionTool;
 
 import javax.xml.transform.TransformerConfigurationException;
 

@@ -1,5 +1,5 @@
-package net.sf.saxon.om;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.om;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * <p>

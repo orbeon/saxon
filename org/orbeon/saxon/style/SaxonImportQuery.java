@@ -1,15 +1,15 @@
-package net.sf.saxon.style;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.functions.ExecutableFunctionLibrary;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.query.QueryParser;
-import net.sf.saxon.query.StaticQueryContext;
-import net.sf.saxon.query.XQueryFunction;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.functions.ExecutableFunctionLibrary;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.query.QueryParser;
+import org.orbeon.saxon.query.StaticQueryContext;
+import org.orbeon.saxon.query.XQueryFunction;
+import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.io.BufferedReader;

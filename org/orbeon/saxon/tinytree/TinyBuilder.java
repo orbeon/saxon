@@ -1,9 +1,9 @@
-package net.sf.saxon.tinytree;
-import net.sf.saxon.event.Builder;
-import net.sf.saxon.event.ReceiverOptions;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.tinytree;
+import org.orbeon.saxon.event.Builder;
+import org.orbeon.saxon.event.ReceiverOptions;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 /**

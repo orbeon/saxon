@@ -1,22 +1,22 @@
-package net.sf.saxon.style;
-import net.sf.saxon.expr.ErrorExpression;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.RoleLocator;
-import net.sf.saxon.expr.TypeChecker;
-import net.sf.saxon.instruct.*;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.NamespaceException;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.Cardinality;
-import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.expr.ErrorExpression;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.RoleLocator;
+import org.orbeon.saxon.expr.TypeChecker;
+import org.orbeon.saxon.instruct.*;
+import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.om.AxisIterator;
+import org.orbeon.saxon.om.NamespaceException;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.Cardinality;
+import org.orbeon.saxon.value.EmptySequence;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -363,8 +363,8 @@ public abstract class XSLGeneralVariable extends StyleElement {
 
     /**
      * Get the type of construct. This will be a constant in
-     * class {@link net.sf.saxon.trace.Location}. This method is part of the
-     * {@link net.sf.saxon.trace.InstructionInfo} interface
+     * class {@link org.orbeon.saxon.trace.Location}. This method is part of the
+     * {@link org.orbeon.saxon.trace.InstructionInfo} interface
      */
 
     public int getConstructType() {

@@ -1,9 +1,9 @@
-package net.sf.saxon.pattern;
-import net.sf.saxon.expr.Token;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.type.AnyType;
-import net.sf.saxon.type.SchemaType;
-import net.sf.saxon.type.Type;
+package org.orbeon.saxon.pattern;
+import org.orbeon.saxon.expr.Token;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.type.AnyType;
+import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.type.Type;
 
 import java.util.Set;
 

@@ -1,6 +1,6 @@
-package net.sf.saxon.om;
-import net.sf.saxon.event.Stripper;
-import net.sf.saxon.Configuration;
+package org.orbeon.saxon.om;
+import org.orbeon.saxon.event.Stripper;
+import org.orbeon.saxon.Configuration;
 
 /**
   * A StrippedDocument represents a view of a real Document in which selected

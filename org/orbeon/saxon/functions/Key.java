@@ -1,16 +1,16 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.Controller;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.*;
-import net.sf.saxon.sort.DocumentOrderIterator;
-import net.sf.saxon.sort.LocalOrderComparer;
-import net.sf.saxon.style.ExpressionContext;
-import net.sf.saxon.trans.KeyManager;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.Cardinality;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.StaticError;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.sort.DocumentOrderIterator;
+import org.orbeon.saxon.sort.LocalOrderComparer;
+import org.orbeon.saxon.style.ExpressionContext;
+import org.orbeon.saxon.trans.KeyManager;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.Cardinality;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.StaticError;
 
 
 public class Key extends SystemFunction implements MappingFunction, XSLTFunction {

@@ -1,6 +1,6 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.Value;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.Value;
 
 /**
 * BindingReference is a interface used to mark references to a variable declaration. The main

@@ -1,7 +1,7 @@
-package net.sf.saxon.tree;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.pattern.NodeTest;
+package org.orbeon.saxon.tree;
+import org.orbeon.saxon.om.AxisIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.pattern.NodeTest;
 
 abstract class TreeEnumeration implements AxisIterator {
 

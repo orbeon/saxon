@@ -1,9 +1,9 @@
-package net.sf.saxon.om;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.pattern.NodeTest;
+package org.orbeon.saxon.om;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.pattern.NodeTest;
 
 import javax.xml.transform.Source;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * A node in the XML parse tree representing an XML element, character content, or attribute.
@@ -20,7 +20,7 @@ public interface NodeInfo extends Source, Item {
      *
      * @return an integer identifying the kind of node. These integer values are the
      * same as those used in the DOM
-     * @see net.sf.saxon.type.Type
+     * @see org.orbeon.saxon.type.Type
      */
 
     public int getNodeKind();
@@ -99,8 +99,8 @@ public interface NodeInfo extends Source, Item {
 	 *
 	 * @return an integer name code, which may be used to obtain the actual node
 	 *     name from the name pool
-	 * @see net.sf.saxon.om.NamePool#allocate allocate
-	 * @see net.sf.saxon.om.NamePool#getFingerprint getFingerprint
+	 * @see org.orbeon.saxon.om.NamePool#allocate allocate
+	 * @see org.orbeon.saxon.om.NamePool#getFingerprint getFingerprint
 	 */
 
 	public int getNameCode();
@@ -160,7 +160,7 @@ public interface NodeInfo extends Source, Item {
      * untyped, and attributes annotated as untypedAtomic.
      *
      * @return the type annotation of the node.
-     * @see net.sf.saxon.type.Type
+     * @see org.orbeon.saxon.type.Type
      */
 
     public int getTypeAnnotation();
@@ -179,10 +179,10 @@ public interface NodeInfo extends Source, Item {
      * @exception UnsupportedOperationException if the namespace axis is
      *     requested and this axis is not supported for this implementation.
      * @param axisNumber an integer identifying the axis; one of the constants
-     *      defined in class net.sf.saxon.om.Axis
+     *      defined in class org.orbeon.saxon.om.Axis
      * @return an AxisIterator that scans the nodes reached by the axis in
      *     turn.
-     * @see net.sf.saxon.om.Axis
+     * @see org.orbeon.saxon.om.Axis
      */
 
     public AxisIterator iterateAxis(byte axisNumber);
@@ -195,12 +195,12 @@ public interface NodeInfo extends Source, Item {
      * @exception UnsupportedOperationException if the namespace axis is
      *     requested and this axis is not supported for this implementation.
      * @param axisNumber an integer identifying the axis; one of the constants
-     *      defined in class net.sf.saxon.om.Axis
+     *      defined in class org.orbeon.saxon.om.Axis
      * @param nodeTest A pattern to be matched by the returned nodes; nodes
      * that do not match this pattern are not included in the result
      * @return a NodeEnumeration that scans the nodes reached by the axis in
      *     turn.
-     * @see net.sf.saxon.om.Axis
+     * @see org.orbeon.saxon.om.Axis
      */
 
     public AxisIterator iterateAxis(byte axisNumber, NodeTest nodeTest);

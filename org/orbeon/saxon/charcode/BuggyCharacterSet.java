@@ -1,6 +1,6 @@
-package net.sf.saxon.charcode;
+package org.orbeon.saxon.charcode;
 
-import net.sf.saxon.om.XMLChar;
+import org.orbeon.saxon.om.XMLChar;
 
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.Charset;

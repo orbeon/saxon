@@ -1,12 +1,12 @@
-package net.sf.saxon.xpath;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.instruct.SlotManager;
-import net.sf.saxon.event.Builder;
-import net.sf.saxon.event.Stripper;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.*;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.*;
+package org.orbeon.saxon.xpath;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.instruct.SlotManager;
+import org.orbeon.saxon.event.Builder;
+import org.orbeon.saxon.event.Stripper;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.*;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
@@ -64,8 +64,8 @@ public class XPathEvaluator {
     * method must be called before preparing or executing an XPath expression.
     * Setting a new source document clears all the namespaces that have been declared.
     * @param source Any javax.xml.transform.Source object representing the document against
-    * which XPath expressions will be executed. Note that a Saxon {@link net.sf.saxon.om.DocumentInfo DocumentInfo}
-     * (indeed any {@link net.sf.saxon.om.NodeInfo NodeInfo})
+    * which XPath expressions will be executed. Note that a Saxon {@link org.orbeon.saxon.om.DocumentInfo DocumentInfo}
+     * (indeed any {@link org.orbeon.saxon.om.NodeInfo NodeInfo})
      * can be used as a Source. To use a third-party DOM Document as a source, create an instance of
      * {@link javax.xml.transform.dom.DOMSource DOMSource} to wrap it.
     *  <p>The Source object supplied also determines the initial setting
@@ -126,11 +126,11 @@ public class XPathEvaluator {
     */
 
     public XPathExpression createExpression(String expression)
-    throws XPathException {
+            throws XPathException {
         Expression exp = ExpressionTool.make(expression, staticContext,0,-1,1);
         exp = exp.analyze(staticContext, Type.ITEM_TYPE);
         SlotManager map = staticContext.getConfiguration().makeSlotManager();
-        ExpressionTool.allocateSlots(exp, 1, null);
+        ExpressionTool.allocateSlots(exp, 0, null);
         XPathExpression xpe = new XPathExpression(exp, staticContext.getConfiguration());
         xpe.setStackFrameMap(map);
         xpe.setContextNode(contextNode);
@@ -177,7 +177,7 @@ public class XPathEvaluator {
         Expression exp = ExpressionTool.make(expression, staticContext,0,-1,1);
         exp = exp.analyze(staticContext, Type.ITEM_TYPE);
         SlotManager map = staticContext.getConfiguration().makeSlotManager();
-        ExpressionTool.allocateSlots(exp, 1, map);
+        ExpressionTool.allocateSlots(exp, 0, map);
         XPathContextMajor context = new XPathContextMajor(contextNode, staticContext.getConfiguration());
         context.openStackFrame(map);
         SequenceIterator iterator = exp.iterate(context);

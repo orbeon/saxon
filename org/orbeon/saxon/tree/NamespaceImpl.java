@@ -1,11 +1,11 @@
-package net.sf.saxon.tree;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.event.ReceiverOptions;
-import net.sf.saxon.type.Type;
+package org.orbeon.saxon.tree;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.event.ReceiverOptions;
+import org.orbeon.saxon.type.Type;
 
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 import org.w3c.dom.Node;
 
 /**

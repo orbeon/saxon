@@ -1,6 +1,6 @@
-package net.sf.saxon.event;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.event;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
   * SequenceReceiver: this extension of the Receiver interface is used when processing

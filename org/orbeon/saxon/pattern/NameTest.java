@@ -1,8 +1,8 @@
-package net.sf.saxon.pattern;
-import net.sf.saxon.om.FingerprintedNode;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.type.Type;
+package org.orbeon.saxon.pattern;
+import org.orbeon.saxon.om.FingerprintedNode;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.type.Type;
 
 import java.util.HashSet;
 import java.util.Set;

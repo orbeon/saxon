@@ -1,23 +1,24 @@
-package net.sf.saxon.style;
-import net.sf.saxon.PreparedStylesheet;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.trace.Location;
-import net.sf.saxon.type.SchemaType;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.instruct.*;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.om.Validation;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.tree.DocumentImpl;
-import net.sf.saxon.tree.TreeBuilder;
-import net.sf.saxon.value.StringValue;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.PreparedStylesheet;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.event.LocationProvider;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.instruct.*;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.om.Validation;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.tree.DocumentImpl;
+import org.orbeon.saxon.tree.TreeBuilder;
+import org.orbeon.saxon.value.StringValue;
 
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
 
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 /**
@@ -467,7 +468,15 @@ public class LiteralResultElement extends StyleElement {
 
         try {
             TreeBuilder builder = new TreeBuilder();
-            builder.setDocumentLocator(null);
+            builder.setDocumentLocator(new LocationProvider() {
+                public int getLineNumber(int locationId) {
+                    return LiteralResultElement.this.getLineNumber();
+                }
+
+                public String getSystemId(int locationId) {
+                    return LiteralResultElement.this.getSystemId();
+                }
+            });
             builder.setConfiguration(pss.getConfiguration());
             builder.setNodeFactory(nodeFactory);
             builder.setSystemId(this.getSystemId());
@@ -502,8 +511,8 @@ public class LiteralResultElement extends StyleElement {
 
     /**
      * Get the type of construct. This will be a constant in
-     * class {@link net.sf.saxon.trace.Location}. This method is part of the
-     * {@link net.sf.saxon.trace.InstructionInfo} interface
+     * class {@link org.orbeon.saxon.trace.Location}. This method is part of the
+     * {@link org.orbeon.saxon.trace.InstructionInfo} interface
      */
 
     public int getConstructType() {
@@ -522,7 +531,7 @@ public class LiteralResultElement extends StyleElement {
 
     /**
      * Get the value of a particular property of the instruction. This is part of the
-     * {@link net.sf.saxon.trace.InstructionInfo} interface for run-time tracing and debugging. The properties
+     * {@link org.orbeon.saxon.trace.InstructionInfo} interface for run-time tracing and debugging. The properties
      * available include all the attributes of the source instruction (named by the attribute name):
      * these are all provided as string values.
      * @param name The name of the required property

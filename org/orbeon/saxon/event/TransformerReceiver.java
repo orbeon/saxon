@@ -1,8 +1,8 @@
-package net.sf.saxon.event;
-import net.sf.saxon.Controller;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.event;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.om.DocumentInfo;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.Result;
 import javax.xml.transform.Transformer;

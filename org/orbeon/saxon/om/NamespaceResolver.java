@@ -1,7 +1,7 @@
-package net.sf.saxon.om;
+package org.orbeon.saxon.om;
 
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 import java.util.Iterator;
 
@@ -28,7 +28,7 @@ public interface NamespaceResolver {
     * @param useDefault true if the default namespace is to be used to resolve an unprefixed QName
     * @param pool the NamePool to be used
     * @return the integer fingerprint that uniquely identifies this name
-     * @throws net.sf.saxon.xpath.DynamicError if the string is not a valid lexical QName or
+     * @throws org.orbeon.saxon.xpath.DynamicError if the string is not a valid lexical QName or
      * if the namespace prefix has not been declared
     */
 

@@ -1,4 +1,4 @@
-package net.sf.saxon.trace;
+package org.orbeon.saxon.trace;
 
 /**
  * This class holds constants identifying different kinds of location in a source stylesheet or query.
@@ -7,7 +7,7 @@ package net.sf.saxon.trace;
  * such on the context stack. Some of the locations represent points in the evaluation of a stylesheet
  * (or query or XPath expression) that are notified to the trace listener. Some fulfil both roles.
  *
- * <p>Any constant used in {@link net.sf.saxon.style.StandardNames} can be used as a Location. Such
+ * <p>Any constant used in {@link org.orbeon.saxon.style.StandardNames} can be used as a Location. Such
  * names are generally used to identify XSLT instructions. They are also used for equivalent constructs
  * in XQuery, for example XSL_ELEMENT is used for a computed element constructor in XQuery. The constants
  * in StandardNames are all in the range 0-1023, so constants defined in this class are outside this

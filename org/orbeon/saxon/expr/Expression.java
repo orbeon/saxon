@@ -1,9 +1,9 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.Iterator;
 import java.io.PrintStream;
@@ -30,7 +30,7 @@ public interface Expression {
      * Simplify an expression. This performs any static optimization (by rewriting the expression
      * as a different expression). The default implementation does nothing.
      *
-     * @exception net.sf.saxon.xpath.StaticError if an error is discovered during expression
+     * @exception org.orbeon.saxon.xpath.StaticError if an error is discovered during expression
      *     rewriting
      * @return the simplified expression
      */
@@ -53,8 +53,8 @@ public interface Expression {
      * @param contextItemType the static type of "." at the point where this expression is invoked.
      * The parameter is set to null if it is known statically that the context item will be undefined.
      * If the type of the context item is not known statically, the argument is set to
-     * {@link net.sf.saxon.type.Type#ITEM_TYPE}
-     * @exception net.sf.saxon.xpath.StaticError if an error is discovered during this phase
+     * {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
+     * @exception org.orbeon.saxon.xpath.StaticError if an error is discovered during this phase
      *     (typically a type error)
      * @return the original expression, rewritten to perform necessary
      *     run-time type checks, and to perform other type-related
@@ -73,7 +73,7 @@ public interface Expression {
      * @param offer details of the offer, for example the offer to move
      *     expressions that don't depend on the context to an outer level in
      *     the containing expression
-     * @exception net.sf.saxon.xpath.XPathException if any error is detected
+     * @exception org.orbeon.saxon.xpath.XPathException if any error is detected
      * @return if the offer is not accepted, return this expression unchanged.
      *      Otherwise return the result of rewriting the expression to promote
      *      this subexpression
@@ -197,7 +197,7 @@ public interface Expression {
      * return singleton values: for non-singleton expressions, the subclass must
      * provide its own implementation.
      *
-     * @exception net.sf.saxon.xpath.XPathException if any dynamic error occurs evaluating the
+     * @exception org.orbeon.saxon.xpath.XPathException if any dynamic error occurs evaluating the
      *     expression
      * @param context supplies the context for evaluation
      * @return a SequenceIterator that can be used to iterate over the result
@@ -212,7 +212,7 @@ public interface Expression {
      * false. Otherwise it returns true.
      *
      * @param context The context in which the expression is to be evaluated
-     * @exception net.sf.saxon.xpath.XPathException if any dynamic error occurs evaluating the
+     * @exception org.orbeon.saxon.xpath.XPathException if any dynamic error occurs evaluating the
      *     expression
      * @return the effective boolean value
      */

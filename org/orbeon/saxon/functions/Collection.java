@@ -1,18 +1,18 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.MappingFunction;
-import net.sf.saxon.expr.MappingIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.Navigator;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.type.Type;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.MappingFunction;
+import org.orbeon.saxon.expr.MappingIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.DocumentInfo;
+import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.Navigator;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.type.Type;
 
 /**
  * Implement the fn:collection() function. The Saxon implementation loads an XML

@@ -1,19 +1,19 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.Controller;
-import net.sf.saxon.ParameterSet;
-import net.sf.saxon.event.SequenceReceiver;
-import net.sf.saxon.instruct.LocalParam;
-import net.sf.saxon.instruct.RegexIterator;
-import net.sf.saxon.instruct.Template;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.sort.GroupIterator;
-import net.sf.saxon.trace.InstructionInfoProvider;
-import net.sf.saxon.trans.Mode;
-import net.sf.saxon.type.SchemaType;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.ParameterSet;
+import org.orbeon.saxon.event.SequenceReceiver;
+import org.orbeon.saxon.instruct.LocalParam;
+import org.orbeon.saxon.instruct.RegexIterator;
+import org.orbeon.saxon.instruct.Template;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.sort.GroupIterator;
+import org.orbeon.saxon.trace.InstructionInfoProvider;
+import org.orbeon.saxon.trans.Mode;
+import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.Result;
 import java.util.Comparator;
@@ -74,7 +74,7 @@ public interface XPathContext {
      * Set the type of creating expression (for use in diagnostics). When a new context is created, either
      * this method or {@link #setOrigin} should be called.
      * @param loc The originating location: the argument must be one of the integer constants in class
-     * {@link net.sf.saxon.trace.Location}
+     * {@link org.orbeon.saxon.trace.Location}
      */
 
     public void setOriginatingConstructType(int loc);

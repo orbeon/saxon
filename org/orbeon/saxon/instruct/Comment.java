@@ -1,15 +1,15 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.event.SequenceReceiver;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.StaticProperty;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.event.SequenceReceiver;
 
 import java.io.PrintStream;
 
@@ -67,7 +67,7 @@ public final class Comment extends SimpleNodeConstructor {
      * @param comment    the supplied content
      * @param context the dynamic context
      * @return the original content, unless adjustments are needed
-     * @throws net.sf.saxon.xpath.DynamicError
+     * @throws org.orbeon.saxon.xpath.DynamicError
      *          if the content is invalid
      */
 

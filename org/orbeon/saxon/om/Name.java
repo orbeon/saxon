@@ -1,6 +1,6 @@
-package net.sf.saxon.om;
+package org.orbeon.saxon.om;
 
-import net.sf.saxon.Err;
+import org.orbeon.saxon.Err;
 
 /**
  * This class exists to contain some static methods

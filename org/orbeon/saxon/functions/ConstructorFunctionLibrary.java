@@ -1,16 +1,16 @@
-package net.sf.saxon.functions;
+package org.orbeon.saxon.functions;
 
-import net.sf.saxon.Configuration;
-import net.sf.saxon.expr.CastExpression;
-import net.sf.saxon.expr.ErrorExpression;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.type.AtomicType;
-import net.sf.saxon.type.SchemaType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.expr.CastExpression;
+import org.orbeon.saxon.expr.ErrorExpression;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.type.AtomicType;
+import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * The ConstructorFunctionLibrary represents the collection of constructor functions for atomic types. These
@@ -67,7 +67,7 @@ public class ConstructorFunctionLibrary implements FunctionLibrary {
      * be used as part of the binding algorithm.
      * @return An object representing the extension function to be called, if one is found;
      * null if no extension function was found matching the required name and arity.
-     * @throws net.sf.saxon.xpath.XPathException if a function is found with the required name and arity, but
+     * @throws org.orbeon.saxon.xpath.XPathException if a function is found with the required name and arity, but
      * the implementation of the function cannot be loaded or used; or if an error occurs
      * while searching for the function; or if this function library "owns" the namespace containing
      * the function call, but no function was found. 

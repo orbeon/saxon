@@ -1,8 +1,8 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.om.AtomizableIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.om.AtomizableIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * MappingIterator merges a sequence of sequences into a single flat
@@ -91,7 +91,7 @@ public final class MappingIterator implements SequenceIterator, AtomizableIterat
         }
 
         current = nextItem;
-        // System.err.println("MappingIterator.next(), this = " + this + " returning " + ((net.sf.saxon.om.NodeInfo)current).generateId() );
+        // System.err.println("MappingIterator.next(), this = " + this + " returning " + ((org.orbeon.saxon.om.NodeInfo)current).generateId() );
         position++;
         return nextItem;
     }

@@ -1,5 +1,5 @@
-package net.sf.saxon.event;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.event;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.Properties;
 

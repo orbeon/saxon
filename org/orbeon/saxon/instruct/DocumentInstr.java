@@ -1,20 +1,20 @@
-package net.sf.saxon.instruct;
+package org.orbeon.saxon.instruct;
 
-import net.sf.saxon.Controller;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.event.SequenceReceiver;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.*;
-import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.tinytree.TinyBuilder;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.SchemaType;
-import net.sf.saxon.value.TextFragmentValue;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.event.SequenceReceiver;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.StaticProperty;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.tinytree.TinyBuilder;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.value.TextFragmentValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 

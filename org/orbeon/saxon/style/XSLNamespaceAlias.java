@@ -1,10 +1,10 @@
-package net.sf.saxon.style;
-import net.sf.saxon.instruct.Instruction;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.om.NamespaceException;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.expr.Expression;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.instruct.Instruction;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.NamespaceException;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.expr.Expression;
 
 import javax.xml.transform.TransformerConfigurationException;
 

@@ -1,6 +1,6 @@
-package net.sf.saxon.instruct;
+package org.orbeon.saxon.instruct;
 
-import net.sf.saxon.event.LocationProvider;
+import org.orbeon.saxon.event.LocationProvider;
 
 import java.io.Serializable;
 

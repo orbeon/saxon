@@ -1,10 +1,10 @@
-package net.sf.saxon.event;
-import net.sf.saxon.Controller;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.*;
-import net.sf.saxon.trans.Mode;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.event;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.trans.Mode;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
   * The Stripper class maintains details of which elements need to be stripped.

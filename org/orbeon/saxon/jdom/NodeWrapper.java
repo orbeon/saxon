@@ -1,15 +1,15 @@
-package net.sf.saxon.jdom;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.om.*;
-import net.sf.saxon.pattern.AnyNodeTest;
-import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.UntypedAtomicValue;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.Configuration;
+package org.orbeon.saxon.jdom;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.AnyNodeTest;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.UntypedAtomicValue;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.Configuration;
 import org.jdom.*;
 
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -288,7 +288,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 	* and the same prefix. By masking the name code with &0xfffff, you get a
 	* fingerprint: two nodes with the same fingerprint have the same local name
 	* and namespace URI.
-    * @see net.sf.saxon.om.NamePool#allocate allocate
+    * @see org.orbeon.saxon.om.NamePool#allocate allocate
 	*/
 
 	public int getNameCode() {
@@ -694,10 +694,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     * Copy this node to a given outputter (deep copy)
     */
 
-    public void copy(Receiver out, int whichNamespaces, boolean copyAnnotations, int locationId) throws XPathException {
-        Navigator.copy(this, out, docWrapper.getNamePool(), whichNamespaces, copyAnnotations, locationId);
-    }
-
+  
     /**
     * Output all namespace nodes associated with this element. Does nothing if
     * the node is not an element.

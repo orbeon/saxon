@@ -1,21 +1,21 @@
-package net.sf.saxon.style;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.PreparedStylesheet;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.instruct.*;
-import net.sf.saxon.om.*;
-import net.sf.saxon.pattern.*;
-import net.sf.saxon.sort.SortKeyDefinition;
-import net.sf.saxon.trace.InstructionInfo;
-import net.sf.saxon.trace.Location;
-import net.sf.saxon.tree.ElementWithAttributes;
-import net.sf.saxon.type.*;
-import net.sf.saxon.value.DecimalValue;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.PreparedStylesheet;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.instruct.*;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.*;
+import org.orbeon.saxon.sort.SortKeyDefinition;
+import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.tree.ElementWithAttributes;
+import org.orbeon.saxon.type.*;
+import org.orbeon.saxon.value.DecimalValue;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 import org.xml.sax.Locator;
 
 import javax.xml.transform.TransformerConfigurationException;
@@ -1516,7 +1516,7 @@ public abstract class StyleElement extends ElementWithAttributes
     * declared
     * @param fingerprint The fingerprint of the name of the variable
     * @return the XSLVariableDeclaration (that is, an xsl:variable or xsl:param instruction) for the variable
-    * @throws net.sf.saxon.xpath.StaticError if the variable has not been declared
+    * @throws org.orbeon.saxon.xpath.StaticError if the variable has not been declared
     */
 
     public XSLVariableDeclaration bindVariable(int fingerprint) throws StaticError {

@@ -1,4 +1,4 @@
-package net.sf.saxon.number;
+package org.orbeon.saxon.number;
 
 /**
   * Interface Numberer supports number formatting. There is a separate

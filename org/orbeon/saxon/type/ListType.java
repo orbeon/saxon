@@ -1,15 +1,15 @@
-package net.sf.saxon.type;
+package org.orbeon.saxon.type;
 
-import net.sf.saxon.Err;
-import net.sf.saxon.expr.MappingFunction;
-import net.sf.saxon.expr.MappingIterator;
-import net.sf.saxon.expr.StringTokenIterator;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.functions.NormalizeSpace;
-import net.sf.saxon.om.*;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Err;
+import org.orbeon.saxon.expr.MappingFunction;
+import org.orbeon.saxon.expr.MappingIterator;
+import org.orbeon.saxon.expr.StringTokenIterator;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.functions.NormalizeSpace;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.Iterator;
 

@@ -1,6 +1,6 @@
-package net.sf.saxon.pattern;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.NodeInfo;
+package org.orbeon.saxon.pattern;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.NodeInfo;
 
 /**
   * A NodeTestPattern is a pattern that consists simply of a NodeTest.

@@ -1,5 +1,5 @@
-package net.sf.saxon.sort;
-import net.sf.saxon.om.NodeInfo;
+package org.orbeon.saxon.sort;
+import org.orbeon.saxon.om.NodeInfo;
 
 import java.io.Serializable;
 

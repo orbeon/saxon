@@ -1,13 +1,13 @@
-package net.sf.saxon.value;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.type.ExternalObjectType;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+package org.orbeon.saxon.value;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.type.ExternalObjectType;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 import java.io.PrintStream;
 

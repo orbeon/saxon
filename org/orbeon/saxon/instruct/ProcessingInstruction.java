@@ -1,18 +1,18 @@
-package net.sf.saxon.instruct;
+package org.orbeon.saxon.instruct;
 
-import net.sf.saxon.event.SequenceReceiver;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.XMLChar;
-import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.Err;
+import org.orbeon.saxon.event.SequenceReceiver;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.XMLChar;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.Err;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -124,7 +124,7 @@ public class ProcessingInstruction extends SimpleNodeConstructor {
      *
      * @param data the supplied content
      * @return the original content, unless adjustments are needed
-     * @throws net.sf.saxon.xpath.DynamicError
+     * @throws org.orbeon.saxon.xpath.DynamicError
      *          if the content is invalid
      */
 

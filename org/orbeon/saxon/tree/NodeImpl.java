@@ -1,23 +1,23 @@
-package net.sf.saxon.tree;
+package org.orbeon.saxon.tree;
 
-import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.pattern.NameTest;
-import net.sf.saxon.pattern.AnyNodeTest;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.EmptyIterator;
-import net.sf.saxon.om.SingletonIterator;
-import net.sf.saxon.om.AbstractNode;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.event.Receiver;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.pattern.NameTest;
+import org.orbeon.saxon.pattern.AnyNodeTest;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.DocumentInfo;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.om.AxisIterator;
+import org.orbeon.saxon.om.EmptyIterator;
+import org.orbeon.saxon.om.SingletonIterator;
+import org.orbeon.saxon.om.AbstractNode;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.event.Receiver;
 
 import org.w3c.dom.Node;
 import org.w3c.dom.Element;
 
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 /**

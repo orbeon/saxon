@@ -1,14 +1,14 @@
-package net.sf.saxon.om;
+package org.orbeon.saxon.om;
 
-import net.sf.saxon.Controller;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ReversibleIterator;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.pattern.*;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.SequenceExtent;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ReversibleIterator;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.pattern.*;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.SequenceExtent;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 import java.util.List;

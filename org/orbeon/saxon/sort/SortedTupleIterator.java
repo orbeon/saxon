@@ -1,11 +1,11 @@
-package net.sf.saxon.sort;
+package org.orbeon.saxon.sort;
 
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.value.ObjectValue;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.value.EmptySequence;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.value.ObjectValue;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.value.EmptySequence;
 
 /**
  * A SortedTupleIterator is a modified SortedIterator. Whereas the sorted iterator

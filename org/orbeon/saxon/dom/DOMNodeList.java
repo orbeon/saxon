@@ -1,10 +1,10 @@
-package net.sf.saxon.dom;
-import net.sf.saxon.value.SequenceExtent;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.VirtualNode;
+package org.orbeon.saxon.dom;
+import org.orbeon.saxon.value.SequenceExtent;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.VirtualNode;
 import org.w3c.dom.Node;
 
 /**

@@ -1,13 +1,13 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.query.StaticQueryContext;
-import net.sf.saxon.functions.FunctionLibrary;
-import net.sf.saxon.event.Stripper;
-import net.sf.saxon.sort.CodepointCollator;
-import net.sf.saxon.trans.DecimalFormatManager;
-import net.sf.saxon.trans.KeyManager;
-import net.sf.saxon.trans.Mode;
-import net.sf.saxon.trans.RuleManager;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.query.StaticQueryContext;
+import org.orbeon.saxon.functions.FunctionLibrary;
+import org.orbeon.saxon.event.Stripper;
+import org.orbeon.saxon.sort.CodepointCollator;
+import org.orbeon.saxon.trans.DecimalFormatManager;
+import org.orbeon.saxon.trans.KeyManager;
+import org.orbeon.saxon.trans.Mode;
+import org.orbeon.saxon.trans.RuleManager;
 
 import java.io.Serializable;
 import java.util.Comparator;

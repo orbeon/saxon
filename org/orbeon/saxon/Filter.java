@@ -1,6 +1,6 @@
-package net.sf.saxon;
-import net.sf.saxon.event.ContentHandlerProxy;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon;
+import org.orbeon.saxon.event.ContentHandlerProxy;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.parsers.SAXParserFactory;
 import javax.xml.transform.*;

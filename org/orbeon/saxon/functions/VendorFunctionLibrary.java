@@ -1,17 +1,17 @@
-package net.sf.saxon.functions;
+package org.orbeon.saxon.functions;
 
-import net.sf.saxon.functions.StandardFunction;
-import net.sf.saxon.functions.SystemFunction;
-import net.sf.saxon.functions.FunctionLibrary;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.functions.StandardFunction;
+import org.orbeon.saxon.functions.SystemFunction;
+import org.orbeon.saxon.functions.FunctionLibrary;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.StaticProperty;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.pattern.NodeKindTest;
 
 import java.util.HashMap;
 
@@ -110,7 +110,7 @@ public class VendorFunctionLibrary implements FunctionLibrary {
      * be used as part of the binding algorithm.
      * @return An object representing the extension function to be called, if one is found;
      * null if no extension function was found matching the required name and arity.
-     * @throws net.sf.saxon.xpath.XPathException if a function is found with the required name and arity, but
+     * @throws org.orbeon.saxon.xpath.XPathException if a function is found with the required name and arity, but
      * the implementation of the function cannot be loaded or used; or if an error occurs
      * while searching for the function; or if this function library "owns" the namespace containing
      * the function call, but no function was found. 
@@ -157,7 +157,7 @@ public class VendorFunctionLibrary implements FunctionLibrary {
     * @param min the minimum number of arguments allowed
     * @param max the maximum number of arguments allowed
     * @return the actual number of arguments
-    * @throws net.sf.saxon.xpath.XPathException if the number of arguments is out of range
+    * @throws org.orbeon.saxon.xpath.XPathException if the number of arguments is out of range
     */
 
     private int checkArgumentCount(int numArgs, int min, int max, String local) throws XPathException {

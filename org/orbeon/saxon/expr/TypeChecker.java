@@ -1,17 +1,17 @@
-package net.sf.saxon.expr;
+package org.orbeon.saxon.expr;
 
-import net.sf.saxon.functions.NumberFn;
-import net.sf.saxon.functions.SystemFunction;
-import net.sf.saxon.pattern.AnyNodeTest;
-import net.sf.saxon.type.AnyItemType;
-import net.sf.saxon.type.AtomicType;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.Cardinality;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.functions.NumberFn;
+import org.orbeon.saxon.functions.SystemFunction;
+import org.orbeon.saxon.pattern.AnyNodeTest;
+import org.orbeon.saxon.type.AnyItemType;
+import org.orbeon.saxon.type.AtomicType;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.Cardinality;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * This class provides Saxon's type checking capability. It contains a static method,
@@ -58,7 +58,7 @@ public final class TypeChecker {
      *                      this is used only to locate a NamePool
      * @return              The original expression if it is type-safe, or the expression
      *                      wrapped in a run-time type checking expression if not.
-     * @throws net.sf.saxon.xpath.StaticError if the supplied type is statically inconsistent with the
+     * @throws org.orbeon.saxon.xpath.StaticError if the supplied type is statically inconsistent with the
      *                      required type (that is, if they have no common subtype)
      */
 

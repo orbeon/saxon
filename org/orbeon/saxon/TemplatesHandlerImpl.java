@@ -1,10 +1,10 @@
-package net.sf.saxon;
-import net.sf.saxon.event.CommentStripper;
-import net.sf.saxon.event.ReceivingContentHandler;
-import net.sf.saxon.style.StyleNodeFactory;
-import net.sf.saxon.style.StylesheetStripper;
-import net.sf.saxon.tree.DocumentImpl;
-import net.sf.saxon.tree.TreeBuilder;
+package org.orbeon.saxon;
+import org.orbeon.saxon.event.CommentStripper;
+import org.orbeon.saxon.event.ReceivingContentHandler;
+import org.orbeon.saxon.style.StyleNodeFactory;
+import org.orbeon.saxon.style.StylesheetStripper;
+import org.orbeon.saxon.tree.DocumentImpl;
+import org.orbeon.saxon.tree.TreeBuilder;
 
 import javax.xml.transform.Templates;
 import javax.xml.transform.TransformerConfigurationException;

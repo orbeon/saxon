@@ -1,22 +1,22 @@
-package net.sf.saxon;
-import net.sf.saxon.dom.DocumentWrapper;
-import net.sf.saxon.event.*;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.XPathContextMajor;
-import net.sf.saxon.instruct.*;
-import net.sf.saxon.om.*;
-import net.sf.saxon.tinytree.TinyBuilder;
-import net.sf.saxon.trace.*;
-import net.sf.saxon.trans.DecimalFormatManager;
-import net.sf.saxon.trans.KeyManager;
-import net.sf.saxon.trans.Mode;
-import net.sf.saxon.trans.RuleManager;
-import net.sf.saxon.tree.TreeBuilder;
-import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+package org.orbeon.saxon;
+import org.orbeon.saxon.dom.DocumentWrapper;
+import org.orbeon.saxon.event.*;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.XPathContextMajor;
+import org.orbeon.saxon.instruct.*;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.tinytree.TinyBuilder;
+import org.orbeon.saxon.trace.*;
+import org.orbeon.saxon.trans.DecimalFormatManager;
+import org.orbeon.saxon.trans.KeyManager;
+import org.orbeon.saxon.trans.Mode;
+import org.orbeon.saxon.trans.RuleManager;
+import org.orbeon.saxon.tree.TreeBuilder;
+import org.orbeon.saxon.value.EmptySequence;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.xml.sax.SAXParseException;
@@ -144,7 +144,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      * The process starts by calling the registered node
      * handler to process the supplied node. Note that the same document can be processed
      * any number of times, typically with different node handlers for each pass. The NodeInfo
-     * will typically be the root of a tree built using net.sf.saxon.event.Builder.<p>
+     * will typically be the root of a tree built using org.orbeon.saxon.event.Builder.<p>
      *
      * @param context The initial context; the context node is the one at which processing should start
      * @exception XPathException if the transformation fails for any
@@ -246,7 +246,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      *
      * @param name the name of the requested property
      * @return the value of the requested property
-     * @see net.sf.saxon.event.SaxonOutputKeys
+     * @see org.orbeon.saxon.event.SaxonOutputKeys
      */
 
     public String getOutputProperty(String name) {
@@ -567,7 +567,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      *
      * @param model the required tree model: Builder.STANDARD_TREE or
      *     Builder.TINY_TREE
-     * @see net.sf.saxon.event.Builder
+     * @see org.orbeon.saxon.event.Builder
      */
 
     public void setTreeModel(int model) {
@@ -579,7 +579,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 //     * Get the tree model in use.
 //     *
 //     * @return the tree model in use
-//     * @see net.sf.saxon.event.Builder
+//     * @see org.orbeon.saxon.event.Builder
 //     */
 //
 //    public int getTreeModel() {

@@ -1,12 +1,12 @@
-package net.sf.saxon;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.trace.InstructionInfo;
-import net.sf.saxon.trace.InstructionInfoProvider;
-import net.sf.saxon.trace.Location;
-import net.sf.saxon.type.ValidationException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.trace.InstructionInfoProvider;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.type.ValidationException;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 import org.xml.sax.SAXException;
 
 import javax.xml.transform.ErrorListener;

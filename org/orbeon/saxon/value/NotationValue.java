@@ -1,12 +1,12 @@
-package net.sf.saxon.value;
+package org.orbeon.saxon.value;
 
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 /**
@@ -41,7 +41,7 @@ public final class NotationValue extends QNameValue {
      * Convert to target data type
      * @param requiredType an integer identifying the required atomic type
      * @return an AtomicValue, a value of the required type
-     * @throws net.sf.saxon.xpath.XPathException if the conversion is not possible
+     * @throws org.orbeon.saxon.xpath.XPathException if the conversion is not possible
      */
 
     public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {

@@ -1,6 +1,6 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NamespaceResolver;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NamespaceResolver;
 
 import java.io.Serializable;
 import java.util.Collections;

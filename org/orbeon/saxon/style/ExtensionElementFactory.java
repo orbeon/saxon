@@ -1,4 +1,4 @@
-package net.sf.saxon.style;
+package org.orbeon.saxon.style;
 
 /**
   * Interface ExtensionElementFactory. <br>
@@ -11,7 +11,7 @@ public interface ExtensionElementFactory  {
 
     /**
     * Identify the class to be used for stylesheet elements with a given local name.
-    * The returned class must extend net.sf.saxon.style.StyleElement
+    * The returned class must extend org.orbeon.saxon.style.StyleElement
     * @return null if the local name is not a recognised element type in this
     * namespace.
     */

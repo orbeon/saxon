@@ -1,10 +1,10 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.Name;
-import net.sf.saxon.om.QNameException;
-import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.Name;
+import org.orbeon.saxon.om.QNameException;
+import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 /**

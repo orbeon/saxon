@@ -1,4 +1,4 @@
-package net.sf.saxon.sort;
+package org.orbeon.saxon.sort;
 import java.util.Comparator;
 import java.io.Serializable;
 

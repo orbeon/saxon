@@ -1,15 +1,15 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.*;
-import net.sf.saxon.sort.GlobalOrderComparer;
-import net.sf.saxon.type.SchemaType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.Err;
-import net.sf.saxon.trace.Location;
-import net.sf.saxon.charcode.UnicodeCharacterSet;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.sort.GlobalOrderComparer;
+import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.Err;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.charcode.UnicodeCharacterSet;
 
 import java.math.BigDecimal;
 import java.util.HashSet;
@@ -22,7 +22,7 @@ import java.util.ArrayList;
 *
 * To invoke these functions, use a function call of the form prefix:name() where
 * name is the method name, and prefix maps to a URI such as
-* http://saxon.sf.net/net.sf.saxon.functions.Extensions (only the part
+* http://saxon.sf.net/org.orbeon.saxon.functions.Extensions (only the part
 * of the URI after the last slash is important).
 */
 
@@ -215,7 +215,7 @@ public class Extensions  {
     */
 
     public static SequenceValue highest (SequenceIterator nsv) throws XPathException {
-        return net.sf.saxon.exslt.Math.highest(nsv);
+        return org.orbeon.saxon.exslt.Math.highest(nsv);
     }
 
 
@@ -255,7 +255,7 @@ public class Extensions  {
     */
 
     public static SequenceValue lowest (SequenceIterator nsv) throws XPathException {
-        return net.sf.saxon.exslt.Math.lowest(nsv);
+        return org.orbeon.saxon.exslt.Math.lowest(nsv);
     }
 
     /**

@@ -1,13 +1,13 @@
-package net.sf.saxon.type;
+package org.orbeon.saxon.type;
 
-import net.sf.saxon.functions.NormalizeSpace;
-import net.sf.saxon.om.NamespaceResolver;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.InscopeNamespaceResolver;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.functions.NormalizeSpace;
+import org.orbeon.saxon.om.NamespaceResolver;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.InscopeNamespaceResolver;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -356,7 +356,7 @@ public abstract class SimpleType extends SchemaType {
      * Get the typed value of a node that is annotated with this schema type
      * @param node the node whose typed value is required
      * @return an iterator over the items making up the typed value of this node. The objects
-     * returned by this SequenceIterator will all be of type {@link net.sf.saxon.value.AtomicValue}
+     * returned by this SequenceIterator will all be of type {@link org.orbeon.saxon.value.AtomicValue}
      */
 
     public final SequenceIterator getTypedValue(NodeInfo node)
@@ -376,7 +376,7 @@ public abstract class SimpleType extends SchemaType {
      * in the content of values. Can supply null, in which case any namespace-sensitive content
      * will be rejected.
      * @return an iterator over the atomic sequence comprising the typed value. The objects
-     * returned by this SequenceIterator will all be of type {@link net.sf.saxon.value.AtomicValue}
+     * returned by this SequenceIterator will all be of type {@link org.orbeon.saxon.value.AtomicValue}
      */
 
     public abstract SequenceIterator getTypedValue(CharSequence value, NamespaceResolver resolver)

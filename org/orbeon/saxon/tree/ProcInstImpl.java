@@ -1,10 +1,10 @@
-package net.sf.saxon.tree;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.type.Type;
+package org.orbeon.saxon.tree;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.type.Type;
 
 import org.w3c.dom.ProcessingInstruction;
 import org.w3c.dom.DOMException;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
   * ProcInstImpl is an implementation of ProcInstInfo used by the Propagator to construct

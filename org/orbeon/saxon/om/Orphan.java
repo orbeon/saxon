@@ -1,11 +1,11 @@
-package net.sf.saxon.om;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.Err;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.type.SchemaType;
-import net.sf.saxon.value.UntypedAtomicValue;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.om;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.Err;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.value.UntypedAtomicValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
   * A node (implementing the NodeInfo interface) representing an attribute, text node,
@@ -165,7 +165,7 @@ public class Orphan implements NodeInfo {
 	* and the same prefix. By masking the name code with &0xfffff, you get a
 	* fingerprint: two nodes with the same fingerprint have the same local name
 	* and namespace URI.
-    * @see net.sf.saxon.om.NamePool#allocate allocate
+    * @see org.orbeon.saxon.om.NamePool#allocate allocate
 	*/
 
 	public int getNameCode() {
