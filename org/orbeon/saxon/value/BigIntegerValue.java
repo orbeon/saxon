@@ -1,14 +1,9 @@
 package org.orbeon.saxon.value;
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.Token;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.type.AtomicType;
-import org.orbeon.saxon.type.BuiltInSchemaFactory;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.*;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -49,8 +44,8 @@ public final class BigIntegerValue extends NumericValue {
 
     public void setSubType(AtomicType type) {
         this.type = type;
-        //checkRange(value, type);
     }
+
     /**
      * Factory method: makes either an IntegerValue or a BigIntegerValue depending on the value supplied
      */
@@ -84,6 +79,15 @@ public final class BigIntegerValue extends NumericValue {
 
     public long longValue() {
         return value.longValue();
+    }
+
+    /**
+     * Get the value as a BigInteger
+     * @return teh value of the xs:integer as a Java BigInteger
+     */
+
+    public BigInteger getBigInteger() {
+        return value;
     }
 
     public boolean isWithinLongRange() {
@@ -126,13 +130,12 @@ public final class BigIntegerValue extends NumericValue {
     /**
      * Convert to target data type
      *
-     * @exception XPathException if the conversion is not possible
      * @param requiredType an integer identifying the required atomic type
-     * @return an AtomicValue, a value of the required type
+     * @return an AtomicValue, a value of the required type; or an ErrorValue
      */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
-        switch (requiredType) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+        switch (requiredType.getPrimitiveType()) {
             case Type.BOOLEAN:
                 return BooleanValue.get(effectiveBooleanValue(null));
 
@@ -150,13 +153,41 @@ public final class BigIntegerValue extends NumericValue {
             case Type.BYTE:
             case Type.NON_NEGATIVE_INTEGER:
             case Type.POSITIVE_INTEGER:
-            case Type.UNSIGNED_LONG:
             case Type.UNSIGNED_INT:
             case Type.UNSIGNED_SHORT:
             case Type.UNSIGNED_BYTE:
                 if (isWithinLongRange()) {
-                    return new IntegerValue(longValue(),
-                                        (AtomicType)BuiltInSchemaFactory.getSchemaType(requiredType));
+                    IntegerValue val = new IntegerValue(longValue());
+                    ValidationException err = val.convertToSubtype(requiredType, true);
+                    if (err != null) {
+                        return new ErrorValue(err);
+                    }
+                    return val;
+                } else {
+                    ValidationException err = new ValidationException("Integer value is out of range for type " +
+                            requiredType.getDisplayName());
+                    err.setErrorCode("FORG0001");
+                    return new ErrorValue(err);
+                }
+
+            case Type.UNSIGNED_LONG:
+                if (value.signum() < 0 || value.bitLength() > 64) {
+                    ValidationException err = new ValidationException("Integer value is out of range for type " +
+                            requiredType.getDisplayName());
+                    err.setErrorCode("FORG0001");
+                    //err.setXPathContext(context);
+                    return new ErrorValue(err);
+                } else if (isWithinLongRange()) {
+                    IntegerValue val = new IntegerValue(longValue());
+                    ValidationException err = val.convertToSubtype(requiredType, true);
+                    if (err != null) {
+                        return new ErrorValue(err);
+                    }
+                    return val;
+                } else {
+                    BigIntegerValue nv = new BigIntegerValue(value);
+                    nv.setSubType(requiredType);
+                    return nv;
                 }
 
             case Type.DOUBLE:
@@ -169,17 +200,17 @@ public final class BigIntegerValue extends NumericValue {
                 return new DecimalValue(new BigDecimal(value));
 
             case Type.STRING:
-                return new StringValue(getStringValue());
+                return new StringValue(getStringValueCS());
 
             case Type.UNTYPED_ATOMIC:
-                return new UntypedAtomicValue(getStringValue());
+                return new UntypedAtomicValue(getStringValueCS());
 
             default:
-            DynamicError err = new DynamicError("Cannot convert integer to " +
-                                     StandardNames.getDisplayName(requiredType));
-            err.setXPathContext(context);
-            err.setErrorCode("FORG0001");
-            throw err;
+                ValidationException err = new ValidationException("Cannot convert integer to " +
+                                         requiredType.getDisplayName());
+                //err.setXPathContext(context);
+                err.setErrorCode("FORG0001");
+                return new ErrorValue(err);
         }
     }
 
@@ -326,7 +357,7 @@ public final class BigIntegerValue extends NumericValue {
             BigIntegerValue val = new BigIntegerValue(other.longValue());
             return arithmetic(operator, val, context);
         } else {
-            NumericValue v = (NumericValue)convert(other.getItemType().getPrimitiveType(), context);
+            NumericValue v = (NumericValue)convert(other.getItemType().getPrimitiveType());
             return v.arithmetic(operator, other, context);
         }
     }
@@ -351,16 +382,16 @@ public final class BigIntegerValue extends NumericValue {
      *     instance of the target class
      */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
+    public Object convertToJava(Class target, XPathContext context) throws XPathException {
         if (isWithinLongRange()) {
             IntegerValue val = new IntegerValue(longValue());
-            return val.convertToJava(target, config, context);
+            return val.convertToJava(target, context);
         } else if (target.isAssignableFrom(IntegerValue.class)) {
             return this;
         } else if (target == BigInteger.class) {
             return value;
         } else {
-            return convert(Type.DECIMAL, null).convertToJava(target, config, context);
+            return convert(Type.DECIMAL).convertToJava(target, context);
         }
     }
 

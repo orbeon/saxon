@@ -1,24 +1,16 @@
 package org.orbeon.saxon.event;
 
-import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.dom.DOMEmitter;
-import org.orbeon.saxon.om.DocumentInfo;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.tinytree.TinyBuilder;
-import org.orbeon.saxon.tree.DocumentImpl;
-import org.orbeon.saxon.tree.TreeBuilder;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
-import org.w3c.dom.Document;
-import org.w3c.dom.Node;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.om.ExternalObjectModel;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Result;
-import javax.xml.transform.dom.DOMResult;
 import javax.xml.transform.sax.SAXResult;
 import javax.xml.transform.stream.StreamResult;
-import java.util.*;
+import java.util.List;
+import java.util.Properties;
 
 /**
 * Helper class to construct a serialization pipeline for a given result destination
@@ -36,18 +28,20 @@ public class ResultWrapper {
     * Get a Receiver that wraps a given Result object
     */
 
-    public static Receiver getReceiver( Result result,
-                                        PipelineConfiguration pipe,
-                                        Properties props,
-                                        HashMap characterMapIndex)
+    public static Receiver getReceiver(Result result,
+                                       PipelineConfiguration pipe,
+                                       Properties props)
                                     throws XPathException {
-        Configuration config = pipe.getConfiguration();
-        NamePool namePool = config.getNamePool();
         if (result instanceof Emitter) {
             ((Emitter)result).setOutputProperties(props);
             return (Emitter)result;
         } else if (result instanceof Receiver) {
-            return (Receiver)result;
+            Receiver builder = (Receiver)result;
+            builder.setSystemId(result.getSystemId());
+            builder.setPipelineConfiguration(pipe);
+            builder.open();
+            builder.startDocument(0);
+            return builder;
         } else if (result instanceof SAXResult) {
             ContentHandlerProxy proxy = new ContentHandlerProxy();
             proxy.setUnderlyingContentHandler(((SAXResult)result).getHandler());
@@ -63,27 +57,18 @@ public class ResultWrapper {
 
             Receiver target;
             Emitter emitter;
-            CharacterMapExpander characterMapExpander = null;
-            String method = props.getProperty(OutputKeys.METHOD);
 
+            CharacterMapExpander characterMapExpander = null;
             String useMaps = props.getProperty(SaxonOutputKeys.USE_CHARACTER_MAPS);
-            if (useMaps != null && characterMapIndex != null) {
-                List characterMaps = new ArrayList(5);
-                StringTokenizer st = new StringTokenizer(useMaps);
-                while (st.hasMoreTokens()) {
-                    String expandedName = st.nextToken();
-                    int f = namePool.getFingerprintForExpandedName(expandedName);
-                    HashMap map = (HashMap)characterMapIndex.get(new Integer(f));
-                    if (map==null) {
-                        throw new DynamicError("Character map '" + expandedName + "' has not been defined");
-                    }
-                    characterMaps.add(map);
+            if (useMaps != null) {
+                Controller controller = pipe.getController();
+                if (controller == null) {
+                    throw new DynamicError("Cannot use character maps in an environment with no Controller");
                 }
-                if (characterMaps.size() > 0) {
-                    characterMapExpander = new CharacterMapExpander();
-                    characterMapExpander.setCharacterMaps(characterMaps);
-                }
+                characterMapExpander = controller.makeCharacterMapExpander(useMaps);
             }
+
+            String method = props.getProperty(OutputKeys.METHOD);
             if (method==null) {
             	emitter = new UncommittedEmitter();
             	emitter.setPipelineConfiguration(pipe);
@@ -170,61 +155,67 @@ public class ResultWrapper {
                 String localName = method.substring(brace+1);
                 int colon = localName.indexOf(':');
                 localName = localName.substring(colon+1);
-                emitter = Emitter.makeEmitter(localName);
-                emitter.setPipelineConfiguration(pipe);
-                target = emitter;
+                Receiver userReceiver = Emitter.makeEmitter(localName);
+                userReceiver.setPipelineConfiguration(pipe);
+                target = userReceiver;
+                if (userReceiver instanceof Emitter) {
+                    emitter = (Emitter)userReceiver;
+                } else {
+                    return userReceiver;
+                }
             }
             emitter.setOutputProperties(props);
             StreamResult sr = (StreamResult)result;
             emitter.setStreamResult(sr);
             return target;
 
-        } else if (result instanceof DOMResult) {
-            Node resultNode = ((DOMResult)result).getNode();
-            if (resultNode!=null) {
-                if (resultNode instanceof NodeInfo) {
-                    // Writing to a SAXON tree is handled specially
-                    if (resultNode instanceof DocumentInfo) {
-                        DocumentInfo doc = (DocumentInfo)resultNode;
-                        if (resultNode.getFirstChild() != null) {
-                            throw new DynamicError("Target document must be empty");
-                        } else {
-                            Builder builder;
-                            if (doc instanceof DocumentImpl) {
-                                builder = new TreeBuilder();
-                            } else {
-                                builder = new TinyBuilder();
-                            }
-                            builder.setRootNode(doc);
-                            builder.setSystemId(result.getSystemId());
-                            builder.setPipelineConfiguration(pipe);
-                            return builder;
-                        }
-                    } else {
-                        throw new DynamicError("Cannot add to an existing Saxon document");
-                    }
-                } else {
-                    // Non-Saxon DOM
-                    DOMEmitter emitter = new DOMEmitter();
-                    emitter.setSystemId(result.getSystemId());
-                    emitter.setPipelineConfiguration(pipe);
-                    emitter.setNode(resultNode);
-                    return emitter;
-                }
-            } else {
-                // no result node supplied; we must create our own
-                TinyBuilder builder = new TinyBuilder();
-                builder.setSystemId(result.getSystemId());
-                builder.setPipelineConfiguration(pipe);
-                builder.open();
-                builder.startDocument(0);
-                Document resultDoc = (Document)builder.getCurrentRoot();
-                ((DOMResult)result).setNode(resultDoc);
-                return builder;
-            }
         } else {
-            throw new IllegalArgumentException("Unknown type of result: " + result.getClass());
+            // try to find an external object model that knows this kind of Result
+            List externalObjectModels = pipe.getConfiguration().getExternalObjectModels();
+            for (int m=0; m<externalObjectModels.size(); m++) {
+                ExternalObjectModel model = (ExternalObjectModel)externalObjectModels.get(m);
+                Receiver builder = model.getDocumentBuilder(result);
+                if (builder != null) {
+                    builder.setSystemId(result.getSystemId());
+                    builder.setPipelineConfiguration(pipe);
+                    return builder;
+                }
+            }
+
         }
+
+//        // Redesign creating a Saxon tree as the result
+//        if (result instanceof DOMResult) {
+//
+//                    // we've been given an empty wrapper for a Saxon tree
+//                    TinyBuilder builder = new TinyBuilder();
+//                    builder.setSystemId(result.getSystemId());
+//                    builder.setPipelineConfiguration(pipe);
+//                    builder.open();
+//                    builder.startDocument(0);
+//                    DocumentInfo resultDoc = (DocumentInfo)builder.getCurrentRoot();
+//
+//                    return builder;
+//                }
+//                    } else {
+//                        throw new DynamicError("Cannot add to an existing Saxon document");
+//                    }
+//                }
+//            } else {
+//                // no result node supplied; we must create our own
+//                TinyBuilder builder = new TinyBuilder();
+//                builder.setSystemId(result.getSystemId());
+//                builder.setPipelineConfiguration(pipe);
+//                builder.open();
+//                builder.startDocument(0);
+//                DocumentInfo resultDoc = (DocumentInfo)builder.getCurrentRoot();
+//                ((DOMResult)result).setNode(NodeOverNodeInfo.wrap(resultDoc));
+//                return builder;
+//            }
+//        } else {
+//            throw new IllegalArgumentException("Unknown type of result: " + result.getClass());
+//        }
+        throw new IllegalArgumentException("Unknown type of result: " + result.getClass());
     }
 }
 

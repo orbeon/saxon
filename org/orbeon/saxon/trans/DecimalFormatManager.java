@@ -1,7 +1,6 @@
 package org.orbeon.saxon.trans;
 
 import org.orbeon.saxon.functions.FormatNumber2;
-import org.orbeon.saxon.xpath.StaticError;
 
 import java.io.Serializable;
 import java.text.DecimalFormatSymbols;

@@ -1,16 +1,13 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.functions.Last;
 import org.orbeon.saxon.functions.SystemFunction;
-import org.orbeon.saxon.om.EmptyIterator;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.om.SingletonIterator;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AnyItemType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.*;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Iterator;
@@ -116,7 +113,6 @@ public final class FilterExpression extends ComputedExpression {
                 }
             } catch (XPathException e) {
                 throw new StaticError(e);
-                // Cannot happen
             }
         }
 
@@ -142,9 +138,9 @@ public final class FilterExpression extends ComputedExpression {
         start = start.analyze(env, contextItemType);
         filter = filter.analyze(env, start.getItemType());
 
-        // The filter expression never needs to be sorted
+        // The filter expression usually doesn't need to be sorted
 
-        filter = ExpressionTool.unsorted(filter, false);
+        filter = ExpressionTool.unsortedIfHomogeneous(filter, false);
 
         // detect head expressions (E[1]) and tail expressions (E[position()!=1])
         // and treat them specially
@@ -361,16 +357,80 @@ public final class FilterExpression extends ComputedExpression {
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
 
-        // fast path where both operands are constants
+        // Fast path where both operands are constants, or simple variable references
 
-        if (start instanceof SequenceValue && filter instanceof IntegerValue) {
-            int pos = (int)((IntegerValue)filter).longValue();
-            return SingletonIterator.makeIterator(((SequenceValue)start).itemAt(pos-1));
+        Expression startExp = start;
+        ValueRepresentation startValue = null;
+        if (startExp instanceof ValueRepresentation) {
+            startValue = (ValueRepresentation)startExp;
+        } else if (startExp instanceof VariableReference) {
+            startValue = ((VariableReference)startExp).evaluateVariable(context);
+        }
+
+        if (startValue instanceof Value) {
+            startExp = (Value)startValue;
+        }
+
+        if (startValue instanceof EmptySequence) {
+            return EmptyIterator.getInstance();
+        }
+
+        ValueRepresentation filterValue = null;
+        if (filter instanceof ValueRepresentation) {
+            filterValue = (ValueRepresentation)filter;
+        } else if (filter instanceof VariableReference) {
+            filterValue = ((VariableReference)filter).evaluateVariable(context);
+        }
+
+        // Handle the case where the filter is a value. Because of earlier static rewriting, this covers
+        // all cases where the filter expression is independent of the context, that is, where the
+        // value of the filter expression is the same for all items in the sequence being filtered.
+
+        if (filterValue != null) {
+            if (filterValue instanceof NumericValue) {
+                // Filter is a constant number
+                if (((NumericValue)filterValue).isWholeNumber()) {
+                    int pos = (int)(((NumericValue)filterValue).longValue());
+                    if (startValue != null) {
+                        if (startValue instanceof Value) {
+                            // if sequence is a value, use direct indexing
+                            return SingletonIterator.makeIterator(((Value)startValue).itemAt(pos-1));
+                        } else if (startValue instanceof NodeInfo) {
+                            // sequence to be filtered is a single node
+                            if (pos == 1) {
+                                return SingletonIterator.makeIterator((NodeInfo)startValue);
+                            } else {
+                                return EmptyIterator.getInstance();
+                            }
+                        }
+                    }
+                    if (pos >= 1) {
+                        SequenceIterator base = startExp.iterate(context);
+                        return PositionIterator.make(base, pos, pos);
+                    } else {
+                        // index is less than one, no items will be selected
+                        return EmptyIterator.getInstance();
+                    }
+                } else {
+                    // a non-integer value will never be equal to position()
+                    return EmptyIterator.getInstance();
+                }
+            } else if (filterValue instanceof Value) {
+                // Filter is a constant that we can treat as boolean
+                // TODO: is this correct? It could be a SequenceExtent or a Closure, whose actual value might be a number
+                if (((Value)filterValue).effectiveBooleanValue(context)) {
+                    return start.iterate(context);
+                } else {
+                    return EmptyIterator.getInstance();
+                }
+            } else if (filterValue instanceof NodeInfo) {
+                return start.iterate(context);
+            }
         }
 
         // get an iterator over the base nodes
 
-        SequenceIterator base = start.iterate(context);
+        SequenceIterator base = startExp.iterate(context);
 
         // quick exit for an empty sequence
 
@@ -378,61 +438,21 @@ public final class FilterExpression extends ComputedExpression {
             return base;
         }
 
-        // The filter expression might be a variable reference as a result of previous optimization.
-        // This case can be handled like a constant value
-
-        Expression filterValue = filter;
-        if (filter instanceof VariableReference) {
-            filterValue = ((VariableReference)filter).evaluateVariable(context);
-        }
-
-		// Test whether the filter is (now) a constant value
-
-		if (filterValue instanceof Value) {
-		    if (filterValue instanceof NumericValue) {
-		        // Filter is a constant number
-		        if (((NumericValue)filterValue).isWholeNumber()) {
-		            int pos = (int)(((NumericValue)filterValue).longValue());
-		            if (pos >= 1) {
-		                return PositionIterator.make(base, pos, pos);
-		            } else {
-		                // index is less than one, no items will be selected
-		                return EmptyIterator.getInstance();
-		            }
-		        } else {
-		            // a non-integer value will never be equal to position()
-		            return EmptyIterator.getInstance();
-		        }
-		    } else {
-		        // Filter is a constant that we can treat as boolean
-		        if (filterValue.effectiveBooleanValue(context)) {
-		            return base;
-		        } else {
-		            return EmptyIterator.getInstance();
-		        }
-		    }
-		}
-
-        // Construct the FilterIterator to do the actual filtering
-
-        SequenceIterator result;
-
 		// Test whether the filter is a position range, e.g. [position()>$x]
         // TODO: handle all such cases with a TailExpression
 
         if (filter instanceof PositionRange) {
             PositionRange pr = (PositionRange)filter;
             // System.err.println("Using PositionIterator requireSort=" + requireSort + " isReverse=" + isReverseAxisFilter);
-            result = PositionIterator.make(base, pr.getMinPosition(), pr.getMaxPosition());
+            return PositionIterator.make(base, pr.getMinPosition(), pr.getMaxPosition());
 
         } else if (filterIsPositional) {
-            result = new FilterIterator(base, filter, context);
+            return new FilterIterator(base, filter, context);
 
         } else {
-            result = new FilterIterator.NonNumeric(base, filter, context);
+            return new FilterIterator.NonNumeric(base, filter, context);
         }
 
-        return result;
     }
 
     /**

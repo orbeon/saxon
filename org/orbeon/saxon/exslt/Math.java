@@ -2,12 +2,11 @@ package org.orbeon.saxon.exslt;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.SequenceExtent;
-import org.orbeon.saxon.value.SequenceValue;
 import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 
@@ -28,7 +27,7 @@ public abstract class Math  {
             while (true) {
                 Item it = nsv.next();
                 if (it == null) break;
-                double x = Value.stringToNumber(it.getStringValue());
+                double x = Value.stringToNumber(it.getStringValueCS());
                 if (Double.isNaN(x)) return x;
                 if (x>max) max = x;
             }
@@ -49,7 +48,7 @@ public abstract class Math  {
             while (true) {
                 Item it = nsv.next();
                 if (it == null) break;
-                double x = Value.stringToNumber(it.getStringValue());
+                double x = Value.stringToNumber(it.getStringValueCS());
                 if (Double.isNaN(x)) return x;
                 if (x<min) min = x;
             }
@@ -65,14 +64,14 @@ public abstract class Math  {
     * The items are returned in the order of the original sequence.
     */
 
-    public static SequenceValue highest (SequenceIterator nsv) throws XPathException {
+    public static Value highest (SequenceIterator nsv) throws XPathException {
         try {
             double max = Double.NEGATIVE_INFINITY;
             ArrayList highest = new ArrayList();
             while (true) {
                 Item it = nsv.next();
                 if (it == null) break;
-                double x = Value.stringToNumber(it.getStringValue());
+                double x = Value.stringToNumber(it.getStringValueCS());
                 if (Double.isNaN(x)) return EmptySequence.getInstance();
                 if (x==max) {
                     highest.add(it);
@@ -95,14 +94,14 @@ public abstract class Math  {
     * The items are returned in the order of the original sequence.
     */
 
-    public static SequenceValue lowest (SequenceIterator nsv) throws XPathException {
+    public static Value lowest (SequenceIterator nsv) throws XPathException {
         try {
             double min = Double.POSITIVE_INFINITY;
             ArrayList lowest = new ArrayList();
             while (true) {
                Item it = nsv.next();
                if (it == null) break;
-               double x = Value.stringToNumber(it.getStringValue());
+               double x = Value.stringToNumber(it.getStringValueCS());
                if (Double.isNaN(x)) return EmptySequence.getInstance();
                if (x==min) {
                    lowest.add(it);

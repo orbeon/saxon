@@ -55,7 +55,6 @@ public class XSLNamespaceAlias extends StyleElement {
             resultNamespaceCode = pool.getNamespaceCode(
                                             resultPrefix,
                                             getURIForPrefix(resultPrefix, true));
-            //getURICodeForPrefix(resultPrefix);
         } catch (NamespaceException err) {
             compileError(err.getMessage());
         }

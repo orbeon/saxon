@@ -2,9 +2,9 @@ package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.NumericValue;
-import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * The XPath 2.0 insert-before() function
@@ -26,7 +26,7 @@ public class Insert extends SystemFunction {
         return new InsertIterator(seq, ins, pos);
     }
 
-    private class InsertIterator implements SequenceIterator {
+    public static class InsertIterator implements SequenceIterator {
 
         private SequenceIterator base;
         private SequenceIterator insert;

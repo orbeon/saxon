@@ -1,15 +1,11 @@
 package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.expr.*;
-import org.orbeon.saxon.om.EmptyIterator;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.NoNodeTest;
 import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Collections;
@@ -165,22 +161,24 @@ public abstract class GeneralVariable extends Instruction implements Binding {
         return this;
     }
 
-    // TODO: this is a copy of code in XSLGeneralVariable
+    /**
+     * Check the select expression against the required type.
+     * @param env
+     * @throws XPathException
+     */
+
     private void checkAgainstRequiredType(StaticContext env)
     throws XPathException {
+        // Note, in some cases we are doing this twice.
         RoleLocator role =
                 new RoleLocator(RoleLocator.VARIABLE, variableName, 0, null);
         SequenceType r = requiredType;
-        if (r != null) {
+        if (r != null && select != null) {
             // check that the expression is consistent with the required type
-
-            if (select != null) {
-                select = TypeChecker.staticTypeCheck(select, requiredType, false, role, env);
-            } else {
-                // TODO: check the type of the instruction sequence statically
-            }
+            select = TypeChecker.staticTypeCheck(select, requiredType, false, role, env);
         }
     }
+    
     /**
      * Evaluate an expression as a single item. This always returns either a single Item or
      * null (denoting the empty sequence). No conversion is done. This method should not be
@@ -229,7 +227,7 @@ public abstract class GeneralVariable extends Instruction implements Binding {
      * of the element otherwise, either as a tree or as a sequence
     */
 
-    public Value getSelectValue(XPathContext context) throws XPathException {
+    public ValueRepresentation getSelectValue(XPathContext context) throws XPathException {
         if (select==null) {
             throw new AssertionError("*** No select expression!!");
             // The value of the variable is a sequence of nodes and/or atomic values

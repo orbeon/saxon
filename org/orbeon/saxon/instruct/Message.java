@@ -3,15 +3,12 @@ import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.event.Emitter;
 import org.orbeon.saxon.event.TreeReceiver;
 import org.orbeon.saxon.expr.*;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.om.Validation;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.NoNodeTest;
 import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.OutputKeys;
 import java.io.OutputStreamWriter;
@@ -40,7 +37,7 @@ public class Message extends Instruction {
      * Simplify an expression. This performs any static optimization (by rewriting the expression
      * as a different expression). The default implementation does nothing.
      * @return the simplified expression
-     * @throws org.orbeon.saxon.xpath.XPathException
+     * @throws org.orbeon.saxon.trans.XPathException
      *          if an error is discovered during expression rewriting
      */
 
@@ -68,7 +65,7 @@ public class Message extends Instruction {
      * @return the original expression, rewritten to perform necessary
      *         run-time type checks, and to perform other type-related
      *         optimizations
-     * @throws org.orbeon.saxon.xpath.XPathException
+     * @throws org.orbeon.saxon.trans.XPathException
      *          if an error is discovered during this phase
      *          (typically a type error)
      */
@@ -163,7 +160,7 @@ public class Message extends Instruction {
                 if (item == null) {
                     break;
                 }
-                rec.append(item, locationId);
+                rec.append(item, locationId, NodeInfo.ALL_NAMESPACES);
             }
         }
         rec.close();

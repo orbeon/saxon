@@ -1,28 +1,32 @@
 package org.orbeon.saxon.om;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.XPathException;
 
 /**
  * An Item is an object that can occur as a member of a sequence.
- * There are two kinds of Item: simple values, and nodes.
+ * There are two kinds of Item: atomic values, and nodes.
  */
 
-public interface Item  {
+public interface Item extends ValueRepresentation {
 
     /**
      * Get the value of the item as a string
-     *
-     * @exception XPathException if the string value cannot be obtained. Some
-     *     items have no string value, e.g. a QName
      * @return the string value of the item
      */
 
-    public String getStringValue() throws XPathException;
+    public String getStringValue();
+
+    /**
+     * Get the value of the item as a CharSequence. This is in some cases more efficient than
+     * the version of the method that returns a String.
+     */
+
+    public CharSequence getStringValueCS();
 
 
     /**
      * Get the typed value of the item
      * @return the typed value of the item. In general this will be a sequence
-     * @throws XPathException where no typed value is available, e.g. for
+     * @throws net.sf.saxon.trans.XPathException where no typed value is available, e.g. for
      *     an element with complex content
      */
 

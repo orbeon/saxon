@@ -1,12 +1,13 @@
 package org.orbeon.saxon.value;
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.functions.Component;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.FastStringBuffer;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.type.ValidationException;
 
 import java.util.StringTokenizer;
 
@@ -38,7 +39,6 @@ public class DurationValue extends AtomicValue implements Comparable {
     */
 
     public DurationValue(CharSequence s) throws XPathException {
-        // TODO: use regular expressions instead
         StringTokenizer tok = new StringTokenizer(trimWhitespace(s).toString(), "-+.PYMDTHS", true);
         try {
             if (!tok.hasMoreElements()) badDuration("empty string", s);
@@ -108,7 +108,7 @@ public class DurationValue extends AtomicValue implements Comparable {
                         badDuration("misplaced " + delim, s);
                 }
             }
-
+            // Note, duration values (unlike the two xdt: subtypes) are not normalized
 
         } catch (NumberFormatException err) {
             badDuration("non-numeric component", s);
@@ -116,7 +116,7 @@ public class DurationValue extends AtomicValue implements Comparable {
     }
 
     protected void badDuration(String msg, CharSequence s) throws XPathException {
-        DynamicError err = new DynamicError("Invalid duration value '" + s + "' (" + msg + ")");
+        DynamicError err = new DynamicError("Invalid duration value '" + s + "' (" + msg + ')');
         err.setErrorCode("FORG0001");
         throw err;
     }
@@ -124,47 +124,46 @@ public class DurationValue extends AtomicValue implements Comparable {
     /**
     * Convert to target data type
     * @param requiredType an integer identifying the required atomic type
-    * @return an AtomicValue, a value of the required type
-    * @throws XPathException if the conversion is not possible
+    * @return an AtomicValue, a value of the required type; or an ErrorValue
     */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
         //System.err.println("Convert duration " + getClass() + " to " + Type.getTypeName(requiredType));
-        switch(requiredType) {
+        switch(requiredType.getPrimitiveType()) {
         case Type.DURATION:
         case Type.ATOMIC:
         case Type.ITEM:
             return this;
         case Type.STRING:
-            return new StringValue(getStringValue());
+            return new StringValue(getStringValueCS());
         case Type.UNTYPED_ATOMIC:
-            return new UntypedAtomicValue(getStringValue());
+            return new UntypedAtomicValue(getStringValueCS());
         case Type.YEAR_MONTH_DURATION:
             if (days!=0 || hours!=0 || minutes!=0 || seconds!=0 || milliseconds!=0) {
-                DynamicError err = new DynamicError(
+                ValidationException err = new ValidationException(
                         "Cannot convert to yearMonthDuration because some components are non-zero");
-                err.setXPathContext(context);
+                //err.setXPathContext(context);
                 err.setErrorCode("FORG0001");
-                throw err;
+                return new ErrorValue(err);
             } else {
                 return MonthDurationValue.fromMonths((years*12 + months) * (negative ? -1 : +1));
             }
         case Type.DAY_TIME_DURATION:
             if (years!=0 || months!=0) {
-                DynamicError err = new DynamicError(
+                ValidationException err = new ValidationException(
                         "Cannot convert to dayTimeDuration because some components are non-zero");
-                err.setXPathContext(context);
+                //err.setXPathContext(context);
                 err.setErrorCode("FORG0001");
-                throw err;
+                return new ErrorValue(err);
             } else {
-                return SecondsDurationValue.fromSeconds(getLengthInSeconds());
+                return new SecondsDurationValue((negative?-1:+1), days, hours, minutes, seconds, milliseconds);
             }
         default:
-            DynamicError err = new DynamicError("Cannot convert duration to " +
-                                     StandardNames.getDisplayName(requiredType));
-            err.setXPathContext(context);
+            ValidationException err = new ValidationException("Cannot convert duration to " +
+                                     requiredType.getDisplayName());
+            //err.setXPathContext(context);
             err.setErrorCode("FORG0001");
-            throw err;
+            return new ErrorValue(err);
         }
     }
 
@@ -177,23 +176,16 @@ public class DurationValue extends AtomicValue implements Comparable {
 
         // Note, Schema does not define a canonical representation. We output all components.
 
-        StringBuffer sb = new StringBuffer(32);
+        FastStringBuffer sb = new FastStringBuffer(32);
         if (negative) {
             sb.append('-');
         }
-        sb.append('P');
-        sb.append(years);
-        sb.append('Y');
-        sb.append(months);
-        sb.append('M');
-        sb.append(days);
-        sb.append('D');
-        sb.append('T');
-        sb.append(hours);
-        sb.append('H');
-        sb.append(minutes);
-        sb.append('M');
-        sb.append(seconds);
+        sb.append("P" + years + 'Y');
+        sb.append(months + "M");
+        sb.append(days + "DT");
+        sb.append(hours + "H");
+        sb.append(minutes + "M");
+        sb.append(seconds + "");
         if (milliseconds!=0) {
             sb.append('.');
             DateTimeValue.appendString(sb, milliseconds, 3);
@@ -207,7 +199,7 @@ public class DurationValue extends AtomicValue implements Comparable {
     * Normalize the value, for example 90M becomes 1H30M
     */
 
-//    public void normalize() {
+//    public void normalize() throws DynamicError {
 //        if (milliseconds >= 1000) {
 //            seconds += (milliseconds / 1000);
 //            milliseconds = milliseconds % 1000;
@@ -261,7 +253,7 @@ public class DurationValue extends AtomicValue implements Comparable {
     * Convert to Java object (for passing to external functions)
     */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
+    public Object convertToJava(Class target, XPathContext context) throws XPathException {
         if (target.isAssignableFrom(DurationValue.class)) {
             return this;
         } else if (target==String.class || target==CharSequence.class) {
@@ -269,7 +261,7 @@ public class DurationValue extends AtomicValue implements Comparable {
         } else if (target==Object.class) {
             return getStringValue();
         } else {
-            Object o = super.convertToJava(target, config, context);
+            Object o = super.convertToJava(target, context);
             if (o == null) {
                 DynamicError err = new DynamicError("Conversion of duration to " + target.getName() +
                         " is not supported");
@@ -297,11 +289,11 @@ public class DurationValue extends AtomicValue implements Comparable {
         case Component.MINUTES:
             return new IntegerValue((negative?-minutes:minutes));
         case Component.SECONDS:
-            StringBuffer sb = new StringBuffer(16);
+            FastStringBuffer sb = new FastStringBuffer(16);
             String ms = ("000" + milliseconds);
             ms = ms.substring(ms.length()-3);
             sb.append((negative?"-":"") + seconds+'.'+ms);
-            return new DecimalValue(sb);
+            return DecimalValue.makeDecimalValue(sb, false);
         default:
             throw new IllegalArgumentException("Unknown component for duration: " + component);
         }

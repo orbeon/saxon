@@ -1,6 +1,6 @@
 package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.XPathException;
 
 
 /**
@@ -18,7 +18,7 @@ public interface TailCall {
     * @param context The dynamic context of the transformation
     * @return a further TailCall, if the recursion continues, or null, indicating that the
     * recursion has terminated.
-    * @throws XPathException if any error occurs processing the tail call
+    * @throws net.sf.saxon.trans.XPathException if any error occurs processing the tail call
     */
 
     public TailCall processLeavingTail(XPathContext context) throws XPathException;

@@ -1,8 +1,8 @@
 package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.om.NamespaceConstant;
 import org.orbeon.saxon.event.Stripper;
 import org.orbeon.saxon.functions.FunctionLibrary;
+import org.orbeon.saxon.om.NamespaceConstant;
 import org.orbeon.saxon.query.StaticQueryContext;
 import org.orbeon.saxon.sort.CodepointCollator;
 import org.orbeon.saxon.trans.DecimalFormatManager;
@@ -69,6 +69,9 @@ public class Executable implements Serializable {
 
                 // hash table of query library modules
     private HashMap queryLibraryModules;
+
+                // flag to indicate that source documents are to have their type annotations stripped
+    private boolean stripsInputTypeAnnotations;
 
 
 
@@ -228,6 +231,22 @@ public class Executable implements Serializable {
 
     public boolean stripsWhitespace() {
         return stripsWhitespace;
+    }
+
+    /**
+     * Set whether source documents are to have their type annotations stripped
+     */
+
+    public void setStripsInputTypeAnnotations(boolean strips) {
+        stripsInputTypeAnnotations = strips;
+    }
+
+    /**
+     * Determine whether source documents are to have their type annotations stripped
+     */
+
+    public boolean stripsInputTypeAnnotations() {
+        return stripsInputTypeAnnotations;
     }
 
     /**

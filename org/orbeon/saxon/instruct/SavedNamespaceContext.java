@@ -1,6 +1,7 @@
 package org.orbeon.saxon.instruct;
-import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.om.NamespaceResolver;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -78,32 +79,6 @@ public final class SavedNamespaceContext implements Serializable, NamespaceResol
         } else {
             return null;
         }
-    }
-
-    /**
-    * Use this NamespaceContext to resolve a lexical QName
-    * @param qname the lexical QName; this must have already been lexically validated
-    * @param useDefault true if the default namespace is to be used to resolve an unprefixed QName
-    * @param pool the NamePool to be used
-    * @return the integer fingerprint that uniquely identifies this name
-     * @throws org.orbeon.saxon.xpath.DynamicError if the string is not a valid lexical QName or
-     * if the namespace prefix has not been declared
-    */
-
-    public int getFingerprint(String qname, boolean useDefault, NamePool pool)
-    throws DynamicError {
-        String[] parts;
-        try {
-            parts = Name.getQNameParts(qname);
-        } catch (QNameException err) {
-            throw new DynamicError(err.getMessage());
-        }
-        String uri = getURIForPrefix(parts[0], useDefault);
-        if (uri == null) {
-            throw new DynamicError(
-                    "Namespace prefix " + parts[0] + " has not been declared");
-        }
-        return pool.getFingerprint(uri, parts[1]);
     }
 
     /**

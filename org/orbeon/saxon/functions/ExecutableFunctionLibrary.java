@@ -4,8 +4,8 @@ import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.UserFunctionCall;
 import org.orbeon.saxon.instruct.UserFunction;
-import org.orbeon.saxon.xpath.IndependentContext;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.IndependentContext;
+import org.orbeon.saxon.trans.XPathException;
 
 import java.util.HashMap;
 
@@ -78,7 +78,7 @@ public class ExecutableFunctionLibrary implements FunctionLibrary {
      * be used as part of the binding algorithm.
      * @return An object representing the extension function to be called, if one is found;
      * null if no extension function was found matching the required name and arity.
-     * @throws org.orbeon.saxon.xpath.XPathException if a function is found with the required name and arity, but
+     * @throws org.orbeon.saxon.trans.XPathException if a function is found with the required name and arity, but
      * the implementation of the function cannot be loaded or used; or if an error occurs
      * while searching for the function; or if this function library "owns" the namespace containing
      * the function call, but no function was found.

@@ -5,15 +5,15 @@ import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.pattern.Pattern;
+import org.orbeon.saxon.pattern.PatternSponsor;
 import org.orbeon.saxon.sort.*;
 import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.trace.TraceListener;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -36,16 +36,14 @@ public class ForEachGroup extends Instruction implements MappingFunction {
     private Expression select;
     private Expression action;
     private byte algorithm;
-    private Object key;     // either an expression or pattern, depending on algorithm
+    private Expression key;     // for group-starting and group-ending, this is a PatternSponsor
     private Comparator collator = null;
     private SortKeyDefinition[] sortKeys = null;
-
-    // TODO: need to treat predicates within the patterns as legitimate subexpressions
 
     public ForEachGroup(Expression select,
                         Expression action,
                         byte algorithm,
-                        Object key,
+                        Expression key,
                         Comparator collator,
                         SortKeyDefinition[] sortKeys) {
         this.select = select;
@@ -84,9 +82,7 @@ public class ForEachGroup extends Instruction implements MappingFunction {
     public Expression simplify(StaticContext env) throws XPathException {
         select = select.simplify(env);
         action = action.simplify(env);
-        if (key instanceof Expression) {
-            key = ((Expression)key).simplify(env);
-        }
+        key = key.simplify(env);
         return this;
     }
 
@@ -113,9 +109,7 @@ public class ForEachGroup extends Instruction implements MappingFunction {
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
         select = select.analyze(env, contextItemType);
         action = action.analyze(env, select.getItemType());
-        if (key instanceof Expression) {
-            key = ((Expression)key).analyze(env, select.getItemType());
-        }
+        key = key.analyze(env, select.getItemType());
         if (select instanceof EmptySequence) {
             return EmptySequence.getInstance();
         }
@@ -150,10 +144,7 @@ public class ForEachGroup extends Instruction implements MappingFunction {
         // because they don't depend on values set outside the for-each-group expression
         int dependencies = 0;
         dependencies |= select.getDependencies();
-        if (key instanceof Expression) {
-            dependencies |= (((Expression)key).getDependencies()
-                    &~ StaticProperty.DEPENDS_ON_FOCUS );
-        }
+        dependencies |= key.getDependencies() & ~StaticProperty.DEPENDS_ON_FOCUS;
         dependencies |= (action.getDependencies()
                     &~ (StaticProperty.DEPENDS_ON_FOCUS | StaticProperty.DEPENDS_ON_CURRENT_GROUP));
         if (sortKeys != null) {
@@ -197,9 +188,7 @@ public class ForEachGroup extends Instruction implements MappingFunction {
     protected void promoteInst(PromotionOffer offer) throws XPathException {
         select = select.promote(offer);
         action = action.promote(offer);
-        if (key instanceof Expression) {
-            key = ((Expression)key).promote(offer);
-        }
+        key = key.promote(offer);
     }
 
     /**
@@ -212,9 +201,7 @@ public class ForEachGroup extends Instruction implements MappingFunction {
         ArrayList list = new ArrayList(3);
         list.add(select);
         list.add(action);
-        if (key instanceof Expression) {
-            list.add(key);
-        }
+        list.add(key);
         if (sortKeys != null) {
             for (int i = 0; i < sortKeys.length; i++) {
                 list.add(sortKeys[i].getSortKey());
@@ -298,28 +285,22 @@ public class ForEachGroup extends Instruction implements MappingFunction {
                     XPathContext c2 = context.newMinorContext();
                     c2.setOrigin(this);
                     c2.setCurrentIterator(population);
-                    groupIterator = new GroupByIterator(population,
-                            (Expression)key,
-                            c2,
-                            collator);
+                    groupIterator = new GroupByIterator(population, key, c2, collator);
                     break;
                 }
             case GROUP_ADJACENT:
                 {
-                    groupIterator = new GroupAdjacentIterator(population,
-                            (Expression)key,
-                            context,
-                            collator);
+                    groupIterator = new GroupAdjacentIterator(population, key, context, collator);
                     break;
                 }
             case GROUP_STARTING:
                 groupIterator = new GroupStartingIterator(population,
-                        (Pattern)key,
+                        ((PatternSponsor)key).getPattern(),
                         context);
                 break;
             case GROUP_ENDING:
                 groupIterator = new GroupEndingIterator(population,
-                        (Pattern)key,
+                        ((PatternSponsor)key).getPattern(),
                         context);
                 break;
             default:

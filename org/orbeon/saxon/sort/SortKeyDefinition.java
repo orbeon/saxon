@@ -1,9 +1,11 @@
 package org.orbeon.saxon.sort;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.Serializable;
 import java.util.Comparator;
@@ -39,7 +41,8 @@ public class SortKeyDefinition implements Serializable {
                                         // used when the type is not known till run-time
     protected Expression caseOrder = defaultCaseOrder;
     protected Expression language = defaultLanguage;
-    protected Comparator collation;   // usually a Collation, but not always
+    protected Expression collationName = null;
+    protected Comparator collation;   // usually a Collator, but not always
     protected boolean emptyFirst = true;
                             // used only in XQuery at present
 
@@ -126,6 +129,14 @@ public class SortKeyDefinition implements Serializable {
     * Set the collation.
     */
 
+    public void setCollationName(Expression collationName) {
+        this.collationName = collationName;
+    }
+
+    public Expression getCollationName() {
+        return collationName;
+    }
+
     public void setCollation(Comparator collation) {
         this.collation = collation;
     }
@@ -147,12 +158,13 @@ public class SortKeyDefinition implements Serializable {
         return emptyFirst;
     }
 
-    public SortKeyDefinition simplify() throws XPathException {
+    public SortKeyDefinition simplify(Executable exec) throws XPathException {
 
         if (order instanceof StringValue &&
                 (dataTypeExpression == null || dataTypeExpression instanceof StringValue) &&
                 caseOrder instanceof StringValue &&
-                language instanceof StringValue) {
+                language instanceof StringValue &&
+                collation != null) {
 
             FixedSortKeyDefinition fskd = new FixedSortKeyDefinition();
             fskd.setSortKey(sortKey);
@@ -164,25 +176,10 @@ public class SortKeyDefinition implements Serializable {
             fskd.collation = collation;
             fskd.bindComparer();
             return fskd;
-            //return fskd.simplify();
         } else {
             return this;
         }
     }
-
-//    public int getDependencies() {
-//
-//        // Not all dependencies in the sort key expression matter, because the context node, etc,
-//        // are not dependent on the outer context
-//        int dep = sortKey.getDependencies() & StaticProperty.DEPENDS_ON_XSLT_CONTEXT;
-//        dep |= order.getDependencies();
-//        if (dataTypeExpression != null) {
-//            dep |= dataTypeExpression.getDependencies();
-//        }
-//        dep |= caseOrder.getDependencies();
-//        dep |= language.getDependencies();
-//        return dep;
-//    }
 
     /**
      * Evaluate any aspects of the sort definition that were specified as AVTs, for example
@@ -193,8 +190,6 @@ public class SortKeyDefinition implements Serializable {
 
     public FixedSortKeyDefinition reduce(XPathContext context) throws XPathException {
 
-        // System.err.println("SortKeyDefinition.reduce()"); sortKey.display(10);
-
         FixedSortKeyDefinition sknew = new FixedSortKeyDefinition();
 
         Expression sortKey2 = sortKey;
@@ -204,11 +199,20 @@ public class SortKeyDefinition implements Serializable {
         sknew.setDataTypeExpression((StringValue)dataTypeExpression.evaluateItem(context));
         sknew.setCaseOrder((StringValue)caseOrder.evaluateItem(context));
         sknew.setLanguage((StringValue)language.evaluateItem(context));
-        sknew.setCollation(collation);
+        if (collation == null && collationName != null) {
+            String cname = collationName.evaluateItem(context).getStringValue();
+            Comparator comp = context.getCollation(cname);
+            if (comp == null) {
+                throw new DynamicError("Collation " + cname + " is not recognized");
+            }
+            sknew.setCollation(comp);
+        }
+        if (collation != null) {
+            sknew.setCollation(collation);
+        }
         sknew.setEmptyFirst(emptyFirst);
         sknew.bindComparer();
         return sknew;
-        //return (FixedSortKeyDefinition)sknew.simplify();
     }
 
 

@@ -4,16 +4,13 @@ import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.Token;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.Name;
-import org.orbeon.saxon.om.NamespaceResolver;
-import org.orbeon.saxon.om.QNameException;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.style.ExpressionContext;
 import org.orbeon.saxon.trans.DecimalFormatManager;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.*;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -588,7 +585,7 @@ public class FormatNumber2 extends SystemFunction implements XSLTFunction {
         private void formatDecimal(DecimalValue value, StringBuffer sb) {
             BigDecimal dval = value.getValue();
             dval = dval.setScale(maxFractionPartSize, BigDecimal.ROUND_HALF_EVEN);
-            sb.append(dval);
+            sb.append(dval.toString());
 
             int point = sb.indexOf(".");
             int intDigits;

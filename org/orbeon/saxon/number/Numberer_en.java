@@ -1,4 +1,6 @@
 package org.orbeon.saxon.number;
+import org.orbeon.saxon.om.FastStringBuffer;
+
 import java.io.Serializable;
 
 /**
@@ -44,7 +46,7 @@ public class Numberer_en implements Numberer, Serializable {
             return "" + number;
         }
 
-        StringBuffer sb = new StringBuffer();
+        FastStringBuffer sb = new FastStringBuffer(16);
         char formchar = picture.charAt(0);
 
         switch(formchar) {
@@ -203,7 +205,10 @@ public class Numberer_en implements Numberer, Serializable {
     protected String ordinalSuffix(String ordinalParam, long number) {
         int penult = ((int)(number % 100)) / 10;
         int ult = (int)(number % 10);
-        if (penult!=1) {
+        if (penult==1) {
+            // e.g. 11th, 12th, 13th
+            return "th";
+        } else {
             if (ult==1) {
                 return "st";
             } else if (ult==2) {
@@ -213,27 +218,24 @@ public class Numberer_en implements Numberer, Serializable {
             } else {
                 return "th";
             }
-        } else {
-            // e.g. 11th, 12th, 13th
-            return "th";
         }
     }
 
-    protected final static String westernDigits =
+    protected static final String westernDigits =
         "0123456789";
 
-    protected final static String latinUpper =
+    protected static final String latinUpper =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-    protected final static String latinLower =
+    protected static final String latinLower =
         "abcdefghijklmnopqrstuvwxyz";
 
-    protected final static String greekUpper =
+    protected static final String greekUpper =
         "\u0391\u0392\u0393\u0394\u0395\u0396\u0397\u0398\u0399\u039a" +
         "\u039b\u039c\u039c\u039d\u039e\u039f\u03a0\u03a1\u03a3\u03a4" +
         "\u03a5\u03a6\u03a7\u03a8\u03a9";
 
-    protected final static String greekLower =
+    protected static final String greekLower =
         "\u03b1\u03b2\u03b3\u03b4\u03b5\u03b6\u03b7\u03b8\u03b9\u03ba" +
         "\u03bb\u03bc\u03bc\u03bd\u03be\u03bf\u03c0\u03c1\u03c3\u03c4" +
         "\u03c5\u03c6\u03c7\u03c8\u03c9";
@@ -241,17 +243,17 @@ public class Numberer_en implements Numberer, Serializable {
     // Cyrillic information from Dmitry Kirsanov [dmitry@kirsanov.com]
     // (based on his personal knowledge of Russian texts, not any authoritative source)
 
-    protected final static String cyrillicUpper =
+    protected static final String cyrillicUpper =
         "\u0410\u0411\u0412\u0413\u0414\u0415\u0416\u0417\u0418" +
         "\u041a\u041b\u041c\u041d\u041e\u041f\u0420\u0421\u0421\u0423" +
         "\u0424\u0425\u0426\u0427\u0428\u0429\u042b\u042d\u042e\u042f";
 
-    protected final static String cyrillicLower =
+    protected static final String cyrillicLower =
         "\u0430\u0431\u0432\u0433\u0434\u0435\u0436\u0437\u0438" +
         "\u043a\u043b\u043c\u043d\u043e\u043f\u0440\u0441\u0441\u0443" +
         "\u0444\u0445\u0446\u0447\u0448\u0449\u044b\u044d\u044e\u044f";
 
-    protected final static String hebrew =
+    protected static final String hebrew =
         "\u05d0\u05d1\u05d2\u05d3\u05d4\u05d5\u05d6\u05d7\u05d8\u05d9\u05db\u05dc" +
         "\u05de\u05e0\u05e1\u05e2\u05e4\u05e6\u05e7\u05e8\u05e9\u05ea";
 
@@ -259,14 +261,14 @@ public class Numberer_en implements Numberer, Serializable {
     // The following Japanese sequences were supplied by
     // MURAKAMI Shinyu [murakami@nadita.com]
 
-    protected final static String hiraganaA =
+    protected static final String hiraganaA =
         "\u3042\u3044\u3046\u3048\u304a\u304b\u304d\u304f\u3051\u3053" +
         "\u3055\u3057\u3059\u305b\u305d\u305f\u3061\u3064\u3066\u3068" +
         "\u306a\u306b\u306c\u306d\u306e\u306f\u3072\u3075\u3078\u307b" +
         "\u307e\u307f\u3080\u3081\u3082\u3084\u3086\u3088\u3089\u308a" +
         "\u308b\u308c\u308d\u308f\u3092\u3093";
 
-    protected final static String katakanaA =
+    protected static final String katakanaA =
 
         "\u30a2\u30a4\u30a6\u30a8\u30aa\u30ab\u30ad\u30af\u30b1\u30b3" +
         "\u30b5\u30b7\u30b9\u30bb\u30bd\u30bf\u30c1\u30c4\u30c6\u30c8" +
@@ -274,7 +276,7 @@ public class Numberer_en implements Numberer, Serializable {
         "\u30de\u30df\u30e0\u30e1\u30e2\u30e4\u30e6\u30e8\u30e9\u30ea" +
         "\u30eb\u30ec\u30ed\u30ef\u30f2\u30f3";
 
-    protected final static String hiraganaI =
+    protected static final String hiraganaI =
 
         "\u3044\u308d\u306f\u306b\u307b\u3078\u3068\u3061\u308a\u306c" +
         "\u308b\u3092\u308f\u304b\u3088\u305f\u308c\u305d\u3064\u306d" +
@@ -282,7 +284,7 @@ public class Numberer_en implements Numberer, Serializable {
         "\u3051\u3075\u3053\u3048\u3066\u3042\u3055\u304d\u3086\u3081" +
         "\u307f\u3057\u3091\u3072\u3082\u305b\u3059";
 
-    protected final static String katakanaI =
+    protected static final String katakanaI =
 
         "\u30a4\u30ed\u30cf\u30cb\u30db\u30d8\u30c8\u30c1\u30ea\u30cc" +
         "\u30eb\u30f2\u30ef\u30ab\u30e8\u30bf\u30ec\u30bd\u30c4\u30cd" +
@@ -291,7 +293,7 @@ public class Numberer_en implements Numberer, Serializable {
         "\u30df\u30b7\u30f1\u30d2\u30e2\u30bb\u30b9";
 
 
-    protected final static String kanjiDigits =
+    protected static final String kanjiDigits =
         "\u3007\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d";
 
 
@@ -300,7 +302,7 @@ public class Numberer_en implements Numberer, Serializable {
     * range of Unicode letters starting with that token.
     */
 
-    protected void alphaDefault(long number, char formchar, StringBuffer sb) {
+    protected void alphaDefault(long number, char formchar, FastStringBuffer sb) {
         int min = (int)formchar;
         int max = (int)formchar;
         // use the contiguous range of letters starting with the specified one
@@ -357,8 +359,8 @@ public class Numberer_en implements Numberer, Serializable {
     private String toRadical(long number, String digits, String picture,
                                  int groupSize, String groupSeparator) {
 
-        StringBuffer sb = new StringBuffer();
-        StringBuffer temp = new StringBuffer();
+        FastStringBuffer sb = new FastStringBuffer(16);
+        FastStringBuffer temp = new FastStringBuffer(16);
         int base = digits.length();
 
         String s = "";
@@ -438,7 +440,7 @@ public class Numberer_en implements Numberer, Serializable {
             if (number < 20) return englishUnits[(int)number];
             int rem = (int)(number % 10);
             return englishTens[(int)number / 10] +
-                (rem==0 ? "" : " " + englishUnits[rem]);
+                (rem==0 ? "" : ' ' + englishUnits[rem]);
         }
     }
 
@@ -492,7 +494,7 @@ public class Numberer_en implements Numberer, Serializable {
                 if (rem==0) {
                     s = englishOrdinalTens[(int)number / 10];
                 } else {
-                    s = englishTens[(int)number / 10] + "-" + englishOrdinalUnits[rem];
+                    s = englishTens[(int)number / 10] + '-' + englishOrdinalUnits[rem];
                 }
             }
         }
@@ -539,7 +541,7 @@ public class Numberer_en implements Numberer, Serializable {
             name = name.substring(0, maxWidth);
         }
         while (name.length() < minWidth) {
-            name = name + " ";
+            name = name + ' ';
         }
         return name;
     }
@@ -568,7 +570,7 @@ public class Numberer_en implements Numberer, Serializable {
             }
         }
         while (name.length() < minWidth) {
-            name = name + " ";
+            name = name + ' ';
         }
         if (minWidth==1 && maxWidth==2) {
             // special case
@@ -625,6 +627,20 @@ public class Numberer_en implements Numberer, Serializable {
             }
         }
         return s;
+    }
+
+    /**
+     * Get an ordinal suffix for a particular component of a date/time.
+     *
+     * @param component the component specifier from a format-dateTime picture, for
+     *            example "M" for the month or "D" for the day.
+     * @return a string that is acceptable in the ordinal attribute of xsl:number
+     *         to achieve the required ordinal representation. For example, "-e" for the day component
+     *         in German, to have the day represented as "dritte August".
+     */
+
+    public String getOrdinalSuffixForDateTime(String component) {
+        return "yes";
     }
 
 }

@@ -78,7 +78,7 @@ public class NameTest extends NodeTest {
             if (localName == null) {
                 localName = namePool.getLocalName(fingerprint);
             }
-            return uri.equals(node.getURI()) && localName.equals(node.getLocalPart());
+            return localName.equals(node.getLocalPart()) && uri.equals(node.getURI());
         }
     }
 
@@ -106,14 +106,6 @@ public class NameTest extends NodeTest {
 
     public int getPrimitiveType() {
         return nodeKind;
-    }
-
-    /**
-     * Indicate whether this NodeTest is capable of matching text nodes
-     */
-
-    public boolean allowsTextNodes() {
-        return false;
     }
 
     /**

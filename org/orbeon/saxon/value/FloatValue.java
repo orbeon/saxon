@@ -1,13 +1,13 @@
 package org.orbeon.saxon.value;
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Err;
 import org.orbeon.saxon.expr.Token;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.type.ValidationException;
 
 import java.math.BigDecimal;
 
@@ -84,12 +84,11 @@ public final class FloatValue extends NumericValue {
     /**
     * Convert to target data type
     * @param requiredType an integer identifying the required atomic type
-    * @return an AtomicValue, a value of the required type
-    * @throws XPathException if the conversion is not possible
+    * @return an AtomicValue, a value of the required type; or an ErrorValue
     */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
-        switch(requiredType) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+        switch(requiredType.getPrimitiveType()) {
         case Type.BOOLEAN:
             return BooleanValue.get(value!=0.0 && !Float.isNaN(value));
         case Type.FLOAT:
@@ -99,35 +98,39 @@ public final class FloatValue extends NumericValue {
             return this;
         case Type.INTEGER:
             if (Float.isNaN(value)) {
-                DynamicError err = new DynamicError("Cannot convert float NaN to an integer");
+                ValidationException err = new ValidationException("Cannot convert float NaN to an integer");
                 err.setErrorCode("FORG0001");
-                err.setXPathContext(context);
-                throw err;
+                //err.setXPathContext(context);
+                return new ErrorValue(err);
             }
             if (Float.isInfinite(value)) {
-                DynamicError err = new DynamicError("Cannot convert float infinity to an integer");
+                ValidationException err = new ValidationException("Cannot convert float infinity to an integer");
                 err.setErrorCode("FORG0001");
-                err.setXPathContext(context);
-                throw err;
+                //err.setXPathContext(context);
+                return new ErrorValue(err);
             }
             if (value > Long.MAX_VALUE || value < Long.MIN_VALUE) {
                 return new BigIntegerValue(new BigDecimal(value).toBigInteger());
             }
             return new IntegerValue((long)value);
         case Type.DECIMAL:
-            return new DecimalValue(value);
-        case Type.DOUBLE:
+                try {
+                    return new DecimalValue(value);
+                } catch (ValidationException e) {
+                    return new ErrorValue(e);
+                }
+            case Type.DOUBLE:
             return new DoubleValue((double)value);
         case Type.STRING:
-            return new StringValue(getStringValue());
+            return new StringValue(getStringValueCS());
         case Type.UNTYPED_ATOMIC:
-            return new UntypedAtomicValue(getStringValue());
+            return new UntypedAtomicValue(getStringValueCS());
         default:
-            DynamicError err = new DynamicError("Cannot convert float to " +
-                                     StandardNames.getDisplayName(requiredType));
-            err.setXPathContext(context);
+            ValidationException err = new ValidationException("Cannot convert float to " +
+                                     requiredType.getDisplayName());
+            //err.setXPathContext(context);
             err.setErrorCode("FORG0001");
-            throw err;
+            return new ErrorValue(err);
         }
     }
 
@@ -138,14 +141,7 @@ public final class FloatValue extends NumericValue {
     */
 
     public String getStringValue() {
-        // TODO: check whether the Java and XMLSchema specs give the same answer
-        if (value == Float.POSITIVE_INFINITY) {
-            return "INF";
-        } else if (value == Float.NEGATIVE_INFINITY) {
-            return "-INF";
-        } else {
-            return "" + value;
-        }
+        return new DoubleValue((double)value).getStringValue();
     }
 
     /**
@@ -207,7 +203,7 @@ public final class FloatValue extends NumericValue {
 
     public NumericValue roundToHalfEven(int scale) {
         try {
-            return (FloatValue)new DoubleValue((double)value).roundToHalfEven(scale).convert(Type.FLOAT, null);
+            return (FloatValue)new DoubleValue((double)value).roundToHalfEven(scale).convert(Type.FLOAT);
         } catch (XPathException err) {
             throw new AssertionError(err);
         }
@@ -252,16 +248,16 @@ public final class FloatValue extends NumericValue {
                 case Token.DIV:
                     return new FloatValue(value / ((FloatValue)other).value);
                 case Token.IDIV:
-                    return (NumericValue)(new FloatValue(value / ((FloatValue)other).value).convert(Type.INTEGER, context));
+                    return (NumericValue)(new FloatValue(value / ((FloatValue)other).value).convert(Type.INTEGER));
                 case Token.MOD:
                     return new FloatValue(value % ((FloatValue)other).value);
                 default:
                     throw new UnsupportedOperationException("Unknown operator");
             }
         } else if (other instanceof DoubleValue) {
-            return ((DoubleValue)convert(Type.DOUBLE, context)).arithmetic(operator, other, context);
+            return ((DoubleValue)convert(Type.DOUBLE)).arithmetic(operator, other, context);
         } else {
-            return arithmetic(operator, (FloatValue)other.convert(Type.FLOAT, context), context);
+            return arithmetic(operator, (FloatValue)other.convert(Type.FLOAT), context);
         }
     }
 
@@ -269,7 +265,7 @@ public final class FloatValue extends NumericValue {
     * Convert to Java object (for passing to external functions)
     */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
+    public Object convertToJava(Class target, XPathContext context) throws XPathException {
         if (target==Object.class) {
             return new Double(value);
         } else if (target.isAssignableFrom(DoubleValue.class)) {
@@ -293,7 +289,7 @@ public final class FloatValue extends NumericValue {
         } else if (target==char.class || target==Character.class) {
             return new Character((char)value);
         } else {
-            Object o = super.convertToJava(target, config, context);
+            Object o = super.convertToJava(target, context);
             if (o == null) {
                 DynamicError err = new DynamicError("Conversion of float to " + target.getName() +
                         " is not supported");

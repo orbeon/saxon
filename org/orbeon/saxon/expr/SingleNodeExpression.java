@@ -4,10 +4,10 @@ import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.om.SingletonIterator;
 import org.orbeon.saxon.pattern.AnyNodeTest;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AtomicType;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 
 
@@ -67,6 +67,7 @@ public abstract class SingleNodeExpression extends ComputedExpression {
     public int computeSpecialProperties() {
         return StaticProperty.ORDERED_NODESET |
                 StaticProperty.CONTEXT_DOCUMENT_NODESET |
+                StaticProperty.SINGLE_DOCUMENT_NODESET |
                 StaticProperty.NON_CREATIVE;
     }
 

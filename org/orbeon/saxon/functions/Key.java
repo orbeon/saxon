@@ -6,11 +6,11 @@ import org.orbeon.saxon.sort.DocumentOrderIterator;
 import org.orbeon.saxon.sort.LocalOrderComparer;
 import org.orbeon.saxon.style.ExpressionContext;
 import org.orbeon.saxon.trans.KeyManager;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 
 public class Key extends SystemFunction implements MappingFunction, XSLTFunction {
@@ -45,9 +45,21 @@ public class Key extends SystemFunction implements MappingFunction, XSLTFunction
         argument[1] = ExpressionTool.unsorted(argument[1], false);
         if (argument[0] instanceof StringValue) {
             // common case, key name is supplied as a constant
-            keyFingerprint = ((ExpressionContext)env).getFingerprint(((StringValue)argument[0]).getStringValue(), false);
+            try {
+                keyFingerprint = ((ExpressionContext)env).getFingerprint(((StringValue)argument[0]).getStringValue(), false);
+            } catch (XPathException e) {
+                StaticError err = new StaticError("Error in key name " +
+                        ((StringValue)argument[0]).getStringValue() + ": " + e.getMessage());
+                err.setLocator(this);
+                err.setErrorCode("XT1260");
+                throw err;
+            }
             if (keyFingerprint==-1) {
-                throw new StaticError("Key " + ((StringValue)argument[0]).getStringValue() + " is not defined");
+                StaticError err = new StaticError("Key " +
+                        ((StringValue)argument[0]).getStringValue() + " has not been defined");
+                err.setLocator(this);
+                err.setErrorCode("XT1260");
+                throw err;
             }
         } else {
             // we need to save the namespace context
@@ -58,11 +70,13 @@ public class Key extends SystemFunction implements MappingFunction, XSLTFunction
     /**
     * Get the static properties of this expression (other than its type). The result is
     * bit-signficant. These properties are used for optimizations. In general, if
-    * property bit is set, it is true, but if it is unset, the value is unknown.
+    * a property bit is set, it is true, but if it is unset, the value is unknown.
     */
 
     public int computeSpecialProperties() {
-        int prop = StaticProperty.ORDERED_NODESET | StaticProperty.NON_CREATIVE;
+        int prop = StaticProperty.ORDERED_NODESET |
+                StaticProperty.SINGLE_DOCUMENT_NODESET |
+                StaticProperty.NON_CREATIVE;
         if ((getNumberOfArguments() == 2) ||
                 (argument[2].getSpecialProperties() & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0) {
             prop |= StaticProperty.CONTEXT_DOCUMENT_NODESET;
@@ -91,7 +105,8 @@ public class Key extends SystemFunction implements MappingFunction, XSLTFunction
             dynamicError("When calling the key() function, the context item must be a node", "XT1270", context);
             return null;
         }
-        NodeInfo root= ((NodeInfo)arg2).getRoot();
+        NodeInfo origin = (NodeInfo)arg2;
+        NodeInfo root = origin.getRoot();
         if (!(root instanceof DocumentInfo)) {
             dynamicError("In the key() function," +
                             " the node supplied in the third argument (or the context node if absent)" +
@@ -104,7 +119,8 @@ public class Key extends SystemFunction implements MappingFunction, XSLTFunction
         if (fprint == -1) {
             String givenkeyname = argument[0].evaluateItem(context).getStringValue();
             try {
-                fprint = nsContext.getFingerprint(givenkeyname, false, context.getController().getNamePool());
+                fprint = context.getController().getNamePool().allocateLexicalQName(
+                        givenkeyname, false, nsContext) & NamePool.FP_MASK;
             } catch (XPathException err) {
                 dynamicError("Invalid key name: " + err.getMessage(), "XT1260", context);
             }
@@ -119,6 +135,7 @@ public class Key extends SystemFunction implements MappingFunction, XSLTFunction
         // in the sequence.
 
         Expression expression = argument[1];
+        SequenceIterator allResults;
         if (Cardinality.allowsMany(expression.getCardinality())) {
             KeyContextInfo info = new KeyContextInfo();
             info.document = doc;
@@ -127,16 +144,19 @@ public class Key extends SystemFunction implements MappingFunction, XSLTFunction
 
             SequenceIterator keys = argument[1].iterate(context);
             SequenceIterator allValues = new MappingIterator(keys, this, null, info);
-            return new DocumentOrderIterator(allValues, LocalOrderComparer.getInstance());
+            allResults = new DocumentOrderIterator(allValues, LocalOrderComparer.getInstance());
         } else {
             AtomicValue keyValue = (AtomicValue)argument[1].evaluateItem(context);
             if (keyValue == null) {
                 return EmptyIterator.getInstance();
             }
             KeyManager keyManager = controller.getKeyManager();
-            return keyManager.selectByKey(fprint, doc, keyValue, context);
-
+            allResults = keyManager.selectByKey(fprint, doc, keyValue, context);
         }
+        if (origin == doc) {
+            return allResults;
+        }
+        return new MappingIterator(allResults, new SubtreeFilter(), null, origin);
     }
 
 
@@ -150,6 +170,41 @@ public class Key extends SystemFunction implements MappingFunction, XSLTFunction
         KeyManager keyManager = k.context.getController().getKeyManager();
         return keyManager.selectByKey(
                 k.keyFingerprint, k.document, (AtomicValue)item, k.context);
+    }
+
+    /**
+     * Mapping class to filter nodes that have the origin node as an ancestor-or-self
+     */
+
+    private static class SubtreeFilter implements MappingFunction {
+
+        // TODO: much more efficient implementations are possible, especially with the TinyTree
+
+        public Object map(Item item, XPathContext context, Object info) throws XPathException {
+            if (isAncestorOrSelf((NodeInfo)info, (NodeInfo)item)) {
+                return item;
+            } else {
+                return null;
+            }
+        }
+
+        /**
+         * Test if one node is an ancestor-or-self of another
+         * @param a the putative ancestor-or-self node
+         * @param d the putative descendant node
+         * @return true if a is an ancestor-or-self of d
+         */
+
+        private static boolean isAncestorOrSelf(NodeInfo a, NodeInfo d) {
+            NodeInfo p = d;
+            while (p != null) {
+                if (a.isSameNodeInfo(p)) {
+                    return true;
+                }
+                p = p.getParent();
+            }
+            return false;
+        }
     }
 
 }

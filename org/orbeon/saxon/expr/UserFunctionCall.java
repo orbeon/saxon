@@ -2,19 +2,16 @@ package org.orbeon.saxon.expr;
 import org.orbeon.saxon.event.SequenceReceiver;
 import org.orbeon.saxon.instruct.InstructionDetails;
 import org.orbeon.saxon.instruct.UserFunction;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trace.InstructionInfo;
 import org.orbeon.saxon.trace.InstructionInfoProvider;
 import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AnyItemType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.value.SequenceValue;
 import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -179,11 +176,11 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
     */
 
     public Item evaluateItem(XPathContext c) throws XPathException {
-        Value val = callFunction(c);
+        ValueRepresentation val = callFunction(c);
         if (val instanceof Item) {
             return (Item)val;
         } else {
-            return val.iterate(c).next();
+            return Value.getIterator(val).next();
         }
     }
 
@@ -193,7 +190,7 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
     */
 
     public SequenceIterator iterate(XPathContext c) throws XPathException {
-        return callFunction(c).iterate(c);
+        return Value.getIterator(callFunction(c));
     }
 
     /**
@@ -202,10 +199,10 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
      * @return the result of the function
      * @throws XPathException if dynamic errors occur
      */
-    private Value callFunction(XPathContext c) throws XPathException {
+    private ValueRepresentation callFunction(XPathContext c) throws XPathException {
         int numArgs = argument.length;
 
-        Value[] actualArgs = new Value[numArgs];
+        ValueRepresentation[] actualArgs = new ValueRepresentation[numArgs];
         for (int i=0; i<numArgs; i++) {
             if (argument[i] instanceof Value) {
                 actualArgs[i] = (Value)argument[i];
@@ -237,8 +234,8 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
      * callee's stack, and the type conversion takes place "in situ".
      */
 
-    public Value dynamicCall(Value[] suppliedArguments, XPathContext context) throws XPathException {
-        Value[] convertedArgs = new Value[suppliedArguments.length];
+    public ValueRepresentation dynamicCall(ValueRepresentation[] suppliedArguments, XPathContext context) throws XPathException {
+        ValueRepresentation[] convertedArgs = new ValueRepresentation[suppliedArguments.length];
         XPathContextMajor c2 = context.newCleanContext();
         c2.setOrigin(this);
         c2.openStackFrame(suppliedArguments.length);
@@ -281,34 +278,44 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
     * with these arguments, avoiding the creation of an additional stack frame.
     */
 
-    public class FunctionCallPackage extends SequenceValue {
+    public class FunctionCallPackage extends Value {
 
         private UserFunction function;
-        private Value[] actualArgs;
+        private ValueRepresentation[] actualArgs;
         private XPathContext evaluationContext;
 
-        public FunctionCallPackage(UserFunction function, Value[] actualArgs, XPathContext c) {
+        public FunctionCallPackage(UserFunction function, ValueRepresentation[] actualArgs, XPathContext c) {
             this.function = function;
             this.actualArgs = actualArgs;
             this.evaluationContext = c;
         }
 
-        public Value call() throws XPathException {
+        /**
+         * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
+         * This method indicates which of these methods is provided directly. The other methods will always be available
+         * indirectly, using an implementation that relies on one of the other methods.
+         */
+
+        public int getImplementationMethod() {
+            return ITERATE_METHOD;
+        }
+
+        public ValueRepresentation call() throws XPathException {
             XPathContextMajor c2 = evaluationContext.newCleanContext();
             c2.setOrigin(UserFunctionCall.this);
             return function.call(actualArgs, c2, false);
         }
 
-        public Value appendTo(SequenceReceiver out) throws XPathException {
-            Value v = call();
-            SequenceIterator fv = v.iterate(evaluationContext);
+        public ValueRepresentation appendTo(SequenceReceiver out) throws XPathException {
+            ValueRepresentation v = call();
+            SequenceIterator fv = Value.getIterator(v);
             while (true) {
                 Item fvit = fv.next();
                 if (fvit == null) return null;
                 if (fvit instanceof UserFunctionCall.FunctionCallPackage) {
                     return (Value)fvit;
                 } else {
-                    out.append(fvit, locationId);
+                    out.append(fvit, locationId, NodeInfo.ALL_NAMESPACES);
                 }
             }
         }
@@ -336,7 +343,7 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
          */
 
         public SequenceIterator iterate(XPathContext context) throws XPathException {
-            return call().iterate(context);
+            return Value.getIterator(call());
         }
     }
 

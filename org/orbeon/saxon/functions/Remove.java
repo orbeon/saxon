@@ -5,11 +5,11 @@ import org.orbeon.saxon.expr.TailExpression;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.IntegerValue;
 import org.orbeon.saxon.value.NumericValue;
-import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * The XPath 2.0 remove() function

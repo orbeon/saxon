@@ -3,11 +3,11 @@ import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.*;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * A NumericPromoter performs numeric promotion on each item in a supplied sequence
@@ -38,7 +38,7 @@ public final class NumericPromoter extends UnaryExpression implements MappingFun
      public Expression simplify(StaticContext env) throws XPathException {
         operand = operand.simplify(env);
         if (operand instanceof Value) {
-            return new SequenceExtent(iterate(null));
+            return SequenceExtent.makeSequenceExtent(iterate(null));
         }
         return this;
     }
@@ -91,7 +91,7 @@ public final class NumericPromoter extends UnaryExpression implements MappingFun
             err.setXPathContext(context);
             throw err;
         }
-        return v.convert(requiredType, context);
+        return v.convert(requiredType);
     }
 
     /**

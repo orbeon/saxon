@@ -5,9 +5,8 @@ import org.orbeon.saxon.expr.VariableDeclaration;
 import org.orbeon.saxon.functions.*;
 import org.orbeon.saxon.instruct.LocationMap;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.sort.CodepointCollator;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.transform.SourceLocator;
 import javax.xml.transform.TransformerException;
@@ -33,8 +32,7 @@ public class UseWhenStaticContext implements XSLTStaticContext {
         this.locationMap = new LocationMap();
 
         FunctionLibraryList lib = new FunctionLibraryList();
-        lib.addFunctionLibrary(new SystemFunctionLibrary(getConfiguration(), true));
-            // TODO: for some reason the spec restricts the use of XSLT functions
+        lib.addFunctionLibrary(new SystemFunctionLibrary(SystemFunctionLibrary.USE_WHEN));
         lib.addFunctionLibrary(getConfiguration().getVendorFunctionLibrary());
         lib.addFunctionLibrary(new ConstructorFunctionLibrary(getConfiguration()));
         if (config.isAllowExternalFunctions()) {
@@ -108,7 +106,7 @@ public class UseWhenStaticContext implements XSLTStaticContext {
      * when the prefix is empty.
      *
      * @param prefix The prefix
-     * @throws org.orbeon.saxon.xpath.XPathException
+     * @throws org.orbeon.saxon.trans.XPathException
      *          if the prefix is not declared
      */
 
@@ -214,7 +212,7 @@ public class UseWhenStaticContext implements XSLTStaticContext {
 
     /**
     * Determine if an extension element is available
-    * @throws XPathException if the name is invalid or the prefix is not declared
+    * @throws net.sf.saxon.trans.XPathException if the name is invalid or the prefix is not declared
     */
 
     public boolean isElementAvailable(String qname) throws XPathException {

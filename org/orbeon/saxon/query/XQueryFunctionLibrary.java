@@ -6,8 +6,8 @@ import org.orbeon.saxon.expr.UserFunctionCall;
 import org.orbeon.saxon.functions.FunctionLibrary;
 import org.orbeon.saxon.instruct.UserFunction;
 import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -195,7 +195,7 @@ public class XQueryFunctionLibrary implements FunctionLibrary {
      * Bind function calls that could not be bound when first encountered. These
      * will either be forwards references to functions declared later in the query,
      * or errors. This method is for internal use.
-     * @throws org.orbeon.saxon.xpath.StaticError if a function call refers to a function that has
+     * @throws org.orbeon.saxon.trans.StaticError if a function call refers to a function that has
      * not been declared
      */
 

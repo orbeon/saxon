@@ -2,8 +2,8 @@ package org.orbeon.saxon.sort;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.SequenceExtent;
-import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * DocumentOrderIterator takes as input an iteration of nodes in any order, and

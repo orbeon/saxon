@@ -6,8 +6,8 @@ import org.orbeon.saxon.charcode.CharacterSetFactory;
 import org.orbeon.saxon.charcode.PluggableCharacterSet;
 import org.orbeon.saxon.charcode.UnicodeCharacterSet;
 import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 import org.xml.sax.ContentHandler;
 
 import javax.xml.transform.OutputKeys;
@@ -249,7 +249,7 @@ public abstract class Emitter implements Result, Receiver
     * Load a named output emitter or SAX2 ContentHandler and check it is OK.
     */
 
-    public static Emitter makeEmitter (String className) throws XPathException
+    public static Receiver makeEmitter (String className) throws XPathException
     {
         Object handler;
         try {
@@ -258,15 +258,15 @@ public abstract class Emitter implements Result, Receiver
             throw new DynamicError("Cannot load user-supplied output method " + className);
         }
 
-        if (handler instanceof Emitter) {
-            return (Emitter)handler;
+        if (handler instanceof Receiver) {
+            return (Receiver)handler;
         } else if (handler instanceof ContentHandler) {
             ContentHandlerProxy emitter = new ContentHandlerProxy();
             emitter.setUnderlyingContentHandler((ContentHandler)handler);
             return emitter;
         } else {
-            throw new DynamicError("Failed to load emitter " + className +
-                        ": it is neither an Emitter nor a SAX2 ContentHandler");
+            throw new DynamicError("Failed to load " + className +
+                        ": it is neither a Receiver nor a SAX2 ContentHandler");
         }
 
     }

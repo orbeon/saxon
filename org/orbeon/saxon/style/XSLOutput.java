@@ -3,7 +3,7 @@ import org.orbeon.saxon.event.SaxonOutputKeys;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.TransformerConfigurationException;
@@ -79,7 +79,7 @@ public class XSLOutput extends StyleElement {
         		escapeURIAttributes = atts.getValue(a).trim();
             } else if (f==StandardNames.USE_CHARACTER_MAPS) {
         		useCharacterMaps = atts.getValue(a);
-            } else if (f==StandardNames.UNDECLARE_NAMESPACES) {
+            } else if (f==StandardNames.UNDECLARE_PREFIXES) {
         		undeclareNamespaces = atts.getValue(a);
             } else if (f==StandardNames.SAXON_CHARACTER_REPRESENTATION) {
         		representation = atts.getValue(a).trim();
@@ -155,12 +155,13 @@ public class XSLOutput extends StyleElement {
                         compileError("method must be xml, html, xhtml, or text, or a prefixed name", "XT0020");
                     } else {
                         String uri = getURIForPrefix(prefix, false);
+                        if (uri == null) {
+                            undeclaredNamespaceError(prefix, "XT0280");
+                        }
                         details.put(OutputKeys.METHOD, '{' + uri + '}' + parts[1] );
                     }
                 } catch (QNameException e) {
                     compileError("Invalid method name. " + e.getMessage(), "XT0020");
-                } catch (NamespaceException err) {
-                    compileError(err.getMessage(), "XT0280");
                 }
             }
         }
@@ -241,11 +242,12 @@ public class XSLOutput extends StyleElement {
                 try {
                     String[] parts = Name.getQNameParts(displayname);
                     String uri = getURIForPrefix(parts[0], true);
+                    if (uri == null) {
+                        undeclaredNamespaceError(parts[0], "XT0280");
+                    }
                     s += " {" + uri + '}' + parts[1];
                 } catch (QNameException err) {
                     compileError("Invalid CDATA element name. " + err.getMessage());
-                } catch (NamespaceException err) {
-                    compileError(err.getMessage(), "XT0280");
                 }
 
                 details.put(OutputKeys.CDATA_SECTION_ELEMENTS, existing+s);
@@ -254,40 +256,15 @@ public class XSLOutput extends StyleElement {
 
         if (undeclareNamespaces != null) {
             if (undeclareNamespaces.equals("yes") || undeclareNamespaces.equals("no")) {
-                details.put(SaxonOutputKeys.UNDECLARE_NAMESPACES, undeclareNamespaces);
+                details.put(SaxonOutputKeys.UNDECLARE_PREFIXES, undeclareNamespaces);
             } else {
                 compileError("undeclare-namespaces value must be 'yes' or 'no'", "XT0020");
             }
         }
 
         if (useCharacterMaps != null) {
-            XSLStylesheet principal = getPrincipalStylesheet();
-            String existing = details.getProperty(SaxonOutputKeys.USE_CHARACTER_MAPS);
-            if (existing==null) {
-                existing = "";
-            }
-            String s = "";
-            StringTokenizer st = new StringTokenizer(useCharacterMaps);
-            while (st.hasMoreTokens()) {
-                String displayname = st.nextToken();
-                try {
-                    String[] parts = Name.getQNameParts(displayname);
-                    String uri = getURIForPrefix(parts[0], false);
-                    int nameCode = getTargetNamePool().allocate(parts[0], uri, parts[1]);
-                    XSLCharacterMap ref =
-                            principal.getCharacterMap(nameCode & 0xfffff);
-                    if (ref == null) {
-                        compileError("No character-map named '" + displayname + "' has been defined");
-                    }
-                    s += " {" + uri + '}' + parts[1];
-                } catch (QNameException err) {
-                    compileError("Invalid character-map name. " + err.getMessage());
-                } catch (NamespaceException err) {
-                    compileError(err.getMessage(), "XT0280");
-                }
-
-                details.put(SaxonOutputKeys.USE_CHARACTER_MAPS, existing+s);
-            }
+            String s = prepareCharacterMaps(this, useCharacterMaps, details);
+            details.put(SaxonOutputKeys.USE_CHARACTER_MAPS, s);
         }
 
         if (representation != null) {
@@ -334,6 +311,45 @@ public class XSLOutput extends StyleElement {
             }
         }
 
+    }
+
+    /**
+     * Process the use-character-maps attribute
+     * @param details The output details to received the processed value
+     * @throws TransformerConfigurationException if the value is invalid
+     */
+    public static String prepareCharacterMaps(StyleElement element,
+                                            String useCharacterMaps,
+                                            Properties details)
+            throws TransformerConfigurationException {
+        XSLStylesheet principal = element.getPrincipalStylesheet();
+        String existing = details.getProperty(SaxonOutputKeys.USE_CHARACTER_MAPS);
+        if (existing==null) {
+            existing = "";
+        }
+        String s = "";
+        StringTokenizer st = new StringTokenizer(useCharacterMaps);
+        while (st.hasMoreTokens()) {
+            String displayname = st.nextToken();
+            try {
+                String[] parts = Name.getQNameParts(displayname);
+                String uri = element.getURIForPrefix(parts[0], false);
+                if (uri == null) {
+                    element.undeclaredNamespaceError(parts[0], "XT0280");
+                }
+                int nameCode = element.getTargetNamePool().allocate(parts[0], uri, parts[1]);
+                XSLCharacterMap ref =
+                        principal.getCharacterMap(nameCode & 0xfffff);
+                if (ref == null) {
+                    element.compileError("No character-map named '" + displayname + "' has been defined", "XT1590");
+                }
+                s += " {" + uri + '}' + parts[1];
+            } catch (QNameException err) {
+                element.compileError("Invalid character-map name. " + err.getMessage());
+            }
+            existing += s;
+        }
+        return existing;
     }
 
 }

@@ -1,28 +1,27 @@
 package org.orbeon.saxon.expr;
 
-import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.Name;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.QNameException;
 import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AtomicType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.*;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Iterator;
 
 /**
- * This class supports casting a string to a QName or a notation
+ * This class supports casting a string to a QName or a notation.
  */
-
-// TODO: the spec now permits this only as a compile-time constructor. This implementation is more liberal,
-// it preserves the static namespace context and allows it to be used at run-time.
 
 public class CastAsQName extends ComputedExpression {
 
     private Expression operand;
-    private NamespaceResolver nsContext;
     private AtomicType targetType;
 
     public CastAsQName(Expression s, AtomicType target) {
@@ -31,11 +30,45 @@ public class CastAsQName extends ComputedExpression {
     }
 
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
-        nsContext = env.getNamespaceResolver();
-        if (operand instanceof Value) {
-            return Value.asValue(evaluateItem(null));    
+        if (operand instanceof StringValue) {
+            try {
+                CharSequence arg = ((StringValue)operand).getStringValueCS();
+                String parts[] = Name.getQNameParts(arg);
+                String uri;
+                if ("".equals(parts[0])) {
+                    uri = "";
+                } else {
+                    uri = env.getURIForPrefix(parts[0]);
+                    if (uri==null) {
+                        StaticError e = new StaticError("Prefix '" + parts[0] + "' has not been declared");
+                        throw e;
+                    }
+                }
+                if (targetType.getFingerprint() == StandardNames.XS_QNAME) {
+                    return new QNameValue(parts[0], uri, parts[1]);
+                } else if (Type.isSubType(targetType, Type.QNAME_TYPE)) {
+                    QNameValue q = new QNameValue(parts[0], uri, parts[1]);
+                    AtomicValue av = targetType.makeDerivedValue(q, arg, true);
+                    if (av instanceof ErrorValue) {
+                        throw ((ErrorValue)av).getException();
+                    }
+                    return av;
+                } else {
+                    NotationValue n = new NotationValue(parts[0], uri, parts[1]);
+                    AtomicValue av =  targetType.makeDerivedValue(n, arg, true);
+                    if (av instanceof ErrorValue) {
+                        throw ((ErrorValue)av).getException();
+                    }
+                    return av;
+                }
+            } catch (QNameException err) {
+                StaticError e = new StaticError(err);
+                throw e;
+            }
+        } else {
+            StaticError err = new StaticError("The argument of a QName constructor must be a string literal");
+            throw err;
         }
-        return this;
     }
 
     public Expression promote(PromotionOffer offer) throws XPathException {
@@ -69,32 +102,7 @@ public class CastAsQName extends ComputedExpression {
     }
 
     public Item evaluateItem(XPathContext context) throws XPathException {
-        AtomicValue av = (AtomicValue)operand.evaluateItem(context);
-        if (av==null) return null;
-        StringValue sv = (StringValue)av.getPrimitiveValue();
-
-        try {
-            String parts[] = Name.getQNameParts(sv.getStringValue());
-            String uri = nsContext.getURIForPrefix(parts[0], true);
-            if (uri==null) {
-                DynamicError e = new DynamicError("Prefix '" + parts[0] + "' has not been declared");
-                e.setXPathContext(context);
-                throw e;
-            }
-            if (targetType.getFingerprint() == StandardNames.XS_QNAME) {
-                return new QNameValue(parts[0], uri, parts[1]);
-            } else if (Type.isSubType(targetType, Type.QNAME_TYPE)) {
-                QNameValue q = new QNameValue(parts[0], uri, parts[1]);
-                return targetType.makeDerivedValue(q, sv.getStringValue(), true);
-            } else {
-                NotationValue n = new NotationValue(parts[0], uri, parts[1]);
-                return targetType.makeDerivedValue(n, sv.getStringValue(), true);
-            }
-        } catch (QNameException err) {
-            DynamicError e = new DynamicError(err);
-            e.setXPathContext(context);
-            throw e;
-        }
+        throw new UnsupportedOperationException("A QName constructor cannot be evaluated at run-time");
     }
 
     public void display(int level, NamePool pool, PrintStream out) {

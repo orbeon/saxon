@@ -2,12 +2,12 @@ package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AnyItemType;
 import org.orbeon.saxon.type.AtomicType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -250,7 +250,7 @@ public abstract class SystemFunction extends FunctionCall {
         a.add(new Id());
         a.add(new Idref());
         a.add(new IndexOf());
-        a.add(new InScopeNamespaces());
+        a.add(new InScopePrefixes());
         a.add(new Insert());
         a.add(new Key());
         a.add(new Lang());

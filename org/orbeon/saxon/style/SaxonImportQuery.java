@@ -6,7 +6,7 @@ import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.query.StaticQueryContext;
 import org.orbeon.saxon.query.XQueryFunction;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.Iterator;

@@ -1,6 +1,6 @@
 package org.orbeon.saxon;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 import org.xml.sax.InputSource;
 import org.xml.sax.XMLReader;
 
@@ -144,7 +144,7 @@ public class StandardURIResolver implements URIResolver {
             }
         } catch (IllegalArgumentException err0) {
             // can be thrown by resolve() when given a bad URI
-            throw new DynamicError("Invalid URI " + Err.wrap(relativeURI) + " - base " + Err.wrap(base), err0);
+            throw new DynamicError("Invalid URI " + Err.wrap(relativeURI) + " - base " + Err.wrap(base));
         }
         return url;
     }
@@ -169,11 +169,11 @@ public class StandardURIResolver implements URIResolver {
 	            return systemId;
 	        }
 	        if (!(dir.endsWith("/") || systemId.startsWith("/"))) {
-	            dir = dir + "/";
+	            dir = dir + '/';
 	        }
 
 	        try {
-	            URL currentDirectoryURL = new File(dir).toURL();     // needs JDK 1.2
+	            URL currentDirectoryURL = new File(dir).toURL();  
 	            URL baseURL = new URL(currentDirectoryURL, systemId);
 	            // System.err.println("SAX Driver: expanded " + systemId + " to " + baseURL);
 	            return baseURL.toString();

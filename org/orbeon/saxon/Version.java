@@ -6,9 +6,9 @@ package org.orbeon.saxon;
 
 public final class Version {
 
-    private static final String VERSION = "8.2";
-    private static final String BUILD = "121614";
-    private static final String RELEASE_DATE = "2004-12-22";
+    private static final String VERSION = "8.3";
+    private static final String BUILD = "020623";
+    private static final String RELEASE_DATE = "2005-02-11";
 
     private Version() {
         // class is never instantiated

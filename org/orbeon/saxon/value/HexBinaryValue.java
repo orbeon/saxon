@@ -1,11 +1,12 @@
 package org.orbeon.saxon.value;
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.FastStringBuffer;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.type.ValidationException;
 
 /**
 * A value of type xs:hexBinary
@@ -74,29 +75,28 @@ public class HexBinaryValue extends AtomicValue {
     /**
     * Convert to target data type
     * @param requiredType an integer identifying the required atomic type
-    * @return an AtomicValue, a value of the required type
-    * @throws XPathException if the conversion is not possible
+    * @return an AtomicValue, a value of the required type; or an ErrorValue
     */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
-        switch(requiredType) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+        switch(requiredType.getPrimitiveType()) {
         case Type.HEX_BINARY:
         case Type.ATOMIC:
         case Type.ITEM:
             return this;
         case Type.STRING:
-            return new StringValue(getStringValue());
+            return new StringValue(getStringValueCS());
         case Type.UNTYPED_ATOMIC:
-            return new UntypedAtomicValue(getStringValue());
+            return new UntypedAtomicValue(getStringValueCS());
         case Type.BASE64_BINARY:
             return new Base64BinaryValue(binaryValue);
 
         default:
-            DynamicError err = new DynamicError("Cannot convert hexBinarry to " +
-                                     StandardNames.getDisplayName(requiredType));
-            err.setXPathContext(context);
+            ValidationException err = new ValidationException("Cannot convert hexBinarry to " +
+                                     requiredType.getDisplayName());
+            //err.setXPathContext(context);
             err.setErrorCode("FORG0001");
-            throw err;
+            return new ErrorValue(err);
         }
     }
 
@@ -107,7 +107,7 @@ public class HexBinaryValue extends AtomicValue {
 
     public String getStringValue() {
         String digits = "0123456789ABCDEF";
-        StringBuffer sb = new StringBuffer(binaryValue.length * 2);
+        FastStringBuffer sb = new FastStringBuffer(binaryValue.length * 2);
         for (int i=0; i<binaryValue.length; i++) {
             sb.append(digits.charAt((binaryValue[i]>>4)&0xf));
             sb.append(digits.charAt(binaryValue[i]&0xf));
@@ -137,17 +137,14 @@ public class HexBinaryValue extends AtomicValue {
     * Convert to Java object (for passing to external functions)
     */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
+    public Object convertToJava(Class target, XPathContext context) throws XPathException {
 
-        // TODO: review this
         if (target.isAssignableFrom(HexBinaryValue.class)) {
             return this;
-        } else if (target==String.class || target==CharSequence.class) {
-            return getStringValue();
-        } else if (target==Object.class) {
+        } else if (target.isAssignableFrom(String.class)) {
             return getStringValue();
         } else {
-            Object o = super.convertToJava(target, config, context);
+            Object o = super.convertToJava(target, context);
             if (o == null) {
                 throw new DynamicError("Conversion of hexBinary to " + target.getName() +
                         " is not supported");
@@ -167,7 +164,7 @@ public class HexBinaryValue extends AtomicValue {
             v2 = (HexBinaryValue)other;
         } else if (other instanceof AtomicValue) {
             try {
-                v2 = (HexBinaryValue)((AtomicValue)other).convert(Type.HEX_BINARY, null);
+                v2 = (HexBinaryValue)((AtomicValue)other).convert(Type.HEX_BINARY);
             } catch (XPathException err) {
                 return false;
             }

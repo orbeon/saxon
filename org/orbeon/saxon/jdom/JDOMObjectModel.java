@@ -1,10 +1,19 @@
 package org.orbeon.saxon.jdom;
 
 import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.event.PipelineConfiguration;
 import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.ExternalObjectModel;
 import org.orbeon.saxon.om.VirtualNode;
+import org.orbeon.saxon.om.NodeInfo;
 import org.jdom.*;
+
+import javax.xml.transform.Result;
+import javax.xml.transform.Source;
 
 
 /**
@@ -30,6 +39,58 @@ public class JDOMObjectModel implements ExternalObjectModel {
                  object instanceof Comment ||
                  object instanceof ProcessingInstruction ||
                  object instanceof Namespace;
+    }
+
+    /**
+     * Test whether this object model recognizes a particular kind of JAXP Result object,
+     * and if it does, return a Receiver that builds an instance of this data model from
+     * a sequence of events. If the Result is not recognised, return null.
+     */
+
+    public Receiver getDocumentBuilder(Result result) {
+        return null;  //To change body of implemented methods use File | Settings | File Templates.
+    }
+
+    /**
+     * Test whether this object model recognizes a particular kind of JAXP Source object,
+     * and if it does, send the contents of the document to a supplied Receiver, and return true.
+     * Otherwise, return false.
+     */
+
+    public boolean sendSource(Source source, Receiver receiver, PipelineConfiguration pipe) throws XPathException {
+        return false;  //To change body of implemented methods use File | Settings | File Templates.
+    }
+
+    /**
+     * Wrap or unwrap a node using this object model to return the corresponding Saxon node. If the supplied
+     * source does not belong to this object model, return null
+     */
+
+    public NodeInfo unravel(Source source, Configuration config) {
+        return null;  //To change body of implemented methods use File | Settings | File Templates.
+    }
+
+    /**
+     * Convert a Java object to an XPath value. If the supplied object is recognized as a representation
+     * of a value using this object model, the object model should convert the value to an XPath value
+     * and return this as the result. If not, it should return null. If the object is recognized but cannot
+     * be converted, an exception should be thrown
+     */
+
+    public Value convertObjectToXPathValue(Object object, Configuration config) throws XPathException {
+        return null;  //To change body of implemented methods use File | Settings | File Templates.
+    }
+
+    /**
+     * Convert an XPath value to an object in this object model. If the supplied value can be converted
+     * to an object in this model, of the specified class, then the conversion should be done and the
+     * resulting object returned. If the value cannot be converted, the method should return null. Note
+     * that the supplied class might be a List, in which case the method should inspect the contents of the
+     * Value to see whether they belong to this object model.
+     */
+
+    public Object convertXPathValueToObject(Value value, Class targetClass, XPathContext context) {
+        return null;  //To change body of implemented methods use File | Settings | File Templates.
     }
 
     /**

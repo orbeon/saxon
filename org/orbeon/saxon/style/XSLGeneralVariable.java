@@ -6,13 +6,13 @@ import org.orbeon.saxon.expr.TypeChecker;
 import org.orbeon.saxon.instruct.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.SequenceType;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -88,7 +88,8 @@ public abstract class XSLGeneralVariable extends StyleElement {
     }
 
     public boolean isGlobal() {
-        return global;
+        return isTopLevel();
+            // might be called before the "global" field is initialized
     }
 
     /**
@@ -219,7 +220,7 @@ public abstract class XSLGeneralVariable extends StyleElement {
     }
 
     public void validate() throws TransformerConfigurationException {
-        global = (getParentNode() instanceof XSLStylesheet);
+        global = isTopLevel();
 
         if (global) {
             slotManager = getConfiguration().makeSlotManager();
@@ -277,9 +278,9 @@ public abstract class XSLGeneralVariable extends StyleElement {
     }
 
     /**
-     * Method called for parameters of call-template to check the type of the actual
-     * parameter against the type of the required parameter
-     * @param required The type required by the signature of the called template
+     * Check the supplied select expression against the required type.
+     * @param required The type required by the variable declaration, or in the case
+     * of xsl:with-param, the signature of the called template
      */
 
     protected void checkAgainstRequiredType(SequenceType required)

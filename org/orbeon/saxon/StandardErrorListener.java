@@ -1,15 +1,15 @@
 package org.orbeon.saxon;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.trace.InstructionInfo;
 import org.orbeon.saxon.trace.InstructionInfoProvider;
 import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ValidationException;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
 import org.xml.sax.SAXException;
 
-import javax.xml.namespace.QName;
 import javax.xml.transform.ErrorListener;
 import javax.xml.transform.SourceLocator;
 import javax.xml.transform.TransformerException;
@@ -240,6 +240,8 @@ public class StandardErrorListener implements ErrorListener {
         int lineNumber = -1;
         if (loc instanceof DOMLocator) {
             locmessage += "at " + ((DOMLocator)loc).getOriginatingNode().getNodeName() + ' ';
+        } else if (loc instanceof NodeInfo) {
+            locmessage += "at " + ((NodeInfo)loc).getDisplayName() + ' ';
         } else if (loc instanceof InstructionInfoProvider) {
             String instructionName = getInstructionName(((InstructionInfoProvider)loc), context);
             if (!"".equals(instructionName)) {
@@ -274,9 +276,9 @@ public class StandardErrorListener implements ErrorListener {
         String message = "";
 
         if (err instanceof XPathException) {
-            QName qcode = ((XPathException)err).getErrorCode();
-            if (qcode != null) {
-                message = qcode.getLocalPart();
+            String code = ((XPathException)err).getErrorCodeLocalPart();
+            if (code != null) {
+                message = code;
             }
         }
 
@@ -286,10 +288,10 @@ public class StandardErrorListener implements ErrorListener {
                 break;
             }
             String next = e.getMessage();
-            if (next.startsWith("org.orbeon.saxon.xpath.StaticError: ")) {
+            if (next==null) next="";
+            if (next.startsWith("org.orbeon.saxon.trans.StaticError: ")) {
                 next = next.substring(next.indexOf(": ") + 2);
             }
-            if (next==null) next="";
             if (!("TRaX Transform Exception".equals(next) || message.endsWith(next))) {
                 if (!"".equals(message)) {
                     message += ": ";
@@ -314,6 +316,7 @@ public class StandardErrorListener implements ErrorListener {
      */
 
     private static String getInstructionName(InstructionInfoProvider inst, XPathContext context) {
+        // TODO: subclass this for XSLT and XQuery
         if (context==null) {
             return "";
         }
@@ -324,7 +327,25 @@ public class StandardErrorListener implements ErrorListener {
                     construct != StandardNames.XSL_FUNCTION &&
                     construct != StandardNames.XSL_TEMPLATE) {
                 // it's a standard name
-                return StandardNames.getDisplayName(construct);
+                if (context.getController().getConfiguration().getHostLanguage() == Configuration.XSLT) {
+                    return StandardNames.getDisplayName(construct);
+                } else {
+                    String s = StandardNames.getDisplayName(construct);
+                    int colon = s.indexOf(':');
+                    if (colon > 0) {
+                        String local = s.substring(colon+1);
+                        if (local.equals("document")) {
+                            return "document node constructor";
+                        } else if (local.equals("text") || s.equals("value-of")) {
+                            return "text node constructor";
+                        } else if (local.equals("element")) {
+                            return "computed element constructor";
+                        } else if (local.equals("attribute")) {
+                            return "computed attribute constructor";
+                        }
+                    }
+                    return s;
+                }
             }
             switch (construct) {
                 case Location.LITERAL_RESULT_ELEMENT: {
@@ -387,6 +408,8 @@ public class StandardErrorListener implements ErrorListener {
             } else {
                 return message;
             }
+        } else if (nl < message.length()) {
+            return message.substring(0, nl) + '\n' + wordWrap(message.substring(nl+1));
         } else {
             return message;
         }

@@ -3,6 +3,7 @@ import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.ProcessingInstruction;
+import org.orbeon.saxon.om.AttributeCollectionImpl;
 import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.value.StringValue;
 

@@ -4,8 +4,8 @@ import org.orbeon.saxon.functions.FunctionLibrary;
 import org.orbeon.saxon.instruct.LocationMap;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NamespaceResolver;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.transform.SourceLocator;
 import java.util.Comparator;

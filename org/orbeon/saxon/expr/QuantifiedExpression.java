@@ -2,13 +2,12 @@ package org.orbeon.saxon.expr;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.BooleanValue;
 import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -58,8 +57,7 @@ class QuantifiedExpression extends Assignation {
         sequence = ExpressionTool.unsorted(sequence, false);
 
         SequenceType decl = declaration.getRequiredType();
-        SequenceType sequenceType =
-                            new SequenceType(decl.getPrimaryType(),
+        SequenceType sequenceType = SequenceType.makeSequenceType(decl.getPrimaryType(),
                                              StaticProperty.ALLOWS_ZERO_OR_MORE);
         RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, new Integer(nameCode), 0, env.getNamePool());
         sequence = TypeChecker.strictTypeCheck(
@@ -123,7 +121,7 @@ class QuantifiedExpression extends Assignation {
             if (it == null) {
                 break;
             }
-            context.setLocalVariable(slotNumber, Value.asValue(it));
+            context.setLocalVariable(slotNumber, it);
             if (some == action.effectiveBooleanValue(context)) {
                 return some;
             }

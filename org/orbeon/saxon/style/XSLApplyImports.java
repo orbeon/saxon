@@ -3,7 +3,8 @@ import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.instruct.ApplyImports;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.type.Type;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -35,6 +36,24 @@ public class XSLApplyImports extends StyleElement {
 
     public void validate() throws TransformerConfigurationException {
         checkWithinTemplate();
+        AxisIterator kids = iterateAxis(Axis.CHILD);
+        while (true) {
+            NodeInfo child = (NodeInfo)kids.next();
+            if (child == null) {
+                break;
+            }
+            if (child instanceof XSLWithParam) {
+                // OK;
+            } else if (child.getNodeKind() == Type.TEXT) {
+                    // with xml:space=preserve, white space nodes may still be there
+                if (!Navigator.isWhite(child.getStringValueCS())) {
+                    compileError("No character data is allowed within xsl:apply-imports", "XT0010");
+                }
+            } else {
+                compileError("Child element " + child.getDisplayName() +
+                        " is not allowed within xsl:apply-imports", "XT0010");
+            }
+        }
     }
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {

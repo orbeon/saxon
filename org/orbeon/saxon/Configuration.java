@@ -14,11 +14,11 @@ import org.orbeon.saxon.instruct.SlotManager;
 import org.orbeon.saxon.om.ExternalObjectModel;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.Validation;
 import org.orbeon.saxon.pattern.NodeTest;
 import org.orbeon.saxon.trace.TraceListener;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
-import org.orbeon.saxon.xpath.XPathException;
-import org.w3c.dom.ls.LSResourceResolver;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXNotRecognizedException;
 import org.xml.sax.SAXNotSupportedException;
@@ -27,7 +27,6 @@ import org.xml.sax.XMLReader;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParserFactory;
 import javax.xml.transform.*;
-import javax.xml.validation.Schema;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -60,17 +59,17 @@ public class Configuration implements Serializable {
     private boolean allowExternalFunctions = true;
     private boolean traceExternalFunctions = false;
     private boolean validation = false;
+    private boolean allNodesUntyped = false;
     private NamePool targetNamePool = null;
     private boolean stripsAllWhiteSpace = false;
     private int hostLanguage = XSLT;
-    private boolean schemaValidation = false;
+    private int schemaValidationMode = Validation.STRIP;
     private boolean validationWarnings = false;
     private boolean retainDTDattributeTypes = false;
     private Debugger debugger = null;
     protected Optimizer optimizer = null;
     private ExtensionFunctionFactory extensionFunctionFactory = new ExtensionFunctionFactory();
     private List externalObjectModels = new ArrayList(4);
-    private LSResourceResolver resourceResolver;
 
     /**
      * Constant indicating that the processor should take the recovery action
@@ -112,6 +111,7 @@ public class Configuration implements Serializable {
     public Configuration() {
         targetNamePool = NamePool.getDefaultNamePool();
         extensionBinder = new JavaExtensionLibrary(this);
+        registerStandardObjectModels();
     }
 
    /**
@@ -564,26 +564,53 @@ public class Configuration implements Serializable {
     }
 
     /**
+     * Specify that all nodes encountered within this query or transformation will be untyped
+     */
+
+    public void setAllNodesUntyped(boolean allUntyped) {
+        allNodesUntyped = allUntyped;
+    }
+    
+    /**
+     * Determine whether all nodes encountered within this query or transformation are guaranteed to be
+     * untyped
+     */
+
+    public boolean areAllNodesUntyped() {
+        return allNodesUntyped;
+    }
+
+    /**
      * Determine whether source documents (supplied as a StreamSource or SAXSource)
      * should be subjected to schema validation
      * @return true if source documents should be validated
      */
 
-    public boolean isSchemaValidation() {
-        return schemaValidation;
+    public int getSchemaValidationMode() {
+        return schemaValidationMode;
     }
 
     /**
      * Indicate whether source documents (supplied as a StreamSource or SAXSource)
      * should be subjected to schema validation
-     * @param validate true if source documents should be validated
+     * @param validationMode true if source documents should be validated
      */
 
-    public void setSchemaValidation(boolean validate) {
-        if (validate && !isSchemaAware(Configuration.XML_SCHEMA)) {
-            needSchemaAwareVersion();
+    public void setSchemaValidationMode(int validationMode) {
+        switch (validationMode) {
+            case Validation.STRIP:
+            case Validation.PRESERVE:
+                break;
+            case Validation.LAX:
+            case Validation.STRICT:
+                if (!isSchemaAware(XML_SCHEMA)) {
+                    needSchemaAwareVersion();
+                }
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported validation mode " + validationMode);
         }
-        schemaValidation = validate;
+        schemaValidationMode = validationMode;
     }
 
     /**
@@ -739,6 +766,16 @@ public class Configuration implements Serializable {
     }
 
     /**
+     * Read schemas from a list of schema locations
+     */
+    
+    public void readMultipleSchemas(PipelineConfiguration pipe, String baseURI, List schemaLocations, String expected)
+            throws SchemaException {
+        needSchemaAwareVersion();
+    }
+
+
+    /**
      * Read an inline schema from a stylesheet
      * @param pipe
      * @param root the xs:schema element in the stylesheet
@@ -765,24 +802,28 @@ public class Configuration implements Serializable {
      * @throws SchemaException if the schema cannot be read or parsed or if it is invalid
      */
 
-    public void addSchema(Source schemaSource) throws SchemaException {
+    public void addSchemaSource(Source schemaSource) throws SchemaException {
         needSchemaAwareVersion();
     }
 
     /**
      * Add a schema to the cache
+     * @param schema an object of class javax.xml.validation.schema, which is not declared as such
+     * to avoid creating a dependency on this JDK 1.5 class
      */
 
-    public void addSchema(Schema schema)
+    public void addSchema(Object schema)
     throws TransformerConfigurationException {
         needSchemaAwareVersion();
     }
 
     /**
      * Get a schema from the cache. Return null if not found.
+     * @return  an object of class javax.xml.validation.schema, which is not declared as such
+     * to avoid creating a dependency on this JDK 1.5 class
      */
 
-    public Schema getSchema(String namespace) {
+    public Object getSchema(String namespace) {
         return null;
     }
 
@@ -877,6 +918,16 @@ public class Configuration implements Serializable {
     public long validateAttribute(int nameCode, CharSequence value, int validation)
     throws ValidationException {
         return -1;
+    }
+
+    /**
+     * Add to a pipeline a receiver that strips all type annotations. This
+     * has a null implementation in the Saxon-B product, because type annotations
+     * can never arise.
+     */
+
+    public Receiver getAnnotationStripper(Receiver destination) {
+        return destination;
     }
 
     /**
@@ -976,6 +1027,31 @@ public class Configuration implements Serializable {
     }
 
     /**
+     * Register the standard Saxon-supplied object models
+     */
+
+    public void registerStandardObjectModels() {
+        // Try to load the support classes for various object models, registering
+        // them in the Configuration
+        String[] models = {"net.sf.saxon.dom.DOMObjectModel",
+                           "net.sf.saxon.jdom.JDOMObjectModel",
+                           "net.sf.saxon.xom.XOMObjectModel"};
+
+        for (int i=0; i<models.length; i++) {
+            try {
+                ExternalObjectModel model = (ExternalObjectModel)Loader.getInstance(models[i]);
+                registerExternalObjectModel(model);
+            } catch (XPathException err) {
+                // ignore the failure. We can't report an exception here, and in any case a failure
+                // is legitimate if the object model isn't on the class path. We'll fail later when
+                // we try to process a node in the chosen object model: the node simply won't be
+                // recognized as one that Saxon can handle
+            }
+        }
+    }
+
+
+    /**
      * Register an external object model
      */
 
@@ -1002,29 +1078,11 @@ public class Configuration implements Serializable {
     }
 
     /**
-     * Get a (DOM level 3) resource resolver. If this is available, it takes precedence
-     * over the URIResolver when dereferencing URIs. Unlike the URIResolver, the resource
-     * resolver can handle non-XML resources (such as query modules), and is sensitive to the
-     * type of resource required and the target namespace expected.
-     * @return the resource resolver previously registered using
-     * {@link #setResourceResolver(org.w3c.dom.ls.LSResourceResolver)}, or null if none has
-     * been registered.
+     * Get all the registered external object models
      */
 
-    public LSResourceResolver getResourceResolver() {
-        return resourceResolver;
-    }
-
-   /**
-     * Set a (DOM level 3) resource resolver. If this is supplied, it takes precedence
-     * over the URIResolver when dereferencing URIs. Unlike the URIResolver, the resource
-     * resolver can handle non-XML resources (such as query modules), and is sensitive to the
-     * type of resource required and the target namespace expected.
-     * @param resourceResolver the resource resolver to be used
-     */
-
-    public void setResourceResolver(LSResourceResolver resourceResolver) {
-        this.resourceResolver = resourceResolver;
+    public List getExternalObjectModels() {
+        return externalObjectModels;
     }
 
     /**
@@ -1036,7 +1094,6 @@ public class Configuration implements Serializable {
         pipe.setConfiguration(this);
         pipe.setErrorListener(getErrorListener());
         pipe.setURIResolver(getURIResolver());
-        pipe.setResourceResolver(getResourceResolver());
         return pipe;
     }
 }

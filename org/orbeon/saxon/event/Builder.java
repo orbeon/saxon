@@ -1,18 +1,16 @@
 package org.orbeon.saxon.event;
 
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.dom.DocumentWrapper;
+import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.StrippedDocument;
 import org.orbeon.saxon.tinytree.TinyBuilder;
 import org.orbeon.saxon.tinytree.TinyDocumentImpl;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.tree.TreeBuilder;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
-import org.w3c.dom.Document;
-import org.w3c.dom.Node;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.dom.DOMSource;
@@ -166,29 +164,12 @@ public abstract class Builder implements Receiver {
 
         NodeInfo start;
         if (source instanceof DOMSource || source instanceof NodeInfo) {
-            if (source instanceof DOMSource) {
-                Node dsnode = ((DOMSource)source).getNode();
-                if (dsnode instanceof NodeInfo) {
-                    start = (NodeInfo)dsnode;
-                } else {
-                    Document dom;
-                    if (dsnode instanceof Document) {
-                        dom = (Document)dsnode;
-                    } else {
-                        dom = dsnode.getOwnerDocument();
-                    }
-                    DocumentWrapper docWrapper = new DocumentWrapper(dom, source.getSystemId(), config);
-                    start = docWrapper.wrap(dsnode);
-                }
-            } else {
-                start = (NodeInfo)source;
-            }
+            start = Controller.unravel(source, config);
             if (stripper != null) {
                 DocumentInfo docInfo = start.getDocumentRoot();
                 StrippedDocument strippedDoc = new StrippedDocument(docInfo, stripper);
                 start = strippedDoc.wrap(start);
             }
-            return start;
 
         } else {
             // we have a SAXSource or StreamSource

@@ -2,13 +2,14 @@ package org.orbeon.saxon.expr;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.BooleanValue;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.value.EmptySequence;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -222,7 +223,14 @@ public class IfExpression extends ComputedExpression {
     */
 
     public int computeSpecialProperties() {
-        // return the properties that are shared by both subexpressions
+        // if one branch is empty, return the properties of the other branch
+        if (thenExp instanceof EmptySequence) {
+            return elseExp.getSpecialProperties();
+        }
+        if (elseExp instanceof EmptySequence) {
+            return thenExp.getSpecialProperties();
+        }
+        // otherwise return the properties that are shared by both subexpressions
         return thenExp.getSpecialProperties() & elseExp.getSpecialProperties();
     }
 

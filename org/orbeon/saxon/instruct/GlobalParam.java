@@ -2,10 +2,10 @@ package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.expr.ErrorExpression;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.ValueRepresentation;
 import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 
 /**
 * The compiled form of a global xsl:param element in the stylesheet or an
@@ -30,12 +30,12 @@ public final class GlobalParam extends GlobalVariable {
     * Evaluate the variable
     */
 
-    public Value evaluateVariable(XPathContext context) throws XPathException {
+    public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException {
         Controller controller = context.getController();
         Bindery b = controller.getBindery();
         boolean wasSupplied = b.useGlobalParameter(getVariableFingerprint(), this, context);
 
-        Value val = b.getGlobalVariableValue(this);
+        ValueRepresentation val = b.getGlobalVariableValue(this);
         if (wasSupplied || val!=null) {
             return val;
         } else {
@@ -55,7 +55,7 @@ public final class GlobalParam extends GlobalVariable {
 
             try {
                 b.setExecuting(this, true);
-                Value value = getSelectValue(context);
+                ValueRepresentation value = getSelectValue(context);
                 b.defineGlobalVariable(this, value);
                 b.setExecuting(this, false);
                 return value;

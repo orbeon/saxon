@@ -8,15 +8,15 @@ import org.orbeon.saxon.om.NamespaceResolver;
 import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.trace.InstructionInfo;
 import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-public class XQueryFunction implements InstructionInfo {
+public class XQueryFunction implements InstructionInfo, Container {
     private int nameCode;
     List arguments;              // A list of RangeVariableDeclaration objects
     SequenceType resultType;
@@ -119,10 +119,15 @@ public class XQueryFunction implements InstructionInfo {
                 // type-check the body of the function
 
                 body = body.simplify(env).analyze(env, null);
+                if (body instanceof ComputedExpression) {
+                    ((ComputedExpression)body).setParentExpression(this);
+                }
                 RoleLocator role =
                         new RoleLocator(RoleLocator.FUNCTION_RESULT, new Integer(nameCode), 0, env.getNamePool());
                 body = TypeChecker.staticTypeCheck(body, resultType, false, role, env);
-
+                if (body instanceof ComputedExpression) {
+                    ((ComputedExpression)body).setParentExpression(this);
+                }
                 ExpressionTool.allocateSlots(body, slot, map);
 
                 if (env.getConfiguration().getTraceListener() != null) {

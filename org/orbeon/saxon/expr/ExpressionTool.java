@@ -1,14 +1,17 @@
 package org.orbeon.saxon.expr;
 
 import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.AnyItemType;
 import org.orbeon.saxon.event.SequenceOutputter;
 import org.orbeon.saxon.instruct.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.sort.SortExpression;
 import org.orbeon.saxon.sort.TupleSorter;
 import org.orbeon.saxon.trace.InstructionInfoProvider;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.value.*;
-import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.SourceLocator;
 import java.util.Iterator;
@@ -29,7 +32,7 @@ public class ExpressionTool
      * function definitions, and it performs context-independent expression rewriting for
      * optimization purposes.
      *
-     * @exception XPathException if the expression contains a static error
+     * @exception net.sf.saxon.trans.XPathException if the expression contains a static error
      * @param expression The expression (as a character string)
      * @param env An object giving information about the compile-time
      *     context of the expression
@@ -135,6 +138,13 @@ public class ExpressionTool
         if (parent instanceof While) {
             return child == ((While)parent).getActionExpression();
         }
+        if (parent instanceof GeneralComparison) {
+            return child == ((GeneralComparison)parent).getOperands()[1];
+        }
+        if (parent instanceof GeneralComparison10) {
+            Expression[] ops = ((GeneralComparison10)parent).getOperands();
+            return child == ops[0] || child == ops[1];
+        }
         return false;
     }
     /**
@@ -149,6 +159,28 @@ public class ExpressionTool
         offer.mustEliminateDuplicates = eliminateDuplicates;
         return exp.promote(offer);
     }
+
+    /**
+     * Remove unwanted sorting from an expression, at compile time, if and only if it is known
+     * that the result of the expression will be homogeneous (all nodes, or all atomic values).
+     * This is done when we need the effective boolean value of a sequence: the EBV of a
+     * homogenous sequence does not depend on its order, but this is not true when atomic
+     * values and nodes are mixed: (N, AV) is true, but (AV, N) is an error.
+     */
+
+    public static Expression unsortedIfHomogeneous(Expression exp, boolean eliminateDuplicates)
+    throws XPathException {
+        if (exp instanceof Value) return exp;   // fast exit
+        if (!(exp.getItemType() instanceof AnyItemType)) {
+            PromotionOffer offer = new PromotionOffer();
+            offer.action = PromotionOffer.UNORDERED;
+            offer.mustEliminateDuplicates = eliminateDuplicates;
+            return exp.promote(offer);
+        } else {
+            return exp;
+        }
+    }
+
 
     /**
      * Do lazy evaluation of an expression. This will return a value, which may optionally
@@ -167,13 +199,11 @@ public class ExpressionTool
      *     evaluate it later
      */
 
-    public static Value lazyEvaluate(Expression exp, XPathContext context, boolean save) throws XPathException {
+    public static ValueRepresentation lazyEvaluate(Expression exp, XPathContext context, boolean save) throws XPathException {
         if (exp instanceof Value) {
             return (Value)exp;
         } else if (exp instanceof VariableReference) {
-            // we always dereference the variable reference; this will often
-            // do lazy evaluation of the expression to which the variable is bound
-            return eagerEvaluate(exp, context);
+            return ((VariableReference)exp).evaluateVariable(context);
         } else if (context == null) {
             // this should only happen if we are evaluating a value rather than an expression
             // so this branch is probably unnecessary
@@ -201,7 +231,7 @@ public class ExpressionTool
      * Evaluate an expression now; lazy evaluation is not permitted in this case
      * @param exp the expression to be evaluated
      * @param context the run-time evaluation context
-     * @exception XPathException if any dynamic error occurs evaluating the
+     * @exception net.sf.saxon.trans.XPathException if any dynamic error occurs evaluating the
      *     expression
      * @return the result of evaluating the expression
      */
@@ -209,6 +239,16 @@ public class ExpressionTool
     public static Value eagerEvaluate(Expression exp, XPathContext context) throws XPathException {
         if (exp instanceof Value && !(exp instanceof Closure)) {
             return (Value)exp;
+        }
+        if (exp instanceof VariableReference) {
+            ValueRepresentation v = ((VariableReference)exp).evaluateVariable(context);
+            if (v instanceof Closure) {
+                return SequenceExtent.makeSequenceExtent(((Closure)v).iterate(null));
+            } else if (v instanceof Value) {
+                return (Value)v;
+            } else if (v instanceof NodeInfo) {
+                return new SingletonNode((NodeInfo)v);
+            }
         }
         int m = exp.getImplementationMethod();
         if ((m & Expression.ITERATE_METHOD) != 0) {
@@ -219,7 +259,7 @@ public class ExpressionTool
                 Item item = ((SingletonIterator)iterator).getValue();
                 return Value.asValue(item);
             }
-            SequenceExtent extent = new SequenceExtent(iterator);
+            Value extent = SequenceExtent.makeSequenceExtent(iterator);
             int len = extent.getLength();
             if (len==0) {
                 return EmptySequence.getInstance();
@@ -244,7 +284,7 @@ public class ExpressionTool
             seq.open();
             exp.process(c2);
             seq.close();
-            return seq.getSequence();
+            return Value.asValue(seq.getSequence());
         }
     }
 
@@ -300,7 +340,7 @@ public class ExpressionTool
 
     /**
      * Determine the effective boolean value of a sequence, given an iterator over the sequence
-     * @param iterator AN iterator over the sequence whose effective boolean value is required
+     * @param iterator An iterator over the sequence whose effective boolean value is required
      * @return the effective boolean value
      * @throws XPathException if a dynamic error occurs
      */
@@ -313,16 +353,32 @@ public class ExpressionTool
             return true;
         } else {
             if (first instanceof BooleanValue) {
-                return ((BooleanValue)first).getBooleanValue() || (iterator.next() != null);
+                if (iterator.next() != null) {
+                    ebvError("sequence of two or more items starting with an atomic value");
+                }
+                return ((BooleanValue)first).getBooleanValue();
             } else if (first instanceof StringValue) {
-                return (!first.getStringValue().equals("")) || (iterator.next() != null);
+                if (iterator.next() != null) {
+                    ebvError("sequence of two or more items starting with an atomic value");
+                }
+                return (first.getStringValueCS().length()!=0);
             } else if (first instanceof NumericValue) {
+                if (iterator.next() != null) {
+                    ebvError("sequence of two or more items starting with an atomic value");
+                }
                 // first==first is a test for NaN
-                return (iterator.next() != null) || (!(first.equals(DoubleValue.ZERO)) && first.equals(first));
+                return (!(first.equals(DoubleValue.ZERO)) && first.equals(first));
             } else {
-                return true;
+                ebvError("sequence starting with an atomic value other than a boolean, number, or string");
+                return false;
             }
         }
+    }
+
+    public static void ebvError(String reason) throws XPathException {
+        DynamicError err = new DynamicError("Effective boolean value is not defined for a " + reason);
+        err.setIsTypeError(true);
+        throw err;
     }
 
 

@@ -3,15 +3,16 @@ import org.orbeon.saxon.event.Builder;
 import org.orbeon.saxon.instruct.TerminationException;
 import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.Validation;
 import org.orbeon.saxon.query.DynamicQueryContext;
 import org.orbeon.saxon.query.QueryResult;
 import org.orbeon.saxon.query.StaticQueryContext;
 import org.orbeon.saxon.query.XQueryExpression;
 import org.orbeon.saxon.trace.TraceListener;
 import org.orbeon.saxon.trace.XQueryTraceListener;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.UntypedAtomicValue;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
 import org.xml.sax.InputSource;
 
 import javax.xml.transform.OutputKeys;
@@ -205,9 +206,18 @@ public class Query {
 
                     else if (args[i].equals("-val")) {
                         if (schemaAware) {
-                            config.setSchemaValidation(true);
+                            config.setSchemaValidationMode(Validation.STRICT);
                         } else {
                             quit("The -val option requires a schema-aware processor", 2);
+                        }
+                        i++;
+                    }
+
+                    else if (args[i].equals("-vlax")) {
+                        if (schemaAware) {
+                            config.setSchemaValidationMode(Validation.LAX);
+                        } else {
+                            quit("The -vlax option requires a schema-aware processor", 2);
                         }
                         i++;
                     }
@@ -336,7 +346,9 @@ public class Query {
                     line = err.getLocator().getLineNumber();
                     module = err.getLocator().getSystemId();
                 }
-                if (!err.hasBeenReported()) {
+                if (err.hasBeenReported()) {
+                    quit(err.getMessage(), 2);
+                } else {
                     if (line == -1) {
                         System.err.println("Failed to compile query: " + err.getMessage());
                     } else {
@@ -344,7 +356,8 @@ public class Query {
                         System.err.println(err.getMessage());
                     }
                 }
-                throw new DynamicError(err);
+                exp = null;
+                System.exit(2);
             }
 
             if (explain) {
@@ -378,9 +391,11 @@ public class Query {
                 } catch (TerminationException err) {
                     throw err;
                 } catch (XPathException err) {
-                    // The message will already have been displayed; don't do it twice
-                    // err.printStackTrace();
-                    throw new DynamicError("Run-time errors were reported");
+                    if (err.hasBeenReported()) {
+                        throw new DynamicError("Run-time errors were reported");
+                    } else {
+                        throw err;
+                    }
                 }
 
                 if (showTime) {
@@ -444,6 +459,7 @@ public class Query {
         System.err.println("  -u              Names are URLs not filenames");
         if (config.isSchemaAware(Configuration.XQUERY)) {
             System.err.println("  -val            Validate source documents using schema");
+            System.err.println("  -vlax           Lax validation of source documents using schema");                  
             System.err.println("  -vw             Treat validation errors on result document as warnings");
         }
         System.err.println("  -wrap           Wraps result sequence in XML elements");

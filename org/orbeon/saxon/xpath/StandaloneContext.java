@@ -6,12 +6,13 @@ import org.orbeon.saxon.functions.*;
 import org.orbeon.saxon.instruct.LocationMap;
 import org.orbeon.saxon.instruct.SlotManager;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.sort.CodepointCollator;
 import org.orbeon.saxon.sort.CollationFactory;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.Variable;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.QNameValue;
 
 import javax.xml.namespace.NamespaceContext;
-import javax.xml.namespace.QName;
 import javax.xml.transform.SourceLocator;
 import javax.xml.xpath.XPathFunctionResolver;
 import javax.xml.xpath.XPathVariableResolver;
@@ -27,8 +28,6 @@ import java.util.Iterator;
  * is manipulated through the XPath object, implemented in Saxon by the {@link XPathEvaluator}
 */
 
-// TODO: this class, or those parts that are actually needed, could be merged into the XPathEvaluator
-
 public class StandaloneContext implements StaticContext, NamespaceResolver {
 
 	private NamePool namePool;
@@ -43,6 +42,8 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
     private FunctionLibrary functionLibrary;
     private XPathFunctionLibrary xpathFunctionLibrary;
     private String defaultFunctionNamespace = NamespaceConstant.FN;
+    private short defaultElementNamespace = NamespaceConstant.NULL_CODE;
+    private boolean backwardsCompatible = false;
 
     private NamespaceContext namespaceContext;
     private XPathVariableResolver variableResolver;
@@ -68,7 +69,7 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
         // Set up a default function library. This can be overridden using setFunctionLibrary()
 
         FunctionLibraryList lib = new FunctionLibraryList();
-        lib.addFunctionLibrary(new SystemFunctionLibrary(getConfiguration(), false));
+        lib.addFunctionLibrary(new SystemFunctionLibrary(SystemFunctionLibrary.XPATH_ONLY));
         lib.addFunctionLibrary(getConfiguration().getVendorFunctionLibrary());
         lib.addFunctionLibrary(new ConstructorFunctionLibrary(getConfiguration()));
         if (config.isAllowExternalFunctions()) {
@@ -132,8 +133,9 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
 	}
 
     /**
-     * Supply the NamespaceContext used to resolve namespaces. This is used only for a namespace
-     * that has not been explicitly declared using {@link #declareNamespace}.
+     * Supply the NamespaceContext used to resolve namespaces. This supplements namespaces
+     * that have been explicitly declared using {@link #declareNamespace} or
+     * that have been implicitly declared using {@link #setNamespaces(net.sf.saxon.om.NodeInfo)}
      */
 
     public void setNamespaceContext(NamespaceContext context) {
@@ -250,7 +252,7 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
         if (!("".equals(prefix))) {
             uri = getURIForPrefix(prefix);
         }
-        Variable var = Variable.make(qname);
+        Variable var = Variable.make(qname, getConfiguration());
         var.setValue(initialValue);
         int fingerprint = namePool.allocate(prefix, uri, localName) & 0xfffff;
         variables.put(new Integer(fingerprint), var);
@@ -346,7 +348,7 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
      * when the prefix is empty.
      * This method is provided for use by the XPath parser.
      * @param prefix The prefix
-     * @throws XPathException if the prefix is not declared
+     * @throws net.sf.saxon.trans.XPathException if the prefix is not declared
     */
 
     public String getURIForPrefix(String prefix) throws XPathException {
@@ -363,7 +365,9 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
 
     /**
      * Get the namespace URI corresponding to a given prefix. Return null
-     * if the prefix is not in scope.
+     * if the prefix is not in scope. This method first searches any namespaces
+     * declared using {@link #declareNamespace(String, String)}, and then searches
+     * any namespace context supplied using {@link #setNamespaceContext(javax.xml.namespace.NamespaceContext)}.
      * @param prefix the namespace prefix
      * @param useDefault true if the default namespace is to be used when the
      * prefix is ""
@@ -385,26 +389,16 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
     }
 
     /**
-     * Use this NamespaceContext to resolve a lexical QName
-     * @param qname the lexical QName; this must have already been lexically validated
-     * @param useDefault true if the default namespace is to be used to resolve an unprefixed QName
-     * @param pool the NamePool to be used
-     * @return the integer fingerprint that uniquely identifies this name
-     */
-
-    public int getFingerprint(String qname, boolean useDefault, NamePool pool) {
-        // TODO: implement this!
-        return -1;
-    }
-
-    /**
      * Get an iterator over all the prefixes declared in this namespace context. This will include
-     * the default namespace (prefix="") and the XML namespace where appropriate
+     * the default namespace (prefix="") and the XML namespace where appropriate. The iterator only
+     * covers namespaces explicitly declared using {@link #declareNamespace(String, String)}; it does not
+     * include namespaces declared using {@link #setNamespaceContext(javax.xml.namespace.NamespaceContext)},
+     * because the JAXP {@link NamespaceContext} class provides no way to discover all the namespaces
+     * available.
      */
 
     public Iterator iteratePrefixes() {
-        // TODO: implement this!
-        return null;
+        return namespaces.keySet().iterator();
     }
 
     /**
@@ -429,7 +423,8 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
         // is designed to be called at run time. So we need to create a variable now,
         // which will call the variableResolver when called upon to return the run-time value
         if (variableResolver != null) {
-            QName qname = new QNameValue(namePool, fingerprint).getQName();
+            QNameValue qname = new QNameValue(namePool, fingerprint);
+
             return new JAXPVariable(qname, variableResolver);
         }
         throw new StaticError("Undeclared variable in a standalone expression");
@@ -482,11 +477,19 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
     }
 
     /**
+     * Set the default namespace for element and type names
+     */
+
+    public void setDefaultElementNamespace(String uri) {
+        defaultElementNamespace = namePool.allocateCodeForURI(uri);
+    }
+
+    /**
     * Get the default XPath namespace, as a namespace code that can be looked up in the NamePool
     */
 
     public short getDefaultElementNamespace() {
-        return NamespaceConstant.NULL_CODE;
+        return defaultElementNamespace;
     }
 
     /**
@@ -506,14 +509,34 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
     }
 
     /**
+     * Set XPath 1.0 backwards compatibility mode
+     * @param backwardsCompatible if true, expressions will be evaluated with
+     *  XPath 1.0 compatibility mode set to true.
+     */
+
+    public void setBackwardsCompatibilityMode(boolean backwardsCompatible) {
+        this.backwardsCompatible = true;
+    }
+    /**
      * Determine whether Backwards Compatible Mode is used
      * @return false; XPath 1.0 compatibility mode is not supported in the standalone
      * XPath API
      */
 
     public boolean isInBackwardsCompatibleMode() {
-        return false;
+        return backwardsCompatible;
     }
+
+    /**
+     * Determine whether a Schema for a given target namespace has been imported. Note that the
+     * in-scope element declarations, attribute declarations and schema types are the types registered
+     * with the (schema-aware) configuration, provided that their namespace URI is registered
+     * in the static context as being an imported schema namespace. (A consequence of this is that
+     * within a Configuration, there can only be one schema for any given namespace, including the
+     * null namespace).
+     * @return This implementation always returns false: the standalone XPath API does not support
+     * schema-aware processing.
+     */
 
     public boolean isImportedSchema(String namespace) {
         return false;

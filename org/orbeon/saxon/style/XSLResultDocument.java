@@ -5,11 +5,11 @@ import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.ResultDocument;
 import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.*;
@@ -42,7 +42,7 @@ public class XSLResultDocument extends StyleElement {
         fans.add(StandardNames.CDATA_SECTION_ELEMENTS);
         fans.add(StandardNames.INCLUDE_CONTENT_TYPE);
         fans.add(StandardNames.ESCAPE_URI_ATTRIBUTES);
-        fans.add(StandardNames.UNDECLARE_NAMESPACES);
+        fans.add(StandardNames.UNDECLARE_PREFIXES);
         //fans.add(StandardNames.USE_CHARACTER_MAPS);
         fans.add(StandardNames.SAXON_NEXT_IN_CHAIN);
         fans.add(StandardNames.SAXON_CHARACTER_REPRESENTATION);
@@ -94,6 +94,7 @@ public class XSLResultDocument extends StyleElement {
         String hrefAttribute = null;
         String validationAtt = null;
         String typeAtt = null;
+        String useCharacterMapsAtt = null;
 
 
 		for (int a=0; a<atts.getLength(); a++) {
@@ -107,12 +108,13 @@ public class XSLResultDocument extends StyleElement {
                 validationAtt = atts.getValue(a).trim();
             } else if (f==StandardNames.TYPE) {
                 typeAtt = atts.getValue(a).trim();
+            } else if (f==StandardNames.USE_CHARACTER_MAPS) {
+                useCharacterMapsAtt = atts.getValue(a).trim();
             } else if (fans.contains(f) || !(f.startsWith("{}"))) {
                 // this is a serialization attribute
                 String val = atts.getValue(a).trim();
                 Expression exp = makeAttributeValueTemplate(val);
                 serializationAttributes.put(new Integer(nc&0xfffff), exp);
-                // TODO: support use-character-maps
         	} else {
         		checkUnknownAttribute(nc);
         	}
@@ -155,6 +157,13 @@ public class XSLResultDocument extends StyleElement {
         if (typeAtt != null && validationAtt != null) {
             compileError("The validation and type attributes are mutually exclusive", "XT1505");
         }
+
+        if (useCharacterMapsAtt != null) {
+            String s = XSLOutput.prepareCharacterMaps(this, useCharacterMapsAtt, new Properties());
+            serializationAttributes.put(
+                    new Integer(getNamePool().allocate("", "", StandardNames.USE_CHARACTER_MAPS)),
+                    new StringValue(s));
+        }
     }
 
     public void validate() throws TransformerConfigurationException {
@@ -195,8 +204,8 @@ public class XSLResultDocument extends StyleElement {
                             getNamePool(), getStaticContext().getNamespaceResolver());
                     fixed.add(fp);
                 } catch (XPathException e) {
-                    if (NamespaceConstant.SAXON.equals(e.getErrorCode().getNamespaceURI()) &&
-                            "warning".equals(e.getErrorCode().getLocalPart())) {
+                    if (NamespaceConstant.SAXON.equals(e.getErrorCodeNamespace()) &&
+                            "warning".equals(e.getErrorCodeLocalPart())) {
                         compileWarning(e.getMessage());
                     } else {
                         compileError(e);

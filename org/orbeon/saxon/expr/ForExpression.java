@@ -2,11 +2,13 @@ package org.orbeon.saxon.expr;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.ValueRepresentation;
 import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.value.*;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.functions.SystemFunction;
 
 import java.io.PrintStream;
 
@@ -60,9 +62,8 @@ public class ForExpression extends Assignation {
         }
 
         SequenceType decl = declaration.getRequiredType();
-        SequenceType sequenceType =
-            new SequenceType(decl.getPrimaryType(),
-                             StaticProperty.ALLOWS_ZERO_OR_MORE);
+        SequenceType sequenceType = SequenceType.makeSequenceType(
+                decl.getPrimaryType(), StaticProperty.ALLOWS_ZERO_OR_MORE);
         RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, new Integer(nameCode), 0, env.getNamePool());
         sequence = TypeChecker.strictTypeCheck(
                                 sequence, sequenceType, role, env);
@@ -73,6 +74,82 @@ public class ForExpression extends Assignation {
                 sequence.getSpecialProperties());
 
         action = action.analyze(env, contextItemType);
+
+        // See if there is a simple "where" condition that can be turned into a predicate
+
+        if (action instanceof IfExpression && ((IfExpression)action).getElseExpression() instanceof EmptySequence) {
+            IfExpression condAction = (IfExpression)action;
+            if (condAction.getCondition() instanceof ValueComparison) {
+                ValueComparison comp = (ValueComparison)condAction.getCondition();
+                Expression[] operands = comp.getOperands();
+                for (int op=0; op<2; op++) {
+
+                    // If the where clause is a simple test on the position variable, for example
+                    //    for $x at $p in EXPR where $p = 5 return A
+                    // then absorb the where condition into a predicate, rewriting it as
+                    //    for $x in EXPR[position() = 5] return A
+                    // This takes advantage of the optimizations applied to positional filter expressions
+
+                    if (positionVariable != null && positionVariable.getReferenceList().size() == 1) {
+                        if (operands[op] instanceof VariableReference &&
+                                ((VariableReference)operands[op]).getBinding() == positionBinding &&
+                                (operands[1-op].getDependencies() & StaticProperty.DEPENDS_ON_FOCUS) == 0) {
+                            FunctionCall position =
+                                    SystemFunction.makeSystemFunction("position", 1, env.getNamePool());
+                            position.setArguments(SimpleExpression.NO_ARGUMENTS);
+                            Expression predicate;
+                            if (op==0) {
+                                predicate = new ValueComparison(position, comp.getOperator(), operands[1]);
+                            } else {
+                                predicate = new ValueComparison(operands[0], comp.getOperator(), position);
+                            }
+                            sequence = new FilterExpression(sequence, predicate, env);
+                            action = condAction.getThenExpression();
+                            positionVariable = null;
+                            positionBinding = null;
+                            return simplify(env).analyze(env, contextItemType);
+                        }
+                    }
+
+                    // If the where clause is a simple test on the value of the range variable, or a path
+                    // expression starting with the range variable, then rewrite it as a predicate.
+                    // For example, rewrite
+                    //    for $x in EXPR where $x/a/b eq "z" return A
+                    // as
+                    //    for $x in EXPR[a/b eq "z"] return A
+
+                    // TODO: this optimization rarely kicks in, because (a) it doesn't cater for
+                    // general comparisons, and (b) the path expression is often wrapped in expressions
+                    // that do atomization and type conversion on the result. See for example qxmp214.
+                    // (It's not a big time-saver at the moment, but would be if we used indexing for
+                    // filter predicates). Need a more general mechanism to replace a variable reference
+                    // with a reference to the context item wherever it appears in an expression, so long
+                    // as the context is the same as the outermost context.
+
+                    Expression start = operands[op];
+                    Expression rest = new ContextItemExpression();
+                    if (start instanceof PathExpression) {
+                        start = ((PathExpression)start).getFirstStep();
+                        rest = ((PathExpression)start).getRemainingSteps();
+                    }
+                    if (start instanceof VariableReference &&
+                            ((VariableReference)start).getBinding() == this &&
+                            (operands[1-op].getDependencies() & StaticProperty.DEPENDS_ON_FOCUS) == 0) {
+                        Expression predicate;
+                            if (op==0) {
+                                predicate = new ValueComparison(rest, comp.getOperator(), operands[1]);
+                            } else {
+                                predicate = new ValueComparison(operands[0], comp.getOperator(), rest);
+                            }
+                        sequence = new FilterExpression(sequence, predicate, env);
+                        action = condAction.getThenExpression();
+                        positionVariable = null;
+                        positionBinding = null;
+                        return simplify(env).analyze(env, contextItemType);
+                    }
+                }
+            }
+        }
 
         // Simplify an expression of the form "for $b in a/b/c return $b/d".
         // (XQuery users seem to write these a lot!)
@@ -87,7 +164,21 @@ public class ForExpression extends Assignation {
             }
         }
 
+        // Simplify an expression of the form "for $x in EXPR return $x". These sometimes
+        // arise as a result of previous optimization steps.
+
+        if (action instanceof VariableReference && ((VariableReference)action).getBinding() == this) {
+            return sequence;
+        }
+
         declaration = null;     // let the garbage collector take it
+
+        // Try to promote any WHERE clause appearing within the FOR expression
+
+        Expression p = promoteWhereClause(positionBinding);
+        if (p != null) {
+            return p;
+        }
 
         // Extract subexpressions that don't depend on the range variable.
         // We don't do this if there is a position variable. Ideally we would
@@ -114,14 +205,24 @@ public class ForExpression extends Assignation {
             return offer.containingExpression;
         }
 
-        // Try to promote any WHERE clause appearing within the FOR expression
 
-        Expression p = promoteWhereClause();
-        if (p != null) {
-            return p;
-        }
 
         return this;
+    }
+
+    /**
+     * Extend an array of variable bindings to include the binding(s) defined in this expression
+     */
+
+    protected Binding[] extendBindingList(Binding[] in) {
+        if (positionBinding == null) {
+            return super.extendBindingList(in);
+        }
+        Binding[] newBindingList = new Binding[in.length+2];
+        System.arraycopy(in, 0, newBindingList, 0, in.length);
+        newBindingList[in.length] = this;
+        newBindingList[in.length+1] = positionBinding;
+        return newBindingList;
     }
 
     /**
@@ -176,7 +277,7 @@ public class ForExpression extends Assignation {
         while (true) {
             Item item = iter.next();
             if (item == null) break;
-            context.setLocalVariable(slotNumber, Value.asValue(item));
+            context.setLocalVariable(slotNumber, item);
             if (positionBinding != null) {
                 positionBinding.setPosition(position++);
             }
@@ -243,7 +344,7 @@ public class ForExpression extends Assignation {
         }
 
         public Object map(Item item, XPathContext c, Object info) throws XPathException {
-            context.setLocalVariable(slotNumber, Value.asValue(item));
+            context.setLocalVariable(slotNumber, item);
             if (positionBinding != null) {
                 positionBinding.setPosition(position++);
             }
@@ -278,7 +379,16 @@ public class ForExpression extends Assignation {
             this.position = position;
         }
 
-        public Value evaluateVariable(XPathContext context) throws XPathException {
+        /**
+         * Indicate whether the binding is local or global. A global binding is one that has a fixed
+         * value for the life of a query or transformation; any other binding is local.
+         */
+
+        public boolean isGlobal() {
+            return false;
+        }
+
+        public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException {
             return new IntegerValue(position);
         }
 

@@ -1,16 +1,17 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.Err;
 import org.orbeon.saxon.Loader;
+import org.orbeon.saxon.instruct.Block;
 import org.orbeon.saxon.instruct.TraceExpression;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.*;
 import org.orbeon.saxon.sort.Reverser;
 import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.*;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -63,7 +64,7 @@ public class ExpressionParser {
      * Expect a given token, fail if the current token is different
      *
      * @param token the expected token
-     * @throws org.orbeon.saxon.xpath.StaticError if the current token is not the expected
+     * @throws org.orbeon.saxon.trans.StaticError if the current token is not the expected
      *     token
      */
 
@@ -76,7 +77,7 @@ public class ExpressionParser {
     /**
      * Report a syntax error (a static error with error code XP0003)
      * @param message the error message
-     * @exception org.orbeon.saxon.xpath.StaticError always thrown: an exception containing the
+     * @exception org.orbeon.saxon.trans.StaticError always thrown: an exception containing the
      *     supplied message
      */
 
@@ -89,7 +90,7 @@ public class ExpressionParser {
      *
      * @param message the error message
      * @param errorCode the error code
-     * @throws org.orbeon.saxon.xpath.StaticError always thrown: an exception containing the
+     * @throws org.orbeon.saxon.trans.StaticError always thrown: an exception containing the
      *     supplied message
      */
 
@@ -147,8 +148,11 @@ public class ExpressionParser {
 	/**
 	 * Parse a string representing an expression
 	 *
-	 * @throws org.orbeon.saxon.xpath.StaticError if the expression contains a syntax error
+	 * @throws org.orbeon.saxon.trans.StaticError if the expression contains a syntax error
 	 * @param expression the expression expressed as a String
+     * @param start offset within the string where parsing is to start
+     * @param terminator character to treat as terminating the expression
+     * @param lineNumber location of the start of the expression, for diagnostics
 	 * @param env the static context for the expression
 	 * @return an Expression object representing the result of parsing
 	 */
@@ -164,7 +168,11 @@ public class ExpressionParser {
         }
         Expression exp = parseExpression();
         if (t.currentToken != terminator) {
-            grumble("Unexpected token " + currentTokenDisplay() + " beyond end of expression");
+            if (t.currentToken == Token.EOF && terminator == Token.RCURLY) {
+                grumble("Missing curly brace after expression in attribute value template", "XT0350");
+            } else {
+                grumble("Unexpected token " + currentTokenDisplay() + " beyond end of expression");
+            }
         }
         return exp;
     }
@@ -172,7 +180,7 @@ public class ExpressionParser {
     /**
      * Parse a string representing an XSLT pattern
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if the pattern contains a syntax error
+     * @throws org.orbeon.saxon.trans.StaticError if the pattern contains a syntax error
      * @param pattern the pattern expressed as a String
      * @param env the static context for the pattern
      * @return a Pattern object representing the result of parsing
@@ -201,7 +209,7 @@ public class ExpressionParser {
      * @param input the string, which should conform to the XPath SequenceType
      *      production
      * @param env the static context
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return a SequenceType object representing the type
      */
 
@@ -229,7 +237,7 @@ public class ExpressionParser {
      * Parse a top-level Expression:
      * ExprSingle ( ',' ExprSingle )*
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if the expression contains a syntax error
+     * @throws org.orbeon.saxon.trans.StaticError if the expression contains a syntax error
      * @return the Expression object that results from parsing
      */
 
@@ -237,7 +245,8 @@ public class ExpressionParser {
         Expression exp = parseExprSingle();
         while (t.currentToken == Token.COMMA) {
             nextToken();
-            exp = new AppendExpression(exp, Token.COMMA, parseExpression());
+            exp = Block.makeBlock(exp, parseExpression());
+            //exp = new AppendExpression(exp, Token.COMMA, parseExpression());
             setLocation(exp);
         }
         return exp;
@@ -246,7 +255,7 @@ public class ExpressionParser {
     /**
      * Parse an ExprSingle
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -265,10 +274,9 @@ public class ExpressionParser {
             case Token.VALIDATE:
             case Token.VALIDATE_STRICT:
             case Token.VALIDATE_LAX:
-            //case Token.VALIDATE_SKIP:
-            //case Token.VALIDATE_GLOBAL:
-            //case Token.VALIDATE_CONTEXT:
                 return parseValidateExpression();
+            case Token.PRAGMA:
+                return parseExtensionExpression();
 
             default:
                 return parseOrExpression();
@@ -298,10 +306,21 @@ public class ExpressionParser {
     }
 
     /**
+     * Parse an Extension Expression
+     * This construct is XQuery-only, so the XPath version of this
+     * method throws an error unconditionally
+     */
+
+    protected Expression parseExtensionExpression() throws StaticError {
+        grumble("extension expressions (#...#) are not allowed in XPath");
+        return null;
+    }
+
+    /**
      * Parse an OrExpression:
      * AndExpr ( 'or' AndExpr )*
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -319,7 +338,7 @@ public class ExpressionParser {
      * Parse an AndExpr:
      * EqualityExpr ( 'and' EqualityExpr )*
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -337,7 +356,7 @@ public class ExpressionParser {
      * Parse a FOR expression:
      * for $x in expr (',' $y in expr)* 'return' expr
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -352,7 +371,7 @@ public class ExpressionParser {
      * Parse a quantified expression:
      * (some|every) $x in expr 'satisfies' expr
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -371,7 +390,7 @@ public class ExpressionParser {
      * <p>On entry, the current token indicates whether a for, some, or every
      * expression is expected.</p>
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -453,8 +472,8 @@ public class ExpressionParser {
             // imprecise.
 
             if (fc.requiredType == SequenceType.SINGLE_ITEM) {
-                SequenceType type =
-                        new SequenceType(fc.sequence.getItemType(), StaticProperty.EXACTLY_ONE);
+                SequenceType type = SequenceType.makeSequenceType(
+                        fc.sequence.getItemType(), StaticProperty.EXACTLY_ONE);
                 fc.rangeVariable.setRequiredType(type);
             } else {
                 fc.rangeVariable.setRequiredType(fc.requiredType);
@@ -486,7 +505,7 @@ public class ExpressionParser {
      * Parse an IF expression:
      * if '(' expr ')' 'then' expr 'else' expr
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -514,7 +533,7 @@ public class ExpressionParser {
      * Parse an "instance of"  expression
      * Expr ("instance" "of") SequenceType
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -532,7 +551,7 @@ public class ExpressionParser {
      * Parse a "treat as" expression
      * castable-expression ("treat" "as" SequenceType )?
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -551,7 +570,7 @@ public class ExpressionParser {
      * Parse a "castable as" expression
      * Expr "castable as" AtomicType "?"?
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -576,7 +595,7 @@ public class ExpressionParser {
      * Parse a "cast as" expression
      * castable-expression ("cast" "as" AtomicType "?"?)
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -602,7 +621,7 @@ public class ExpressionParser {
      * and return the object representing the atomic type.
      * @param qname The lexical QName of the atomic type
      * @return The atomic type
-     * @throws org.orbeon.saxon.xpath.StaticError if the QName is invalid or if no atomic type of that
+     * @throws org.orbeon.saxon.trans.StaticError if the QName is invalid or if no atomic type of that
      * name exists as a built-in type or a type in an imported schema
      */
     private AtomicType getAtomicType(String qname) throws StaticError {
@@ -680,7 +699,7 @@ public class ExpressionParser {
      * eq, lt, gt, ne, le, ge,
      * is, isnot, <<, >>
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -730,7 +749,7 @@ public class ExpressionParser {
      * Parse a RangeExpr:<br>
      * AdditiveExpr ('to' AdditiveExpr )?
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -752,7 +771,7 @@ public class ExpressionParser {
      * We also allow "element of type QName" and "attribute of type QName"
      * The QName must be the name of a built-in schema-defined data type.
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -775,7 +794,7 @@ public class ExpressionParser {
             nextToken();
             expect(Token.RPAR);
             nextToken();
-            return new SequenceType(NoNodeTest.getInstance(), StaticProperty.EMPTY);
+            return SequenceType.makeSequenceType(NoNodeTest.getInstance(), StaticProperty.EMPTY);
             // Note, no occurrence indicator allowed
         } else {
             grumble("Expected type name in SequenceType, found " + Token.tokens[t.currentToken]);
@@ -804,7 +823,7 @@ public class ExpressionParser {
             default:
                 occurrenceFlag = StaticProperty.EXACTLY_ONE;
         }
-        return new SequenceType(primaryType, occurrenceFlag);
+        return SequenceType.makeSequenceType(primaryType, occurrenceFlag);
     }
 
 
@@ -812,7 +831,7 @@ public class ExpressionParser {
      * Parse an AdditiveExpr:
      * MultiplicativeExpr ( (+|-) MultiplicativeExpr )*
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -832,7 +851,7 @@ public class ExpressionParser {
      * Parse a MultiplicativeExpr:<br>
      * UnionExpr ( (*|div|idiv|mod) UnionExpr )*
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -855,7 +874,7 @@ public class ExpressionParser {
      * ('+'|'-')* ValueExpr
      * parsed as ('+'|'-')? UnaryExpr
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -879,10 +898,10 @@ public class ExpressionParser {
         case Token.VALIDATE:
         case Token.VALIDATE_STRICT:
         case Token.VALIDATE_LAX:
-        //case Token.VALIDATE_SKIP:
-        //case Token.VALIDATE_GLOBAL:
-        //case Token.VALIDATE_CONTEXT:
             exp = parseValidateExpression();
+            break;
+        case Token.PRAGMA:
+            exp = parseExtensionExpression();
             break;
         default:
             exp = parsePathExpression();
@@ -895,7 +914,7 @@ public class ExpressionParser {
      * Parse a UnionExpr:<br>
      * IntersectExceptExpr ( "|" | "union" IntersectExceptExpr )*
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -913,7 +932,7 @@ public class ExpressionParser {
      * Parse an IntersectExceptExpr:<br>
      * PathExpr ( ( 'intersect' | 'except') PathExpr )*
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -963,7 +982,7 @@ public class ExpressionParser {
      * constructs that may start a path expression such as a variable reference $name or a
      * parenthesed expression (A|B). Numeric and string literals also come under this heading.
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -1004,7 +1023,7 @@ public class ExpressionParser {
      * Parse a relative path (a sequence of steps). Called when the current token immediately
      * follows a separator (/ or //), or an implicit separator (XYZ is equivalent to ./XYZ)
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -1031,7 +1050,7 @@ public class ExpressionParser {
     /**
      * Parse a step (including an optional sequence of predicates)
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -1045,7 +1064,7 @@ public class ExpressionParser {
 
         while (t.currentToken == Token.LSQB) {
             nextToken();
-            Expression predicate = parseExprSingle();
+            Expression predicate = parseExpression();
             expect(Token.RSQB);
             nextToken();
             step = new FilterExpression(step, predicate, env);
@@ -1061,7 +1080,7 @@ public class ExpressionParser {
     /**
      * Parse a basic step expression (without the predicates)
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -1228,7 +1247,7 @@ public class ExpressionParser {
      * One of QName, prefix:*, *:suffix, *, text(), node(), comment(), or
      * processing-instruction(literal?), or element(~,~), attribute(~,~), etc.
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @param nodeType the node type being sought if one is specified
      * @return the resulting NodeTest object
      */
@@ -1384,7 +1403,7 @@ public class ExpressionParser {
                     nameCode = -1;
                 } else if (t.currentToken == Token.NAME) {
                     nodeName = t.currentTokenValue;
-                    nameCode = makeNameCode(t.currentTokenValue, true) & 0xfffff;
+                    nameCode = makeNameCode(t.currentTokenValue, true); // & 0xfffff;
                 } else {
                     grumble("Unexpected " + Token.tokens[t.currentToken] + " after '(' in SequenceType");
                 }
@@ -1402,19 +1421,19 @@ public class ExpressionParser {
                         return NodeKindTest.makeNodeKindTest(primaryType);
                     } else {
                         NodeTest nameTest = null;
-                        ValidSchemaType schemaType = null;
+                        SchemaType schemaType = null;
                         if (primaryType == Type.ATTRIBUTE) {
                             // attribute(N) or schema-attribute(N)
                             if (schemaDeclaration) {
                                 SchemaDeclaration attributeDecl =
-                                        env.getConfiguration().getAttributeDeclaration(nameCode);
+                                        env.getConfiguration().getAttributeDeclaration(nameCode & 0xfffff);
                                 if (!env.isImportedSchema(suri)) {
                                     grumble("No schema has been imported for namespace '" + suri + '\'');
                                 }
                                 if (attributeDecl == null) {
                                     grumble("There is no declaration for attribute @" + nodeName + " in an imported schema");
                                 } else {
-                                    schemaType = attributeDecl.getValidType();
+                                    schemaType = attributeDecl.getType();
                                     nameTest = new NameTest(Type.ATTRIBUTE, nameCode, env.getNamePool());
                                 }
                             } else {
@@ -1425,14 +1444,14 @@ public class ExpressionParser {
                             // element(N) or schema-element(N)
                             if (schemaDeclaration) {
                                 SchemaDeclaration elementDecl =
-                                        env.getConfiguration().getElementDeclaration(nameCode);
+                                        env.getConfiguration().getElementDeclaration(nameCode & 0xfffff);
                                 if (!env.isImportedSchema(suri)) {
                                     grumble("No schema has been imported for namespace '" + suri + '\'');
                                 }
                                 if (elementDecl == null) {
                                     grumble("There is no declaration for element <" + nodeName + "> in an imported schema");
                                 } else {
-                                    schemaType = elementDecl.getValidType();
+                                    schemaType = elementDecl.getType();
                                     nameTest = env.getConfiguration().makeSubstitutionGroupTest(elementDecl);
 
                                 }
@@ -1538,7 +1557,7 @@ public class ExpressionParser {
      * kinds such as element and attribute, the generic types node() and item(), and the pseudo-type empty()
      *
      * @param name
-     * @exception org.orbeon.saxon.xpath.StaticError
+     * @exception org.orbeon.saxon.trans.StaticError
      */
     private static int getSystemType(String name) throws StaticError {
         if ("item".equals(name))                   return Type.ITEM;
@@ -1561,7 +1580,7 @@ public class ExpressionParser {
      * Parse a function call
      * function-name '(' ( Expression (',' Expression )* )? ')'
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -1589,50 +1608,49 @@ public class ExpressionParser {
         Expression[] arguments = new Expression[args.size()];
         args.toArray(arguments);
 
-       // try {
-            String[] parts;
+        String[] parts;
+        try {
+            parts = Name.getQNameParts(fname);
+        } catch (QNameException e) {
+            grumble("Unknown prefix in function name " + fname + "()");
+            return null;
+        }
+        String uri;
+        if ("".equals(parts[0])) {
+            uri = env.getDefaultFunctionNamespace();
+        } else {
             try {
-                parts = Name.getQNameParts(fname);
-            } catch (QNameException e) {
-                grumble("Unknown prefix in function name " + fname + "()");
-                return null;
-            }
-            String uri;
-            if ("".equals(parts[0])) {
-                uri = env.getDefaultFunctionNamespace();
-            } else {
-                try {
-                    uri = env.getURIForPrefix(parts[0]);
-                } catch (XPathException err) {
-                    grumble(err.getMessage());
-                    return null;
-                }
-            }
-            int nameCode = env.getNamePool().allocate(parts[0], uri, parts[1]);
-            Expression fcall;
-            try {
-                fcall = env.getFunctionLibrary().bind(nameCode, uri, parts[1], arguments);
+                uri = env.getURIForPrefix(parts[0]);
             } catch (XPathException err) {
                 grumble(err.getMessage());
                 return null;
             }
-            if (fcall == null) {
-                String msg = "Cannot find a matching " + arguments.length +
-                        "-argument function named " + env.getNamePool().getClarkName(nameCode) + "()";
-                if (env.isInBackwardsCompatibleMode()) {
-                    // treat this as a dynamic error to be reported only if the function call is executed
-                    DynamicError err = new DynamicError(msg);
-                    ErrorExpression exp = new ErrorExpression(err);
-                    setLocation(exp);
-                    return exp;
-                }
-                grumble(msg);
+        }
+        int nameCode = env.getNamePool().allocate(parts[0], uri, parts[1]);
+        Expression fcall;
+        try {
+            fcall = env.getFunctionLibrary().bind(nameCode, uri, parts[1], arguments);
+        } catch (XPathException err) {
+            grumble(err.getMessage(), err.getErrorCodeLocalPart());
+            return null;
+        }
+        if (fcall == null) {
+            String msg = "Cannot find a matching " + arguments.length +
+                    "-argument function named " + env.getNamePool().getClarkName(nameCode) + "()";
+            if (env.isInBackwardsCompatibleMode()) {
+                // treat this as a dynamic error to be reported only if the function call is executed
+                DynamicError err = new DynamicError(msg);
+                ErrorExpression exp = new ErrorExpression(err);
+                setLocation(exp);
+                return exp;
             }
-            setLocation(fcall, offset);
-            for (int a=0; a<arguments.length; a++) {
-                ((ComputedExpression)fcall).adoptChildExpression(arguments[a]);
-            }
-            return makeTracer(offset, fcall, Location.FUNCTION_CALL, nameCode);
+            grumble(msg);
+        }
+        setLocation(fcall, offset);
+        for (int a=0; a<arguments.length; a++) {
+            ((ComputedExpression)fcall).adoptChildExpression(arguments[a]);
+        }
+        return makeTracer(offset, fcall, Location.FUNCTION_CALL, nameCode);
 
     }
 
@@ -1647,7 +1665,7 @@ public class ExpressionParser {
      * from a variable declared in the context.
      *
      * @param declaration the VariableDeclaration to be added to the stack
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      */
 
     protected void declareRangeVariable(VariableDeclaration declaration) throws StaticError {
@@ -1715,7 +1733,7 @@ public class ExpressionParser {
      * Parse a Union Pattern:<br>
      * pathPattern ( | pathPattern )*
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the pattern that results from parsing
      */
 
@@ -1737,7 +1755,7 @@ public class ExpressionParser {
     /**
      * Parse a Location Path Pattern:
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @return the pattern that results from parsing
      */
 
@@ -1813,7 +1831,7 @@ public class ExpressionParser {
                             int varNameCode = makeNameCode(t.currentTokenValue, false) & 0xfffff;
                             idValue = new VariableReference(env.bindVariable(varNameCode));
                         } else {
-                            grumble("id value must be either a literal or a variable reference");
+                            grumble("id value in pattern must be either a literal or a variable reference");
                         }
                         pat = new IDPattern(idValue);
                         nextToken();
@@ -1875,7 +1893,7 @@ public class ExpressionParser {
     /**
      * Parse a pattern step (after any axis name or @)
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      * @param principalNodeType is ELEMENT if we're on the child axis, ATTRIBUTE for
      *     the attribute axis
      * @return the pattern that results from parsing
@@ -1919,13 +1937,13 @@ public class ExpressionParser {
      *
      * @param path the LocationPathPattern to which the filters are to be
      *     added
-     * @throws org.orbeon.saxon.xpath.StaticError if any error is encountered
+     * @throws org.orbeon.saxon.trans.StaticError if any error is encountered
      */
 
     private void parseFilters(LocationPathPattern path) throws StaticError {
         while (t.currentToken == Token.LSQB) {
             nextToken();
-            Expression qual = parseExprSingle();
+            Expression qual = parseExpression();
             expect(Token.RSQB);
             nextToken();
             path.addFilter(qual);
@@ -1937,7 +1955,7 @@ public class ExpressionParser {
     /**
      * Make a NameCode, using this Element as the context for namespace resolution
      *
-     * @throws org.orbeon.saxon.xpath.StaticError if the name is invalid, or the prefix
+     * @throws org.orbeon.saxon.trans.StaticError if the name is invalid, or the prefix
      *     undeclared
      * @param qname The name as written, in the form "[prefix:]localname"
      * @param useDefault Defines the action when there is no prefix. If
@@ -1963,6 +1981,10 @@ public class ExpressionParser {
             } else {
                 try {
                     String uri = env.getURIForPrefix(prefix);
+                    if (uri == null) {
+                        grumble("Undeclared namespace prefix " + Err.wrap(prefix));
+                        return -1;
+                    }
                     return env.getNamePool().allocate(prefix, uri, parts[1]);
                 } catch (XPathException err) {
                     grumble(err.getMessage());
@@ -1984,7 +2006,7 @@ public class ExpressionParser {
 	 * @param qname the lexical QName of the required node
 	 * @param useDefault true if the default namespace should be used when
 	 *     the QName is unprefixed
-	 * @throws org.orbeon.saxon.xpath.StaticError if the QName is invalid
+	 * @throws org.orbeon.saxon.trans.StaticError if the QName is invalid
 	 * @return a NameTest, representing a pattern that tests for a node of a
 	 *     given node kind and a given name
 	 */
@@ -2002,7 +2024,7 @@ public class ExpressionParser {
 	 *
 	 * @param nodeType integer code identifying the type of node required
 	 * @param prefix the namespace prefix
-	 * @throws org.orbeon.saxon.xpath.StaticError if the namespace prefix is not declared
+	 * @throws org.orbeon.saxon.trans.StaticError if the namespace prefix is not declared
 	 * @return the NamespaceTest, a pattern that matches all nodes in this
 	 *     namespace
 	 */
@@ -2030,7 +2052,7 @@ public class ExpressionParser {
 	 *
 	 * @param nodeType the kind of node to be matched
 	 * @param localName the requred local name
-	 * @throws org.orbeon.saxon.xpath.StaticError if the local name is invalid
+	 * @throws org.orbeon.saxon.trans.StaticError if the local name is invalid
 	 * @return a LocalNameTest, a pattern which matches all nodes of a given
 	 *     local name, regardless of namespace
 	 */

@@ -7,9 +7,9 @@ import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.sort.SortExpression;
 import org.orbeon.saxon.sort.SortKeyDefinition;
 import org.orbeon.saxon.trans.Mode;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -99,7 +99,7 @@ public class XSLApplyTemplates extends StyleElement {
                 // usesParams = true;
             } else if (child.getNodeKind() == Type.TEXT) {
                     // with xml:space=preserve, white space nodes may still be there
-                if (!Navigator.isWhite(child.getStringValue())) {
+                if (!Navigator.isWhite(child.getStringValueCS())) {
                     compileError("No character data is allowed within xsl:apply-templates", "XT0010");
                 }
             } else {

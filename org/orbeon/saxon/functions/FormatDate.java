@@ -5,11 +5,12 @@ import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.instruct.NumberInstruction;
 import org.orbeon.saxon.number.Numberer;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.FastStringBuffer;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.*;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerException;
 import java.util.Calendar;
@@ -73,11 +74,11 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
      * individual parts of the date.
      */
 
-    private static String formatDate(CalendarValue value, String format, String language, XPathContext context)
+    private static CharSequence formatDate(CalendarValue value, String format, String language, XPathContext context)
     throws XPathException {
 
         Numberer numberer = NumberInstruction.makeNumberer(language);
-        StringBuffer sb = new StringBuffer(32);
+        FastStringBuffer sb = new FastStringBuffer(32);
         int i = 0;
         while (true) {
             while (i < format.length() && format.charAt(i) != '[') {
@@ -112,13 +113,13 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
                 i = close+1;
             }
         }
-        return sb.toString();
+        return sb;
     }
 
     private static Pattern componentPattern =
             Pattern.compile("([YMDdWwFHhmsfZzPCE])\\s*(.*)");
 
-    private static String formatComponent(CalendarValue value, String specifier, Numberer numberer, XPathContext context)
+    private static CharSequence formatComponent(CalendarValue value, String specifier, Numberer numberer, XPathContext context)
     throws XPathException {
         boolean ignoreDate = (value instanceof TimeValue);
         boolean ignoreTime = (value instanceof DateValue);
@@ -126,7 +127,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
         if (ignoreDate) {
             dtvalue = ((TimeValue)value).toDateTime();
         } else if (ignoreTime) {
-            dtvalue = (DateTimeValue)value.convert(Type.DATE_TIME, context);
+            dtvalue = (DateTimeValue)value.convert(Type.DATE_TIME);
         } else {
             dtvalue = (DateTimeValue)value;
         }
@@ -154,6 +155,10 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
                 case 'C':
                 case 'E':
                     format = "N";
+                    break;
+                case 'm':
+                case 's':
+                    format = "01";
                     break;
                 default:
                     format = "1";
@@ -212,7 +217,6 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
                     return formatNumber(component, hr, format, numberer, context);
                 }
             case 'm':       // minutes
-                // TODO: default format for minutes and seconds is now "01" rather than "1"
                 if (ignoreTime) {
                     return "";
                 } else {
@@ -234,7 +238,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
                 }
             case 'Z':       // timezone
             case 'z':       // timezone
-                StringBuffer sbz = new StringBuffer(8);
+                FastStringBuffer sbz = new FastStringBuffer(8);
                 DateTimeValue.appendTimezone(cal, sbz);
                 return sbz.toString();
                 // TODO: this isn't the correct format for timezone
@@ -263,7 +267,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
                 }
                 //return formatEra(cal.get(Calendar.ERA), format);
             default:
-                DynamicError e = new DynamicError("Unknown formatDate/time component specifier '" + format.charAt(0) + "'");
+                DynamicError e = new DynamicError("Unknown formatDate/time component specifier '" + format.charAt(0) + '\'');
                 e.setXPathContext(context);
                 throw e;
         }
@@ -275,7 +279,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
     private static Pattern widthPattern =
             Pattern.compile(",(\\*|[0-9]+)(\\-(\\*|[0-9]+))?");
 
-    private static String formatNumber(String component, int value,
+    private static CharSequence formatNumber(String component, int value,
                                        String format, Numberer numberer, XPathContext context)
     throws XPathException {
         Matcher matcher = formatPattern.matcher(format);
@@ -286,8 +290,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
         String primary = matcher.group(1);
         String modifier = matcher.group(2);
         String letterValue = ("t".equals(modifier) ? "traditional" : null);
-        String ordinal = ("o".equals(modifier) ? "yes" : null);
-            // TODO: decide gender of the ordinal for non-English languages
+        String ordinal = ("o".equals(modifier) ? numberer.getOrdinalSuffixForDateTime(component) : null);
         String widths = matcher.group(3);
         int min, max;
 
@@ -327,7 +330,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
         }
         if (s.length() > max) {
             // the year is the only field we allow to be truncated
-            if (format.charAt(0) == 'Y') {
+            if (component.charAt(0) == 'Y') {
                 s = s.substring(s.length() - max);
             }
         }
@@ -358,7 +361,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
                     try {
                         context.getController().getErrorListener().warning(
                                 new DynamicError("Invalid width specifier '" + widths +
-                                "' in formatDate/Time picture (ignored)"));
+                                "' in date/time picture (ignored)"));
                     } catch (TransformerException e) {
                         throw DynamicError.makeDynamicError(e);
                     }
@@ -368,7 +371,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
             }
 
             if (min>max && max!=-1) {
-                DynamicError e = new DynamicError("Minimum width in date picture exceeds maximum width");
+                DynamicError e = new DynamicError("Minimum width in date/time picture exceeds maximum width");
                 e.setXPathContext(context);
                 throw e;
             }
@@ -377,7 +380,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
             result[1] = max;
             return result;
         } catch (NumberFormatException err) {
-            DynamicError e = new DynamicError("Invalid integer as width in date picture");
+            DynamicError e = new DynamicError("Invalid integer used as width in date/time picture");
             e.setXPathContext(context);
             throw e;
         }

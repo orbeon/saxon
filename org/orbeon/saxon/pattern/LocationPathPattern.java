@@ -6,13 +6,17 @@ import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.om.SingletonIterator;
 import org.orbeon.saxon.style.ExpressionContext;
 import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.BooleanValue;
 import org.orbeon.saxon.value.IntegerValue;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
+
+import java.util.Iterator;
+import java.util.Arrays;
+import java.util.Collections;
 
 /**
 * A LocationPathPattern represents a path, for example of the form A/B/C... The components are represented
@@ -115,14 +119,14 @@ public final class LocationPathPattern extends Pattern {
     * @return the optimised Pattern
     */
 
-    public Pattern typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Pattern analyze(StaticContext env, ItemType contextItemType) throws XPathException {
 
         // analyze each component of the pattern
 
         if (parentPattern != null) {
-            parentPattern = parentPattern.typeCheck(env, contextItemType);
+            parentPattern = parentPattern.analyze(env, contextItemType);
         } else if (ancestorPattern != null) {
-            ancestorPattern = ancestorPattern.typeCheck(env, contextItemType);
+            ancestorPattern = ancestorPattern.analyze(env, contextItemType);
         }
 
         if (filters != null) {
@@ -178,6 +182,84 @@ public final class LocationPathPattern extends Pattern {
         }
 
         return this;
+
+        // TODO:PERF: identify subexpressions within a pattern predicate that could be promoted
+        // In the case of match patterns in template rules, these would have to become global variables.
+    }
+
+    /**
+     * Get the dependencies of the pattern. The only possible dependency for a pattern is
+     * on local variables. This is analyzed in those patterns where local variables may appear.
+     */
+
+    public int getDependencies() {
+        int dependencies = 0;
+        if (parentPattern != null) {
+            dependencies |= parentPattern.getDependencies();
+        }
+        if (ancestorPattern != null) {
+            dependencies |= ancestorPattern.getDependencies();
+        }
+        for (int i=0; i<numberOfFilters; i++) {
+            dependencies |= filters[i].getDependencies();
+        }
+        // the only dependency that's interesting is a dependency on local variables
+        dependencies &= StaticProperty.DEPENDS_ON_LOCAL_VARIABLES;
+        return dependencies;
+    }
+
+    /**
+     * Iterate over the subexpressions within this pattern
+     */
+
+    public Iterator iterateSubExpressions() {
+        Iterator iter;
+        if (numberOfFilters == 0) {
+            iter = Collections.EMPTY_LIST.iterator();
+        } else {
+            iter = Arrays.asList(filters).subList(0, numberOfFilters).iterator();
+        }
+        if (parentPattern != null) {
+            Iterator[] pair = {iter, parentPattern.iterateSubExpressions()};
+            iter = new MultiIterator(pair);
+        }
+        if (ancestorPattern != null) {
+            Iterator[] pair = {iter, ancestorPattern.iterateSubExpressions()};
+            iter = new MultiIterator(pair);
+        }
+        return iter;
+    }
+
+    /**
+     * Offer promotion for subexpressions within this pattern. The offer will be accepted if the subexpression
+     * is not dependent on the factors (e.g. the context item) identified in the PromotionOffer.
+     * By default the offer is not accepted - this is appropriate in the case of simple expressions
+     * such as constant values and variable references where promotion would give no performance
+     * advantage. This method is always called at compile time.
+     * <p/>
+     * <p>Unlike the corresponding method on {@link net.sf.saxon.expr.Expression}, this method does not return anything:
+     * it can make internal changes to the pattern, but cannot return a different pattern. Only certain
+     * kinds of promotion are applicable within a pattern: specifically, promotions affecting local
+     * variable references within the pattern.
+     *
+     * @param offer details of the offer, for example the offer to move
+     *              expressions that don't depend on the context to an outer level in
+     *              the containing expression
+     * @throws net.sf.saxon.trans.XPathException
+     *          if any error is detected
+     */
+
+    public void promote(PromotionOffer offer) throws XPathException {
+
+        if (parentPattern != null) {
+            parentPattern.promote(offer);
+        }
+        if (ancestorPattern != null) {
+            ancestorPattern.promote(offer);
+        }
+        for (int i=0; i<numberOfFilters; i++) {
+            filters[i] = filters[i].promote(offer);
+        }
     }
 
     /**
@@ -271,7 +353,7 @@ public final class LocationPathPattern extends Pattern {
                 } catch (DynamicError e) {
                     DynamicError err = new DynamicError("An error occurred matching pattern {" + toString() + "}: ", e);
                     err.setXPathContext(c2);
-                    err.setErrorCode(e.getErrorCode());
+                    err.setErrorCode(e.getErrorCodeLocalPart());
                     err.setLocator(this);
                     c2.getController().recoverableError(err);
                     return false;
@@ -293,7 +375,7 @@ public final class LocationPathPattern extends Pattern {
                 } catch (DynamicError e) {
                     DynamicError err = new DynamicError("An error occurred matching pattern {" + toString() + "}: ", e);
                     err.setXPathContext(c2);
-                    err.setErrorCode(e.getErrorCode());
+                    err.setErrorCode(e.getErrorCodeLocalPart());
                     err.setLocator(this);
                     c2.getController().recoverableError(err);
                     return false;

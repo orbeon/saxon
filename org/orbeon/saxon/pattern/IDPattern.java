@@ -2,23 +2,29 @@ package org.orbeon.saxon.pattern;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.PromotionOffer;
 import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.StringTokenizer;
+import java.util.Iterator;
 
 /**
-* An IDPattern is a pattern of the form id(literal)
+* An IDPattern is a pattern of the form id("literal") or id($variable)
 */
 
 public final class IDPattern extends Pattern {
 
     private Expression idExpression;
 
+    /**
+     * Create an id pattern.
+     * @param id Either a StringValue or a VariableReference
+     */
     public IDPattern(Expression id) {
         idExpression = id;
     }
@@ -30,9 +36,49 @@ public final class IDPattern extends Pattern {
     * @return the optimised Pattern
     */
 
-    public Pattern typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Pattern analyze(StaticContext env, ItemType contextItemType) throws XPathException {
         idExpression = idExpression.analyze(env, contextItemType);
         return this;
+    }
+
+    /**
+     * Get the dependencies of the pattern. The only possible dependency for a pattern is
+     * on local variables. This is analyzed in those patterns where local variables may appear.
+     */
+
+    public int getDependencies() {
+        return idExpression.getDependencies();
+    }
+
+    /**
+     * Iterate over the subexpressions within this pattern
+     */
+
+    public Iterator iterateSubExpressions() {
+        return idExpression.iterateSubExpressions();
+    }
+
+    /**
+     * Offer promotion for subexpressions within this pattern. The offer will be accepted if the subexpression
+     * is not dependent on the factors (e.g. the context item) identified in the PromotionOffer.
+     * By default the offer is not accepted - this is appropriate in the case of simple expressions
+     * such as constant values and variable references where promotion would give no performance
+     * advantage. This method is always called at compile time.
+     * <p/>
+     * <p>Unlike the corresponding method on {@link net.sf.saxon.expr.Expression}, this method does not return anything:
+     * it can make internal changes to the pattern, but cannot return a different pattern. Only certain
+     * kinds of promotion are applicable within a pattern: specifically, promotions affecting local
+     * variable references within the pattern.
+     *
+     * @param offer details of the offer, for example the offer to move
+     *              expressions that don't depend on the context to an outer level in
+     *              the containing expression
+     * @throws net.sf.saxon.trans.XPathException
+     *          if any error is detected
+     */
+
+    public void promote(PromotionOffer offer) throws XPathException {
+        idExpression = idExpression.promote(offer);
     }
 
     /**

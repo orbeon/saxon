@@ -8,7 +8,7 @@ package org.orbeon.saxon.type;
  * unresolved references are not actually used.
  */
 
-public abstract class UnresolvedReferenceException extends ValidationException {
+public abstract class UnresolvedReferenceException extends RuntimeException {
 
     public UnresolvedReferenceException(String ref) {
         super(ref);

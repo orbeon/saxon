@@ -5,12 +5,13 @@ import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.XMLChar;
 import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.tinytree.CharSlice;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ValidationException;
-import org.orbeon.saxon.xpath.XPathException;
 import org.xml.sax.*;
 import org.xml.sax.ext.LexicalHandler;
 
-import java.net.URL;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 /**
   * ReceivingContentHandler is a glue class that provides a standard SAX ContentHandler
@@ -269,7 +270,7 @@ public class ReceivingContentHandler
                 } else {
                     // some parsers allow through PI names containing colons
                     if (!XMLChar.isValidNCName(name)) {
-                        throw new SAXException("Invalid processing instruction name (" + name + ")");
+                        throw new SAXException("Invalid processing instruction name (" + name + ')');
                     }
                 	receiver.processingInstruction(name, remainder, 0, 0);
                 }
@@ -360,9 +361,9 @@ public class ReceivingContentHandler
         if (locator!=null) {
             try {
                 String baseURI = locator.getSystemId();
-                URL absoluteURI = new URL(new URL(baseURI), systemId);
+                URI absoluteURI = new URI(baseURI).resolve(systemId);
                 uri = absoluteURI.toString();
-            } catch (Exception err) {}
+            } catch (URISyntaxException err) {}
         }
         try {
             receiver.setUnparsedEntity(name, uri, publicId);

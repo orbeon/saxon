@@ -5,10 +5,10 @@ import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -41,6 +41,12 @@ public class Choose extends Instruction {
     public Choose(Expression[] conditions, Expression[] actions) {
         this.conditions = conditions;
         this.actions = actions;
+        for (int i=0; i<conditions.length; i++) {
+            adoptChildExpression(conditions[i]);
+        }
+        for (int i=0; i<actions.length; i++) {
+            adoptChildExpression(actions[i]);
+        }
     }
 
     /**

@@ -1,8 +1,8 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.sort.DocumentSorter;
 import org.orbeon.saxon.sort.Reverser;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * PromotionOffer is an object used transiently during compilation of an expression. It contains
@@ -164,7 +164,7 @@ public class PromotionOffer  {
     private Expression promote(Expression child) {
         RangeVariableDeclaration decl = new RangeVariableDeclaration();
         decl.setVariableName("zz:" + decl.hashCode());
-        SequenceType type = new SequenceType(child.getItemType(), child.getCardinality());
+        SequenceType type = SequenceType.makeSequenceType(child.getItemType(), child.getCardinality());
         decl.setRequiredType(type);
 
         VariableReference var = new VariableReference(decl);

@@ -6,10 +6,10 @@ import org.orbeon.saxon.instruct.GlobalParam;
 import org.orbeon.saxon.instruct.GlobalVariable;
 import org.orbeon.saxon.instruct.SlotManager;
 import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -155,7 +155,7 @@ public class GlobalVariableDefinition implements VariableDeclaration {
             try {
                 ItemType itemType = value.getItemType();
                 int cardinality = value.getCardinality();
-                requiredType = new SequenceType(itemType, cardinality);
+                requiredType = SequenceType.makeSequenceType(itemType, cardinality);
                 var.setRequiredType(requiredType);
             } catch (Exception err) {
                 // exceptions can happen because references to variables and functions are still unbound

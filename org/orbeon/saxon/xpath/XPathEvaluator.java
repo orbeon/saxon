@@ -8,7 +8,7 @@ import org.orbeon.saxon.expr.XPathContextMajor;
 import org.orbeon.saxon.instruct.SlotManager;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.value.Value;
 import org.xml.sax.InputSource;
 
 import javax.xml.namespace.NamespaceContext;
@@ -22,13 +22,15 @@ import java.util.List;
 
 /**
   * <p>XPathEvaluator provides a simple API for standalone XPath processing (that is,
-  * executing XPath expressions in the absence of an XSLT stylesheet). It is loosely modelled
-  * on the proposed org.w3c.dom.xpath.XPathEvaluator interface, though it does not
-  * actually implement this interface at present.</p>
+  * executing XPath expressions in the absence of an XSLT stylesheet). It is an implementation
+ * of the JAXP 1.3 XPath interface, with additional methods provided (a) for backwards
+ * compatibility (b) to give extra control over the XPath evaluation, and (c) to support
+ * XPath 2.0.</p>
   *
   * @author Michael H. Kay
   */
 
+// TODO: provide a schema-aware XPath evaluator.
 
 public class XPathEvaluator implements XPath {
 
@@ -60,7 +62,7 @@ public class XPathEvaluator implements XPath {
     * @param source The source document (or a specific node within it).
     */
 
-    public XPathEvaluator(Source source) throws XPathException {
+    public XPathEvaluator(Source source) throws net.sf.saxon.trans.XPathException {
         super();
         if (source instanceof NodeInfo) {
             config = ((NodeInfo)source).getDocumentRoot().getConfiguration();
@@ -97,7 +99,7 @@ public class XPathEvaluator implements XPath {
     * @return the NodeInfo of the start node in the resulting document object.
     */
 
-    public NodeInfo setSource(Source source) throws XPathException {
+    public NodeInfo setSource(Source source) throws net.sf.saxon.trans.XPathException {
         NamePool pool;
         if (source instanceof NodeInfo) {
             pool = ((NodeInfo)source).getNamePool();
@@ -111,7 +113,6 @@ public class XPathEvaluator implements XPath {
         Configuration config = new Configuration();
         config.setNamePool(pool);
         contextNode = Builder.build(source, stripper, config);
-        //document = contextNode.getDocumentRoot();
         staticContext = new StandaloneContext(config);
         return contextNode;
     }
@@ -142,11 +143,11 @@ public class XPathEvaluator implements XPath {
     * Prepare an XPath expression for subsequent evaluation. 
     * @param expression The XPath expression to be evaluated, supplied as a string.
     * @return an XPathExpression object representing the prepared expression
-    * @throws XPathException if the syntax of the expression is wrong, or if it references namespaces,
+    * @throws net.sf.saxon.trans.XPathException if the syntax of the expression is wrong, or if it references namespaces,
     * variables, or functions that have not been declared.
     */
 
-    public XPathExpressionImpl createExpression(String expression) throws XPathException {
+    public XPathExpressionImpl createExpression(String expression) throws net.sf.saxon.trans.XPathException {
         Expression exp = ExpressionTool.make(expression, staticContext,0,-1,1);
         exp = exp.analyze(staticContext, Type.ITEM_TYPE);
         SlotManager map = staticContext.getConfiguration().makeSlotManager();
@@ -195,7 +196,7 @@ public class XPathEvaluator implements XPath {
     * </ul>
     */
 
-    public List evaluate(String expression) throws XPathException {
+    public List evaluate(String expression) throws net.sf.saxon.trans.XPathException {
         Expression exp = ExpressionTool.make(expression, staticContext,0,-1,1);
         exp = exp.analyze(staticContext, Type.ITEM_TYPE);
         SlotManager map = staticContext.getConfiguration().makeSlotManager();
@@ -209,7 +210,7 @@ public class XPathEvaluator implements XPath {
             if (item == null) {
                 return list;
             }
-            list.add(convert(item));
+            list.add(Value.convert(item));
         }
     }
 
@@ -221,9 +222,29 @@ public class XPathEvaluator implements XPath {
     }
 
     /**
+     * Set XPath 1.0 compatibility mode on or off (by default, it is false)
+     * @param compatible true if XPath 1.0 compatibility mode is to be set to true, false
+     * if it is to be set to false.
+     */
+
+    public void setBackwardsCompatible(boolean compatible) {
+        staticContext.setBackwardsCompatibilityMode(true);
+    }
+
+    /**
+     * Get the value of XPath 1.0 compatibility mode
+     * @return true if XPath 1.0 compatibility mode is set
+     */
+
+    public boolean isBackwardsCompatible() {
+        return staticContext.isInBackwardsCompatibleMode();
+    }
+
+    /**
      * Set the resolver for XPath variables
      * @param xPathVariableResolver
      */
+
     public void setXPathVariableResolver(XPathVariableResolver xPathVariableResolver) {
         staticContext.setXPathVariableResolver(xPathVariableResolver);
     }
@@ -284,7 +305,7 @@ public class XPathEvaluator implements XPath {
     public XPathExpression compile(String expr) throws XPathExpressionException {
         try {
             return createExpression(expr);
-        } catch (XPathException e) {
+        } catch (net.sf.saxon.trans.XPathException e) {
             throw new XPathExpressionException(e);
         }
     }
@@ -362,57 +383,6 @@ public class XPathEvaluator implements XPath {
     }
 
     /**
-     * Internal method to convert an XPath value to a Java object.
-     * An atomic value is returned as an instance
-     * of the best available Java class. If the item is a node, the node is "unwrapped",
-     * to return the underlying node in the original model (which might be, for example,
-     * a DOM or JDOM node).
-    */
-
-    public static Object convert(Item item) throws XPathException {
-        if (item instanceof NodeInfo) {
-            Object node = item;
-            while (node instanceof VirtualNode) {
-                // strip off any layers of wrapping
-                node = ((VirtualNode)node).getUnderlyingNode();
-            }
-            return node;
-        } else {
-            switch (((AtomicValue)item).getItemType().getPrimitiveType()) {
-                case Type.STRING:
-                case Type.UNTYPED_ATOMIC:
-                case Type.ANY_URI:
-                case Type.DURATION:
-                    return item.getStringValue();
-                case Type.BOOLEAN:
-                    return (((BooleanValue)item).getBooleanValue() ? Boolean.TRUE : Boolean.FALSE );
-                case Type.DECIMAL:
-                    return ((DecimalValue)item).getValue();
-                case Type.INTEGER:
-                    return new Long(((NumericValue)item).longValue());
-                case Type.DOUBLE:
-                    return new Double(((DoubleValue)item).getDoubleValue());
-                case Type.FLOAT:
-                    return new Float(((FloatValue)item).getValue());
-                case Type.DATE_TIME:
-                    return ((DateTimeValue)item).getUTCDate();
-                case Type.DATE:
-                    return ((DateValue)item).getUTCDate();
-                case Type.TIME:
-                    return item.getStringValue();
-                case Type.BASE64_BINARY:
-                    return ((Base64BinaryValue)item).getBinaryValue();
-                case Type.HEX_BINARY:
-                    return ((HexBinaryValue)item).getBinaryValue();
-                default:
-                    return item;
-                    //throw new XPathException.Dynamic("Unrecognized data type: " +
-                    //                                 Type.displayTypeName(item));
-            }
-        }
-    }
-
-    /**
     * Prepare and execute an XPath expression, supplied as a string, and returning the first
     * item in the result. This is useful where it is known that the expression will only return
     * a singleton value (for example, a single node, or a boolean).
@@ -423,7 +393,7 @@ public class XPathEvaluator implements XPath {
     * the evaluate() method
     */
 
-    public Object evaluateSingle(String expression) throws XPathException {
+    public Object evaluateSingle(String expression) throws net.sf.saxon.trans.XPathException {
         Expression exp = ExpressionTool.make(expression, staticContext,0,-1,1);
         exp = exp.analyze(staticContext, Type.ITEM_TYPE);
         SlotManager map = staticContext.getConfiguration().makeSlotManager();
@@ -435,7 +405,7 @@ public class XPathEvaluator implements XPath {
         if (item == null) {
             return null;
         } else {
-            return convert(item);
+            return Value.convert(item);
         }
     }
 

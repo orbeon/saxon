@@ -11,6 +11,13 @@ package org.orbeon.saxon.om;
 public class ProcInstParser {
 
     /**
+     * Class is never instantiated
+     */
+
+    private ProcInstParser() {
+    }
+
+    /**
     * Get a pseudo-attribute. This is useful only if the processing instruction data part
     * uses pseudo-attribute syntax, which it does not have to. This syntax is as described
     * in the W3C Recommendation "Associating Style Sheets with XML Documents". 
@@ -19,7 +26,6 @@ public class ProcInstParser {
 
     public static String getPseudoAttribute(String content, String name) {
 
-        boolean inquotes = false;
         int pos = 0;
         while (pos <= content.length()-4) {     // minimum length of x=""
             int nextQuote = -1;
@@ -30,8 +36,7 @@ public class ProcInstParser {
                 }
             }
             if (nextQuote < 0) return null;
-            //if (nextQuote+1 == name.length()) return null;
-            
+
             int closingQuote = content.indexOf(content.charAt(nextQuote), nextQuote+1);
             if (closingQuote<0) return null;
             int nextName = content.indexOf(name, pos);
@@ -62,7 +67,7 @@ public class ProcInstParser {
 
     private static String unescape(String value) {
         if (value.indexOf('&')<0) return value;
-        StringBuffer sb = new StringBuffer();
+        FastStringBuffer sb = new FastStringBuffer(value.length());
         for (int i=0; i<value.length(); i++) {
             char c = value.charAt(i);
             if (c=='&') {

@@ -2,9 +2,9 @@ package org.orbeon.saxon.instruct;
 
 import org.orbeon.saxon.expr.Binding;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.ValueRepresentation;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.Serializable;
 
@@ -16,6 +16,15 @@ public class UserFunctionParameter implements Binding, Serializable {
     private SequenceType requiredType;
     private int slotNumber;
     private int referenceCount = 999;
+
+    /**
+     * Indicate whether the binding is local or global. A global binding is one that has a fixed
+     * value for the life of a query or transformation; any other binding is local.
+     */
+
+    public boolean isGlobal() {
+        return false;
+    }
 
     public void setRequiredType(SequenceType type) {
         requiredType = type;
@@ -37,7 +46,7 @@ public class UserFunctionParameter implements Binding, Serializable {
         slotNumber = slot;
     }
 
-    public Value evaluateVariable(XPathContext context) throws XPathException {
+    public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException {
         return context.evaluateLocalVariable(slotNumber);
     }
 

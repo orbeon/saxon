@@ -1,6 +1,6 @@
 package org.orbeon.saxon.event;
 
-import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.trans.DynamicError;
 
 /**
 * Exception indicating that an attribute or namespace node has been written when

@@ -1,12 +1,10 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.FastStringBuffer;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.StringTokenizer;
 
@@ -23,7 +21,24 @@ public class NormalizeSpace extends SystemFunction {
      public Expression simplify(StaticContext env) throws XPathException {
         return simplifyArguments(env);
     }
+    /**
+     * Determine the intrinsic dependencies of an expression, that is, those which are not derived
+     * from the dependencies of its subexpressions. For example, position() has an intrinsic dependency
+     * on the context position, while (position()+1) does not. The default implementation
+     * of the method returns 0, indicating "no dependencies".
+     *
+     * @return a set of bit-significant flags identifying the "intrinsic"
+     *         dependencies. The flags are documented in class net.sf.saxon.value.StaticProperty
+     */
 
+    public int getIntrinsicDependencies() {
+        int d = super.getIntrinsicDependencies();
+        if (argument.length == 0) {
+            d |= StaticProperty.DEPENDS_ON_CONTEXT_ITEM;
+        }
+        return d;
+    }
+    
     /**
     * Pre-evaluate a function at compile time. Functions that do not allow
     * pre-evaluation, or that need access to context information, can override this method.
@@ -43,11 +58,11 @@ public class NormalizeSpace extends SystemFunction {
 
     public Item evaluateItem(XPathContext c) throws XPathException {
         if (argument.length == 0) {
-            return new StringValue(normalize(c.getContextItem().getStringValue()));
+            return new StringValue(normalize(c.getContextItem().getStringValueCS()));
         } else {
             AtomicValue sv = (AtomicValue)argument[0].evaluateItem(c);
             if (sv==null) return StringValue.EMPTY_STRING;
-            return new StringValue(normalize(sv.getStringValue()));
+            return new StringValue(normalize(sv.getStringValueCS()));
         }
     }
 
@@ -55,16 +70,16 @@ public class NormalizeSpace extends SystemFunction {
     * The algorithm that does the work
     */
 
-    public static String normalize(String s) {
-        StringBuffer sb = new StringBuffer(s.length());
-        StringTokenizer st = new StringTokenizer(s);
+    public static CharSequence normalize(CharSequence s) {
+        FastStringBuffer sb = new FastStringBuffer(s.length());
+        StringTokenizer st = new StringTokenizer(s.toString());
         while (st.hasMoreTokens()) {
             sb.append(st.nextToken());
             if (st.hasMoreTokens()) {
                 sb.append(' ');
             }
         }
-        return sb.toString();
+        return sb.condense();
     }
 
 }

@@ -5,10 +5,11 @@ import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.om.NamespaceConstant;
 import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.Err;
 
 import java.util.HashMap;
 
@@ -110,7 +111,7 @@ public class VendorFunctionLibrary implements FunctionLibrary {
      * be used as part of the binding algorithm.
      * @return An object representing the extension function to be called, if one is found;
      * null if no extension function was found matching the required name and arity.
-     * @throws org.orbeon.saxon.xpath.XPathException if a function is found with the required name and arity, but
+     * @throws org.orbeon.saxon.trans.XPathException if a function is found with the required name and arity, but
      * the implementation of the function cannot be loaded or used; or if an error occurs
      * while searching for the function; or if this function library "owns" the namespace containing
      * the function call, but no function was found. 
@@ -157,20 +158,20 @@ public class VendorFunctionLibrary implements FunctionLibrary {
     * @param min the minimum number of arguments allowed
     * @param max the maximum number of arguments allowed
     * @return the actual number of arguments
-    * @throws org.orbeon.saxon.xpath.XPathException if the number of arguments is out of range
+    * @throws org.orbeon.saxon.trans.XPathException if the number of arguments is out of range
     */
 
     private int checkArgumentCount(int numArgs, int min, int max, String local) throws XPathException {
         if (min==max && numArgs != min) {
-            throw new StaticError("Function saxon:" + local + " must have "
+            throw new StaticError("Function " + Err.wrap("saxon:"+local, Err.FUNCTION) + " must have "
                     + min + pluralArguments(min));
         }
         if (numArgs < min) {
-            throw new StaticError("Function saxon:" + local + " must have at least "
+            throw new StaticError("Function " + Err.wrap("saxon:"+local, Err.FUNCTION) + " must have at least "
                     + min + pluralArguments(min));
         }
         if (numArgs > max) {
-            throw new StaticError("Function saxon:" + local + " must have no more than "
+            throw new StaticError("Function " + Err.wrap("saxon:"+local, Err.FUNCTION) + " must have no more than "
                     + max + pluralArguments(max));
         }
         return numArgs;

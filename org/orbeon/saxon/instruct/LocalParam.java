@@ -1,10 +1,10 @@
 package org.orbeon.saxon.instruct;
 
 import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.ValueRepresentation;
 import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -91,7 +91,7 @@ public final class LocalParam extends GeneralVariable {
      * Evaluate the variable
      */
 
-    public Value evaluateVariable(XPathContext c) throws XPathException {
+    public ValueRepresentation evaluateVariable(XPathContext c) {
         return c.evaluateLocalVariable(getSlotNumber());
     }
 }

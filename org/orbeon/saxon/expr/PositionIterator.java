@@ -3,7 +3,7 @@ import org.orbeon.saxon.om.ArrayIterator;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.LookaheadIterator;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.XPathException;
 
 
 /**

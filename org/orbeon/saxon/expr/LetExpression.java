@@ -2,10 +2,11 @@ package org.orbeon.saxon.expr;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.ValueRepresentation;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -65,7 +66,7 @@ public class LetExpression extends Assignation {
 
         // Try to promote any WHERE clause appearing within the LET expression
 
-        Expression p = promoteWhereClause();
+        Expression p = promoteWhereClause(null);
         if (p != null) {
             return p;
         }
@@ -90,7 +91,7 @@ public class LetExpression extends Assignation {
     */
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
-        Value val = eval(context);
+        ValueRepresentation val = eval(context);
         context.setLocalVariable(slotNumber, val);
         return action.iterate(context);
     }
@@ -99,7 +100,7 @@ public class LetExpression extends Assignation {
      * Evaluate the variable. (This is overridden in a subclass).
      */
 
-    protected Value eval(XPathContext context) throws XPathException {
+    protected ValueRepresentation eval(XPathContext context) throws XPathException {
         return ExpressionTool.lazyEvaluate(sequence, context, keepValue);
     }
 
@@ -108,7 +109,7 @@ public class LetExpression extends Assignation {
     */
 
     public Item evaluateItem(XPathContext context) throws XPathException {
-        Value val = eval(context);
+        ValueRepresentation val = eval(context);
         context.setLocalVariable(slotNumber, val);
         return action.evaluateItem(context);
     }
@@ -119,7 +120,7 @@ public class LetExpression extends Assignation {
      */
 
     public void process(XPathContext context) throws XPathException {
-        Value val = eval(context);
+        ValueRepresentation val = eval(context);
         context.setLocalVariable(slotNumber, val);
         action.process(context);
     }

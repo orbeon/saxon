@@ -3,8 +3,8 @@ import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.sort.AtomicSortComparer;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.HashSet;
 
@@ -63,7 +63,7 @@ public class DistinctValues extends CollatingFunction {
          * Get the next item in the sequence. <BR>
          *
          * @return the next item, or null if there are no more items.
-         * @throws org.orbeon.saxon.xpath.XPathException
+         * @throws org.orbeon.saxon.trans.XPathException
          *          if an error occurs retrieving the next item
          */
 
@@ -119,7 +119,7 @@ public class DistinctValues extends CollatingFunction {
          *
          * @return a SequenceIterator that iterates over the same items,
          *         positioned before the first item
-         * @throws org.orbeon.saxon.xpath.XPathException
+         * @throws org.orbeon.saxon.trans.XPathException
          *          if any error occurs
          */
 

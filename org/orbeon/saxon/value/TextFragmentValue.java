@@ -3,14 +3,16 @@ import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.XPathException;
+
+import javax.xml.transform.SourceLocator;
 
 /**
 * This class represents a temporary tree whose root document node owns a single text node. <BR>
 */
 
-public final class TextFragmentValue extends AbstractNode implements DocumentInfo {
+public final class TextFragmentValue implements DocumentInfo, FingerprintedNode, SourceLocator {
 
     private CharSequence text;
     private String systemId;
@@ -27,16 +29,6 @@ public final class TextFragmentValue extends AbstractNode implements DocumentInf
         this.text = value;
         this.systemId = systemId;
     }
-
-	/**
-	* Set the name pool used for all names in this document (actually, there aren't any, but
-	* we have to support the DocumentInfo interface...
-	*/
-
-//	public void setNamePool(NamePool pool) {
-//		namePool = pool;
-//		documentNumber = pool.allocateDocumentNumber(this);
-//	}
 
 	/**
 	* Set the configuration (containing the name pool used for all names in this document)
@@ -87,6 +79,15 @@ public final class TextFragmentValue extends AbstractNode implements DocumentInf
 
     public String getStringValue() {
         return text.toString();
+    }
+
+    /**
+     * Get the value of the item as a CharSequence. This is in some cases more efficient than
+     * the version of the method that returns a String.
+     */
+
+    public CharSequence getStringValueCS() {
+        return text;
     }
 
     /**
@@ -216,30 +217,105 @@ public final class TextFragmentValue extends AbstractNode implements DocumentInf
     }
 
     /**
-     * Returns whether this node has any attributes.
-     * @return <code>true</code> if this node has any attributes,
-     *   <code>false</code> otherwise.
-     * @since DOM Level 2
+     * Get line number
+     *
+     * @return the line number of the node in its original source document; or
+     *         -1 if not available
      */
 
-    public boolean hasAttributes() {
-        return false;
+    public int getLineNumber() {
+        return -1;
     }
 
     /**
-     * Find the value of a given attribute of this node. <BR>
-     * This method is defined on all nodes to meet XSL requirements, but for nodes
-     * other than elements it will always return null.
-     * @param uri the namespace uri of an attribute
-     * @param localName the local name of an attribute
-     * @return the value of the attribute, if it exists, otherwise null
+     * Get the type annotation of this node, if any.
+     * Returns -1 for kinds of nodes that have no annotation, and for elements annotated as
+     * untyped, and attributes annotated as untypedAtomic.
+     *
+     * @return the type annotation of the node.
+     * @see net.sf.saxon.type.Type
      */
 
-//    public String getAttributeValue( String uri, String localName ) {
-//        return null;
-//    }
+    public int getTypeAnnotation() {
+        return -1;
+    }
 
     /**
+     * Output all namespace nodes associated with this element. Does nothing if
+     * the node is not an element.
+     *
+     * @param out              The relevant outputter
+     * @param includeAncestors True if namespaces declared on ancestor
+     */
+
+    public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors) {
+    }
+
+    /**
+     * Get all namespace undeclarations and undeclarations defined on this element.
+     *
+     * @param buffer If this is non-null, and the result array fits in this buffer, then the result
+     *               may overwrite the contents of this array, to avoid the cost of allocating a new array on the heap.
+     * @return An array of integers representing the namespace declarations and undeclarations present on
+     *         this element. For a node other than an element, return null. Otherwise, the returned array is a
+     *         sequence of namespace codes, whose meaning may be interpreted by reference to the name pool. The
+     *         top half word of each namespace code represents the prefix, the bottom half represents the URI.
+     *         If the bottom half is zero, then this is a namespace undeclaration rather than a declaration.
+     *         The XML namespace is never included in the list. If the supplied array is larger than required,
+     *         then the first unused entry will be set to -1.
+     *         <p/>
+     *         <p>For a node other than an element, the method returns null.</p>
+     */
+
+    public int[] getDeclaredNamespaces(int[] buffer) {
+        return null;
+    }
+
+    /**
+     * Get the typed value of the item
+     *
+     * @return the typed value of the item. In general this will be a sequence
+     */
+
+    public SequenceIterator getTypedValue() {
+        return SingletonIterator.makeIterator(new UntypedAtomicValue(text));
+    }
+
+    /**
+     * Return the public identifier for the current document event.
+     * <p/>
+     * <p>The return value is the public identifier of the document
+     * entity or of the external parsed entity in which the markup that
+     * triggered the event appears.</p>
+     *
+     * @return A string containing the public identifier, or
+     *         null if none is available.
+     * @see #getSystemId
+     */
+    public String getPublicId() {
+        return null;
+    }
+
+    /**
+     * Return the character position where the current document event ends.
+     * <p/>
+     * <p><strong>Warning:</strong> The return value from the method
+     * is intended only as an approximation for the sake of error
+     * reporting; it is not intended to provide sufficient information
+     * to edit the character content of the original XML document.</p>
+     * <p/>
+     * <p>The return value is an approximation of the column number
+     * in the document entity or external parsed entity where the
+     * markup that triggered the event appears.</p>
+     *
+     * @return The column number, or -1 if none is available.
+     * @see #getLineNumber
+     */
+    public int getColumnNumber() {
+        return -1;
+    }
+
+   /**
     * Get the value of a given attribute of this node
     * @param fingerprint The fingerprint of the attribute name
     * @return the attribute value if it exists or null if not
@@ -406,7 +482,7 @@ public final class TextFragmentValue extends AbstractNode implements DocumentInf
     * Inner class representing the text node; this is created on demand
     */
 
-    private class TextFragmentTextNode extends AbstractNode {
+    private class TextFragmentTextNode implements NodeInfo, FingerprintedNode, SourceLocator {
 
         /**
         * Set the system ID for the entity containing the node.
@@ -446,6 +522,15 @@ public final class TextFragmentValue extends AbstractNode implements DocumentInf
 
         public String getStringValue() {
             return text.toString();
+        }
+
+        /**
+         * Get the value of the item as a CharSequence. This is in some cases more efficient than
+         * the version of the method that returns a String.
+         */
+
+        public CharSequence getStringValueCS() {
+            return text;
         }
 
         /**
@@ -567,30 +652,6 @@ public final class TextFragmentValue extends AbstractNode implements DocumentInf
         }
 
         /**
-         * Returns whether this node has any attributes.
-         * @return <code>true</code> if this node has any attributes,
-         *   <code>false</code> otherwise.
-         * @since DOM Level 2
-         */
-
-        public boolean hasAttributes() {
-            return false;
-        }
-
-        /**
-         * Find the value of a given attribute of this node. <BR>
-         * This method is defined on all nodes to meet XSL requirements, but for nodes
-         * other than elements it will always return null.
-         * @param uri the namespace uri of an attribute
-         * @param localName the local name of an attribute
-         * @return the value of the attribute, if it exists, otherwise null
-         */
-
-//        public String getAttributeValue( String uri, String localName ) {
-//            return null;
-//        }
-
-        /**
         * Get the value of a given attribute of this node
         * @param fingerprint The fingerprint of the attribute name
         * @return the attribute value if it exists or null if not
@@ -598,6 +659,117 @@ public final class TextFragmentValue extends AbstractNode implements DocumentInf
 
         public String getAttributeValue(int fingerprint) {
             return null;
+        }
+
+        /**
+         * Get line number
+         *
+         * @return the line number of the node in its original source document; or
+         *         -1 if not available
+         */
+
+        public int getLineNumber() {
+            return -1;
+        }
+
+        /**
+         * Get the type annotation of this node, if any.
+         * Returns -1 for kinds of nodes that have no annotation, and for elements annotated as
+         * untyped, and attributes annotated as untypedAtomic.
+         *
+         * @return the type annotation of the node.
+         * @see net.sf.saxon.type.Type
+         */
+
+        public int getTypeAnnotation() {
+            return -1;
+        }
+
+        /**
+         * Get the document number of the document containing this node. For a free-standing
+         * orphan node, just return the hashcode.
+         */
+
+        public int getDocumentNumber() {
+            return getDocumentRoot().getDocumentNumber();
+        }
+
+        /**
+         * Output all namespace nodes associated with this element. Does nothing if
+         * the node is not an element.
+         *
+         * @param out              The relevant outputter
+         * @param includeAncestors True if namespaces declared on ancestor
+         */
+
+        public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors) {
+        }
+
+        /**
+         * Get all namespace undeclarations and undeclarations defined on this element.
+         *
+         * @param buffer If this is non-null, and the result array fits in this buffer, then the result
+         *               may overwrite the contents of this array, to avoid the cost of allocating a new array on the heap.
+         * @return An array of integers representing the namespace declarations and undeclarations present on
+         *         this element. For a node other than an element, return null. Otherwise, the returned array is a
+         *         sequence of namespace codes, whose meaning may be interpreted by reference to the name pool. The
+         *         top half word of each namespace code represents the prefix, the bottom half represents the URI.
+         *         If the bottom half is zero, then this is a namespace undeclaration rather than a declaration.
+         *         The XML namespace is never included in the list. If the supplied array is larger than required,
+         *         then the first unused entry will be set to -1.
+         *         <p/>
+         *         <p>For a node other than an element, the method returns null.</p>
+         */
+
+        public int[] getDeclaredNamespaces(int[] buffer) {
+            return null;
+        }
+
+        /**
+         * Get the typed value of the item
+         *
+         * @return the typed value of the item. In general this will be a sequence
+         * @throws net.sf.saxon.trans.XPathException
+         *          where no typed value is available, e.g. for
+         *          an element with complex content
+         */
+
+        public SequenceIterator getTypedValue() throws XPathException {
+            return SingletonIterator.makeIterator(new UntypedAtomicValue(text));
+        }
+
+        /**
+         * Return the public identifier for the current document event.
+         * <p/>
+         * <p>The return value is the public identifier of the document
+         * entity or of the external parsed entity in which the markup that
+         * triggered the event appears.</p>
+         *
+         * @return A string containing the public identifier, or
+         *         null if none is available.
+         * @see #getSystemId
+         */
+        public String getPublicId() {
+            return null;
+        }
+
+        /**
+         * Return the character position where the current document event ends.
+         * <p/>
+         * <p><strong>Warning:</strong> The return value from the method
+         * is intended only as an approximation for the sake of error
+         * reporting; it is not intended to provide sufficient information
+         * to edit the character content of the original XML document.</p>
+         * <p/>
+         * <p>The return value is an approximation of the column number
+         * in the document entity or external parsed entity where the
+         * markup that triggered the event appears.</p>
+         *
+         * @return The column number, or -1 if none is available.
+         * @see #getLineNumber
+         */
+        public int getColumnNumber() {
+            return -1;
         }
 
         /**

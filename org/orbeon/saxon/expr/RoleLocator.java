@@ -44,14 +44,30 @@ public class RoleLocator implements Serializable {
         this.namePool = namePool;
     }
 
+    /**
+     * Set the error code to be produced if a type error is detected
+     * @param code The error code
+     */
+
     public void setErrorCode(String code) {
-        this.errorCode = code;
+        if (code != null) {
+            this.errorCode = code;
+        }
     }
+
+    /**
+     * Get the error code to be produced if a type error is detected
+     * @return code The error code
+     */
 
     public String getErrorCode() {
         return errorCode;
     }
 
+    /**
+     * Construct and return the error message indicating a type error
+     * @return the constructed error message
+     */
     public String getMessage() {
         String name;
         if (container instanceof String) {
@@ -72,7 +88,7 @@ public class RoleLocator implements Serializable {
             case TYPE_OP:
                 return "value in '" + name + "' expression";
             case VARIABLE:
-                return "value of variable $" + container;
+                return "value of variable $" + name;
             case INSTRUCTION:
                 int slash = name.indexOf('/');
                 String attributeName = "";
@@ -92,6 +108,12 @@ public class RoleLocator implements Serializable {
         }
     }
 
+    /**
+     * Get the ordinal representation of a number (used to identify which argument of a function
+     * is in error)
+     * @param n the cardinal number
+     * @return the ordinal representation
+     */
     private static String ordinal(int n) {
         switch(n) {
             case 1:
@@ -101,6 +123,7 @@ public class RoleLocator implements Serializable {
             case 3:
                 return "third";
             default:
+                // we can live with 21th, 22th... How many functions have >20 arguments?
                 return n + "th";
         }
     }

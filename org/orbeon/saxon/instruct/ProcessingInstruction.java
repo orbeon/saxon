@@ -7,10 +7,10 @@ import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.XMLChar;
 import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -123,7 +123,7 @@ public class ProcessingInstruction extends SimpleNodeConstructor {
      *
      * @param data the supplied content
      * @return the original content, unless adjustments are needed
-     * @throws org.orbeon.saxon.xpath.DynamicError
+     * @throws org.orbeon.saxon.trans.DynamicError
      *          if the content is invalid
      */
 

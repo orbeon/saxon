@@ -1,15 +1,14 @@
 package org.orbeon.saxon.tree;
 import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.XPathException;
-import org.w3c.dom.Text;
 
 /**
   * A node in the XML parse tree representing character content<P>
   * @author Michael H. Kay
   */
 
-final class TextImpl extends NodeImpl implements Text {
+final class TextImpl extends NodeImpl {
 
     private String content;
 

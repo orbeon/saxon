@@ -2,11 +2,11 @@ package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.*;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * This class implements the sum(), avg(), count() functions,
@@ -104,7 +104,7 @@ public class Aggregate extends SystemFunction {
             sum = sum.getPrimitiveValue();
         }
         if (sum instanceof UntypedAtomicValue) {
-            sum = sum.convert(Type.DOUBLE, context);
+            sum = sum.convert(Type.DOUBLE);
         }
         if (sum instanceof NumericValue) {
             while (true) {
@@ -114,7 +114,7 @@ public class Aggregate extends SystemFunction {
                 }
                 AtomicValue next = nextVal.getPrimitiveValue();
                 if (next instanceof UntypedAtomicValue) {
-                    next = next.convert(Type.DOUBLE, context);
+                    next = next.convert(Type.DOUBLE);
                 } else if (!(next instanceof NumericValue)) {
                     DynamicError err =
                             new DynamicError("Input to sum() contains a mix of numeric and non-numeric values");
@@ -169,7 +169,7 @@ public class Aggregate extends SystemFunction {
             sum = sum.getPrimitiveValue();
         }
         if (sum instanceof UntypedAtomicValue) {
-            sum = sum.convert(Type.DOUBLE, context);
+            sum = sum.convert(Type.DOUBLE);
         }
         if (sum instanceof NumericValue) {
             while (true) {
@@ -180,7 +180,7 @@ public class Aggregate extends SystemFunction {
                 count++;
                 AtomicValue next = nextVal.getPrimitiveValue();
                 if (next instanceof UntypedAtomicValue) {
-                    next = next.convert(Type.DOUBLE, context);
+                    next = next.convert(Type.DOUBLE);
                 } else if (!(next instanceof NumericValue)) {
                     DynamicError err =
                             new DynamicError("Input to avg() contains a mix of numeric and non-numeric values");

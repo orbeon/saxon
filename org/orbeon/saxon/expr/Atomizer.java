@@ -1,13 +1,13 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.functions.Position;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.pattern.NoNodeTest;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * An Atomizer is an expression corresponding essentially to the fn:data() function: it
@@ -27,13 +27,11 @@ public final class Atomizer extends UnaryExpression {
 
     public Atomizer(Expression sequence, Configuration config) {
         super(sequence);
-        if (sequence instanceof Position) {
-            System.err.println("WHY?");
-        }
+
         if (config == null) {
             untyped = false;
         } else {
-            untyped = !config.isSchemaAware(Configuration.XML_SCHEMA);
+            untyped = config.areAllNodesUntyped();
         }
     }
 
@@ -100,7 +98,7 @@ public final class Atomizer extends UnaryExpression {
         if (base instanceof AtomizableIterator) {
             ((AtomizableIterator)base).setIsAtomizing(true);
         }
-        return new MappingIterator(base, AtomizingFunction.getInstance(), null, null);
+        return AtomizingFunction.getAtomizingIterator(base);
     }
 
     /**
@@ -135,6 +133,10 @@ public final class Atomizer extends UnaryExpression {
             return theInstance;
         }
 
+        public static SequenceIterator getAtomizingIterator(SequenceIterator base) {
+            return new MappingIterator(base, theInstance, null, null);
+        }
+
         public Object map(Item item, XPathContext context, Object info) throws XPathException {
             if (item instanceof NodeInfo) {
                 return item.getTypedValue();
@@ -155,19 +157,33 @@ public final class Atomizer extends UnaryExpression {
         if (in instanceof AtomicType) {
             return in;
         }
-        if (in instanceof NodeTest && untyped) {
-            return Type.UNTYPED_ATOMIC_TYPE;    // TODO: some node kinds have a typed value of string?
-        }
         if (in instanceof NodeTest) {
+
+            if (in instanceof NoNodeTest) {
+                return in;
+            }
+            // Some node-kinds always have a typed value that's a string
+            int kinds = ((NodeTest)in).getNodeKindMask();
+            if ((kinds | STRING_KINDS) == STRING_KINDS) {
+                return Type.STRING_TYPE;
+            }
+            // Some node-kinds are always untyped atomic; some are untypedAtomic provided that the configuration
+            // is untyped
+            if (untyped) {
+                if ((kinds | UNTYPED_IF_UNTYPED_KINDS) == UNTYPED_IF_UNTYPED_KINDS) {
+                    return Type.UNTYPED_ATOMIC_TYPE;
+                }
+            } else {
+                if ((kinds | UNTYPED_KINDS) == UNTYPED_KINDS) {
+                    return Type.UNTYPED_ATOMIC_TYPE;
+                }
+            }
+
             SchemaType schemaType = ((NodeTest)in).getContentType();
             if (schemaType instanceof SimpleType) {
                 return ((SimpleType)schemaType).getCommonAtomicType();
             } else if (((ComplexType)schemaType).isSimpleContent()) {
-                try {
-                    return ((ComplexType)schemaType).getSimpleContentType().getCommonAtomicType();
-                } catch (ValidationException e) {
-                    return Type.UNTYPED_ATOMIC_TYPE;
-                }
+                return ((ComplexType)schemaType).getSimpleContentType().getCommonAtomicType();
             } else {
                 // if a complex type with complex content can be atomized at all, it will return untypedAtomic values
                 return Type.UNTYPED_ATOMIC_TYPE;
@@ -175,6 +191,26 @@ public final class Atomizer extends UnaryExpression {
         }
 	    return Type.ANY_ATOMIC_TYPE;
 	}
+
+    /**
+     * Node kinds whose typed value is always a string
+     */
+    private static final int STRING_KINDS =
+            (1<<Type.NAMESPACE) | (1<<Type.COMMENT) | (1<<Type.PROCESSING_INSTRUCTION);
+
+    /**
+     * Node kinds whose typed value is always untypedAtomic
+     */
+
+    private static final int UNTYPED_KINDS =
+            (1<<Type.TEXT) | (1<<Type.DOCUMENT);
+
+    /**
+     * Node kinds whose typed value is untypedAtomic if the configuration is untyped
+     */
+
+    private static final int UNTYPED_IF_UNTYPED_KINDS =
+            (1<<Type.TEXT) | (1<<Type.ELEMENT) | (1<<Type.DOCUMENT) | (1<<Type.ATTRIBUTE);
 
 	/**
 	* Determine the static cardinality of the expression

@@ -10,7 +10,6 @@ import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -74,11 +73,7 @@ public class XSLText extends XSLStringConstructor {
                 compileError("xsl:text must not contain child elements", "XT0010");
                 return;
             } else {
-                try {
-                    value = new StringValue(child.getStringValue());
-                } catch (XPathException e) {
-                    value = StringValue.EMPTY_STRING;
-                }
+                value = new StringValue(child.getStringValueCS());
                 break;
             }
         }

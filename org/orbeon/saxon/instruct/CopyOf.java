@@ -1,14 +1,17 @@
 package org.orbeon.saxon.instruct;
 
 import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.pattern.ContentTypeTest;
 import org.orbeon.saxon.event.*;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.value.Value;
 
 import java.io.PrintStream;
 import java.util.Iterator;
@@ -42,8 +45,7 @@ public class CopyOf extends Instruction implements MappingFunction {
      */
 
     public final boolean createsNewNodes() {
-        // TODO: return false if the static type of the select expression is atomic
-        return true;
+        return !Type.isSubType(select.getItemType(), Type.ANY_ATOMIC_TYPE);
     }
 
     /**
@@ -124,20 +126,20 @@ public class CopyOf extends Instruction implements MappingFunction {
                             DynamicError e = new DynamicError(err.getMessage());
                             e.setLocator(this);
                             e.setXPathContext(context);
-                            e.setErrorCode(err.getErrorCode());
+                            e.setErrorCode(err.getErrorCodeLocalPart());
                             context.getController().recoverableError(e);
                         }
                         break;
                     case Type.TEXT:
-                        out.characters(source.getStringValue(), locationId, 0);
+                        out.characters(source.getStringValueCS(), locationId, 0);
                         break;
 
                     case Type.PROCESSING_INSTRUCTION:
-                        out.processingInstruction(source.getDisplayName(), source.getStringValue(), locationId, 0);
+                        out.processingInstruction(source.getDisplayName(), source.getStringValueCS(), locationId, 0);
                         break;
 
                     case Type.COMMENT:
-                        out.comment(source.getStringValue(), locationId, 0);
+                        out.comment(source.getStringValueCS(), locationId, 0);
                         break;
 
                     case Type.NAMESPACE:
@@ -146,7 +148,7 @@ public class CopyOf extends Instruction implements MappingFunction {
                         } catch (NoOpenStartTagException err) {
                             DynamicError e = new DynamicError(err.getMessage());
                             e.setXPathContext(context);
-                            e.setErrorCode(err.getErrorCode());
+                            e.setErrorCode(err.getErrorCodeLocalPart());
                             context.getController().recoverableError(e);
                         }
                         break;
@@ -168,7 +170,7 @@ public class CopyOf extends Instruction implements MappingFunction {
                 }
 
             } else {
-                out.append(item, locationId);
+                out.append(item, locationId, NodeInfo.ALL_NAMESPACES);
             }
         }
         return null;
@@ -183,20 +185,23 @@ public class CopyOf extends Instruction implements MappingFunction {
         int nameCode = source.getNameCode();
         int annotation = -1;
         int opt = 0;
-        String value = source.getStringValue();
+        CharSequence value = source.getStringValueCS();
         if (schemaType != null) {
             if (schemaType.isSimpleType()) {
                 try {
-                    ((SimpleType) schemaType).validateContent(value, DummyNamespaceResolver.getInstance());
+                    XPathException err = ((SimpleType) schemaType).validateContent(
+                            value, DummyNamespaceResolver.getInstance());
+                    if (err != null) {
+                        throw new ValidationException("Attribute being copied does not match the required type. " +
+                            err.getMessage());
+                    }
+
                     if (((SimpleType) schemaType).isNamespaceSensitive()) {
                         opt |= ReceiverOptions.NEEDS_PREFIX_CHECK;
                     }
                     annotation = schemaType.getFingerprint();
                 } catch (UnresolvedReferenceException ure) {
                     throw new ValidationException(ure);
-                } catch (ValidationException err) {
-                    throw new ValidationException("Attribute being copied does not match the required type. " +
-                            err.getMessage());
                 }
             } else {
                 DynamicError e = new DynamicError("Cannot validate an attribute against a complex type");
@@ -222,8 +227,19 @@ public class CopyOf extends Instruction implements MappingFunction {
     }
 
     public ItemType getItemType() {
+        if (schemaType != null) {
+            ItemType in = select.getItemType();
+            int e = Type.relationship(in, NodeKindTest.ELEMENT);
+            if (e == Type.SAME_TYPE || e == Type.SUBSUMED_BY) {
+                return new ContentTypeTest(Type.ELEMENT, schemaType, getExecutable().getConfiguration());
+            }
+            int a = Type.relationship(in, NodeKindTest.ATTRIBUTE);
+            if (a == Type.SAME_TYPE || a == Type.SUBSUMED_BY) {
+                return new ContentTypeTest(Type.ATTRIBUTE, schemaType, getExecutable().getConfiguration());
+            }
+        }
         return select.getItemType();
-        // TODO: could do better than this if the instruction is validating
+
     }
 
     public int getCardinality() {
@@ -305,7 +321,7 @@ public class CopyOf extends Instruction implements MappingFunction {
         c2.setReceiver(out);
         try {
             process(c2);
-            return out.getSequence().iterate(c2);
+            return Value.getIterator(out.getSequence());
         } catch (XPathException err) {
             if (err instanceof ValidationException) {
                 ((ValidationException) err).setSourceLocator(this);

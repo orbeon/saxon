@@ -5,11 +5,12 @@ import org.orbeon.saxon.event.SequenceReceiver;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.XMLChar;
+import org.orbeon.saxon.om.NamespaceConstant;
 import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -60,9 +61,6 @@ public class Namespace extends SimpleNodeConstructor {
         if (select != null) {
             list.add(select);
         }
-//        if (separator != null && !(separator instanceof StringValue)) {
-//            list.add(separator);
-//        }
         list.add(name);
         return list.iterator();
     }
@@ -80,8 +78,8 @@ public class Namespace extends SimpleNodeConstructor {
             return null;
         }
 
-        if (prefix.equals("xml") || prefix.equals("xmlns")) {
-            DynamicError err = new DynamicError("Namespace prefix '" + prefix + "' is not allowed", this);
+        if (prefix.equals("xmlns")) {
+            DynamicError err = new DynamicError("Namespace prefix 'xmlns' is not allowed", this);
             err.setErrorCode("XT0920");
             err.setXPathContext(context);
             context.getController().recoverableError(err);
@@ -89,6 +87,15 @@ public class Namespace extends SimpleNodeConstructor {
         }
 
         String uri = expandChildren(context).toString();
+
+        if (prefix.equals("xml") != uri.equals(NamespaceConstant.XML)) {
+            DynamicError err = new DynamicError("Namespace prefix 'xml' and namespace uri " + NamespaceConstant.XML +
+                    " must only be used together", this);
+            err.setErrorCode("XT0925");
+            err.setXPathContext(context);
+            context.getController().recoverableError(err);
+            return null;
+        }
 
         if (uri.equals("")) {
             DynamicError err = new DynamicError("Namespace URI is an empty string", this);

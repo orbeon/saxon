@@ -2,6 +2,7 @@ package org.orbeon.saxon.expr;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AtomicType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
@@ -9,7 +10,6 @@ import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.SequenceExtent;
 import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * An AtomicSequenceConverter is an expression that performs a cast on each member of
@@ -93,7 +93,7 @@ public final class AtomicSequenceConverter extends UnaryExpression implements Ma
     public Item evaluateItem(XPathContext context) throws XPathException {
         Item item = operand.evaluateItem(context);
         if (item==null) return null;
-        return ((AtomicValue)item).convert(requiredPrimitiveType, context);
+        return ((AtomicValue)item).convert(requiredPrimitiveType);
     }
 
     /**
@@ -101,7 +101,7 @@ public final class AtomicSequenceConverter extends UnaryExpression implements Ma
     */
 
     public Object map(Item item, XPathContext context, Object info) throws XPathException {
-        return ((AtomicValue)item).convert(requiredPrimitiveType, context);
+        return ((AtomicValue)item).convert(requiredPrimitiveType);
     }
 
     /**

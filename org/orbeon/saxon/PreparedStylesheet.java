@@ -1,17 +1,20 @@
 package org.orbeon.saxon;
+//import org.orbeon.saxon.dom.NodeOverNodeInfo;
 import org.orbeon.saxon.event.CommentStripper;
 import org.orbeon.saxon.event.PipelineConfiguration;
 import org.orbeon.saxon.event.Sender;
 import org.orbeon.saxon.event.StartTagBuffer;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.Validation;
 import org.orbeon.saxon.style.*;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.tree.DocumentImpl;
 import org.orbeon.saxon.tree.TreeBuilder;
-import org.orbeon.saxon.xpath.XPathException;
 import org.xml.sax.SAXParseException;
 
 import javax.xml.transform.*;
+import javax.xml.transform.dom.DOMSource;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -167,7 +170,7 @@ public class PreparedStylesheet implements Templates, Serializable {
         try {
             Sender sender = new Sender(pipe);
             AugmentedSource aug = AugmentedSource.makeAugmentedSource(styleSource);
-            aug.setSchemaValidation(Boolean.FALSE);
+            aug.setSchemaValidationMode(Validation.STRIP);
             if (aug.getXMLReader() == null) {
                 aug.setXMLReader(config.getStyleParser());
             }
@@ -201,6 +204,9 @@ public class PreparedStylesheet implements Templates, Serializable {
                 } else {
                     throw new TransformerConfigurationException(cause);
                 }
+            }
+            if (err.hasBeenReported()) {
+                throw new TransformerConfigurationException("One or more errors were found in the stylesheet");
             }
             throw new TransformerConfigurationException(err);
         }

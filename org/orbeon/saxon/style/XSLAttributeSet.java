@@ -2,7 +2,7 @@ package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.*;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.ArrayList;
@@ -14,9 +14,6 @@ import java.util.List;
 */
 
 public class XSLAttributeSet extends StyleElement implements StylesheetProcedure {
-
-    //private int attributeSetNameCode;
-                // the name of this attribute set, as a Namepool fingerprint
 
     private String nameAtt;
                 // the name of the attribute set as written
@@ -34,10 +31,10 @@ public class XSLAttributeSet extends StyleElement implements StylesheetProcedure
                 // compiled instructions for the attribute sets used by this one
 
     private AttributeSet procedure = new AttributeSet();
-                // the instruction representing this attribute set
+                // the compiled form of this attribute set
 
     private int referenceCount = 0;
-                // number of references to this attribute set
+                // the number of references to this attribute set
 
     private boolean validated = false;
 
@@ -54,8 +51,6 @@ public class XSLAttributeSet extends StyleElement implements StylesheetProcedure
     }
 
     public void prepareAttributes() throws TransformerConfigurationException {
-
-
 		useAtt = null;
 
 		AttributeCollection atts = getAttributeList();
@@ -152,22 +147,30 @@ public class XSLAttributeSet extends StyleElement implements StylesheetProcedure
     public SlotManager getSlotManager() {
         return stackFrameMap;
     }
-
+    /**
+     * Compile the attribute set
+     * @param exec the Executable
+     * @return a Procedure object representing the compiled attribute set
+     * @throws TransformerConfigurationException if a failure is detected
+     */
     public Expression compile(Executable exec) throws TransformerConfigurationException {
         if (referenceCount > 0 ) {
             Expression body = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
 
-            if (getConfiguration().getTraceListener() != null) {
-                TraceWrapper trace = new TraceInstruction(body, this);
-                trace.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
-                trace.setParentExpression(procedure);
-                body = trace;
-            }
-
             try {
+                if (body != null) {
+                    body = body.simplify(getStaticContext());
+                    if (getConfiguration().getTraceListener() != null) {
+                        TraceWrapper trace = new TraceInstruction(body, this);
+                        trace.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
+                        trace.setParentExpression(procedure);
+                        body = trace;
+                    }
+                }
+
                 procedure.setUseAttributeSets(useAttributeSets);
                 procedure.setNameCode(getObjectNameCode());
-                procedure.setBody(body.simplify(getStaticContext()));
+                procedure.setBody(body);
                 procedure.setStackFrameMap(stackFrameMap);
                 procedure.setSystemId(getSystemId());
                 procedure.setLineNumber(getLineNumber());
@@ -181,7 +184,8 @@ public class XSLAttributeSet extends StyleElement implements StylesheetProcedure
 
     /**
      * Get the type of construct. This will be a constant in
-     * class {@link org.orbeon.saxon.trace.Location}. This method is part of the {@link org.orbeon.saxon.trace.InstructionInfo} interface
+     * class {@link org.orbeon.saxon.trace.Location}. This method is part of
+     * the {@link org.orbeon.saxon.trace.InstructionInfo} interface
      */
 
     public int getConstructType() {
