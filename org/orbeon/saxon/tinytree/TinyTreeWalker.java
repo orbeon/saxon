@@ -1,10 +1,10 @@
-package net.sf.saxon.tinytree;
+package org.orbeon.saxon.tinytree;
 
-import net.sf.saxon.event.PipelineConfiguration;
-import net.sf.saxon.om.*;
-import net.sf.saxon.pull.PullProvider;
-import net.sf.saxon.trans.XPathException;
-import net.sf.saxon.type.Type;
+import org.orbeon.saxon.event.PipelineConfiguration;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pull.PullProvider;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.Type;
 
 import javax.xml.transform.SourceLocator;
 
@@ -13,7 +13,7 @@ import javax.xml.transform.SourceLocator;
  * text, comment, or processing-instruction node in a TinyTree,
  * and returns the events corresponding to that node and its descendants (including
  * their attributes and namespaces). The class performs the same function as
- * the general-purpose {@link net.sf.saxon.pull.TreeWalker} class, but is
+ * the general-purpose {@link org.orbeon.saxon.pull.TreeWalker} class, but is
  * specialized to exploit the TinyTree data structure: in particular, it never
  * materializes any Node objects.
  */
@@ -356,7 +356,7 @@ public class TinyTreeWalker implements PullProvider, SourceLocator {
      * START_CONTENT, ATTRIBUTE, or ATOMIC_VALUE.
      *
      * @return the type code. This code is the fingerprint of a type name, which may be
-     *         resolved to a {@link net.sf.saxon.type.SchemaType} by access to the Configuration.
+     *         resolved to a {@link org.orbeon.saxon.type.SchemaType} by access to the Configuration.
      */
 
     public int getTypeAnnotation() {

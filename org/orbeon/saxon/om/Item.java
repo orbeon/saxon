@@ -26,7 +26,7 @@ public interface Item extends ValueRepresentation {
     /**
      * Get the typed value of the item
      * @return the typed value of the item. In general this will be a sequence
-     * @throws net.sf.saxon.trans.XPathException where no typed value is available, e.g. for
+     * @throws org.orbeon.saxon.trans.XPathException where no typed value is available, e.g. for
      *     an element with complex content
      */
 

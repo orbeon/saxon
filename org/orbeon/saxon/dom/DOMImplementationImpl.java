@@ -1,4 +1,4 @@
-package net.sf.saxon.dom;
+package org.orbeon.saxon.dom;
 
 import org.w3c.dom.DOMException;
 import org.w3c.dom.DOMImplementation;

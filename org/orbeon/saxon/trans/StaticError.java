@@ -1,4 +1,4 @@
-package net.sf.saxon.trans;
+package org.orbeon.saxon.trans;
 import javax.xml.transform.SourceLocator;
 import javax.xml.transform.TransformerException;
 

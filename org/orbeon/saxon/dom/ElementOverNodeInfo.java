@@ -1,8 +1,8 @@
-package net.sf.saxon.dom;
+package org.orbeon.saxon.dom;
 
-import net.sf.saxon.om.*;
-import net.sf.saxon.pattern.NameTest;
-import net.sf.saxon.type.Type;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.NameTest;
+import org.orbeon.saxon.type.Type;
 import org.w3c.dom.*;
 import com.saxonica.schema.TypeInfoImpl;
 

@@ -1,13 +1,13 @@
-package net.sf.saxon.trans;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.VariableDeclaration;
-import net.sf.saxon.functions.*;
-import net.sf.saxon.instruct.LocationMap;
-import net.sf.saxon.instruct.SlotManager;
-import net.sf.saxon.om.*;
-import net.sf.saxon.sort.CollationFactory;
-import net.sf.saxon.type.Type;
+package org.orbeon.saxon.trans;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.VariableDeclaration;
+import org.orbeon.saxon.functions.*;
+import org.orbeon.saxon.instruct.LocationMap;
+import org.orbeon.saxon.instruct.SlotManager;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.sort.CollationFactory;
+import org.orbeon.saxon.type.Type;
 
 import javax.xml.transform.SourceLocator;
 import java.io.Serializable;
@@ -295,7 +295,7 @@ public class IndependentContext implements StaticContext, NamespaceResolver, Ser
      * when the prefix is empty.
      * This method is provided for use by the XPath parser.
      * @param prefix The prefix
-     * @throws net.sf.saxon.trans.XPathException if the prefix is not declared
+     * @throws org.orbeon.saxon.trans.XPathException if the prefix is not declared
     */
 
     public String getURIForPrefix(String prefix) throws XPathException {

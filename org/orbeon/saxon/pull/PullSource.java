@@ -1,4 +1,4 @@
-package net.sf.saxon.pull;
+package org.orbeon.saxon.pull;
 
 import javax.xml.transform.Source;
 

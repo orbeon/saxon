@@ -1,4 +1,4 @@
-package net.sf.saxon.om;
+package org.orbeon.saxon.om;
 
 /**
  * An iterator over nodes, that prepends a given node to the nodes

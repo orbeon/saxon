@@ -759,7 +759,7 @@ public class Transform {
      * @param parameterList List of parameters to be supplied to the
      *     transformation
      * @param initialMode Initial mode for executing the transformation
-     * @exception net.sf.saxon.trans.XPathException If the transformation fails
+     * @exception org.orbeon.saxon.trans.XPathException If the transformation fails
      */
 
     public void processFile(
@@ -810,7 +810,7 @@ public class Transform {
      * @param parameterList List of parameters to be supplied to the
      *     transformation
      * @param initialMode Initial mode for executing the transformation
-     * @exception net.sf.saxon.trans.XPathException If the transformation fails
+     * @exception org.orbeon.saxon.trans.XPathException If the transformation fails
      */
 
     public void execute(
@@ -928,7 +928,7 @@ public class Transform {
 
     /** Create an instance of a URIResolver with a specified class name
      *
-     * @exception net.sf.saxon.trans.XPathException if the requested class does not
+     * @exception org.orbeon.saxon.trans.XPathException if the requested class does not
      *     implement the javax.xml.transform.URIResolver interface
      * @param className The fully-qualified name of the URIResolver class
      * @return The newly created URIResolver

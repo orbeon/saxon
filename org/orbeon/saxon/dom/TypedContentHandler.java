@@ -1,13 +1,13 @@
-package net.sf.saxon.dom;
+package org.orbeon.saxon.dom;
 
-import net.sf.saxon.event.ContentHandlerProxy;
-import net.sf.saxon.event.ReceiverOptions;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.trans.XPathException;
-import net.sf.saxon.type.AnySimpleType;
-import net.sf.saxon.type.AnyType;
-import net.sf.saxon.type.SchemaType;
+import org.orbeon.saxon.event.ContentHandlerProxy;
+import org.orbeon.saxon.event.ReceiverOptions;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.AnySimpleType;
+import org.orbeon.saxon.type.AnyType;
+import org.orbeon.saxon.type.SchemaType;
 import org.w3c.dom.TypeInfo;
 
 import javax.xml.validation.TypeInfoProvider;

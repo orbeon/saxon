@@ -1,13 +1,13 @@
-package net.sf.saxon.om;
+package org.orbeon.saxon.om;
 
-import net.sf.saxon.Configuration;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.pattern.AnyNodeTest;
-import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.trans.XPathException;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.StringValue;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.pattern.AnyNodeTest;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.StringValue;
 
 import java.util.Set;
 import java.util.HashSet;
@@ -185,7 +185,7 @@ public class NamespaceIterator implements AxisIterator {
          *
          * @return an integer identifying the kind of node. These integer values are the
          *         same as those used in the DOM
-         * @see net.sf.saxon.type.Type
+         * @see org.orbeon.saxon.type.Type
          */
 
         public int getNodeKind() {
@@ -399,7 +399,7 @@ public class NamespaceIterator implements AxisIterator {
          * untyped, and attributes annotated as untypedAtomic.
          *
          * @return the type annotation of the node.
-         * @see net.sf.saxon.type.Type
+         * @see org.orbeon.saxon.type.Type
          */
 
         public int getTypeAnnotation() {
@@ -420,7 +420,7 @@ public class NamespaceIterator implements AxisIterator {
          * Return an iteration over all the nodes reached by the given axis from this node
          *
          * @param axisNumber an integer identifying the axis; one of the constants
-         *                   defined in class net.sf.saxon.om.Axis
+         *                   defined in class org.orbeon.saxon.om.Axis
          * @return an AxisIterator that scans the nodes reached by the axis in
          *         turn.
          * @throws UnsupportedOperationException if the namespace axis is
@@ -437,7 +437,7 @@ public class NamespaceIterator implements AxisIterator {
          * that match a given NodeTest
          *
          * @param axisNumber an integer identifying the axis; one of the constants
-         *                   defined in class net.sf.saxon.om.Axis
+         *                   defined in class org.orbeon.saxon.om.Axis
          * @param nodeTest   A pattern to be matched by the returned nodes; nodes
          *                   that do not match this pattern are not included in the result
          * @return a NodeEnumeration that scans the nodes reached by the axis in
@@ -579,7 +579,7 @@ public class NamespaceIterator implements AxisIterator {
          *                        that requested this copy. If zero, indicates that the location information
          *                        for the original node is to be copied; in this case the Receiver must be
          *                        a LocationCopier
-         * @throws net.sf.saxon.trans.XPathException
+         * @throws org.orbeon.saxon.trans.XPathException
          *
          */
 
@@ -637,7 +637,7 @@ public class NamespaceIterator implements AxisIterator {
          * Get the typed value of the item
          *
          * @return the typed value of the item. In general this will be a sequence
-         * @throws net.sf.saxon.trans.XPathException
+         * @throws org.orbeon.saxon.trans.XPathException
          *          where no typed value is available, e.g. for
          *          an element with complex content
          */

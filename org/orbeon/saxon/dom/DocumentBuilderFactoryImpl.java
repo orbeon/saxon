@@ -1,4 +1,4 @@
-package net.sf.saxon.dom;
+package org.orbeon.saxon.dom;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -7,7 +7,7 @@ import javax.xml.parsers.ParserConfigurationException;
 /**
 * Implementation of JAXP 1.1 DocumentBuilderFactory. To build a Document using
 * Saxon, set the system property javax.xml.parsers.DocumentBuilderFactory to
-* "net.sf.saxon.om.DocumentBuilderFactoryImpl" and then call
+* "org.orbeon.saxon.om.DocumentBuilderFactoryImpl" and then call
 * DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(InputSource);
 */
 

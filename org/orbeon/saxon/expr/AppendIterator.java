@@ -1,8 +1,8 @@
-package net.sf.saxon.expr;
+package org.orbeon.saxon.expr;
 
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.trans.XPathException;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.trans.XPathException;
 
 /**
 * Iterator that concatenates the results of two supplied iterators

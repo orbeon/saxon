@@ -1,6 +1,6 @@
-package net.sf.saxon.dom;
+package org.orbeon.saxon.dom;
 
-import net.sf.saxon.type.Type;
+import org.orbeon.saxon.type.Type;
 import org.w3c.dom.Attr;
 import org.w3c.dom.DOMException;
 import org.w3c.dom.Element;

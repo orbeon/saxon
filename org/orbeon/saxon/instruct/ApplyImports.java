@@ -50,7 +50,7 @@ public class ApplyImports extends Instruction {
      * Simplify an expression. This performs any static optimization (by rewriting the expression
      * as a different expression).
      *
-     * @exception net.sf.saxon.trans.XPathException if an error is discovered during expression
+     * @exception org.orbeon.saxon.trans.XPathException if an error is discovered during expression
      *     rewriting
      * @return the simplified expression
      */
@@ -74,7 +74,7 @@ public class ApplyImports extends Instruction {
      * variables will only be accurately known if they have been explicitly declared.</p>
      *
      * @param env the static context of the expression
-     * @exception net.sf.saxon.trans.XPathException if an error is discovered during this phase
+     * @exception org.orbeon.saxon.trans.XPathException if an error is discovered during this phase
      *     (typically a type error)
      * @return the original expression, rewritten to perform necessary
      *     run-time type checks, and to perform other type-related

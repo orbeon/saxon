@@ -1,9 +1,9 @@
-package net.sf.saxon.pull;
+package org.orbeon.saxon.pull;
 
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.om.AttributeCollection;
-import net.sf.saxon.om.NamespaceDeclarations;
-import net.sf.saxon.trans.XPathException;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.NamespaceDeclarations;
+import org.orbeon.saxon.trans.XPathException;
 
 /**
  * PullPushTee is a pass-through filter class that links one PullProvider to another PullProvider

@@ -813,7 +813,7 @@ public class NamePool implements Serializable {
      * to the namespace URI assigned to the prefix "". If false, an absent prefix is
      * interpreted as meaning the name is in no namespace.
      * @return the corresponding nameCode
-     * @throws net.sf.saxon.trans.DynamicError if the string is not a valid lexical QName or
+     * @throws org.orbeon.saxon.trans.DynamicError if the string is not a valid lexical QName or
      * if the namespace prefix has not been declared*
      */
 

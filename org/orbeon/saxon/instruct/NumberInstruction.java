@@ -258,7 +258,7 @@ public class NumberInstruction extends ComputedExpression {
      * of the method returns 0, indicating "no dependencies".
      *
      * @return a set of bit-significant flags identifying the "intrinsic"
-     *         dependencies. The flags are documented in class net.sf.saxon.value.StaticProperty
+     *         dependencies. The flags are documented in class org.orbeon.saxon.value.StaticProperty
      */
 
     public int getIntrinsicDependencies() {
@@ -286,7 +286,7 @@ public class NumberInstruction extends ComputedExpression {
      * @return if the offer is not accepted, return this expression unchanged.
      *         Otherwise return the result of rewriting the expression to promote
      *         this subexpression
-     * @throws net.sf.saxon.trans.XPathException
+     * @throws org.orbeon.saxon.trans.XPathException
      *          if any error is detected
      */
 

@@ -1,5 +1,5 @@
-package net.sf.saxon.style;
-import net.sf.saxon.style.StyleElement;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.style.StyleElement;
 
 import javax.xml.transform.TransformerConfigurationException;
 

@@ -298,7 +298,7 @@ public class StaticQueryContext implements StaticContext {
      * This method is used by the XQuery parser to resolve namespace prefixes.
      * @param prefix The prefix
      * @return the corresponding namespace URI
-     * @throws net.sf.saxon.trans.XPathException if the prefix has not been declared
+     * @throws org.orbeon.saxon.trans.XPathException if the prefix has not been declared
     */
 
     public String getURIForPrefix(String prefix) throws XPathException {

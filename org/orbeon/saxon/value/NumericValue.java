@@ -79,7 +79,7 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
     /**
      * Return the numeric value as a Java long.
      *
-     * @exception net.sf.saxon.trans.XPathException if the value cannot be converted
+     * @exception org.orbeon.saxon.trans.XPathException if the value cannot be converted
      * @return the numeric value as a Java long. This performs truncation
      *     towards zero.
      */

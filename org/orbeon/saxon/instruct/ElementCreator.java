@@ -89,7 +89,7 @@ public abstract class ElementCreator extends Instruction {
     /**
      * Handle promotion offers, that is, non-local tree rewrites.
      * @param offer The type of rewrite being offered
-     * @throws net.sf.saxon.trans.XPathException
+     * @throws org.orbeon.saxon.trans.XPathException
      */
 
     protected void promoteInst(PromotionOffer offer) throws XPathException {
@@ -164,7 +164,7 @@ public abstract class ElementCreator extends Instruction {
      * Callback to output namespace nodes for the new element.
      * @param context The execution context
      * @param receiver the Receiver where the namespace nodes are to be written
-     * @throws net.sf.saxon.trans.XPathException
+     * @throws org.orbeon.saxon.trans.XPathException
      */
 
     protected abstract void outputNamespaceNodes(XPathContext context, Receiver receiver)

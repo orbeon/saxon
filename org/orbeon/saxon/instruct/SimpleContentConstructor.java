@@ -151,7 +151,7 @@ public class SimpleContentConstructor extends ComputedExpression {
      * @return if the offer is not accepted, return this expression unchanged.
      *         Otherwise return the result of rewriting the expression to promote
      *         this subexpression
-     * @throws net.sf.saxon.trans.XPathException
+     * @throws org.orbeon.saxon.trans.XPathException
      *          if any error is detected
      */
 

@@ -272,7 +272,7 @@ public class ExternalObjectType implements AtomicType, Serializable {
      *
      * @param node the node whose typed value is required
      * @return an iterator over the items making up the typed value of this node. The objects
-     *         returned by this SequenceIterator will all be of type {@link net.sf.saxon.value.AtomicValue}
+     *         returned by this SequenceIterator will all be of type {@link org.orbeon.saxon.value.AtomicValue}
      */
 
     public final SequenceIterator getTypedValue(NodeInfo node) {
@@ -288,7 +288,7 @@ public class ExternalObjectType implements AtomicType, Serializable {
      *                 in the content of values. Can supply null, in which case any namespace-sensitive content
      *                 will be rejected.
      * @return an iterator over the atomic sequence comprising the typed value. The objects
-     *         returned by this SequenceIterator will all be of type {@link net.sf.saxon.value.AtomicValue}
+     *         returned by this SequenceIterator will all be of type {@link org.orbeon.saxon.value.AtomicValue}
      */
 
     public SequenceIterator getTypedValue(CharSequence value, NamespaceResolver resolver)
@@ -320,7 +320,7 @@ public class ExternalObjectType implements AtomicType, Serializable {
      * @param kind       the node kind whose content is being delivered: {@link Type#ELEMENT},
      *                   {@link Type#ATTRIBUTE}, or {@link Type#DOCUMENT}
      * @param env
-     * @throws net.sf.saxon.trans.XPathException
+     * @throws org.orbeon.saxon.trans.XPathException
      *          if the expression will never deliver a value of the correct type
      */
 
@@ -335,7 +335,7 @@ public class ExternalObjectType implements AtomicType, Serializable {
      * @param expression the expression that delivers the content
      * @param kind       the node kind whose content is being delivered: {@link Type#ELEMENT},
      *                   {@link Type#ATTRIBUTE}, or {@link Type#DOCUMENT}
-     * @throws net.sf.saxon.trans.XPathException
+     * @throws org.orbeon.saxon.trans.XPathException
      *          if the expression will never deliver a value of the correct type
      */
 

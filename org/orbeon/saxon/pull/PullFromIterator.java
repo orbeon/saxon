@@ -1,11 +1,11 @@
-package net.sf.saxon.pull;
+package org.orbeon.saxon.pull;
 
-import net.sf.saxon.event.PipelineConfiguration;
-import net.sf.saxon.om.*;
-import net.sf.saxon.trans.XPathException;
-import net.sf.saxon.type.AtomicType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.AtomicValue;
+import org.orbeon.saxon.event.PipelineConfiguration;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.AtomicType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.AtomicValue;
 
 import javax.xml.transform.SourceLocator;
 
@@ -285,7 +285,7 @@ public class PullFromIterator implements PullProvider {
      * ATTRIBUTE, or ATOMIC_VALUE.
      *
      * @return the type annotation. This code is the fingerprint of a type name, which may be
-     *         resolved to a {@link net.sf.saxon.type.SchemaType} by access to the Configuration.
+     *         resolved to a {@link org.orbeon.saxon.type.SchemaType} by access to the Configuration.
      */
 
     public int getTypeAnnotation() {

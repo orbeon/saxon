@@ -237,7 +237,7 @@ public final class LocationPathPattern extends Pattern {
      * such as constant values and variable references where promotion would give no performance
      * advantage. This method is always called at compile time.
      * <p/>
-     * <p>Unlike the corresponding method on {@link net.sf.saxon.expr.Expression}, this method does not return anything:
+     * <p>Unlike the corresponding method on {@link org.orbeon.saxon.expr.Expression}, this method does not return anything:
      * it can make internal changes to the pattern, but cannot return a different pattern. Only certain
      * kinds of promotion are applicable within a pattern: specifically, promotions affecting local
      * variable references within the pattern.
@@ -245,7 +245,7 @@ public final class LocationPathPattern extends Pattern {
      * @param offer details of the offer, for example the offer to move
      *              expressions that don't depend on the context to an outer level in
      *              the containing expression
-     * @throws net.sf.saxon.trans.XPathException
+     * @throws org.orbeon.saxon.trans.XPathException
      *          if any error is detected
      */
 

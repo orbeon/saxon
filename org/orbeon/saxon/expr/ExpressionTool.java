@@ -32,7 +32,7 @@ public class ExpressionTool
      * function definitions, and it performs context-independent expression rewriting for
      * optimization purposes.
      *
-     * @exception net.sf.saxon.trans.XPathException if the expression contains a static error
+     * @exception org.orbeon.saxon.trans.XPathException if the expression contains a static error
      * @param expression The expression (as a character string)
      * @param env An object giving information about the compile-time
      *     context of the expression
@@ -231,7 +231,7 @@ public class ExpressionTool
      * Evaluate an expression now; lazy evaluation is not permitted in this case
      * @param exp the expression to be evaluated
      * @param context the run-time evaluation context
-     * @exception net.sf.saxon.trans.XPathException if any dynamic error occurs evaluating the
+     * @exception org.orbeon.saxon.trans.XPathException if any dynamic error occurs evaluating the
      *     expression
      * @return the result of evaluating the expression
      */

@@ -5,7 +5,7 @@ import org.xml.sax.XMLReader;
 import javax.xml.transform.Source;
 import javax.xml.transform.sax.SAXSource;
 
-import net.sf.saxon.om.Validation;
+import org.orbeon.saxon.om.Validation;
 
 /**
  * This class wraps a JAXP Source object to provide an extended Source object that

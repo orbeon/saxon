@@ -1,6 +1,6 @@
-package net.sf.saxon.pull;
+package org.orbeon.saxon.pull;
 
-import net.sf.saxon.trans.XPathException;
+import org.orbeon.saxon.trans.XPathException;
 
 /**
  * A PullConsumer consumes all the events supplied by a PullProvider, doing nothing
@@ -19,7 +19,7 @@ public class PullConsumer {
 
     /**
      * Consume the input
-     * @throws net.sf.saxon.trans.XPathException
+     * @throws org.orbeon.saxon.trans.XPathException
      */
 
     public void consume() throws XPathException {
