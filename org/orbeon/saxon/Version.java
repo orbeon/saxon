@@ -1,4 +1,4 @@
-package net.sf.saxon;
+package org.orbeon.saxon;
 
 /**
  * The Version class holds the SAXON version information.

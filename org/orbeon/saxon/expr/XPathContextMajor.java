@@ -1,16 +1,16 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.Controller;
-import net.sf.saxon.ParameterSet;
-import net.sf.saxon.instruct.*;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SingletonIterator;
-import net.sf.saxon.sort.GroupIterator;
-import net.sf.saxon.trace.InstructionInfoProvider;
-import net.sf.saxon.trans.Mode;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.ParameterSet;
+import org.orbeon.saxon.instruct.*;
+import org.orbeon.saxon.om.AxisIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SingletonIterator;
+import org.orbeon.saxon.sort.GroupIterator;
+import org.orbeon.saxon.trace.InstructionInfoProvider;
+import org.orbeon.saxon.trans.Mode;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * This class represents a "major context" in which an XPath expression is evaluated:

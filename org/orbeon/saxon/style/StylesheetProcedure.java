@@ -1,6 +1,6 @@
-package net.sf.saxon.style;
+package org.orbeon.saxon.style;
 
-import net.sf.saxon.instruct.SlotManager;
+import org.orbeon.saxon.instruct.SlotManager;
 
 /**
  * This interface is implemented by all XSL elements that can contain local variable declarations.

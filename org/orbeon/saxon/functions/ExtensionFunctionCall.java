@@ -1,17 +1,17 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.EmptyIterator;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SingletonIterator;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.AnyItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.pattern.AnyNodeTest;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.EmptyIterator;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.SingletonIterator;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.AnyItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.pattern.AnyNodeTest;
 
 import java.lang.reflect.*;
 import java.util.List;
@@ -104,7 +104,7 @@ public class ExtensionFunctionCall extends FunctionCall {
     * Evaluate the function. <br>
     * @param context The context in which the function is to be evaluated
     * @return a Value representing the result of the function.
-    * @throws net.sf.saxon.xpath.XPathException if the function cannot be evaluated.
+    * @throws org.orbeon.saxon.xpath.XPathException if the function cannot be evaluated.
     */
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
@@ -295,7 +295,7 @@ public class ExtensionFunctionCall extends FunctionCall {
      * @param result the result returned by the Java extension function
      * @param context the dynamic context
      * @return an iterator over the items in the result
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws org.orbeon.saxon.xpath.XPathException
      */
 
     private SequenceIterator asIterator(Object result, XPathContext context) throws XPathException {
@@ -324,7 +324,7 @@ public class ExtensionFunctionCall extends FunctionCall {
      * @param firstArg normally 0, but 1 if the first argument in the XPath call is the instance object whose method
      * is to be called
      * @param context The dynamic context, giving access to a NamePool and to schema information
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws org.orbeon.saxon.xpath.XPathException
      */
 
     private void setupParams(Value[] argValues,

@@ -1,15 +1,15 @@
-package net.sf.saxon.pattern;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.trans.KeyManager;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.type.ItemType;
+package org.orbeon.saxon.pattern;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.DocumentInfo;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.trans.KeyManager;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.type.ItemType;
 
 /**
 * A KeyPattern is a pattern of the form key(keyname, keyvalue)

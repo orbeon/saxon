@@ -1,8 +1,8 @@
-package net.sf.saxon.value;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.expr.XPathContext;
+package org.orbeon.saxon.value;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.expr.XPathContext;
 
 /**
  * NumericValue is an abstract superclass for IntegerValue, DecimalValue,
@@ -138,7 +138,7 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
      * @param other the other operand
      * @exception XPathException if an arithmetic error occurs
      * @return the result of the arithmetic operation
-     * @see net.sf.saxon.expr.Tokenizer
+     * @see org.orbeon.saxon.expr.Tokenizer
      */
 
     public abstract NumericValue arithmetic(int operator, NumericValue other, XPathContext context)

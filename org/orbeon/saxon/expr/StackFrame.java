@@ -1,7 +1,7 @@
-package net.sf.saxon.expr;
+package org.orbeon.saxon.expr;
 
-import net.sf.saxon.instruct.SlotManager;
-import net.sf.saxon.value.Value;
+import org.orbeon.saxon.instruct.SlotManager;
+import org.orbeon.saxon.value.Value;
 
 /**
  * Created by IntelliJ IDEA.

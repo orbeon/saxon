@@ -1,7 +1,7 @@
-package net.sf.saxon;
+package org.orbeon.saxon;
 
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 
 /**

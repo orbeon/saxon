@@ -1,7 +1,7 @@
-package net.sf.saxon.trace;
+package org.orbeon.saxon.trace;
 
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.Version;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.Version;
 
 /**
  * A Simple trace listener for XQuery that writes messages (by default) to System.err

@@ -1,9 +1,9 @@
-package net.sf.saxon.value;
-import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.AnyItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.pattern.AnyNodeTest;
+package org.orbeon.saxon.value;
+import org.orbeon.saxon.expr.StaticProperty;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.AnyItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.pattern.AnyNodeTest;
 
 import java.io.Serializable;
 
@@ -144,7 +144,7 @@ public final class SequenceType implements Serializable {
      * Cardinality.ONE_OR_MORE, etc
      *
      * @return the required cardinality
-     * @see net.sf.saxon.value.Cardinality
+     * @see org.orbeon.saxon.value.Cardinality
      */
     public int getCardinality() {
         return cardinality;

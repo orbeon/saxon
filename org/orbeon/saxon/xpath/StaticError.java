@@ -1,4 +1,4 @@
-package net.sf.saxon.xpath;
+package org.orbeon.saxon.xpath;
 import javax.xml.transform.SourceLocator;
 
 /**

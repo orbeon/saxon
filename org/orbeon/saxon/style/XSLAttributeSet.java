@@ -1,13 +1,13 @@
-package net.sf.saxon.style;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.instruct.*;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamespaceException;
-import net.sf.saxon.trace.Location;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.instruct.*;
+import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.om.AxisIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NamespaceException;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.ArrayList;
@@ -187,7 +187,7 @@ public class XSLAttributeSet extends StyleElement implements StylesheetProcedure
 
     /**
      * Get the type of construct. This will be a constant in
-     * class {@link net.sf.saxon.trace.Location}. This method is part of the {@link net.sf.saxon.trace.InstructionInfo} interface
+     * class {@link org.orbeon.saxon.trace.Location}. This method is part of the {@link org.orbeon.saxon.trace.InstructionInfo} interface
      */
 
     public int getConstructType() {

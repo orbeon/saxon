@@ -1,5 +1,5 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.value.SequenceType;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.value.SequenceType;
 
 /**
 * Treat Expression: implements "treat as data-type ( expression )". This is a factory class only.

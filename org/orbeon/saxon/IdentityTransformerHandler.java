@@ -1,11 +1,11 @@
-package net.sf.saxon;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.event.ResultWrapper;
-import net.sf.saxon.event.ReceivingContentHandler;
+package org.orbeon.saxon;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.event.ResultWrapper;
+import org.orbeon.saxon.event.ReceivingContentHandler;
 
 import javax.xml.transform.Result;
 import javax.xml.transform.Transformer;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 import javax.xml.transform.sax.TransformerHandler;
 import javax.xml.transform.stream.StreamResult;
 

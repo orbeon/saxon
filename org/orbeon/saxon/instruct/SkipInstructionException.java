@@ -1,5 +1,5 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * This exception is thrown by code when execution of an instruction has failed,

@@ -1,9 +1,9 @@
-package net.sf.saxon.type;
+package org.orbeon.saxon.type;
 
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.SingletonIterator;
-import net.sf.saxon.value.UntypedAtomicValue;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.SingletonIterator;
+import org.orbeon.saxon.value.UntypedAtomicValue;
 
 /**
  * This class has a singleton instance which represents the XML Schema built-in type xs:anyType,

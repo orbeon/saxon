@@ -1,8 +1,8 @@
-package net.sf.saxon.instruct;
+package org.orbeon.saxon.instruct;
 
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.trace.InstructionInfo;
-import net.sf.saxon.om.NamespaceResolver;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.om.NamespaceResolver;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -55,7 +55,7 @@ public class TraceExpression extends TraceWrapper implements InstructionInfo {
 
     /**
      * Set the type of construct. This will generally be a constant
-     * in class {@link net.sf.saxon.trace.Location}
+     * in class {@link org.orbeon.saxon.trace.Location}
      */
 
     public void setConstructType(int type) {
@@ -64,7 +64,7 @@ public class TraceExpression extends TraceWrapper implements InstructionInfo {
 
     /**
      * Get the construct type. This will generally be a constant
-     * in class {@link net.sf.saxon.trace.Location}
+     * in class {@link org.orbeon.saxon.trace.Location}
      */
     public int getConstructType() {
         return constructType;
@@ -194,7 +194,7 @@ public class TraceExpression extends TraceWrapper implements InstructionInfo {
     /**
      * Get the system identifier (that is the base URI) of the static context of the expression being
      * traced. This returns the same result as getSystemId(), it is provided to satisfy the
-     * {@link net.sf.saxon.event.LocationProvider} interface.
+     * {@link org.orbeon.saxon.event.LocationProvider} interface.
      * @param locationId not used
      * @return the URI of the module containing the expression
      */
@@ -204,7 +204,7 @@ public class TraceExpression extends TraceWrapper implements InstructionInfo {
      /**
      * Get the line number of the expression being
      * traced. This returns the same result as getLineNumber(), it is provided to satisfy the
-     * {@link net.sf.saxon.event.LocationProvider} interface.
+     * {@link org.orbeon.saxon.event.LocationProvider} interface.
      * @param locationId not used
      * @return the line number of the expression within its module
      */

@@ -1,10 +1,10 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.Controller;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 /**
 * The compiled form of a global xsl:param element in the stylesheet or an

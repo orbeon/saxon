@@ -1,11 +1,11 @@
-package net.sf.saxon.value;
+package org.orbeon.saxon.value;
 
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.expr.XPathContext;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.expr.XPathContext;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

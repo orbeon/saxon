@@ -1,7 +1,7 @@
-package net.sf.saxon.type;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.style.StandardNames;
+package org.orbeon.saxon.type;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.style.StandardNames;
 
 import java.io.Serializable;
 import java.util.HashMap;

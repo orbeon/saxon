@@ -1,6 +1,6 @@
-package net.sf.saxon.tree;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.pattern.NodeTest;
+package org.orbeon.saxon.tree;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.pattern.NodeTest;
 
 final class PrecedingSiblingEnumeration extends TreeEnumeration {
     

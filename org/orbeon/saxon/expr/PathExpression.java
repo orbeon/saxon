@@ -1,20 +1,20 @@
-package net.sf.saxon.expr;
+package org.orbeon.saxon.expr;
 
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.pattern.AnyNodeTest;
-import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.sort.DocumentSorter;
-import net.sf.saxon.sort.Reverser;
-import net.sf.saxon.trace.Location;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.value.Cardinality;
-import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.pattern.AnyNodeTest;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.sort.DocumentSorter;
+import org.orbeon.saxon.sort.Reverser;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.value.Cardinality;
+import org.orbeon.saxon.value.EmptySequence;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Iterator;

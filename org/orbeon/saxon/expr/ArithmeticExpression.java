@@ -1,12 +1,12 @@
-package net.sf.saxon.expr;
+package org.orbeon.saxon.expr;
 
-import net.sf.saxon.om.Item;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * Arithmetic Expression: an expression using one of the operators

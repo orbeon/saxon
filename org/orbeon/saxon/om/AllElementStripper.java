@@ -1,5 +1,5 @@
-package net.sf.saxon.om;
-import net.sf.saxon.event.Stripper;
+package org.orbeon.saxon.om;
+import org.orbeon.saxon.event.Stripper;
 
 /**
   * The AllElementStripper refines the Stripper class to do stripping of

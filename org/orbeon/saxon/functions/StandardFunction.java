@@ -1,9 +1,9 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.pattern.NodeKindTest;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.expr.StaticProperty;
+import org.orbeon.saxon.pattern.NodeKindTest;
 
 import java.util.HashMap;
 

@@ -1,10 +1,10 @@
-package net.sf.saxon.pattern;
+package org.orbeon.saxon.pattern;
 
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.AnyItemType;
-import net.sf.saxon.type.Type;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.AnyItemType;
+import org.orbeon.saxon.type.Type;
 
 /**
   * NodeTest is an interface that enables a test of whether a node has a particular

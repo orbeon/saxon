@@ -1,13 +1,13 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.trace.Location;
-import net.sf.saxon.value.BooleanValue;
-import net.sf.saxon.value.IntegerValue;
-import net.sf.saxon.value.NumericValue;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.value.BooleanValue;
+import org.orbeon.saxon.value.IntegerValue;
+import org.orbeon.saxon.value.NumericValue;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * A FilterIterator filters an input sequence using a filter expression. Note that a FilterIterator

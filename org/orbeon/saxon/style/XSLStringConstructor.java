@@ -1,13 +1,13 @@
-package net.sf.saxon.style;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.instruct.SimpleNodeConstructor;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.StaticError;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.instruct.SimpleNodeConstructor;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.om.AxisIterator;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.StaticError;
 
 import javax.xml.transform.TransformerConfigurationException;
 

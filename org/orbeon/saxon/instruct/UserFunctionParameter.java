@@ -1,10 +1,10 @@
-package net.sf.saxon.instruct;
+package org.orbeon.saxon.instruct;
 
-import net.sf.saxon.expr.Binding;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.expr.Binding;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.Serializable;
 

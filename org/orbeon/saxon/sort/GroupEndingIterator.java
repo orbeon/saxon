@@ -1,13 +1,13 @@
-package net.sf.saxon.sort;
+package org.orbeon.saxon.sort;
 
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.ListIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.pattern.Pattern;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.ListIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.pattern.Pattern;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 import java.util.List;

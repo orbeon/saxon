@@ -1,14 +1,14 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.trace.Location;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.value.Cardinality;
-import net.sf.saxon.value.IntegerValue;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.value.Cardinality;
+import org.orbeon.saxon.value.IntegerValue;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -215,7 +215,7 @@ public class ForExpression extends Assignation {
 
     /**
      * Get the type of this expression for use in tracing and diagnostics
-     * @return the type of expression, as enumerated in class {@link net.sf.saxon.trace.Location}
+     * @return the type of expression, as enumerated in class {@link org.orbeon.saxon.trace.Location}
      */
 
     protected int getConstructType() {

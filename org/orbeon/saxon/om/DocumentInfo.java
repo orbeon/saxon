@@ -1,6 +1,6 @@
-package net.sf.saxon.om;
+package org.orbeon.saxon.om;
 
-import net.sf.saxon.Configuration;
+import org.orbeon.saxon.Configuration;
 
 /**
  * The root node of an XPath tree. (Or equivalently, the tree itself).<P>

@@ -1,13 +1,13 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.sort.CodepointCollator;
-import net.sf.saxon.sort.AtomicComparer;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.sort.CodepointCollator;
+import org.orbeon.saxon.sort.AtomicComparer;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.Comparator;
 

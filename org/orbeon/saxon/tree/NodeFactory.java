@@ -1,6 +1,6 @@
-package net.sf.saxon.tree;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.event.LocationProvider;
+package org.orbeon.saxon.tree;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.event.LocationProvider;
 
 import org.xml.sax.Locator;
 

@@ -1,11 +1,11 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.functions.FunctionLibrary;
-import net.sf.saxon.instruct.LocationMap;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NamespaceResolver;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.functions.FunctionLibrary;
+import org.orbeon.saxon.instruct.LocationMap;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NamespaceResolver;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.Comparator;
 

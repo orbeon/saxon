@@ -1,6 +1,6 @@
-package net.sf.saxon.sort;
-import net.sf.saxon.value.*;
-import net.sf.saxon.type.Type;
+package org.orbeon.saxon.sort;
+import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.type.Type;
 
 import java.util.Comparator;
 import java.text.Collator;

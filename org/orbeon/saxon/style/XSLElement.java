@@ -1,16 +1,16 @@
-package net.sf.saxon.style;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.instruct.*;
-import net.sf.saxon.om.Name;
-import net.sf.saxon.om.NamespaceException;
-import net.sf.saxon.om.QNameException;
-import net.sf.saxon.om.Validation;
-import net.sf.saxon.om.NamespaceResolver;
-import net.sf.saxon.type.SchemaType;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.Configuration;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.instruct.*;
+import org.orbeon.saxon.om.Name;
+import org.orbeon.saxon.om.NamespaceException;
+import org.orbeon.saxon.om.QNameException;
+import org.orbeon.saxon.om.Validation;
+import org.orbeon.saxon.om.NamespaceResolver;
+import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.Configuration;
 
 import javax.xml.transform.TransformerConfigurationException;
 

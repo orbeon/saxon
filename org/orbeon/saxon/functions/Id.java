@@ -1,11 +1,11 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.*;
-import net.sf.saxon.sort.DocumentOrderIterator;
-import net.sf.saxon.sort.LocalOrderComparer;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.Cardinality;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.sort.DocumentOrderIterator;
+import org.orbeon.saxon.sort.LocalOrderComparer;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.Cardinality;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 /**

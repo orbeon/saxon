@@ -1,12 +1,12 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.StaticProperty;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * Implement the XPath 2.0 root() function

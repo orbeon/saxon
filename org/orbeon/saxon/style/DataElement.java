@@ -1,5 +1,5 @@
-package net.sf.saxon.style;
-import net.sf.saxon.tree.ElementWithAttributes;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.tree.ElementWithAttributes;
 
 
 /**

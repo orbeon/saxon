@@ -1,13 +1,13 @@
-package net.sf.saxon.event;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.Loader;
-import net.sf.saxon.charcode.CharacterSet;
-import net.sf.saxon.charcode.CharacterSetFactory;
-import net.sf.saxon.charcode.PluggableCharacterSet;
-import net.sf.saxon.charcode.UnicodeCharacterSet;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.event;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.Loader;
+import org.orbeon.saxon.charcode.CharacterSet;
+import org.orbeon.saxon.charcode.CharacterSetFactory;
+import org.orbeon.saxon.charcode.PluggableCharacterSet;
+import org.orbeon.saxon.charcode.UnicodeCharacterSet;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 import org.xml.sax.ContentHandler;
 
 import javax.xml.transform.OutputKeys;

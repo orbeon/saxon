@@ -1,5 +1,5 @@
-package net.sf.saxon.value;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.value;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.GregorianCalendar;
 

@@ -40,19 +40,19 @@
  *
  * Copyright 1999-2000 (C) Intalio Inc. All Rights Reserved.
  *
- * $Id: AtomicType.java,v 1.1 2005/03/18 20:32:45 dsmall Exp $
+ * $Id: AtomicType.java,v 1.2 2005/03/18 20:42:20 dsmall Exp $
  */
 
-package net.sf.saxon.type;
+package org.orbeon.saxon.type;
 
-import net.sf.saxon.Err;
-import net.sf.saxon.om.*;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.DerivedAtomicValue;
-import net.sf.saxon.value.QNameValue;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Err;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.DerivedAtomicValue;
+import org.orbeon.saxon.value.QNameValue;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.Iterator;
 

@@ -1,11 +1,11 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.StaticError;
 
 /**
 * Implement XPath function fn:error()

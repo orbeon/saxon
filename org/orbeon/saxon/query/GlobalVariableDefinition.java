@@ -1,12 +1,12 @@
-package net.sf.saxon.query;
+package org.orbeon.saxon.query;
 
-import net.sf.saxon.expr.*;
-import net.sf.saxon.instruct.*;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.om.NamePool;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.instruct.*;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.om.NamePool;
 
 import java.util.ArrayList;
 import java.util.Iterator;

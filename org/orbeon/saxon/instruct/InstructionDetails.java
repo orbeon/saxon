@@ -1,8 +1,8 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.om.NamespaceResolver;
-import net.sf.saxon.trace.InstructionInfo;
-import net.sf.saxon.trace.InstructionInfoProvider;
-import net.sf.saxon.trace.Location;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.om.NamespaceResolver;
+import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.trace.InstructionInfoProvider;
+import org.orbeon.saxon.trace.Location;
 
 import java.util.HashMap;
 import java.util.Iterator;

@@ -1,13 +1,13 @@
-package net.sf.saxon.trans;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.pattern.Pattern;
-import net.sf.saxon.instruct.SlotManager;
-import net.sf.saxon.instruct.InstructionDetails;
-import net.sf.saxon.instruct.Procedure;
-import net.sf.saxon.trace.InstructionInfoProvider;
-import net.sf.saxon.trace.InstructionInfo;
-import net.sf.saxon.style.StandardNames;
+package org.orbeon.saxon.trans;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.pattern.Pattern;
+import org.orbeon.saxon.instruct.SlotManager;
+import org.orbeon.saxon.instruct.InstructionDetails;
+import org.orbeon.saxon.instruct.Procedure;
+import org.orbeon.saxon.trace.InstructionInfoProvider;
+import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.style.StandardNames;
 
 import java.io.Serializable;
 import java.text.Collator;

@@ -1,8 +1,8 @@
-package net.sf.saxon.om;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.tinytree.*;
-import net.sf.saxon.event.Builder;
-import net.sf.saxon.event.Sender;
+package org.orbeon.saxon.om;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.tinytree.*;
+import org.orbeon.saxon.event.Builder;
+import org.orbeon.saxon.event.Sender;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.DOMImplementation;
@@ -13,7 +13,7 @@ import org.xml.sax.SAXException;
 
 import javax.xml.parsers.*;
 import javax.xml.transform.sax.SAXSource;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * This class implements the JAXP DocumentBuilder interface, allowing a Saxon TinyTree to be

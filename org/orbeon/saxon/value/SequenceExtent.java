@@ -1,17 +1,17 @@
-package net.sf.saxon.value;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.ArrayIterator;
-import net.sf.saxon.om.ReverseArrayIterator;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.AnyItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.pattern.NodeKindTest;
+package org.orbeon.saxon.value;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.StaticProperty;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.ArrayIterator;
+import org.orbeon.saxon.om.ReverseArrayIterator;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.AxisIterator;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.AnyItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.pattern.NodeKindTest;
 
 import java.util.List;
 
@@ -123,8 +123,8 @@ public final class SequenceExtent extends SequenceValue {
      * Determine the cardinality
      *
      * @return the cardinality of the sequence, using the constants defined in
-     *      net.sf.saxon.value.Cardinality
-     * @see net.sf.saxon.value.Cardinality
+     *      org.orbeon.saxon.value.Cardinality
+     * @see org.orbeon.saxon.value.Cardinality
      */
 
     public int getCardinality() {

@@ -1,4 +1,4 @@
-package net.sf.saxon.om;
+package org.orbeon.saxon.om;
 
 /**
  * This is a marker interface used to identify nodes that contain a namepool fingerprint. Although all nodes

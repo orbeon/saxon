@@ -1,4 +1,4 @@
-package net.sf.saxon.tinytree;
+package org.orbeon.saxon.tinytree;
 
 /**
  * This is an implementation of the JDK 1.4 CharSequence interface: it implements

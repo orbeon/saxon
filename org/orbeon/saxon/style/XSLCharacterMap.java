@@ -1,14 +1,14 @@
-package net.sf.saxon.style;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.Name;
-import net.sf.saxon.om.NamespaceException;
-import net.sf.saxon.om.QNameException;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.expr.Expression;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.om.AxisIterator;
+import org.orbeon.saxon.om.Name;
+import org.orbeon.saxon.om.NamespaceException;
+import org.orbeon.saxon.om.QNameException;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.expr.Expression;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.ArrayList;

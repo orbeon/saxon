@@ -1,4 +1,4 @@
-package net.sf.saxon;
+package org.orbeon.saxon;
 
 import org.xml.sax.XMLReader;
 

@@ -1,10 +1,10 @@
-package net.sf.saxon.pattern;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.pattern;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * A pattern formed as the union (or) of two other patterns

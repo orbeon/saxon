@@ -1,6 +1,6 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * An EagerLetExpression is the same as a LetExpression except that the variable is evaluated using

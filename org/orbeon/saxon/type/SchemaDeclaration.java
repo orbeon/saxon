@@ -1,4 +1,4 @@
-package net.sf.saxon.type;
+package org.orbeon.saxon.type;
 
 /**
  * This is a marker interface that acts as a surrogate for an object representing

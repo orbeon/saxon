@@ -1,7 +1,7 @@
-package net.sf.saxon.functions;
+package org.orbeon.saxon.functions;
 
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.expr.Expression;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.expr.Expression;
 
 import java.io.Serializable;
 
@@ -10,7 +10,7 @@ import java.io.Serializable;
  * There are a number of implementations of this
  * class to handle different kinds of function: system functions, constructor functions, vendor-defined
  * functions, Java extension functions, stylesheet functions, and so on. There is also an implementation
- * {@link net.sf.saxon.functions.FunctionLibraryList} that allows a FunctionLibrary to be constructed by combining other
+ * {@link org.orbeon.saxon.functions.FunctionLibraryList} that allows a FunctionLibrary to be constructed by combining other
  * FunctionLibrary objects.
  */
 
@@ -44,7 +44,7 @@ public interface FunctionLibrary extends Serializable {
      * be used as part of the binding algorithm.
      * @return An object representing the function to be called, if one is found;
      * null if no function was found matching the required name and arity.
-     * @throws net.sf.saxon.xpath.XPathException if a function is found with the required name and arity, but
+     * @throws org.orbeon.saxon.xpath.XPathException if a function is found with the required name and arity, but
      * the implementation of the function cannot be loaded or used; or if an error occurs
      * while searching for the function.
      */

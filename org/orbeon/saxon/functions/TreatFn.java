@@ -1,8 +1,8 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * This class supports the XPath 2.0 functions exactly-one(), one-or-more(), zero-or-one().

@@ -1,15 +1,15 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.Controller;
-import net.sf.saxon.ParameterSet;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.trans.Mode;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.XPathContextMajor;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.ParameterSet;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.trans.Mode;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.XPathContextMajor;
 
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 /**
 * An xsl:next-match element in the stylesheet

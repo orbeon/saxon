@@ -1,18 +1,18 @@
-package net.sf.saxon.instruct;
+package org.orbeon.saxon.instruct;
 
-import net.sf.saxon.Controller;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.trace.InstructionInfo;
-import net.sf.saxon.trace.InstructionInfoProvider;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.trace.InstructionInfoProvider;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.HashMap;
 
@@ -125,7 +125,7 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
      * Call this function.
      * @param actualArgs the arguments supplied to the function. These must have the correct
      * types required by the function signature (it is the caller's responsibility to check this).
-     * It is acceptable to supply a {@link net.sf.saxon.value.Closure} to represent a value whose
+     * It is acceptable to supply a {@link org.orbeon.saxon.value.Closure} to represent a value whose
      * evaluation will be delayed until it is needed. The array must be the correct size to match
      * the number of arguments: again, it is the caller's responsibility to check this.
      * @param context This provides the run-time context for evaluating the function. It is the caller's
@@ -183,11 +183,11 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
      * application. It creates the environment needed to achieve this
      * @param actualArgs the arguments supplied to the function. These must have the correct
      * types required by the function signature (it is the caller's responsibility to check this).
-     * It is acceptable to supply a {@link net.sf.saxon.value.Closure} to represent a value whose
+     * It is acceptable to supply a {@link org.orbeon.saxon.value.Closure} to represent a value whose
      * evaluation will be delayed until it is needed. The array must be the correct size to match
      * the number of arguments: again, it is the caller's responsibility to check this.
      * @param controller This provides the run-time context for evaluating the function. A Controller
-     * may be obtained by calling {@link net.sf.saxon.query.XQueryExpression#getController}. This may
+     * may be obtained by calling {@link org.orbeon.saxon.query.XQueryExpression#getController}. This may
      * be used for a series of calls on functions defined in the same module as the XQueryExpression.
      * @return a Value representing the result of the function.
      */

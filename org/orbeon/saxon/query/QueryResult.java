@@ -1,18 +1,18 @@
-package net.sf.saxon.query;
+package org.orbeon.saxon.query;
 
-import net.sf.saxon.event.DocumentSender;
-import net.sf.saxon.event.NamespaceReducer;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.event.ResultWrapper;
-import net.sf.saxon.om.*;
-import net.sf.saxon.tinytree.TinyBuilder;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.value.QNameValue;
+import org.orbeon.saxon.event.DocumentSender;
+import org.orbeon.saxon.event.NamespaceReducer;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.event.ResultWrapper;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.tinytree.TinyBuilder;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.value.QNameValue;
 
 import javax.xml.transform.Result;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.stream.StreamResult;

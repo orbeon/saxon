@@ -1,6 +1,6 @@
-package net.sf.saxon.type;
+package org.orbeon.saxon.type;
 
-import net.sf.saxon.om.XMLChar;
+import org.orbeon.saxon.om.XMLChar;
 
 import java.math.BigDecimal;
 import java.util.Collections;

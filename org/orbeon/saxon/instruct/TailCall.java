@@ -1,6 +1,6 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 /**

@@ -1,12 +1,12 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.expr.MappingFunction;
-import net.sf.saxon.expr.MappingIterator;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.sort.AtomicSortComparer;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.value.AtomicValue;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.MappingFunction;
+import org.orbeon.saxon.expr.MappingIterator;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.sort.AtomicSortComparer;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.value.AtomicValue;
 
 import java.util.HashSet;
 

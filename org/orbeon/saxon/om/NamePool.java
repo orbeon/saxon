@@ -1,6 +1,6 @@
-package net.sf.saxon.om;
+package org.orbeon.saxon.om;
 
-import net.sf.saxon.style.StandardNames;
+import org.orbeon.saxon.style.StandardNames;
 
 import java.io.Serializable;
 import java.util.StringTokenizer;

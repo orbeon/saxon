@@ -1,9 +1,9 @@
-package net.sf.saxon.sort;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.sort;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.value.EmptySequence;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.Serializable;
 import java.util.Comparator;

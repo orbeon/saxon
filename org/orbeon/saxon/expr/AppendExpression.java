@@ -1,14 +1,14 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.value.SequenceExtent;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.EmptySequence;
+import org.orbeon.saxon.value.SequenceExtent;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 /**

@@ -1,12 +1,12 @@
-package net.sf.saxon.event;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.om.Name;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.XMLChar;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.tinytree.CharSlice;
-import net.sf.saxon.type.ValidationException;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.event;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.om.Name;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.XMLChar;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.tinytree.CharSlice;
+import org.orbeon.saxon.type.ValidationException;
+import org.orbeon.saxon.xpath.XPathException;
 import org.xml.sax.*;
 import org.xml.sax.ext.LexicalHandler;
 

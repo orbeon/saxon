@@ -1,14 +1,14 @@
-package net.sf.saxon;
+package org.orbeon.saxon;
 
-import net.sf.saxon.event.PIGrabber;
-import net.sf.saxon.event.Sender;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.trace.TraceListener;
+import org.orbeon.saxon.event.PIGrabber;
+import org.orbeon.saxon.event.Sender;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.trace.TraceListener;
 import org.xml.sax.InputSource;
 import org.xml.sax.XMLFilter;
 
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.*;
 import javax.xml.transform.dom.DOMResult;
@@ -275,11 +275,11 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
      * be an option that the implementation provides.
      *
      * @param name The name of the attribute. This must be one of the constants
-     * defined in class net.sf.saxon.FeatureKeys.
+     * defined in class org.orbeon.saxon.FeatureKeys.
      * @param value The value of the attribute.
      * @throws IllegalArgumentException thrown if Saxon
      * doesn't recognize the attribute.
-     * @see net.sf.saxon.FeatureKeys
+     * @see org.orbeon.saxon.FeatureKeys
      */
 
     public void setAttribute(String name, Object value)
@@ -364,13 +364,13 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
 
         } else if (name.equals(FeatureKeys.OUTPUT_URI_RESOLVER)) {
         	if (!(value instanceof OutputURIResolver)) {
-        		throw new IllegalArgumentException("Output URI resolver value must be an instance of net.sf.saxon.OutputURIResolver");
+        		throw new IllegalArgumentException("Output URI resolver value must be an instance of org.orbeon.saxon.OutputURIResolver");
         	}
         	config.setOutputURIResolver((OutputURIResolver)value);
 
         } else if (name.equals(FeatureKeys.NAME_POOL)) {
         	if (!(value instanceof NamePool)) {
-        		throw new IllegalArgumentException("NAME_POOL value must be an instance of net.sf.saxon.om.NamePool");
+        		throw new IllegalArgumentException("NAME_POOL value must be an instance of org.orbeon.saxon.om.NamePool");
         	}
         	config.setNamePool((NamePool)value);
 

@@ -1,11 +1,11 @@
-package net.sf.saxon.trace;
+package org.orbeon.saxon.trace;
 
-import net.sf.saxon.Version;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.Navigator;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.expr.XPathContext;
+import org.orbeon.saxon.Version;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.Navigator;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.expr.XPathContext;
 
 import java.io.PrintStream;
 import java.util.Iterator;

@@ -1,19 +1,19 @@
-package net.sf.saxon.style;
-import net.sf.saxon.Loader;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.instruct.NumberInstruction;
-import net.sf.saxon.instruct.ValueOf;
-import net.sf.saxon.number.NumberFormatter;
-import net.sf.saxon.number.Numberer;
-import net.sf.saxon.number.Numberer_en;
-import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.pattern.Pattern;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.Loader;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.instruct.NumberInstruction;
+import org.orbeon.saxon.instruct.ValueOf;
+import org.orbeon.saxon.number.NumberFormatter;
+import org.orbeon.saxon.number.Numberer;
+import org.orbeon.saxon.number.Numberer_en;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.pattern.Pattern;
+import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -279,7 +279,7 @@ public class XSLNumber extends StyleElement {
         if (language.equals("en")) {
             numberer = defaultNumberer;
         } else {
-            String langClassName = "net.sf.saxon.number.Numberer_";
+            String langClassName = "org.orbeon.saxon.number.Numberer_";
             for (int i=0; i<language.length(); i++) {
                 if (Character.isLetter(language.charAt(i))) {
                     langClassName += language.charAt(i);

@@ -1,12 +1,12 @@
-package net.sf.saxon.style;
-import net.sf.saxon.Loader;
-import net.sf.saxon.event.LocationProvider;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.tree.ElementImpl;
-import net.sf.saxon.tree.NodeFactory;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.Loader;
+import org.orbeon.saxon.event.LocationProvider;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.tree.ElementImpl;
+import org.orbeon.saxon.tree.NodeFactory;
 
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;

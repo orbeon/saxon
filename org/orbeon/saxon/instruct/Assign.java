@@ -1,13 +1,13 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.expr.Binding;
-import net.sf.saxon.expr.BindingReference;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.value.Closure;
-import net.sf.saxon.value.SequenceExtent;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.expr.Binding;
+import org.orbeon.saxon.expr.BindingReference;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.value.Closure;
+import org.orbeon.saxon.value.SequenceExtent;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * saxon:assign element in stylesheet.

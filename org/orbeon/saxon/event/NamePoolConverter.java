@@ -1,6 +1,6 @@
-package net.sf.saxon.event;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.event;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * This class is a filter that passes all Receiver events through unchanged,

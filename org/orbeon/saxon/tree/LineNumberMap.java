@@ -1,4 +1,4 @@
-package net.sf.saxon.tree;
+package org.orbeon.saxon.tree;
 
 /**
   * Line numbers are not held in nodes in the tree, because they are not usually needed.

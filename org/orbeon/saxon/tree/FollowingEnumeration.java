@@ -1,7 +1,7 @@
-package net.sf.saxon.tree;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.type.Type;
+package org.orbeon.saxon.tree;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.type.Type;
 
 final class FollowingEnumeration extends TreeEnumeration {
 

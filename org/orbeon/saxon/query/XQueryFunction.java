@@ -1,16 +1,16 @@
-package net.sf.saxon.query;
+package org.orbeon.saxon.query;
 
-import net.sf.saxon.expr.*;
-import net.sf.saxon.instruct.*;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NamespaceResolver;
-import net.sf.saxon.trace.InstructionInfo;
-import net.sf.saxon.trace.Location;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.functions.ExecutableFunctionLibrary;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.instruct.*;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NamespaceResolver;
+import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.functions.ExecutableFunctionLibrary;
 
 import java.util.ArrayList;
 import java.util.Iterator;

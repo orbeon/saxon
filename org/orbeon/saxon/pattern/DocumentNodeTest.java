@@ -1,9 +1,9 @@
-package net.sf.saxon.pattern;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.type.SchemaType;
+package org.orbeon.saxon.pattern;
+import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.om.AxisIterator;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.type.SchemaType;
 
 /**
   * A DocumentNodeTest implements the test document-node(element(~,~))

@@ -1,11 +1,11 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.type.ItemType;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.type.ItemType;
 
 import javax.xml.transform.TransformerException;
 import java.util.Collections;

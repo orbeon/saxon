@@ -1,6 +1,6 @@
-package net.sf.saxon.value;
+package org.orbeon.saxon.value;
 
-import net.sf.saxon.expr.StaticProperty;
+import org.orbeon.saxon.expr.StaticProperty;
 
 /**
 * This class contains static methods to manipulate the cardinality

@@ -1,13 +1,13 @@
-package net.sf.saxon.jdom;
+package org.orbeon.saxon.jdom;
 
-import net.sf.saxon.Transform;
+import org.orbeon.saxon.Transform;
 
 import javax.xml.transform.sax.SAXSource;
 import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
 
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -18,7 +18,7 @@ import org.jdom.JDOMException;
 import org.xml.sax.InputSource;
 
 /**
- * Variant of command line net.sf.saxon.Transform do build the source document
+ * Variant of command line org.orbeon.saxon.Transform do build the source document
  * in JDOM and then proceed with the transformation. This class is provided largely for
  * testing purposes.
  */

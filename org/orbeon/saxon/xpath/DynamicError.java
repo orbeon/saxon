@@ -1,6 +1,6 @@
-package net.sf.saxon.xpath;
+package org.orbeon.saxon.xpath;
 
-import net.sf.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.XPathContext;
 
 import javax.xml.transform.SourceLocator;
 

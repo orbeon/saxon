@@ -1,9 +1,9 @@
-package net.sf.saxon.exslt;
-import net.sf.saxon.value.*;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.pattern.AnyNodeTest;
-import net.sf.saxon.expr.XPathContext;
+package org.orbeon.saxon.exslt;
+import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.pattern.AnyNodeTest;
+import org.orbeon.saxon.expr.XPathContext;
 
 /**
 * This class implements extension functions in the

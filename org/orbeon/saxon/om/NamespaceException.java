@@ -1,4 +1,4 @@
-package net.sf.saxon.om;
+package org.orbeon.saxon.om;
 
 /**
  * A NamespaceException represents an error condition whereby a QName (for example a variable

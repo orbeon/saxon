@@ -1,5 +1,5 @@
-package net.sf.saxon;
-import net.sf.saxon.instruct.TerminationException;
+package org.orbeon.saxon;
+import org.orbeon.saxon.instruct.TerminationException;
 
 import org.xml.sax.InputSource;
 
@@ -10,8 +10,8 @@ import java.io.ObjectOutputStream;
 import java.io.FileOutputStream;
 
 import javax.xml.transform.URIResolver;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 import javax.xml.transform.TransformerFactoryConfigurationError;
 import javax.xml.transform.Source;
@@ -34,7 +34,7 @@ public class Compile {
     /**
      * Main program, can be used directly from the command line.
      * <p>The format is:</P>
-     * <p>java net.sf.saxon.Compile [options] <I>style-file</I> <I>output-file</I></P>
+     * <p>java org.orbeon.saxon.Compile [options] <I>style-file</I> <I>output-file</I></P>
      * <p>This program compiles the XSL style sheet in style-file to the output-file.</p>
      *
      * @param args Arguments supplied on the command line
@@ -188,7 +188,7 @@ public class Compile {
     protected void badUsage(String message) {
         System.err.println(message);
         System.err.println(factory.getConfiguration().getProductTitle());
-        System.err.println("Usage: java net.sf.saxon.Compile [options] stylesheet-file output-file");
+        System.err.println("Usage: java org.orbeon.saxon.Compile [options] stylesheet-file output-file");
         System.err.println("Options: ");
         System.err.println("  -r classname    Use specified URIResolver class");
         System.err.println("  -t              Display version and timing information");

@@ -1,12 +1,12 @@
-package net.sf.saxon.query;
+package org.orbeon.saxon.query;
 
-import net.sf.saxon.Configuration;
-import net.sf.saxon.event.Builder;
-import net.sf.saxon.event.Stripper;
-import net.sf.saxon.om.AllElementStripper;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.event.Builder;
+import org.orbeon.saxon.event.Stripper;
+import org.orbeon.saxon.om.AllElementStripper;
+import org.orbeon.saxon.om.DocumentInfo;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.xpath.XPathException;
 import org.xml.sax.SAXParseException;
 
 import javax.xml.transform.Source;
@@ -59,12 +59,12 @@ public class QueryProcessor {
      * document. The document will be built using the default NamePool, which means that
      * any process that uses it must also use the default NamePool.
      * @param source Any javax.xml.transform.Source object representing the document against
-     * which queries will be executed. Note that a Saxon {@link net.sf.saxon.om.DocumentInfo DocumentInfo}
-     * (indeed any {@link net.sf.saxon.om.NodeInfo NodeInfo})
+     * which queries will be executed. Note that a Saxon {@link org.orbeon.saxon.om.DocumentInfo DocumentInfo}
+     * (indeed any {@link org.orbeon.saxon.om.NodeInfo NodeInfo})
      * can be used as a Source. To use a third-party DOM Document as a source, create an instance of
      * {@link javax.xml.transform.dom.DOMSource DOMSource} to wrap it.
      * <p>For additional control over the way in which the source document is processed,
-     * supply an {@link net.sf.saxon.AugmentedSource AugmentedSource} object and set appropriate options on the object.</p>
+     * supply an {@link org.orbeon.saxon.AugmentedSource AugmentedSource} object and set appropriate options on the object.</p>
      * @return the DocumentInfo representing the root node of the resulting document object.
      */
 
@@ -151,7 +151,7 @@ public class QueryProcessor {
      * and defaults to the current working directory.
      * @param query The XQuery query to be evaluated, supplied as a string.
      * @return an XQueryExpression object representing the prepared expression
-     * @throws net.sf.saxon.xpath.XPathException if the syntax of the expression is wrong,
+     * @throws org.orbeon.saxon.xpath.XPathException if the syntax of the expression is wrong,
      * or if it references namespaces, variables, or functions that have not been declared,
      * or contains other static errors.
     */
@@ -170,7 +170,7 @@ public class QueryProcessor {
      * and defaults to the current working directory.
      * @param source A Reader giving access to the text of the XQuery query to be compiled.
      * @return an XPathExpression object representing the prepared expression.
-     * @throws net.sf.saxon.xpath.XPathException if the syntax of the expression is wrong, or if it references namespaces,
+     * @throws org.orbeon.saxon.xpath.XPathException if the syntax of the expression is wrong, or if it references namespaces,
      * variables, or functions that have not been declared, or any other static error is reported.
      * @throws java.io.IOException if a failure occurs reading the supplied input.
     */

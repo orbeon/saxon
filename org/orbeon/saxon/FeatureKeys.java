@@ -1,4 +1,4 @@
-package net.sf.saxon;
+package org.orbeon.saxon;
 
 
 /**
@@ -41,7 +41,7 @@ public class FeatureKeys {
 	        "http://saxon.sf.net/feature/treeModel";
 
 	/**
-	* TRACE_LISTENER must be a class that implements net.sf.saxon.trace.TraceListener
+	* TRACE_LISTENER must be a class that implements org.orbeon.saxon.trace.TraceListener
 	*/
 
 	public final static String TRACE_LISTENER =
@@ -85,14 +85,14 @@ public class FeatureKeys {
             "http://saxon.sf.net/feature/styleParserClass";
 
     /**
-    * NAME_POOL must be an instance of net.sf.saxon.om.NamePool
+    * NAME_POOL must be an instance of org.orbeon.saxon.om.NamePool
     */
 
     public final static String NAME_POOL =
             "http://saxon.sf.net/feature/namePool";
 
     /**
-    * OUTPUT_URI_RESOLVER must be an instance of net.sf.saxon.OutputURIResolver
+    * OUTPUT_URI_RESOLVER must be an instance of org.orbeon.saxon.OutputURIResolver
     */
 
     public final static String OUTPUT_URI_RESOLVER =

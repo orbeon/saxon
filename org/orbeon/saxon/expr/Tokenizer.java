@@ -1,6 +1,6 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.functions.NormalizeSpace;
-import net.sf.saxon.xpath.StaticError;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.functions.NormalizeSpace;
+import org.orbeon.saxon.xpath.StaticError;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -131,7 +131,7 @@ public final class Tokenizer {
      * @param start start point within the string
      * @param end end point within the string (last character not read):
      * -1 means end of string
-     * @exception net.sf.saxon.xpath.StaticError if a lexical error occurs, e.g. unmatched
+     * @exception org.orbeon.saxon.xpath.StaticError if a lexical error occurs, e.g. unmatched
      *     string quotes
      */
     public void tokenize(String input, int start, int end, int lineNumber) throws StaticError {
@@ -170,7 +170,7 @@ public final class Tokenizer {
      * Get the next token from the input expression. The type of token is returned in the
      * currentToken variable, the string value of the token in currentTokenValue.
      *
-     * @exception net.sf.saxon.xpath.StaticError if a lexical error is detected
+     * @exception org.orbeon.saxon.xpath.StaticError if a lexical error is detected
      */
 
     public void next() throws StaticError {
@@ -330,7 +330,7 @@ public final class Tokenizer {
      * The method is normally called internally, but the XQuery parser also
      * calls it to resume normal tokenization after dealing with pseudo-XML
      * syntax.
-     * @exception net.sf.saxon.xpath.StaticError if a lexical error occurs
+     * @exception org.orbeon.saxon.xpath.StaticError if a lexical error occurs
      */
     public void lookAhead() throws StaticError {
         precedingToken = nextToken;

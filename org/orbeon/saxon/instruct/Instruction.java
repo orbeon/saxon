@@ -1,19 +1,19 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.Controller;
-import net.sf.saxon.ParameterSet;
-import net.sf.saxon.event.SequenceOutputter;
-import net.sf.saxon.event.SequenceReceiver;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.EmptyIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.SingletonIterator;
-import net.sf.saxon.trace.InstructionInfo;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.ParameterSet;
+import org.orbeon.saxon.event.SequenceOutputter;
+import org.orbeon.saxon.event.SequenceReceiver;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.EmptyIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.SingletonIterator;
+import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.SourceLocator;
 
@@ -198,7 +198,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
      * Simplify an expression. This performs any static optimization (by rewriting the expression
      * as a different expression). The default implementation does nothing.
      *
-     * @exception net.sf.saxon.xpath.XPathException if an error is discovered during expression
+     * @exception org.orbeon.saxon.xpath.XPathException if an error is discovered during expression
      *     rewriting
      * @return the simplified expression
      */
@@ -265,7 +265,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
      * @param offer details of the offer, for example the offer to move
      *     expressions that don't depend on the context to an outer level in
      *     the containing expression
-     * @exception net.sf.saxon.xpath.XPathException if any error is detected
+     * @exception org.orbeon.saxon.xpath.XPathException if any error is detected
      * @return if the offer is not accepted, return this expression unchanged.
      *      Otherwise return the result of rewriting the expression to promote
      *      this subexpression
@@ -367,7 +367,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
      * the result to a string, other than converting () to "". This method is used mainly to
      * evaluate expressions produced by compiling an attribute value template.
      *
-     * @exception net.sf.saxon.xpath.XPathException if any dynamic error occurs evaluating the
+     * @exception org.orbeon.saxon.xpath.XPathException if any dynamic error occurs evaluating the
      *     expression
      * @exception java.lang.ClassCastException if the result type of the
      *     expression is not xs:string?

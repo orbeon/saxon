@@ -1,19 +1,19 @@
-package net.sf.saxon.instruct;
+package org.orbeon.saxon.instruct;
 
-import net.sf.saxon.Controller;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.event.ReceiverOptions;
-import net.sf.saxon.event.SequenceReceiver;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.PromotionOffer;
-import net.sf.saxon.om.*;
-import net.sf.saxon.tinytree.TinyBuilder;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.event.ReceiverOptions;
+import org.orbeon.saxon.event.SequenceReceiver;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.PromotionOffer;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.tinytree.TinyBuilder;
 
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 import java.io.PrintStream;
 

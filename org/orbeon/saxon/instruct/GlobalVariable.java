@@ -1,13 +1,13 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.Controller;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.trace.InstructionInfo;
-import net.sf.saxon.trace.Location;
-import net.sf.saxon.om.SingletonIterator;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.om.SingletonIterator;
 
 /**
 * Handler for global variables in a stylesheet or query. <br>

@@ -1,13 +1,13 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.ParameterSet;
-import net.sf.saxon.type.AtomicType;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.Cardinality;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.ParameterSet;
+import org.orbeon.saxon.type.AtomicType;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.Cardinality;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 /**

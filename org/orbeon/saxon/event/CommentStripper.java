@@ -1,6 +1,6 @@
-package net.sf.saxon.event;
+package org.orbeon.saxon.event;
 
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
   * The CommentStripper class is a filter that removes all comments and processing instructions.

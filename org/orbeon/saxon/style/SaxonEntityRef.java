@@ -1,12 +1,12 @@
-package net.sf.saxon.style;
-import net.sf.saxon.instruct.Instruction;
-import net.sf.saxon.instruct.Text;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.xpath.StaticError;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.instruct.Instruction;
+import org.orbeon.saxon.instruct.Text;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.xpath.StaticError;
 
 import javax.xml.transform.TransformerConfigurationException;
 

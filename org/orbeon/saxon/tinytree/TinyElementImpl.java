@@ -1,10 +1,10 @@
-package net.sf.saxon.tinytree;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.tree.DOMExceptionImpl;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.tinytree;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.tree.DOMExceptionImpl;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.XPathException;
 import org.w3c.dom.DOMException;
 import org.w3c.dom.Element;
 

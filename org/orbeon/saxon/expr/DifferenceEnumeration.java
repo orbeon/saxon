@@ -1,9 +1,9 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.sort.NodeOrderComparer;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.sort.NodeOrderComparer;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 /**

@@ -1,7 +1,7 @@
-package net.sf.saxon.om;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.StaticError;
+package org.orbeon.saxon.om;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.StaticError;
 
 /**
  * An axis, that is a direction of navigation in the document structure.
@@ -197,7 +197,7 @@ public final class Axis  {
      * Resolve an axis name into a symbolic constant representing the axis
      *
      * @param name
-     * @exception net.sf.saxon.xpath.StaticError
+     * @exception org.orbeon.saxon.xpath.StaticError
      * @return integer value representing the named axis
      */
 

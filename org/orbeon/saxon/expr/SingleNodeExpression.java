@@ -1,13 +1,13 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.SingletonIterator;
-import net.sf.saxon.pattern.AnyNodeTest;
-import net.sf.saxon.type.AtomicType;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.SingletonIterator;
+import org.orbeon.saxon.pattern.AnyNodeTest;
+import org.orbeon.saxon.type.AtomicType;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 

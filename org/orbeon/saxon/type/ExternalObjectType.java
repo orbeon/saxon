@@ -1,9 +1,9 @@
-package net.sf.saxon.type;
+package org.orbeon.saxon.type;
 
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamespaceResolver;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.value.ObjectValue;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NamespaceResolver;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.value.ObjectValue;
 
 /**
  * This class represents the type of an external Java object returned by

@@ -1,14 +1,14 @@
-package net.sf.saxon.instruct;
+package org.orbeon.saxon.instruct;
 
-import net.sf.saxon.Controller;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.trace.InstructionInfo;
-import net.sf.saxon.trace.TraceListener;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.trace.TraceListener;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.Iterator;
 import java.io.PrintStream;

@@ -1,19 +1,19 @@
-package net.sf.saxon.query;
+package org.orbeon.saxon.query;
 
-import net.sf.saxon.Configuration;
-import net.sf.saxon.Controller;
-import net.sf.saxon.event.SaxonOutputKeys;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.instruct.Bindery;
-import net.sf.saxon.instruct.DocumentInstr;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.instruct.SlotManager;
-import net.sf.saxon.om.*;
-import net.sf.saxon.trace.TraceListener;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathEvaluator;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.event.SaxonOutputKeys;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.instruct.Bindery;
+import org.orbeon.saxon.instruct.DocumentInstr;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.instruct.SlotManager;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.trace.TraceListener;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathEvaluator;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.ErrorListener;
 import javax.xml.transform.Result;
@@ -93,7 +93,7 @@ public class XQueryExpression implements Container {
      * of items returned by the expression. Each item in the list will either be an
      * object representing a node, or an object representing an atomic value.
      * For the types of Java object that may be returned, see the description of the
-     * {@link net.sf.saxon.xpath.XPathEvaluator#evaluate evaluate} method
+     * {@link org.orbeon.saxon.xpath.XPathEvaluator#evaluate evaluate} method
      * of class XPathProcessor
      */
 
@@ -304,7 +304,7 @@ public class XQueryExpression implements Container {
     /**
      * Get a controller that can be used to execute functions in this compiled query.
      * Functions in the query module can be found using {@link StaticQueryContext#getUserDefinedFunction}.
-     * They can then be called directly from the Java application using {@link net.sf.saxon.instruct.UserFunction#call}
+     * They can then be called directly from the Java application using {@link org.orbeon.saxon.instruct.UserFunction#call}
      * The same Controller can be used for a series of function calls.
      */
 

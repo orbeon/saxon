@@ -1,4 +1,4 @@
-package net.sf.saxon.trace;
+package org.orbeon.saxon.trace;
 
 /**
  * An InstructionInfoProvider is an object that is capable of providing an InstructionInfo

@@ -1,10 +1,10 @@
-package net.sf.saxon.query;
+package org.orbeon.saxon.query;
 
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.StandardURIResolver;
-import net.sf.saxon.StandardErrorListener;
-import net.sf.saxon.Configuration;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.StandardURIResolver;
+import org.orbeon.saxon.StandardErrorListener;
+import org.orbeon.saxon.Configuration;
 
 import javax.xml.transform.URIResolver;
 import javax.xml.transform.ErrorListener;
@@ -39,7 +39,7 @@ public class DynamicQueryContext {
      * the context node will be undefined. The context node is available as the value of
      * the expression ".".
      * To obtain a NodeInfo by parsing a source document, see the method
-     * {@link net.sf.saxon.query.QueryProcessor#buildDocument buildDocument}
+     * {@link org.orbeon.saxon.query.QueryProcessor#buildDocument buildDocument}
      * in class QueryProcessor.
      * @see
      * @param node      The node that is to be the context node for the query
@@ -57,7 +57,7 @@ public class DynamicQueryContext {
      * the context node will be undefined. The context item is available as the value of
      * the expression ".",.
      * To obtain a node by parsing a source document, see the method
-     * {@link net.sf.saxon.query.QueryProcessor#buildDocument buildDocument}
+     * {@link org.orbeon.saxon.query.QueryProcessor#buildDocument buildDocument}
      * in class QueryProcessor.
      * @param item The item that is to be the context item for the query
      */
@@ -103,8 +103,8 @@ public class DynamicQueryContext {
      *     from a Saxon extension function. An error will occur at query
      *     execution time if the supplied value cannot be converted to the required
      *     type as declared in the query. For precise control of the type of the
-     *     value, instantiate one of the classes in the net.sf.saxon.value package,
-     *     for example net.sf.saxon.value.DayTimeDuration.
+     *     value, instantiate one of the classes in the org.orbeon.saxon.value package,
+     *     for example org.orbeon.saxon.value.DayTimeDuration.
      */
 
     public void setParameter(String expandedName, Object value) {

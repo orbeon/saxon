@@ -1,13 +1,13 @@
-package net.sf.saxon.xpath;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.VariableDeclaration;
-import net.sf.saxon.functions.*;
-import net.sf.saxon.instruct.LocationMap;
-import net.sf.saxon.instruct.SlotManager;
-import net.sf.saxon.om.*;
-import net.sf.saxon.sort.CodepointCollator;
-import net.sf.saxon.sort.CollationFactory;
+package org.orbeon.saxon.xpath;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.VariableDeclaration;
+import org.orbeon.saxon.functions.*;
+import org.orbeon.saxon.instruct.LocationMap;
+import org.orbeon.saxon.instruct.SlotManager;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.sort.CodepointCollator;
+import org.orbeon.saxon.sort.CollationFactory;
 
 import java.util.Comparator;
 import java.util.HashMap;

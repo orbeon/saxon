@@ -1,24 +1,24 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.Controller;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.MappingFunction;
-import net.sf.saxon.expr.MappingIterator;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.EmptyIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.sort.DocumentOrderIterator;
-import net.sf.saxon.sort.LocalOrderComparer;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.trans.KeyManager;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.Cardinality;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.MappingFunction;
+import org.orbeon.saxon.expr.MappingIterator;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.StaticProperty;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.DocumentInfo;
+import org.orbeon.saxon.om.EmptyIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.sort.DocumentOrderIterator;
+import org.orbeon.saxon.sort.LocalOrderComparer;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.KeyManager;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.Cardinality;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 public class Idref extends SystemFunction implements MappingFunction {

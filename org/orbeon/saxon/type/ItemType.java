@@ -1,6 +1,6 @@
-package net.sf.saxon.type;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamePool;
+package org.orbeon.saxon.type;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NamePool;
 
 
 /**
@@ -12,7 +12,7 @@ import net.sf.saxon.om.NamePool;
  * instances of SimpleType in the schema type heirarchy. Node Types, represented by
  * the class NodeTest, are also Patterns as used in XSLT.
  * @see AtomicType
- * @see net.sf.saxon.pattern.NodeTest
+ * @see org.orbeon.saxon.pattern.NodeTest
 */
 
 public interface ItemType {

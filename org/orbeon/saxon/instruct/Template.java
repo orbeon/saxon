@@ -1,11 +1,11 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.XPathContextMajor;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.trace.InstructionInfo;
-import net.sf.saxon.trace.InstructionInfoProvider;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.XPathContextMajor;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.trace.InstructionInfoProvider;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * An xsl:template element in the style sheet.

@@ -1,7 +1,7 @@
-package net.sf.saxon.sort;
-import net.sf.saxon.value.DerivedAtomicValue;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.value.UntypedAtomicValue;
+package org.orbeon.saxon.sort;
+import org.orbeon.saxon.value.DerivedAtomicValue;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.UntypedAtomicValue;
 
 import java.util.Comparator;
 import java.text.Collator;

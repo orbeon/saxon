@@ -1,12 +1,12 @@
-package net.sf.saxon.event;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.Err;
-import net.sf.saxon.om.Name;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.om.QNameException;
-import net.sf.saxon.type.ValidationException;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.event;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.Err;
+import org.orbeon.saxon.om.Name;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.om.QNameException;
+import org.orbeon.saxon.type.ValidationException;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.StringTokenizer;
 

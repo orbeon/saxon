@@ -1,8 +1,8 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.ArrayIterator;
-import net.sf.saxon.value.StringValue;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.ArrayIterator;
+import org.orbeon.saxon.value.StringValue;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

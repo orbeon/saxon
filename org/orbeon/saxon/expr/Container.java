@@ -1,6 +1,6 @@
-package net.sf.saxon.expr;
+package org.orbeon.saxon.expr;
 
-import net.sf.saxon.instruct.Executable;
+import org.orbeon.saxon.instruct.Executable;
 
 import javax.xml.transform.SourceLocator;
 

@@ -1,16 +1,16 @@
-package net.sf.saxon.event;
+package org.orbeon.saxon.event;
 
-import net.sf.saxon.AugmentedSource;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.StandardErrorHandler;
-import net.sf.saxon.dom.DOMSender;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.Validation;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.AugmentedSource;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.StandardErrorHandler;
+import org.orbeon.saxon.dom.DOMSender;
+import org.orbeon.saxon.om.DocumentInfo;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.Validation;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 import org.w3c.dom.Node;
 import org.xml.sax.*;
 

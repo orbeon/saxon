@@ -1,6 +1,6 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * Binding is a interface used to represent the run-time properties and methods

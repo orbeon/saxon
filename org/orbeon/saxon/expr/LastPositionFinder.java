@@ -1,6 +1,6 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 /**

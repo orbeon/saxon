@@ -1,15 +1,15 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.functions.*;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.sort.AtomicComparer;
-import net.sf.saxon.sort.CodepointCollator;
-import net.sf.saxon.type.AtomicType;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.functions.*;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.sort.AtomicComparer;
+import org.orbeon.saxon.sort.CodepointCollator;
+import org.orbeon.saxon.type.AtomicType;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.Comparator;
 
@@ -354,7 +354,7 @@ public final class ValueComparison extends BinaryExpression {
      * {@link Token#FLT}
      * @param v2 the second operand
      * @param collator the Collator to be used when comparing strings
-    * @throws net.sf.saxon.xpath.DynamicError if the values are not comparable
+    * @throws org.orbeon.saxon.xpath.DynamicError if the values are not comparable
     */
 
     protected static boolean compare(AtomicValue v1, int op, AtomicValue v2,

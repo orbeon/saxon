@@ -1,6 +1,6 @@
-package net.sf.saxon.expr;
+package org.orbeon.saxon.expr;
 
-import net.sf.saxon.event.SaxonLocator;
+import org.orbeon.saxon.event.SaxonLocator;
 
 /**
  * Class to hold details of the location of an expression.

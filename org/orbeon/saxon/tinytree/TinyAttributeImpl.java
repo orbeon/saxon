@@ -1,11 +1,11 @@
-package net.sf.saxon.tinytree;
-import net.sf.saxon.om.*;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.type.Type;
+package org.orbeon.saxon.tinytree;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.type.Type;
 
 import org.w3c.dom.Attr;
 
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 /**

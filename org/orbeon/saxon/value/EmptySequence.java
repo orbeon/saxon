@@ -1,13 +1,13 @@
-package net.sf.saxon.value;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.EmptyIterator;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.pattern.NoNodeTest;
+package org.orbeon.saxon.value;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.StaticProperty;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.EmptyIterator;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.pattern.NoNodeTest;
 
 import java.io.PrintStream;
 

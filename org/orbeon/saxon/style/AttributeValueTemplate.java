@@ -1,14 +1,14 @@
-package net.sf.saxon.style;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.functions.Concat;
-import net.sf.saxon.functions.StringJoin;
-import net.sf.saxon.functions.SystemFunction;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.Cardinality;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.StaticError;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.functions.Concat;
+import org.orbeon.saxon.functions.StringJoin;
+import org.orbeon.saxon.functions.SystemFunction;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.Cardinality;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.StaticError;
 
 import java.util.ArrayList;
 import java.util.List;

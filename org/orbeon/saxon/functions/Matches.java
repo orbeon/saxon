@@ -1,16 +1,16 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.value.BooleanValue;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.type.RegexTranslator;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.value.BooleanValue;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.type.RegexTranslator;
 
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -28,7 +28,7 @@ public class Matches extends SystemFunction {
     * Simplify and validate.
     * This is a pure function so it can be simplified in advance if the arguments are known
     * @return the simplified expression
-    * @throws net.sf.saxon.xpath.StaticError if any error is found (e.g. invalid regular expression)
+    * @throws org.orbeon.saxon.xpath.StaticError if any error is found (e.g. invalid regular expression)
     */
 
      public Expression simplify(StaticContext env) throws XPathException {
@@ -46,7 +46,7 @@ public class Matches extends SystemFunction {
      * Set the Java flags from the supplied XPath flags.
      * @param inFlags the flags as a string, e.g. "im"
      * @return the flags as a bit-significant integer
-     * @throws net.sf.saxon.xpath.StaticError if the supplied value is invalid
+     * @throws org.orbeon.saxon.xpath.StaticError if the supplied value is invalid
      */
 
     public static int setFlags(String inFlags) throws StaticError {
@@ -82,7 +82,7 @@ public class Matches extends SystemFunction {
      * @param flagsArg the position of the argument containing the flags
      * @return the compiled regular expression, or null indicating that the information
      * is not available statically so it cannot be precompiled
-     * @throws net.sf.saxon.xpath.StaticError if any failure occurs, in particular, if the regular
+     * @throws org.orbeon.saxon.xpath.StaticError if any failure occurs, in particular, if the regular
      * expression is invalid
      */
 

@@ -1,6 +1,6 @@
-package net.sf.saxon.trans;
+package org.orbeon.saxon.trans;
 
-import net.sf.saxon.functions.FormatNumber2;
+import org.orbeon.saxon.functions.FormatNumber2;
 
 import java.text.DecimalFormatSymbols;
 import java.util.HashMap;

@@ -1,19 +1,19 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.event.SequenceReceiver;
-import net.sf.saxon.instruct.InstructionDetails;
-import net.sf.saxon.instruct.UserFunction;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.trace.InstructionInfo;
-import net.sf.saxon.trace.InstructionInfoProvider;
-import net.sf.saxon.trace.Location;
-import net.sf.saxon.type.AnyItemType;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.value.ObjectValue;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.event.SequenceReceiver;
+import org.orbeon.saxon.instruct.InstructionDetails;
+import org.orbeon.saxon.instruct.UserFunction;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.trace.InstructionInfoProvider;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.type.AnyItemType;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.value.ObjectValue;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 

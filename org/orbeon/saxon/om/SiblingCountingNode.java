@@ -1,4 +1,4 @@
-package net.sf.saxon.om;
+package org.orbeon.saxon.om;
 
 /**
  * Interface that extends NodeInfo by providing a method to get the position

@@ -1,6 +1,6 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 /**
 * An exception thrown by xsl:message terminate="yes".

@@ -1,4 +1,4 @@
-package net.sf.saxon.om;
+package org.orbeon.saxon.om;
 
 /**
  * This interface is implemented by NodeInfo implementations that act as wrappers

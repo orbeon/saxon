@@ -1,15 +1,15 @@
-package net.sf.saxon.event;
+package org.orbeon.saxon.event;
 
-import net.sf.saxon.Configuration;
-import net.sf.saxon.dom.DOMEmitter;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.tinytree.TinyBuilder;
-import net.sf.saxon.tree.DocumentImpl;
-import net.sf.saxon.tree.TreeBuilder;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.dom.DOMEmitter;
+import org.orbeon.saxon.om.DocumentInfo;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.tinytree.TinyBuilder;
+import org.orbeon.saxon.tree.DocumentImpl;
+import org.orbeon.saxon.tree.TreeBuilder;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 

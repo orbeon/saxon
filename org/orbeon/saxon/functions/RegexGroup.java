@@ -1,14 +1,14 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.instruct.RegexIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.NumericValue;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.StaticProperty;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.instruct.RegexIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.NumericValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 public class RegexGroup extends SystemFunction implements XSLTFunction {

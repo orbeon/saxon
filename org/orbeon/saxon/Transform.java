@@ -1,9 +1,9 @@
-package net.sf.saxon;
-import net.sf.saxon.event.Builder;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.value.UntypedAtomicValue;
-import net.sf.saxon.trace.TraceListener;
-import net.sf.saxon.instruct.TerminationException;
+package org.orbeon.saxon;
+import org.orbeon.saxon.event.Builder;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.value.UntypedAtomicValue;
+import org.orbeon.saxon.trace.TraceListener;
+import org.orbeon.saxon.instruct.TerminationException;
 
 import org.xml.sax.InputSource;
 
@@ -16,8 +16,8 @@ import java.io.ObjectInputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 import javax.xml.transform.*;
 import javax.xml.transform.sax.SAXSource;
@@ -47,7 +47,7 @@ public class Transform {
     /**
      * Main program, can be used directly from the command line.
      * <p>The format is:</P>
-     * <p>java net.sf.saxon.Transform [options] <I>source-file</I> <I>style-file</I> &gt;<I>output-file</I></P>
+     * <p>java org.orbeon.saxon.Transform [options] <I>source-file</I> <I>style-file</I> &gt;<I>output-file</I></P>
      * <p>followed by any number of parameters in the form {keyword=value}... which can be
      * referenced from within the stylesheet.</p>
      * <p>This program applies the XSL style sheet in style-file to the source XML document in source-file.</p>
@@ -61,7 +61,7 @@ public class Transform {
         throws java.lang.Exception
     {
         // the real work is delegated to another routine so that it can be used in a subclass
-        (new Transform()).doMain(args, "java net.sf.saxon.Transform");
+        (new Transform()).doMain(args, "java org.orbeon.saxon.Transform");
     }
 
     /**
@@ -244,7 +244,7 @@ public class Transform {
 
                     else if (args[i].equals("-T")) {
                         i++;
-                        TraceListener traceListener = new net.sf.saxon.trace.XSLTTraceListener();
+                        TraceListener traceListener = new org.orbeon.saxon.trace.XSLTTraceListener();
                         factory.setAttribute(
                                 FeatureKeys.TRACE_LISTENER,
                                 traceListener);
@@ -255,7 +255,7 @@ public class Transform {
 
                     else if (args[i].equals("-TP")) {
                         i++;
-                        TraceListener traceListener = new net.sf.saxon.trace.TimedTraceListener();
+                        TraceListener traceListener = new org.orbeon.saxon.trace.TimedTraceListener();
                         factory.setAttribute(
                                 FeatureKeys.TRACE_LISTENER,
                                 traceListener);
@@ -937,7 +937,7 @@ public class Transform {
     /** Create an instance of a TraceListener with a specified class name
      *
      * @exception XPathException if the requested class does not
-     *     implement the net.sf.saxon.trace.TraceListener interface
+     *     implement the org.orbeon.saxon.trace.TraceListener interface
      * @param className The fully qualified class name of the TraceListener to
      *      be constructed
      * @return the newly constructed TraceListener

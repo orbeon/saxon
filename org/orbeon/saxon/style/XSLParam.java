@@ -1,12 +1,12 @@
-package net.sf.saxon.style;
-import net.sf.saxon.instruct.*;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.AxisIterator;
-import net.sf.saxon.om.Navigator;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.instruct.*;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.om.AxisIterator;
+import org.orbeon.saxon.om.Navigator;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 

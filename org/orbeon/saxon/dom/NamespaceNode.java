@@ -1,11 +1,11 @@
-package net.sf.saxon.dom;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.om.*;
-import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.UntypedAtomicValue;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.dom;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.UntypedAtomicValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
   * A node (implementing the NodeInfo interface) representing a Namespace node

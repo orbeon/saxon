@@ -1,12 +1,12 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.trace.InstructionInfo;
-import net.sf.saxon.trace.Location;
-import net.sf.saxon.type.SchemaType;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 

@@ -1,14 +1,14 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.om.*;
-import net.sf.saxon.pattern.ContentTypeTest;
-import net.sf.saxon.type.AtomicType;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.SchemaType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.ContentTypeTest;
+import org.orbeon.saxon.type.AtomicType;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * An Atomizer is an expression corresponding essentially to the fn:data() function: it

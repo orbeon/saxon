@@ -1,15 +1,15 @@
-package net.sf.saxon.value;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.ListIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.SingletonIterator;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.trace.Location;
+package org.orbeon.saxon.value;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.ListIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.SingletonIterator;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.trace.Location;
 
 import java.util.ArrayList;
 import java.io.PrintStream;

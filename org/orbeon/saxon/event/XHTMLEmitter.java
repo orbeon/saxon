@@ -1,6 +1,6 @@
-package net.sf.saxon.event;
+package org.orbeon.saxon.event;
 
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.OutputKeys;
 

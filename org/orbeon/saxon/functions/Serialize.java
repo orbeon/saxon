@@ -1,21 +1,21 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.event.SequenceReceiver;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.Validation;
-import net.sf.saxon.style.ExpressionContext;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.event.SequenceReceiver;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.Validation;
+import org.orbeon.saxon.style.ExpressionContext;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.OutputKeys;
 
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.trace.Location;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.trace.Location;
 
 import javax.xml.transform.stream.StreamResult;
 import java.io.StringWriter;

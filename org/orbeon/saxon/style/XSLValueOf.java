@@ -1,13 +1,13 @@
-package net.sf.saxon.style;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.instruct.ValueOf;
-import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.Cardinality;
-import net.sf.saxon.value.StringValue;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.instruct.ValueOf;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.Cardinality;
+import org.orbeon.saxon.value.StringValue;
 
 import javax.xml.transform.TransformerConfigurationException;
 

@@ -1,7 +1,7 @@
-package net.sf.saxon.event;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.event;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.xpath.XPathException;
 
     /**
     * A ProxyReceiver is an Receiver that filters data before passing it to another

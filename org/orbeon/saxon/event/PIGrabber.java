@@ -1,9 +1,9 @@
-package net.sf.saxon.event;
-import net.sf.saxon.Configuration;
-import net.sf.saxon.StandardURIResolver;
-import net.sf.saxon.om.ProcInstParser;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.event;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.StandardURIResolver;
+import org.orbeon.saxon.om.ProcInstParser;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.TransformerException;

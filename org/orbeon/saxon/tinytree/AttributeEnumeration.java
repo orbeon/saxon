@@ -1,11 +1,11 @@
-package net.sf.saxon.tinytree;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.AxisIteratorImpl;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.pattern.NodeTest;
-import net.sf.saxon.pattern.NameTest;
-import net.sf.saxon.value.UntypedAtomicValue;
+package org.orbeon.saxon.tinytree;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.AxisIteratorImpl;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.pattern.NameTest;
+import org.orbeon.saxon.value.UntypedAtomicValue;
 
 /**
 * AttributeEnumeration is an iterator over all the attribute nodes of an Element.

@@ -1,8 +1,8 @@
-package net.sf.saxon.charcode;
-import net.sf.saxon.Loader;
+package org.orbeon.saxon.charcode;
+import org.orbeon.saxon.Loader;
 import javax.xml.transform.OutputKeys;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 import java.util.Properties;
 import java.util.Iterator;

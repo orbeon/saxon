@@ -1,8 +1,8 @@
-package net.sf.saxon.dom;
-import net.sf.saxon.event.Emitter;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.dom;
+import org.orbeon.saxon.event.Emitter;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 import org.w3c.dom.*;
 
 

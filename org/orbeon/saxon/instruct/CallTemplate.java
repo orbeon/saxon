@@ -1,15 +1,15 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.Controller;
-import net.sf.saxon.ParameterSet;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.Name;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NamespaceResolver;
-import net.sf.saxon.om.QNameException;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.trace.InstructionInfo;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.ParameterSet;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.Name;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NamespaceResolver;
+import org.orbeon.saxon.om.QNameException;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -143,7 +143,7 @@ public class CallTemplate extends Instruction {
     /**
      * Handle promotion offers, that is, non-local tree rewrites.
      * @param offer The type of rewrite being offered
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws org.orbeon.saxon.xpath.XPathException
      */
 
     protected void promoteInst(PromotionOffer offer) throws XPathException {

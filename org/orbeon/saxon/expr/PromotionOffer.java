@@ -1,8 +1,8 @@
-package net.sf.saxon.expr;
-import net.sf.saxon.sort.DocumentSorter;
-import net.sf.saxon.sort.Reverser;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.expr;
+import org.orbeon.saxon.sort.DocumentSorter;
+import org.orbeon.saxon.sort.Reverser;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.Iterator;
 

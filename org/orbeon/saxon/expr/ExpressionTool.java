@@ -1,13 +1,13 @@
-package net.sf.saxon.expr;
+package org.orbeon.saxon.expr;
 
-import net.sf.saxon.Controller;
-import net.sf.saxon.event.SequenceOutputter;
-import net.sf.saxon.instruct.Instruction;
-import net.sf.saxon.instruct.SlotManager;
-import net.sf.saxon.om.*;
-import net.sf.saxon.trace.InstructionInfoProvider;
-import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.event.SequenceOutputter;
+import org.orbeon.saxon.instruct.Instruction;
+import org.orbeon.saxon.instruct.SlotManager;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.trace.InstructionInfoProvider;
+import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.SourceLocator;
 import java.util.Iterator;

@@ -1,17 +1,17 @@
-package net.sf.saxon.instruct;
+package org.orbeon.saxon.instruct;
 
-import net.sf.saxon.expr.*;
-import net.sf.saxon.functions.Matches;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.type.RegexTranslator;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.pattern.NoNodeTest;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.functions.Matches;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.type.RegexTranslator;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.pattern.NoNodeTest;
 
 import java.util.Iterator;
 import java.util.ArrayList;

@@ -1,4 +1,4 @@
-package net.sf.saxon.instruct;
+package org.orbeon.saxon.instruct;
 
 /**
  * This interface may be implemented by an external debugging tool

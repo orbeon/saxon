@@ -1,21 +1,21 @@
-package net.sf.saxon.query;
+package org.orbeon.saxon.query;
 
-import net.sf.saxon.Configuration;
-import net.sf.saxon.Err;
-import net.sf.saxon.trace.Location;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.functions.*;
-import net.sf.saxon.instruct.*;
-import net.sf.saxon.om.*;
-import net.sf.saxon.sort.FixedSortKeyDefinition;
-import net.sf.saxon.sort.TupleExpression;
-import net.sf.saxon.sort.TupleSorter;
-import net.sf.saxon.style.AttributeValueTemplate;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.*;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.Err;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.functions.*;
+import org.orbeon.saxon.instruct.*;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.sort.FixedSortKeyDefinition;
+import org.orbeon.saxon.sort.TupleExpression;
+import org.orbeon.saxon.sort.TupleSorter;
+import org.orbeon.saxon.style.AttributeValueTemplate;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
@@ -103,7 +103,7 @@ public class QueryParser extends ExpressionParser {
      * @param start         Offset of the start of the query
      * @param terminator    Token expected to follow the query (usually Token.EOF)
      * @param env           The static context
-     * @exception net.sf.saxon.xpath.XPathException if the expression contains a syntax error
+     * @exception org.orbeon.saxon.xpath.XPathException if the expression contains a syntax error
      * @return the Expression object that results from parsing
      */
 
@@ -158,7 +158,7 @@ public class QueryParser extends ExpressionParser {
      * a library module is that the static context is populated with a set of function
      * declarations and variable declarations. Each library module must have its own
      * static context objext.
-     * @throws net.sf.saxon.xpath.StaticError if the expression contains a syntax error
+     * @throws org.orbeon.saxon.xpath.StaticError if the expression contains a syntax error
      */
 
     public final void parseLibraryModule(String queryString, StaticQueryContext env)
@@ -188,7 +188,7 @@ public class QueryParser extends ExpressionParser {
      * Report a parsing error
      *
      * @param message the error message
-     * @exception net.sf.saxon.xpath.StaticError always thrown: an exception containing the
+     * @exception org.orbeon.saxon.xpath.StaticError always thrown: an exception containing the
      *     supplied message
      */
 
@@ -217,7 +217,7 @@ public class QueryParser extends ExpressionParser {
 
     /**
      * Parse the version declaration if present.
-     * @throws net.sf.saxon.xpath.StaticError  in the event of a syntax error.
+     * @throws org.orbeon.saxon.xpath.StaticError  in the event of a syntax error.
      */
     private void parseVersionDeclaration() throws StaticError {
         if (t.currentToken == Token.XQUERY_VERSION) {
@@ -235,7 +235,7 @@ public class QueryParser extends ExpressionParser {
     /**
      * In a library module, parse the module declaration
      * Syntax: <"module" "namespace"> prefix "=" uri ";"
-     * @throws net.sf.saxon.xpath.StaticError  in the event of a syntax error.
+     * @throws org.orbeon.saxon.xpath.StaticError  in the event of a syntax error.
      */
 
     private void parseModuleDeclaration() throws StaticError {
@@ -260,7 +260,7 @@ public class QueryParser extends ExpressionParser {
      * individual declarations in the prolog, cause the static context to be updated
      * with relevant context information. On exit, t.currentToken is the first token
      * that is not recognized as being part of the prolog.
-     * @throws net.sf.saxon.xpath.StaticError  in the event of a syntax error.
+     * @throws org.orbeon.saxon.xpath.StaticError  in the event of a syntax error.
      */
 
     private void parseProlog() throws StaticError {
@@ -391,7 +391,7 @@ public class QueryParser extends ExpressionParser {
     /**
      * Parse the "declare xmlspace" declaration.
      * Syntax: <"declare" "xmlspace"> ("preserve" | "strip")
-     * @throws net.sf.saxon.xpath.StaticError
+     * @throws org.orbeon.saxon.xpath.StaticError
      */
 
     private void parseXmlSpaceDeclaration() throws StaticError {
@@ -410,7 +410,7 @@ public class QueryParser extends ExpressionParser {
     /**
      * Parse the "declare ordering" declaration.
      * Syntax: <"declare" "ordering"> ("ordered" | "unordered")
-     * @throws net.sf.saxon.xpath.StaticError
+     * @throws org.orbeon.saxon.xpath.StaticError
      */
 
     private void parseOrderingDeclaration() throws StaticError {
@@ -430,7 +430,7 @@ public class QueryParser extends ExpressionParser {
     /**
      * Parse the "declare construction" declaration.
      * Syntax: <"declare" "construction"> ("preserve" | "strip")
-     * @throws net.sf.saxon.xpath.StaticError
+     * @throws org.orbeon.saxon.xpath.StaticError
      */
 
     private void parseConstructionDeclaration() throws StaticError {
@@ -593,7 +593,7 @@ public class QueryParser extends ExpressionParser {
     /**
      * Parse the Base URI declaration.
      * Syntax: <"declare" "base-uri"> string-literal
-     * @throws net.sf.saxon.xpath.StaticError
+     * @throws org.orbeon.saxon.xpath.StaticError
      */
 
     private void parseBaseURIDeclaration() throws StaticError {
@@ -613,7 +613,7 @@ public class QueryParser extends ExpressionParser {
     /**
      * Parse the "default function namespace" declaration.
      * Syntax: <"declare" "default" "element" "namespace"> StringLiteral
-     * @throws net.sf.saxon.xpath.StaticError to indicate a syntax error
+     * @throws org.orbeon.saxon.xpath.StaticError to indicate a syntax error
      */
 
     private void parseDefaultFunctionNamespace() throws StaticError {
@@ -632,7 +632,7 @@ public class QueryParser extends ExpressionParser {
     /**
      * Parse the "default element namespace" declaration.
      * Syntax: <"declare" "default" "element" "namespace"> StringLiteral
-     * @throws net.sf.saxon.xpath.StaticError  to indicate a syntax error
+     * @throws org.orbeon.saxon.xpath.StaticError  to indicate a syntax error
      */
 
     private void parseDefaultElementNamespace() throws StaticError {
@@ -651,7 +651,7 @@ public class QueryParser extends ExpressionParser {
     /**
      * Parse a namespace declaration in the Prolog.
      * Syntax: <"declare" "namespace"> NCName "=" StringLiteral
-     * @throws net.sf.saxon.xpath.StaticError
+     * @throws org.orbeon.saxon.xpath.StaticError
      */
 
     private void parseNamespaceDeclaration() throws StaticError {
@@ -682,7 +682,7 @@ public class QueryParser extends ExpressionParser {
      *         ((":=" Expr ) | "external")
      * Currently accept both
      * TODO: stop supporting the old syntax
-     * @throws net.sf.saxon.xpath.StaticError
+     * @throws org.orbeon.saxon.xpath.StaticError
      */
 
     private void parseVariableDeclaration() throws StaticError {
@@ -793,7 +793,7 @@ public class QueryParser extends ExpressionParser {
      *       (EnclosedExpr | "external")
      * </p>
      * <p>On entry, the "define function" has already been recognized</p>
-     * @throws net.sf.saxon.xpath.StaticError if a syntax error is found
+     * @throws org.orbeon.saxon.xpath.StaticError if a syntax error is found
      */
 
     private void parseFunctionDeclaration() throws StaticError {
@@ -912,7 +912,7 @@ public class QueryParser extends ExpressionParser {
      *                        (<"empty" "greatest"> | <"empty" "least">)?
      *                        ("collation" StringLiteral)?
      * </p>
-     * @exception net.sf.saxon.xpath.StaticError if any error is encountered
+     * @exception org.orbeon.saxon.xpath.StaticError if any error is encountered
      * @return the resulting subexpression
      */
 
@@ -1085,7 +1085,7 @@ public class QueryParser extends ExpressionParser {
      * </p>
      * @param clauseList - the components of the parsed ForClause are appended to the
      * supplied list
-     * @throws net.sf.saxon.xpath.StaticError
+     * @throws org.orbeon.saxon.xpath.StaticError
      */
     private void parseForClause(List clauseList) throws StaticError {
         boolean first = true;
@@ -1153,7 +1153,7 @@ public class QueryParser extends ExpressionParser {
      * </p>
      * @param clauseList - the components of the parsed LetClause are appended to the
      * supplied list
-     * @throws net.sf.saxon.xpath.StaticError
+     * @throws org.orbeon.saxon.xpath.StaticError
      */
     private void parseLetClause(List clauseList) throws StaticError {
         boolean first = true;
@@ -1208,7 +1208,7 @@ public class QueryParser extends ExpressionParser {
      *                        (<"empty" "greatest"> | <"empty" "least">)?
      *                        ("collation" StringLiteral)?
      * @return a list of sort specifications (SortSpec), one per sort key
-     * @throws net.sf.saxon.xpath.StaticError
+     * @throws org.orbeon.saxon.xpath.StaticError
      */
     private List parseSortDefinition() throws StaticError {
         List sortSpecList = new ArrayList(5);
@@ -1534,7 +1534,7 @@ public class QueryParser extends ExpressionParser {
      * both the XML-like "direct" constructors, and the XQuery-based "computed"
      * constructors.
      * @return an Expression for evaluating the parsed constructor
-     * @throws net.sf.saxon.xpath.StaticError in the event of a syntax error.
+     * @throws org.orbeon.saxon.xpath.StaticError in the event of a syntax error.
      */
 
     protected Expression parseConstructor() throws StaticError {
@@ -2416,7 +2416,7 @@ public class QueryParser extends ExpressionParser {
      * @return The character represented by the character or entity reference. Note
      * that this is a string rather than a char because a char only accommodates characters
      * up to 65535.
-     * @throws net.sf.saxon.xpath.StaticError if the character or entity reference is not well-formed
+     * @throws org.orbeon.saxon.xpath.StaticError if the character or entity reference is not well-formed
      */
 
     private String readEntityReference() throws StaticError {
@@ -2532,7 +2532,7 @@ public class QueryParser extends ExpressionParser {
      * Test whether the current character is the expected character.
      * @param actual    The character that was read
      * @param expected  The character that was expected
-     * @throws net.sf.saxon.xpath.StaticError if they are different
+     * @throws org.orbeon.saxon.xpath.StaticError if they are different
      */
 
     private void expectChar(char actual, char expected) throws StaticError {

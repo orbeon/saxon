@@ -1,13 +1,13 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.EmptyIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.EmptyIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
 
 import java.util.Iterator;
 import java.util.ArrayList;

@@ -1,13 +1,13 @@
-package net.sf.saxon.style;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.instruct.*;
-import net.sf.saxon.om.*;
-import net.sf.saxon.pattern.NoNodeTest;
-import net.sf.saxon.tree.AttributeCollection;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.trace.Location;
+package org.orbeon.saxon.style;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.instruct.*;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.NoNodeTest;
+import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trace.Location;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.ArrayList;
@@ -403,8 +403,8 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
 
     /**
      * Get the type of construct. This will be a constant in
-     * class {@link net.sf.saxon.trace.Location}. This method is part of the
-     * {@link net.sf.saxon.trace.InstructionInfo} interface
+     * class {@link org.orbeon.saxon.trace.Location}. This method is part of the
+     * {@link org.orbeon.saxon.trace.InstructionInfo} interface
      */
 
     public int getConstructType() {

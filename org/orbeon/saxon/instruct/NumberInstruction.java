@@ -1,21 +1,21 @@
-package net.sf.saxon.instruct;
+package org.orbeon.saxon.instruct;
 
-import net.sf.saxon.Loader;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.functions.NumberFn;
-import net.sf.saxon.number.NumberFormatter;
-import net.sf.saxon.number.Numberer;
-import net.sf.saxon.number.Numberer_en;
-import net.sf.saxon.om.*;
-import net.sf.saxon.pattern.Pattern;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.IntegerValue;
-import net.sf.saxon.value.NumericValue;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.xpath.DynamicError;
+import org.orbeon.saxon.Loader;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.functions.NumberFn;
+import org.orbeon.saxon.number.NumberFormatter;
+import org.orbeon.saxon.number.Numberer;
+import org.orbeon.saxon.number.Numberer_en;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.Pattern;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.IntegerValue;
+import org.orbeon.saxon.value.NumericValue;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.xpath.DynamicError;
 
 import java.util.*;
 import java.io.PrintStream;
@@ -148,7 +148,7 @@ public class NumberInstruction extends ComputedExpression {
      * variables will only be accurately known if they have been explicitly declared.</p>
      *
      * @param env the static context of the expression
-     * @exception net.sf.saxon.xpath.StaticError if an error is discovered during this phase
+     * @exception org.orbeon.saxon.xpath.StaticError if an error is discovered during this phase
      *     (typically a type error)
      * @return the original expression, rewritten to perform necessary
      *     run-time type checks, and to perform other type-related
@@ -397,7 +397,7 @@ public class NumberInstruction extends ComputedExpression {
         if ("en".equals(language)) {
             numberer = defaultNumberer;
         } else {
-            String langClassName = "net.sf.saxon.number.Numberer_";
+            String langClassName = "org.orbeon.saxon.number.Numberer_";
             for (int i = 0; i < language.length(); i++) {
                 if (Character.isLetter(language.charAt(i))) {
                     langClassName += language.charAt(i);

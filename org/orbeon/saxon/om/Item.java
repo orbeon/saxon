@@ -1,6 +1,6 @@
-package net.sf.saxon.om;
-import net.sf.saxon.xpath.XPathException;
-import net.sf.saxon.Configuration;
+package org.orbeon.saxon.om;
+import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.Configuration;
 
 /**
  * An Item is an object that can occur as a member of a sequence.

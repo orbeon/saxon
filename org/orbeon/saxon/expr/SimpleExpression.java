@@ -1,11 +1,11 @@
-package net.sf.saxon.expr;
+package org.orbeon.saxon.expr;
 
-import net.sf.saxon.Controller;
-import net.sf.saxon.event.SequenceOutputter;
-import net.sf.saxon.om.*;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.event.SequenceOutputter;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.Arrays;
 import java.util.Iterator;
@@ -80,7 +80,7 @@ public abstract class SimpleExpression extends ComputedExpression {
      * variables will only be accurately known if they have been explicitly declared.</p>
      *
      * @param env the static context of the expression
-     * @exception net.sf.saxon.xpath.StaticError if an error is discovered during this phase
+     * @exception org.orbeon.saxon.xpath.StaticError if an error is discovered during this phase
      *     (typically a type error)
      * @return the original expression, rewritten to perform necessary
      *     run-time type checks, and to perform other type-related

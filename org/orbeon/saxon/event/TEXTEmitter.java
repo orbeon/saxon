@@ -1,7 +1,7 @@
-package net.sf.saxon.event;
-import net.sf.saxon.charcode.UnicodeCharacterSet;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.event;
+import org.orbeon.saxon.charcode.UnicodeCharacterSet;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
   * This class generates TEXT output

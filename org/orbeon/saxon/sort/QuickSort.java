@@ -1,4 +1,4 @@
-package net.sf.saxon.sort;
+package org.orbeon.saxon.sort;
 
 /**
  * This is a generic version of C.A.R Hoare's Quick Sort 

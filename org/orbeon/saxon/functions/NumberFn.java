@@ -1,15 +1,15 @@
-package net.sf.saxon.functions;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.value.DoubleValue;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.value.BooleanValue;
-import net.sf.saxon.value.NumericValue;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.value.DoubleValue;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.value.BooleanValue;
+import org.orbeon.saxon.value.NumericValue;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * Implements the XPath number() function
