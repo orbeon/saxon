@@ -115,7 +115,7 @@ public final class Bindery  {
     /**
     * Set/Unset a flag to indicate that a particular global variable is currently being
     * evaluated.
-    * @throws net.sf.saxon.trans.XPathException If an attempt is made to set the flag when it is already set, this means
+    * @throws org.orbeon.saxon.trans.XPathException If an attempt is made to set the flag when it is already set, this means
     * the definition of the variable is circular.
     */
 

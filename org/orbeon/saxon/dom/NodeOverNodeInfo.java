@@ -1,12 +1,12 @@
-package net.sf.saxon.dom;
-import net.sf.saxon.functions.DeepEqual;
-import net.sf.saxon.om.*;
-import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.sort.AtomicComparer;
-import net.sf.saxon.sort.CodepointCollator;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.trans.XPathException;
-import net.sf.saxon.type.Type;
+package org.orbeon.saxon.dom;
+import org.orbeon.saxon.functions.DeepEqual;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.sort.AtomicComparer;
+import org.orbeon.saxon.sort.CodepointCollator;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.Type;
 import org.w3c.dom.*;
 
 import java.util.ArrayList;

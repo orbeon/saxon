@@ -27,7 +27,7 @@ public abstract class CalendarValue extends AtomicValue implements Comparable {
      * @param context the dynamic context, used to obtain timezone information. May be set to null
      * only if both values contain an explicit timezone.
      * @return the duration as an xdt:dayTimeDuration
-     * @throws net.sf.saxon.trans.XPathException for example if one value is a date and the other is a time
+     * @throws org.orbeon.saxon.trans.XPathException for example if one value is a date and the other is a time
      */
 
     public SecondsDurationValue subtract(CalendarValue other, XPathContext context) throws XPathException {

@@ -212,7 +212,7 @@ public class UseWhenStaticContext implements XSLTStaticContext {
 
     /**
     * Determine if an extension element is available
-    * @throws net.sf.saxon.trans.XPathException if the name is invalid or the prefix is not declared
+    * @throws org.orbeon.saxon.trans.XPathException if the name is invalid or the prefix is not declared
     */
 
     public boolean isElementAvailable(String qname) throws XPathException {

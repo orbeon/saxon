@@ -1,13 +1,13 @@
-package net.sf.saxon.trans;
-import net.sf.saxon.expr.Binding;
-import net.sf.saxon.expr.BindingReference;
-import net.sf.saxon.expr.VariableDeclaration;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.om.ValueRepresentation;
-import net.sf.saxon.Configuration;
+package org.orbeon.saxon.trans;
+import org.orbeon.saxon.expr.Binding;
+import org.orbeon.saxon.expr.BindingReference;
+import org.orbeon.saxon.expr.VariableDeclaration;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.value.EmptySequence;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.om.ValueRepresentation;
+import org.orbeon.saxon.Configuration;
 
 
 /**
@@ -70,7 +70,7 @@ public final class Variable implements VariableDeclaration, Binding {
      * Assign a value to the variable. This value may be changed between successive evaluations of
      * a compiled XPath expression that references the variable.
      * @param value     the value of the variable
-     * @throws net.sf.saxon.trans.XPathException if the Java value cannot be converted to an XPath type
+     * @throws org.orbeon.saxon.trans.XPathException if the Java value cannot be converted to an XPath type
      */
 
     public void setValue(Object value) throws XPathException {

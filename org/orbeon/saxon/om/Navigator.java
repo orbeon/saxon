@@ -112,7 +112,7 @@ public final class Navigator {
     /**
      * Output all namespace nodes associated with this element. Does nothing if
      * the node is not an element. This is a helper method to allow the method
-     * {@link NodeInfo#sendNamespaceDeclarations(net.sf.saxon.event.Receiver, boolean)} to be
+     * {@link NodeInfo#sendNamespaceDeclarations(org.orbeon.saxon.event.Receiver, boolean)} to be
      * implemented if {@link NodeInfo#getDeclaredNamespaces(int[])} is available.
      * @param out The relevant outputter
      * @param includeAncestors True if namespaces declared on ancestor elements must be output
@@ -345,7 +345,7 @@ public final class Navigator {
      * Return one plus the number of previous nodes in the
      * document that match the supplied pattern
      *
-     * @exception net.sf.saxon.trans.XPathException
+     * @exception org.orbeon.saxon.trans.XPathException
      * @param inst Identifies the xsl:number expression; this is relevant
      *     when the function is memoised to support repeated use of the same
      *     instruction to number multiple nodes

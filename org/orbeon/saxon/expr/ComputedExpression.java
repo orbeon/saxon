@@ -203,7 +203,7 @@ public abstract class ComputedExpression
      * @param offer details of the offer, for example the offer to move
      *     expressions that don't depend on the context to an outer level in
      *     the containing expression
-     * @exception net.sf.saxon.trans.XPathException if any error is detected
+     * @exception org.orbeon.saxon.trans.XPathException if any error is detected
      * @return if the offer is not accepted, return this expression unchanged.
      *      Otherwise return the result of rewriting the expression to promote
      *      this subexpression

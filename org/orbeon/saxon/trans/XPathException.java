@@ -1,7 +1,7 @@
-package net.sf.saxon.trans;
+package org.orbeon.saxon.trans;
 
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.value.Value;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.value.Value;
 
 import javax.xml.transform.SourceLocator;
 import javax.xml.transform.TransformerException;

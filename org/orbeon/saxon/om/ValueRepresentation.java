@@ -1,4 +1,4 @@
-package net.sf.saxon.om;
+package org.orbeon.saxon.om;
 
 /**
  * A ValueRepresentation is a representation of a Value. This is a marker interface

@@ -1,15 +1,15 @@
-package net.sf.saxon.instruct;
+package org.orbeon.saxon.instruct;
 
-import net.sf.saxon.expr.Atomizer;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.FastStringBuffer;
-import net.sf.saxon.trans.XPathException;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.StringValue;
+import org.orbeon.saxon.expr.Atomizer;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.FastStringBuffer;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.StringValue;
 
 /**
  * This class implements the rules for an XQuery simple content constructor, which are used in constructing
@@ -36,7 +36,7 @@ public class QuerySimpleContentConstructor extends SimpleContentConstructor {
      * @return the node or atomic value that results from evaluating the
      *         expression; or null to indicate that the result is an empty
      *         sequence
-     * @throws net.sf.saxon.trans.XPathException
+     * @throws org.orbeon.saxon.trans.XPathException
      *          if any dynamic error occurs evaluating the
      *          expression
      */

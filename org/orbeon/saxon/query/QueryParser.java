@@ -1194,7 +1194,7 @@ public class QueryParser extends ExpressionParser {
      * <"declare" "option">  QName "string-literal"
      * </p>
      * <p>On entry, the "declare option" has already been recognized</p>
-     * @throws net.sf.saxon.trans.StaticError if a syntax error is found
+     * @throws org.orbeon.saxon.trans.StaticError if a syntax error is found
      */
 
     private void parseOptionDeclaration() throws StaticError {

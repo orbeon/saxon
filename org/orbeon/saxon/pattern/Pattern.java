@@ -114,7 +114,7 @@ public abstract class Pattern implements Serializable, Container {
      * @param offer details of the offer, for example the offer to move
      *              expressions that don't depend on the context to an outer level in
      *              the containing expression
-     * @throws net.sf.saxon.trans.XPathException
+     * @throws org.orbeon.saxon.trans.XPathException
      *          if any error is detected
      */
 

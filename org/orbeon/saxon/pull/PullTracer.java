@@ -1,6 +1,6 @@
-package net.sf.saxon.pull;
+package org.orbeon.saxon.pull;
 
-import net.sf.saxon.trans.XPathException;
+import org.orbeon.saxon.trans.XPathException;
 
 /**
  * PullTracer is a PullFilter that can be inserted into a pull pipeline for diagnostic purposes. It traces

@@ -1033,9 +1033,9 @@ public class Configuration implements Serializable {
     public void registerStandardObjectModels() {
         // Try to load the support classes for various object models, registering
         // them in the Configuration
-        String[] models = {"net.sf.saxon.dom.DOMObjectModel",
-                           "net.sf.saxon.jdom.JDOMObjectModel",
-                           "net.sf.saxon.xom.XOMObjectModel"};
+        String[] models = {"org.orbeon.saxon.dom.DOMObjectModel",
+                           "org.orbeon.saxon.jdom.JDOMObjectModel",
+                           "org.orbeon.saxon.xom.XOMObjectModel"};
 
         for (int i=0; i<models.length; i++) {
             try {

@@ -1,5 +1,5 @@
-package net.sf.saxon.tinytree;
-import net.sf.saxon.om.NamePool;
+package org.orbeon.saxon.tinytree;
+import org.orbeon.saxon.om.NamePool;
 
 import java.util.Iterator;
 

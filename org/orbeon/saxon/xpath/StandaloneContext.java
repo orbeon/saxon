@@ -135,7 +135,7 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
     /**
      * Supply the NamespaceContext used to resolve namespaces. This supplements namespaces
      * that have been explicitly declared using {@link #declareNamespace} or
-     * that have been implicitly declared using {@link #setNamespaces(net.sf.saxon.om.NodeInfo)}
+     * that have been implicitly declared using {@link #setNamespaces(org.orbeon.saxon.om.NodeInfo)}
      */
 
     public void setNamespaceContext(NamespaceContext context) {
@@ -348,7 +348,7 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
      * when the prefix is empty.
      * This method is provided for use by the XPath parser.
      * @param prefix The prefix
-     * @throws net.sf.saxon.trans.XPathException if the prefix is not declared
+     * @throws org.orbeon.saxon.trans.XPathException if the prefix is not declared
     */
 
     public String getURIForPrefix(String prefix) throws XPathException {

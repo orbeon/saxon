@@ -339,7 +339,7 @@ public class Block extends Instruction {
          * Get the next item in the sequence. <BR>
          *
          * @return the next item, or null if there are no more items.
-         * @throws net.sf.saxon.trans.XPathException
+         * @throws org.orbeon.saxon.trans.XPathException
          *          if an error occurs retrieving the next item
          */
 
@@ -393,7 +393,7 @@ public class Block extends Instruction {
          *
          * @return a SequenceIterator that iterates over the same items,
          *         positioned before the first item
-         * @throws net.sf.saxon.trans.XPathException
+         * @throws org.orbeon.saxon.trans.XPathException
          *          if any error occurs
          */
 

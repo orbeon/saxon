@@ -1,9 +1,9 @@
-package net.sf.saxon.tinytree;
+package org.orbeon.saxon.tinytree;
 
-import net.sf.saxon.om.AttributeCollection;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.event.LocationProvider;
-import net.sf.saxon.style.StandardNames;
+import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.event.LocationProvider;
+import org.orbeon.saxon.style.StandardNames;
 
 /**
  * An implementation of the AttributeCollection interface based directly on the
@@ -77,7 +77,7 @@ public class TinyAttributeCollection implements AttributeCollection {
      *
      * @param index The position of the attribute in the list.
      * @return The location identifier of the attribute. This can be supplied
-     *         to a {@link net.sf.saxon.event.LocationProvider} in order to obtain the
+     *         to a {@link org.orbeon.saxon.event.LocationProvider} in order to obtain the
      *         actual system identifier and line number of the relevant location
      */
 
@@ -124,8 +124,8 @@ public class TinyAttributeCollection implements AttributeCollection {
      *
      * @param index The position of the attribute in the list.
      * @return The properties of the attribute. This is a set
-     *         of bit-settings defined in class {@link net.sf.saxon.event.ReceiverOptions}. The
-     *         most interesting of these is {{@link net.sf.saxon.event.ReceiverOptions#DEFAULTED_ATTRIBUTE},
+     *         of bit-settings defined in class {@link org.orbeon.saxon.event.ReceiverOptions}. The
+     *         most interesting of these is {{@link org.orbeon.saxon.event.ReceiverOptions#DEFAULTED_ATTRIBUTE},
      *         which indicates an attribute that was added to an element as a result of schema validation.
      */
 

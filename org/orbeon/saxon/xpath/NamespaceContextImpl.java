@@ -1,6 +1,6 @@
-package net.sf.saxon.xpath;
+package org.orbeon.saxon.xpath;
 
-import net.sf.saxon.om.NamespaceResolver;
+import org.orbeon.saxon.om.NamespaceResolver;
 
 import javax.xml.namespace.NamespaceContext;
 import java.util.ArrayList;

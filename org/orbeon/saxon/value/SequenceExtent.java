@@ -67,7 +67,7 @@ public final class SequenceExtent extends Value {
     /**
      * Construct a sequence containing all the items in a SequenceIterator.
      *
-     * @exception net.sf.saxon.trans.XPathException if reading the items using the
+     * @exception org.orbeon.saxon.trans.XPathException if reading the items using the
      *     SequenceIterator raises an error
      * @param iter The supplied sequence of items. This must be positioned at
      *     the start, so that hasNext() returns true if there are any nodes in

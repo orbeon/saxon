@@ -26,7 +26,7 @@ import java.util.Stack;
  * element encountered.
  * </p><p>
  * This ContentHandlerProxy provides no access to type information. For a ContentHandler that
- * makes type information available, see {@link net.sf.saxon.dom.TypedContentHandler}
+ * makes type information available, see {@link org.orbeon.saxon.dom.TypedContentHandler}
  */
 
 public class ContentHandlerProxy extends Emitter implements Locator {
