@@ -16,6 +16,6 @@
 
 @javac -source 1.4 -target 1.4 -classpath %CP% -g -d %bld_dir%\classes @%bld_dir%\files.txt
 
-
+@jar cf0 saxon-8_2_orbeon.jar  META-INF\MANIFEST.MF META-INF\services\javax.xml.transform.TransformerFactory META-INF\services\javax.xml.xpath.XPathFactory -C classes org
 
 
