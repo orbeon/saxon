@@ -1,22 +1,17 @@
 package org.orbeon.saxon.sort;
-import org.orbeon.saxon.expr.ComputedExpression;
-import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.expr.StaticProperty;
-import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.EmptyIterator;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.type.ItemType;
 
-import java.util.Iterator;
-import java.util.ArrayList;
-import java.util.List;
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 /**
 * Expression equivalent to the imaginary syntax
@@ -101,6 +96,20 @@ public class SortExpression extends ComputedExpression {
     }
 
     /**
+     * Test whether a given expression is one of the sort keys
+     */
+
+    public boolean isSortKey(Expression child) {
+        for (int i=0; i<sortKeys.length; i++) {
+            Expression exp = sortKeys[i].getSortKey();
+            if (exp == child) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
     * Determine the static cardinality
     */
 
@@ -127,6 +136,9 @@ public class SortExpression extends ComputedExpression {
         int props = 0;
         if ((select.getSpecialProperties() & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0) {
             props |= StaticProperty.CONTEXT_DOCUMENT_NODESET;
+        }
+        if ((select.getSpecialProperties() & StaticProperty.NON_CREATIVE) != 0) {
+            props |= StaticProperty.NON_CREATIVE;
         }
         return props;
     }

@@ -1,10 +1,8 @@
 package org.orbeon.saxon.tree;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.type.Type;
-
-import org.w3c.dom.ProcessingInstruction;
-import org.w3c.dom.DOMException;
 import org.orbeon.saxon.xpath.XPathException;
+import org.w3c.dom.DOMException;
 
 /**
   * ProcInstImpl is an implementation of ProcInstInfo used by the Propagator to construct
@@ -70,8 +68,8 @@ class ProcInstImpl extends NodeImpl implements ProcessingInstruction {
     * Copy this node to a given outputter
     */
 
-    public void copy(Receiver out, int whichNamespaces) throws XPathException {
-        out.processingInstruction(getLocalPart(), content, 0, 0);
+    public void copy(Receiver out, int whichNamespaces, boolean copyAnnotations, int locationId) throws XPathException {
+        out.processingInstruction(getLocalPart(), content, locationId, 0);
     }
 
     // DOM methods

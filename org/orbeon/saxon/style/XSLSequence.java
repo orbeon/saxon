@@ -2,10 +2,10 @@ package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.om.AxisIterator;
 import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.tree.AttributeCollection;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.EmptySequence;
 
@@ -91,7 +91,7 @@ public final class XSLSequence extends StyleElement {
             NodeInfo child = (NodeInfo)kids.next();
             if (child == null) break;
             if (!(child instanceof XSLFallback)) {
-                compileError("The only child node allowed for xsl:sequence is an xsl:fallback instruction");
+                compileError("The only child node allowed for xsl:sequence is an xsl:fallback instruction", "XT0010");
                 break;
             }
         }
@@ -112,7 +112,7 @@ public final class XSLSequence extends StyleElement {
     }
 
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) {
         return select;
     }
 

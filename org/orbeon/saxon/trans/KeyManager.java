@@ -3,7 +3,10 @@ import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.instruct.SlotManager;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.pattern.*;
+import org.orbeon.saxon.pattern.ContentTypeTest;
+import org.orbeon.saxon.pattern.NodeTestPattern;
+import org.orbeon.saxon.pattern.Pattern;
+import org.orbeon.saxon.pattern.UnionPattern;
 import org.orbeon.saxon.sort.LocalOrderComparer;
 import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.type.BuiltInSchemaFactory;
@@ -90,7 +93,7 @@ public class KeyManager implements Serializable {
         Pattern att = new UnionPattern(idrefAtt, idrefsAtt);
         Pattern elem = new UnionPattern(idrefElem, idrefsElem);
         Pattern all = new UnionPattern(att, elem);
-        Expression use = new Atomizer(new ContextItemExpression());
+        Expression use = new Atomizer(new ContextItemExpression(), config);
         KeyDefinition key = new KeyDefinition(all, use, null, null);
         try {
             setKeyDefinition(StandardNames.XS_IDREFS, key);

@@ -15,17 +15,7 @@ import org.orbeon.saxon.xpath.XPathException;
 
 public final class NotationValue extends QNameValue {
 
-    /*
-    * Constructor
-     * @param namePool The name pool containing the specified name code
-     * @param nameCode The name code identifying this name in the name pool
-     */
-
-    public NotationValue(NamePool namePool, int nameCode) {
-        super(namePool, nameCode);
-    }
-
-    /**
+   /**
      * Constructor
      * @param prefix The prefix part of the QName (not used in comparisons). Use null or "" to represent the
      * default prefix.

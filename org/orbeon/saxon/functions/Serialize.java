@@ -6,17 +6,14 @@ import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.Validation;
 import org.orbeon.saxon.style.ExpressionContext;
+import org.orbeon.saxon.trace.Location;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.XPathException;
-
-import javax.xml.transform.TransformerConfigurationException;
-import javax.xml.transform.OutputKeys;
-
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.xpath.XPathException;
 
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.stream.StreamResult;
 import java.io.StringWriter;
 import java.util.Properties;
@@ -88,7 +85,7 @@ public class Serialize extends SystemFunction implements XSLTFunction {
         try {
             StringWriter result = new StringWriter();
             XPathContext c2 = c.newMinorContext();
-        c.setOriginatingConstructType(Location.SAXON_SERIALIZE);
+            c.setOriginatingConstructType(Location.SAXON_SERIALIZE);
 
             c2.changeOutputDestination(outputProperties,
                                                new StreamResult(result),

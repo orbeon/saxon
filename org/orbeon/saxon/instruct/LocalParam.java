@@ -1,14 +1,13 @@
 package org.orbeon.saxon.instruct;
 
 import org.orbeon.saxon.expr.*;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
-import java.util.List;
-import java.util.Iterator;
 import java.util.Collections;
+import java.util.Iterator;
 
 /**
  * The compiled form of an xsl:param element in the stylesheet or an

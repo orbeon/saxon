@@ -2,11 +2,11 @@ package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.xpath.XPathException;
 
-import java.util.Iterator;
 import java.io.PrintStream;
+import java.util.Iterator;
 
 
 /**
@@ -34,6 +34,14 @@ public class While extends Instruction {
         return StandardNames.SAXON_WHILE;
     }
 
+    /**
+     * Get the action expression (the content of the for-each)
+     */
+
+    public Expression getActionExpression() {
+        return action;
+    }
+    
     /**
      * Simplify an expression. This performs any static optimization (by rewriting the expression
      * as a different expression).
@@ -94,6 +102,17 @@ public class While extends Instruction {
     protected void promoteInst(PromotionOffer offer) throws XPathException {
         test = test.promote(offer);
         action = action.promote(offer);
+    }
+
+    /**
+     * Determine whether this instruction creates new nodes.
+     * This implementation returns true if the "action" creates new nodes.
+     * (Nodes created by the condition can't contribute to the result).
+     */
+
+    public final boolean createsNewNodes() {
+        int props = action.getSpecialProperties();
+        return ((props & StaticProperty.NON_CREATIVE) == 0);
     }
 
     /**

@@ -1,11 +1,9 @@
 package org.orbeon.saxon.style;
 
-import org.orbeon.saxon.style.XSLFunction;
-import org.orbeon.saxon.style.XSLStylesheet;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.functions.FunctionLibrary;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.UserFunctionCall;
+import org.orbeon.saxon.functions.FunctionLibrary;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * A StylesheetFunctionLibrary contains functions defined by the user in a stylesheet. This library is used at

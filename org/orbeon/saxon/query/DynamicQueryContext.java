@@ -1,13 +1,12 @@
 package org.orbeon.saxon.query;
 
-import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.StandardURIResolver;
-import org.orbeon.saxon.StandardErrorListener;
 import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.StandardErrorListener;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NodeInfo;
 
-import javax.xml.transform.URIResolver;
 import javax.xml.transform.ErrorListener;
+import javax.xml.transform.URIResolver;
 import java.util.HashMap;
 
 /**
@@ -41,7 +40,7 @@ public class DynamicQueryContext {
      * To obtain a NodeInfo by parsing a source document, see the method
      * {@link org.orbeon.saxon.query.QueryProcessor#buildDocument buildDocument}
      * in class QueryProcessor.
-     * @see
+     * 
      * @param node      The node that is to be the context node for the query
      */
 

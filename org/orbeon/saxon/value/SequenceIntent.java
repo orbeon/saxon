@@ -2,9 +2,9 @@ package org.orbeon.saxon.value;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.AnyItemType;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * A SequenceIntent is sequence value that uses deferred evaluation. It

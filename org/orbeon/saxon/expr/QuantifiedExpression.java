@@ -5,6 +5,7 @@ import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.BooleanValue;
+import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.SequenceType;
 import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.xpath.XPathException;
@@ -48,6 +49,9 @@ class QuantifiedExpression extends Assignation {
         // which in turn is required when type-checking the action part.
 
         sequence = sequence.analyze(env, contextItemType);
+        if (sequence instanceof EmptySequence) {
+            return BooleanValue.get(operator != Token.SOME);
+        }
 
         // "some" and "every" have no ordering constraints
 
@@ -57,9 +61,9 @@ class QuantifiedExpression extends Assignation {
         SequenceType sequenceType =
                             new SequenceType(decl.getPrimaryType(),
                                              StaticProperty.ALLOWS_ZERO_OR_MORE);
-        RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, getVariableName(env.getNamePool()), 0);
-        sequence = TypeChecker.staticTypeCheck(
-                                sequence, sequenceType, false, role, env);
+        RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, new Integer(nameCode), 0, env.getNamePool());
+        sequence = TypeChecker.strictTypeCheck(
+                                sequence, sequenceType, role, env);
         ItemType actualItemType = sequence.getItemType();
         declaration.refineTypeInformation(actualItemType,
                 StaticProperty.EXACTLY_ONE,
@@ -73,7 +77,8 @@ class QuantifiedExpression extends Assignation {
         PromotionOffer offer = new PromotionOffer();
         offer.containingExpression = this;
         offer.action = PromotionOffer.RANGE_INDEPENDENT;
-        offer.binding = this;
+        Binding[] bindingList = {this};
+        offer.bindingList = bindingList;
         action = action.promote(offer);
         if (offer.containingExpression instanceof LetExpression) {
             offer.containingExpression = offer.containingExpression.analyze(env, contextItemType);
@@ -81,6 +86,15 @@ class QuantifiedExpression extends Assignation {
         return offer.containingExpression;
     }
 
+    /**
+     * Determine the special properties of this expression
+     * @return {@link StaticProperty#NON_CREATIVE}.
+     */
+
+    public int computeSpecialProperties() {
+        int p = super.computeSpecialProperties();
+        return p | StaticProperty.NON_CREATIVE;
+    }
 
     /**
     * Evaluate the expression to return a singleton value

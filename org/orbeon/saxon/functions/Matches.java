@@ -1,16 +1,16 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.type.RegexTranslator;
+import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.BooleanValue;
 import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.type.RegexTranslator;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -67,7 +67,9 @@ public class Matches extends SystemFunction {
                     flags |= Pattern.COMMENTS;  // note, this enables comments as well as whitespace
                     break;
                 default:
-                    throw new StaticError("Invalid character '" + c + "' in regular expression flags");
+                    StaticError err = new StaticError("Invalid character '" + c + "' in regular expression flags");
+                    err.setErrorCode("FORX0001");
+                    throw err;
             }
         }
         return flags;
@@ -143,13 +145,20 @@ public class Matches extends SystemFunction {
             }
 
             try {
-                String javaRegex = RegexTranslator.translate(
-                        pat.getStringValue(), true);
+                String javaRegex = RegexTranslator.translate(pat.getStringValue(), true);
                 re = Pattern.compile(javaRegex, setFlags(flags));
             } catch (RegexTranslator.RegexSyntaxException err) {
-                throw new DynamicError(err);
+                DynamicError de = new DynamicError(err);
+                de.setErrorCode("FORX0002");
+                de.setXPathContext(c);
+                throw de;
             } catch (PatternSyntaxException err) {
-                throw new DynamicError(err);
+                DynamicError de = new DynamicError(err);
+                de.setErrorCode("FORX0002");
+                de.setXPathContext(c);
+                throw de;
+            } catch (StaticError serr) {
+                dynamicError(serr.getMessage(), serr.getErrorCode().getLocalPart(), c);
             }
         }
         return BooleanValue.get(re.matcher(sv0.getStringValue()).find());

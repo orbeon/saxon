@@ -1,10 +1,11 @@
 package org.orbeon.saxon.functions;
+import org.orbeon.saxon.Err;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.Err;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -18,8 +19,10 @@ public class ResolveURI extends SystemFunction {
     String expressionBaseURI = null;
 
     public void checkArguments(StaticContext env) throws XPathException {
-        super.checkArguments(env);
-        expressionBaseURI = env.getBaseURI();
+        if (expressionBaseURI == null) {
+            super.checkArguments(env);
+            expressionBaseURI = env.getBaseURI();
+        }
     }
 
     /**
@@ -28,7 +31,11 @@ public class ResolveURI extends SystemFunction {
 
     public Item evaluateItem(XPathContext context) throws XPathException {
         URI relativeURI;
-        String relative = argument[0].evaluateAsString(context);
+        AtomicValue arg0 = (AtomicValue)argument[0].evaluateItem(context);
+        if (arg0 == null) {
+            return null;
+        }
+        String relative = arg0.getStringValue();
         try {
             relativeURI = new URI(relative);
         } catch (URISyntaxException err) {

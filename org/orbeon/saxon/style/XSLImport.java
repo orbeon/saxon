@@ -1,5 +1,5 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.tree.AttributeCollection;
+
 
 /**
 * xsl:import element in the stylesheet. <br>

@@ -1,12 +1,6 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.expr.MappingFunction;
-import org.orbeon.saxon.expr.MappingIterator;
-import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.expr.StaticProperty;
-import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.EmptyIterator;
 import org.orbeon.saxon.om.Item;
@@ -50,7 +44,7 @@ public class Idref extends SystemFunction implements MappingFunction {
     */
 
     public int computeSpecialProperties() {
-        int prop = StaticProperty.ORDERED_NODESET;
+        int prop = StaticProperty.ORDERED_NODESET | StaticProperty.NON_CREATIVE;
         if ((getNumberOfArguments() == 1) ||
                 (argument[1].getSpecialProperties() & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0) {
             prop |= StaticProperty.CONTEXT_DOCUMENT_NODESET;

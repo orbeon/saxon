@@ -1,6 +1,6 @@
-package net.sf.saxon.instruct;
-import net.sf.saxon.om.*;
-import net.sf.saxon.xpath.DynamicError;
+package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.xpath.DynamicError;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -86,7 +86,7 @@ public final class SavedNamespaceContext implements Serializable, NamespaceResol
     * @param useDefault true if the default namespace is to be used to resolve an unprefixed QName
     * @param pool the NamePool to be used
     * @return the integer fingerprint that uniquely identifies this name
-     * @throws net.sf.saxon.xpath.DynamicError if the string is not a valid lexical QName or
+     * @throws org.orbeon.saxon.xpath.DynamicError if the string is not a valid lexical QName or
      * if the namespace prefix has not been declared
     */
 

@@ -4,12 +4,8 @@ import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.RoleLocator;
 import org.orbeon.saxon.expr.TypeChecker;
 import org.orbeon.saxon.instruct.*;
-import org.orbeon.saxon.om.Axis;
-import org.orbeon.saxon.om.AxisIterator;
-import org.orbeon.saxon.om.NamespaceException;
-import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.NodeKindTest;
-import org.orbeon.saxon.tree.AttributeCollection;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.Cardinality;
@@ -89,6 +85,10 @@ public abstract class XSLGeneralVariable extends StyleElement {
 
     public boolean isRequiredParam() {
         return requiredParam;
+    }
+
+    public boolean isGlobal() {
+        return global;
     }
 
     /**
@@ -184,7 +184,7 @@ public abstract class XSLGeneralVariable extends StyleElement {
 
         if (selectAtt!=null) {
             if (!allowsValue()) {
-                compileError("Function parameters cannot have a default value");
+                compileError("Function parameters cannot have a default value", "XT0760");
             }
             select = makeExpression(selectAtt);
         }
@@ -199,7 +199,7 @@ public abstract class XSLGeneralVariable extends StyleElement {
             } else if (requiredAtt.equals("no")) {
                 requiredParam = false;
             } else {
-                compileError("The attribute 'required' must be set to 'yes' or 'no'");
+                compileError("The attribute 'required' must be set to 'yes' or 'no'", "XT0020");
             }
         }
 
@@ -209,7 +209,7 @@ public abstract class XSLGeneralVariable extends StyleElement {
             } else if (tunnelAtt.equals("no")) {
                 tunnel = false;
             } else {
-                compileError("The attribute 'tunnel' must be set to 'yes' or 'no'");
+                compileError("The attribute 'tunnel' must be set to 'yes' or 'no'", "XT0020");
             }
         }
 
@@ -225,7 +225,11 @@ public abstract class XSLGeneralVariable extends StyleElement {
             slotManager = getConfiguration().makeSlotManager();
         }
         if (select!=null && hasChildNodes()) {
-            compileError("An " + getDisplayName() + " element with a select attribute must be empty");
+            compileError("An " + getDisplayName() + " element with a select attribute must be empty", "XT0620");
+        }
+
+        if (assignable && !global) {
+            compileError("saxon:assignable='yes' is no longer permitted for local variables");
         }
 
         checkAgainstRequiredType(requiredType);
@@ -243,6 +247,8 @@ public abstract class XSLGeneralVariable extends StyleElement {
                             if (Cardinality.allowsZero(requiredType.getCardinality())) {
                                 select = EmptySequence.getInstance();
                             } else {
+                                // The implicit default value () is not valid for the required type, so
+                                // it is treated as if there is no default
                                 requiredParam = true;
                             }
                         }
@@ -250,7 +256,7 @@ public abstract class XSLGeneralVariable extends StyleElement {
                         if (Cardinality.allowsZero(requiredType.getCardinality())) {
                             select = EmptySequence.getInstance();
                         } else {
-                            compileError("Default value () is not valid for the declared type");
+                            compileError("The implicit value () is not valid for the declared type", "XT0570");
                         }
                     }
                 }
@@ -279,7 +285,8 @@ public abstract class XSLGeneralVariable extends StyleElement {
     protected void checkAgainstRequiredType(SequenceType required)
     throws TransformerConfigurationException {
         try {
-            RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, getVariableName(), 0);
+            RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, getVariableName(), 0, null);
+            role.setErrorCode("XT0570");
             if (required!=null) {
                 // check that the expression is consistent with the required type
                 if (select != null) {
@@ -313,17 +320,24 @@ public abstract class XSLGeneralVariable extends StyleElement {
         if (hasChildNodes()) {
             if (requiredType==null) {
                 DocumentInstr doc = new DocumentInstr(textonly, constantText, getBaseURI());
-                compileChildren(exec, doc, true);
+                Expression b = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+                if (b == null) {
+                    b = EmptySequence.getInstance();
+                }
+                doc.setContent(b);
                 select = doc;
                 var.setSelectExpression(doc);
             } else {
-                Block block = new Block();
-                compileChildren(exec, block, true);
-                select = block;
+                select = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+                if (select == null) {
+                    select = EmptySequence.getInstance();
+                }
                 try {
                     if (requiredType != null) {
                         RoleLocator role =
-                                new RoleLocator(RoleLocator.VARIABLE, getVariableName(), 0);
+                                new RoleLocator(RoleLocator.VARIABLE, getVariableName(), 0, null);
+                        role.setErrorCode("XT0570");
+                        select = select.simplify(getStaticContext());
                         select = TypeChecker.staticTypeCheck(select, requiredType, false, role, getStaticContext());
                     }
                 } catch (XPathException err) {

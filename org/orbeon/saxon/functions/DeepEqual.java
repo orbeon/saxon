@@ -1,18 +1,14 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.om.Axis;
-import org.orbeon.saxon.om.AxisIterator;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.sort.AtomicComparer;
-import org.orbeon.saxon.value.BooleanValue;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.NameTest;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.sort.AtomicComparer;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.BooleanValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * XSLT 2.0 deep-equal() function.
@@ -175,7 +171,7 @@ public class DeepEqual extends CollatingFunction {
                 if (n1.getFingerprint() != n2.getFingerprint()) {
                     return false;
                 }
-                return deepEquals(n1.getTypedValue(config), n2.getTypedValue(config), collator, config);
+                return deepEquals(n1.getTypedValue(), n2.getTypedValue(), collator, config);
 
             case Type.PROCESSING_INSTRUCTION:
             case Type.NAMESPACE:

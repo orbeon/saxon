@@ -1,7 +1,7 @@
-package net.sf.saxon.xpath;
+package org.orbeon.saxon.xpath;
 
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.functions.FunctionLibrary;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.functions.FunctionLibrary;
 
 import javax.xml.namespace.QName;
 import javax.xml.xpath.XPathFunction;

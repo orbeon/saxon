@@ -17,7 +17,8 @@ import java.io.PrintStream;
 
 public class VariableReference extends ComputedExpression implements BindingReference {
 
-    Binding binding = null;     // This will be null until fixup() is called
+    Binding binding = null;     // This will be null until fixup() is called; it will also be null
+                                // if the variable reference has been inlined
     SequenceType staticType = null;
     Value constantValue = null;
     transient String displayName = null;
@@ -60,9 +61,6 @@ public class VariableReference extends ComputedExpression implements BindingRefe
         constantValue = value;
             // Although the variable may be a context document node-set at the point it is defined,
             // the context at the point of use may be different, so this property cannot be transferred.
-            // TODO: Equally, the fact that the value of the variable depends on the focus doesn't mean that
-            // the variable reference does likewise
-
         staticProperties = (properties &~StaticProperty.CONTEXT_DOCUMENT_NODESET) | type.getCardinality();
     }
 
@@ -73,6 +71,7 @@ public class VariableReference extends ComputedExpression implements BindingRefe
 
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
         if (constantValue != null) {
+            binding = null;
             return constantValue;
         }
         if (staticType==null) {
@@ -119,6 +118,16 @@ public class VariableReference extends ComputedExpression implements BindingRefe
     }
 
     /**
+     * Determine the special properties of this expression
+     * @return {@link StaticProperty#NON_CREATIVE}.
+     */
+
+    public int computeSpecialProperties() {
+        int p = super.computeSpecialProperties();
+        return p | StaticProperty.NON_CREATIVE;
+    }
+
+    /**
     * Test if this expression is the same as another expression.
     * (Note, we only compare expressions that
     * have the same static and dynamic context).
@@ -151,10 +160,22 @@ public class VariableReference extends ComputedExpression implements BindingRefe
         if (offer.action == PromotionOffer.INLINE_VARIABLE_REFERENCES) {
             Expression exp = offer.accept(this);
             if (exp != null) {
+                // Replace the variable reference with the given expression.
+                binding = null;
                 return exp;
             }
         }
         return this;
+    }
+
+    /**
+     * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
+     * This method indicates which of these methods is provided. This implementation provides both all three methods
+     * natively.
+     */
+
+    public int getImplementationMethod() {
+        return EVALUATE_METHOD | ITERATE_METHOD | PROCESS_METHOD;
     }
 
     /**
@@ -165,15 +186,18 @@ public class VariableReference extends ComputedExpression implements BindingRefe
     */
 
     public SequenceIterator iterate(XPathContext c) throws XPathException {
-        // System.err.println("Evaluate variable " + binding.getVariableName() + ", context = " + c);
-        Value val = evaluateVariable(c);
-        return val.iterate(c);
-
+        Value actual = evaluateVariable(c);
+        return actual.iterate(c);
     }
 
     public Item evaluateItem(XPathContext c) throws XPathException {
         Value actual = evaluateVariable(c);
         return Value.asItem(actual, c);
+    }
+
+    public void process(XPathContext c) throws XPathException {
+        Value actual = evaluateVariable(c);
+        actual.process(c);
     }
 
     public Value evaluateVariable(XPathContext c) throws XPathException {

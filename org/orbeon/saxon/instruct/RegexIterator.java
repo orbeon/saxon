@@ -1,7 +1,7 @@
 package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.om.ArrayIterator;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.om.ArrayIterator;
 import org.orbeon.saxon.value.StringValue;
 
 import java.util.regex.Matcher;

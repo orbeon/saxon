@@ -1,14 +1,12 @@
 package org.orbeon.saxon.pattern;
-import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.StringTokenizer;

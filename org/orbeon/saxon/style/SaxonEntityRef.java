@@ -1,12 +1,10 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.instruct.Instruction;
-import org.orbeon.saxon.instruct.Text;
-import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.tree.AttributeCollection;
-import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.instruct.ValueOf;
+import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.value.StringValue;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -56,12 +54,12 @@ public class SaxonEntityRef extends StyleElement {
     }
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {
-        Text text = new Text(true);
-        try {
-            text.setSelect(new StringValue('&' + nameAttribute + ';'));
-        } catch (StaticError err) {
-            compileError(err);
-        }
+        ValueOf text = new ValueOf(new StringValue('&' + nameAttribute + ';'), true);
+//        try {
+//            text.setSelect(new StringValue('&' + nameAttribute + ';'));
+//        } catch (StaticError err) {
+//            compileError(err);
+//        }
         ExpressionTool.makeParentReferences(text);
         return text;
     }

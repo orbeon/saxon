@@ -1,14 +1,14 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.Loader;
 import org.orbeon.saxon.event.LocationProvider;
+import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NamespaceConstant;
 import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.tree.AttributeCollection;
 import org.orbeon.saxon.tree.ElementImpl;
 import org.orbeon.saxon.tree.NodeFactory;
+import org.orbeon.saxon.xpath.StaticError;
 
-import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactoryConfigurationError;
 import java.math.BigDecimal;
@@ -23,7 +23,7 @@ import java.util.HashMap;
 
 public class StyleNodeFactory implements NodeFactory {
 
-    HashMap userStyles = new HashMap();
+    HashMap userStyles = new HashMap(4);
     NamePool namePool;
     boolean allowExtensions;
 
@@ -80,6 +80,7 @@ public class StyleNodeFactory implements NodeFactory {
 	        	e.setNamespaceDeclarations(namespaces, namespacesUsed);
                 e.setLineNumber(lineNumber);
 	            e.initialise(nameCode, attlist, parent, baseURI, -1, sequence);
+                e.processDefaultCollationAttribute(StandardNames.DEFAULT_COLLATION);
 	            e.processExtensionElementAttribute(StandardNames.EXTENSION_ELEMENT_PREFIXES);
 	            e.processExcludedNamespaces(StandardNames.EXCLUDE_RESULT_PREFIXES);
 	            e.processVersionAttribute(StandardNames.VERSION);
@@ -101,7 +102,7 @@ public class StyleNodeFactory implements NodeFactory {
                     (parent instanceof XSLStylesheet) &&
                     ((XSLStylesheet)parent).getVersion().compareTo(BigDecimal.valueOf('2')) <= 0 ) {
                 temp = new AbsentExtensionElement();
-                temp.setValidationError(new TransformerConfigurationException("Unknown top-level XSLT declaration"),
+                temp.setValidationError(new StaticError("Unknown top-level XSLT declaration"),
                        StyleElement.REPORT_UNLESS_FORWARDS_COMPATIBLE );
             }
 
@@ -140,6 +141,7 @@ public class StyleNodeFactory implements NodeFactory {
 	        try {
 	            temp.initialise(nameCode, attlist, parent, baseURI, lineNumber, sequence);
                 temp.setLineNumber(lineNumber);
+                temp.processDefaultCollationAttribute(StandardNames.XSL_DEFAULT_COLLATION_CLARK);
 	            temp.processExtensionElementAttribute(StandardNames.XSL_EXTENSION_ELEMENT_PREFIXES_CLARK);
 	            temp.processExcludedNamespaces(StandardNames.XSL_EXCLUDE_RESULT_PREFIXES_CLARK);
 	            temp.processVersionAttribute(StandardNames.XSL_VERSION_CLARK);
@@ -150,11 +152,11 @@ public class StyleNodeFactory implements NodeFactory {
 
 	        // Now we work out what class of element we really wanted, and change it if necessary
 
-	        TransformerException reason = null;
-	        Class actualClass = LiteralResultElement.class;
+	        TransformerException reason;
+	        Class actualClass;
 
 	        if (uriCode == NamespaceConstant.XSLT_CODE) {
-                reason = new TransformerConfigurationException("Unknown XSLT element: " + localname);
+                reason = new StaticError("Unknown XSLT element: " + localname);
                 actualClass = AbsentExtensionElement.class;
                 temp.setValidationError(reason, StyleElement.REPORT_UNLESS_FORWARDS_COMPATIBLE);
 	        } else if (uriCode == NamespaceConstant.SAXON_CODE) {
@@ -164,7 +166,7 @@ public class StyleNodeFactory implements NodeFactory {
 	        			actualClass = assumedClass;
 	        		} else {
 	        			actualClass = AbsentExtensionElement.class;
-	        			reason = new TransformerConfigurationException(
+	        			reason = new StaticError(
 	        			                "Unknown Saxon extension element: " + localname);
                         temp.setValidationError(reason, StyleElement.REPORT_IF_INSTANTIATED);
 	        		}
@@ -176,13 +178,7 @@ public class StyleNodeFactory implements NodeFactory {
 
                 actualClass = (Class)userStyles.get(nameKey);
                 if (actualClass==null) {
-                    if (!allowExtensions) {
-                        actualClass = AbsentExtensionElement.class;
-	        			reason = new TransformerConfigurationException(
-	        			                "Extension elements are disabled");
-                        temp.setValidationError(reason, StyleElement.REPORT_IF_INSTANTIATED);
-                    } else {
-
+                    if (allowExtensions) {
                         ExtensionElementFactory factory = getFactory(uriCode);
                         if (factory != null) {
                             actualClass = factory.getExtensionClass(localname);
@@ -190,6 +186,10 @@ public class StyleNodeFactory implements NodeFactory {
                                 userStyles.put(nameKey, actualClass);             // for quicker access next time
                             }
                         }
+                    } else {
+                        actualClass = AbsentExtensionElement.class;
+	        			reason = new StaticError("Extension elements are disabled");
+                        temp.setValidationError(reason, StyleElement.REPORT_IF_INSTANTIATED);
                     }
 
                     if (actualClass == null) {
@@ -200,7 +200,7 @@ public class StyleNodeFactory implements NodeFactory {
                         // save the reason for failure just in case there is no xsl:fallback
 
                         actualClass = AbsentExtensionElement.class;
-                        reason = new TransformerConfigurationException("Unknown extension element", temp);
+                        reason = new StaticError("Unknown extension element", temp);
                         temp.setValidationError(reason, StyleElement.REPORT_IF_INSTANTIATED);
                     }
                 }
@@ -209,20 +209,17 @@ public class StyleNodeFactory implements NodeFactory {
 	        }
 
 	        StyleElement node;
-	        if (!actualClass.equals(assumedClass)) {
+            if (actualClass.equals(assumedClass)) {
+	            node = temp;    // the original element will do the job
+	        } else {
 	            try {
 	                node = (StyleElement)actualClass.newInstance();
-	                //if (reason!=null) {
-	                //    node.setValidationError(reason);
-	                //}
-	            } catch (java.lang.InstantiationException err1) {
+	            } catch (InstantiationException err1) {
 	                throw new TransformerFactoryConfigurationError(err1, "Failed to create instance of " + actualClass.getName());
-	            } catch (java.lang.IllegalAccessException err2) {
+	            } catch (IllegalAccessException err2) {
 	                throw new TransformerFactoryConfigurationError(err2, "Failed to access class " + actualClass.getName());
 	            }
 	            node.substituteFor(temp);   // replace temporary node with the new one
-	        } else {
-	            node = temp;    // the original element will do the job
 	        }
 	        return node;
 	    }

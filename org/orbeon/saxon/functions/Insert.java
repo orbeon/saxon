@@ -2,7 +2,6 @@ package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.value.IntegerValue;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.NumericValue;
 import org.orbeon.saxon.xpath.XPathException;
@@ -33,12 +32,10 @@ public class Insert extends SystemFunction {
         private SequenceIterator insert;
         private int insertPosition;
         private int position = 0;
-        //private Item nextItem = null;
         private Item current = null;
         private boolean inserting = false;
 
-        public InsertIterator(SequenceIterator base, SequenceIterator insert, int insertPosition)
-        throws XPathException {
+        public InsertIterator(SequenceIterator base, SequenceIterator insert, int insertPosition) {
             this.base = base;
             this.insert = insert;
             this.insertPosition = (insertPosition<1 ? 1 : insertPosition);
@@ -46,7 +43,7 @@ public class Insert extends SystemFunction {
         }
 
         public Item next() throws XPathException {
-            Item nextItem = null;
+            Item nextItem;
             if (inserting) {
                 nextItem = insert.next();
                 if (nextItem == null) {

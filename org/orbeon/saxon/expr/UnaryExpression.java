@@ -5,8 +5,8 @@ import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.xpath.XPathException;
 
-import java.util.Iterator;
 import java.io.PrintStream;
+import java.util.Iterator;
 
 /**
 * Unary Expression: an expression taking a single operand expression

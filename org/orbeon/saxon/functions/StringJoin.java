@@ -1,13 +1,13 @@
 package org.orbeon.saxon.functions;
+import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.type.ItemType;
 
 /**
 * xf:string-join(string* $sequence, string $separator)
@@ -38,7 +38,7 @@ public class StringJoin extends SystemFunction {
 
     public Item evaluateItem(XPathContext c) throws XPathException {
 
-        // This rather tortous code is designed to ensure that we don't evaluate the
+        // This rather tortuous code is designed to ensure that we don't evaluate the
         // separator argument unless there are at least two items in the sequence.
 
         SequenceIterator iter = argument[0].iterate(c);
@@ -54,7 +54,7 @@ public class StringJoin extends SystemFunction {
             return new StringValue(first);
         }
 
-        StringBuffer sb = new StringBuffer();
+        StringBuffer sb = new StringBuffer(200);
         sb.append(first);
 
         // Type checking ensures that the separator is not an empty sequence

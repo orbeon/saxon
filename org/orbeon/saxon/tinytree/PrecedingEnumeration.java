@@ -1,8 +1,8 @@
 package org.orbeon.saxon.tinytree;
-import org.orbeon.saxon.pattern.NodeTest;
-import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.AxisIteratorImpl;
+import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.pattern.NodeTest;
 
 /**
 * Enumerate all the nodes on the preceding axis from a given start node.
@@ -15,51 +15,49 @@ import org.orbeon.saxon.om.SequenceIterator;
 
 final class PrecedingEnumeration extends AxisIteratorImpl {
 
-    private TinyDocumentImpl document;
+    private TinyTree tree;
     private TinyNodeImpl startNode;
     private NodeTest test;
-    private int nextNodeNr;
     private int nextAncestorDepth;
     private boolean includeAncestors;
 
-    public PrecedingEnumeration(TinyDocumentImpl doc, TinyNodeImpl node,
+    public PrecedingEnumeration(TinyTree doc, TinyNodeImpl node,
                                 NodeTest nodeTest, boolean includeAncestors) {
 
         this.includeAncestors = includeAncestors;
         test = nodeTest;
-        document = doc;
+        tree = doc;
         startNode = node;
-        nextNodeNr = node.nodeNr;
-        nextAncestorDepth = doc.depth[nextNodeNr] - 1;
-        advance();
-        // TODO: no longer need to look ahead
+        current = startNode;
+        nextAncestorDepth = doc.depth[node.nodeNr] - 1;
     }
 
     public Item next() {
-        if (nextNodeNr >= 0) {
-            position++;
-            current = document.getNode(nextNodeNr);
-            advance();
-            return current;
-        } else {
-            return null;
-        }
-    }
-
-    private void advance() {
-        do {
+        int nextNodeNr = ((TinyNodeImpl)current).nodeNr;
+        while (true) {
             nextNodeNr--;
             if (!includeAncestors) {
                 // skip over ancestor elements
-                while (nextNodeNr >= 0 && document.depth[nextNodeNr] == nextAncestorDepth) {
-                    nextAncestorDepth--;
+                while (nextAncestorDepth >= 0 && tree.depth[nextNodeNr] == nextAncestorDepth) {
+                    if (--nextAncestorDepth <= 0) {
+                        current = null;
+                        return null;
+                    };
                     nextNodeNr--;
                 }
             }
-        } while ( nextNodeNr >= 0 &&
-                !test.matches(document.nodeKind[nextNodeNr],
-                              document.nameCode[nextNodeNr],
-                              document.getElementAnnotation(nextNodeNr)));
+            if (test.matches(tree.nodeKind[nextNodeNr],
+                              tree.nameCode[nextNodeNr],
+                              tree.getElementAnnotation(nextNodeNr))) {
+                position++;
+                current = tree.getNode(nextNodeNr);
+                return current;
+            }
+            if (tree.depth[nextNodeNr] == 0) {
+                current = null;
+                return null;
+            }
+        }
     }
 
     /**
@@ -67,7 +65,7 @@ final class PrecedingEnumeration extends AxisIteratorImpl {
     */
 
     public SequenceIterator getAnother() {
-        return new PrecedingEnumeration(document, startNode, test, includeAncestors);
+        return new PrecedingEnumeration(tree, startNode, test, includeAncestors);
     }
 }
 

@@ -1,21 +1,20 @@
 package org.orbeon.saxon.sql;
 import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.instruct.ExtensionInstruction;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.event.ReceiverOptions;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.SimpleExpression;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.instruct.ExtensionInstruction;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.value.ObjectValue;
 import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.xpath.DynamicError;
-
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -59,22 +58,22 @@ public class SQLQuery extends ExtensionInstruction {
 
     public void prepareAttributes() throws TransformerConfigurationException {
         // Attributes for SQL-statement
-        String dbCol = attributeList.getValue("column");
+        String dbCol = attributeList.getValue("", "column");
         if (dbCol==null) reportAbsence("column");
         column = makeAttributeValueTemplate(dbCol);
 
-        String dbTab = attributeList.getValue("table");
+        String dbTab = attributeList.getValue("", "table");
         if (dbTab==null) reportAbsence("table");
         table = makeAttributeValueTemplate(dbTab);
 
-        String dbWhere = attributeList.getValue("where");
+        String dbWhere = attributeList.getValue("", "where");
         if (dbWhere==null) {
             where = StringValue.EMPTY_STRING;
         } else {
             where = makeAttributeValueTemplate(dbWhere);
         }
 
-        String connectAtt = attributeList.getValue("connection");
+        String connectAtt = attributeList.getValue("", "connection");
         if (connectAtt==null) {
             reportAbsence("connection");
         } else {
@@ -83,7 +82,7 @@ public class SQLQuery extends ExtensionInstruction {
 
         // Atributes for row & column element names
 
-        rowTag = attributeList.getValue("row-tag");
+        rowTag = attributeList.getValue("", "row-tag");
         if (rowTag==null) {
             rowTag = "row";
         }
@@ -91,7 +90,7 @@ public class SQLQuery extends ExtensionInstruction {
             compileError("rowTag must not contain a colon");
         }
 
-        colTag = attributeList.getValue("column-tag");
+        colTag = attributeList.getValue("", "column-tag");
         if (colTag==null) {
             colTag = "col";
         }
@@ -99,7 +98,7 @@ public class SQLQuery extends ExtensionInstruction {
             compileError("colTag must not contain a colon");
         }
         // Attribute output-escaping
-        String disableAtt = attributeList.getValue("disable-output-escaping");
+        String disableAtt = attributeList.getValue("", "disable-output-escaping");
         if (disableAtt != null) {
             if (disableAtt.equals("yes")) {
                 disable = true;
@@ -159,7 +158,7 @@ public class SQLQuery extends ExtensionInstruction {
          */
 
         public int getImplementationMethod() {
-            return PROCESS_METHOD;
+            return Expression.PROCESS_METHOD;
         }
 
         public String getExpressionType() {

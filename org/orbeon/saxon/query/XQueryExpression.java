@@ -4,10 +4,7 @@ import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.event.SaxonOutputKeys;
 import org.orbeon.saxon.expr.*;
-import org.orbeon.saxon.instruct.Bindery;
-import org.orbeon.saxon.instruct.DocumentInstr;
-import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.instruct.SlotManager;
+import org.orbeon.saxon.instruct.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trace.TraceListener;
 import org.orbeon.saxon.type.Type;
@@ -185,7 +182,7 @@ public class XQueryExpression implements Container {
             } catch (TransformerException e) {
                 //
             }
-            throw XPathException.wrap(terr);
+            throw DynamicError.makeDynamicError(terr);
         }
     }
 
@@ -242,7 +239,7 @@ public class XQueryExpression implements Container {
                         // TODO: could be a warning, but currently all warnings are fatal.
                         //outputProperties.remove(key);
                     } catch (TransformerException err2) {
-                        throw DynamicError.wrap(err2);
+                        throw DynamicError.makeDynamicError(err2);
                     }
                 }
             }
@@ -274,7 +271,13 @@ public class XQueryExpression implements Container {
 
         // Run the query
         try {
-            documentInstruction.process(context);
+            // TODO: this saves building a temporary tree for queries that construct a single element,
+            // it also makes line number information available to a query debugger. But it's rather ad-hoc.
+            if (expression instanceof ElementCreator) {
+                expression.process(context);
+            } else {
+                documentInstruction.process(context);
+            }
         } catch (XPathException err) {
             try {
                 controller.getErrorListener().fatalError(err);
@@ -456,11 +459,9 @@ public class XQueryExpression implements Container {
 // See the License for the specific language governing rights and limitations under the License.
 //
 // The Original Code is: all this file.
-
+//
 // The Initial Developer of the Original Code is Michael H. Kay
 //
-// The line marked PB-SYNC is by Peter Bryant (pbryant@bigfoot.com). All Rights Reserved.
-//
-// Contributor(s): Michael Kay, Peter Bryant, David Megginson
+// Contributor(s): 
 //
 

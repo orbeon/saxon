@@ -29,14 +29,21 @@ public class TransformerReceiver extends ProxyReceiver {
 
     public TransformerReceiver(Controller controller) {
         this.controller = controller;
-        setConfiguration(controller.getConfiguration());
-        builder = controller.makeBuilder();
-        builder.setConfiguration(controller.getConfiguration());
-        Stripper stripper = controller.makeStripper(builder);
-        this.setUnderlyingReceiver(stripper);
     }
 
-    // TODO: make the TransformerReceiver serially reusable
+    /**
+     * Start of event stream
+     */
+
+    public void open() throws XPathException {
+        setPipelineConfiguration(controller.makePipelineConfiguration());
+        builder = controller.makeBuilder();
+        builder.setPipelineConfiguration(getPipelineConfiguration());
+        builder.setSystemId(systemId);
+        Stripper stripper = controller.makeStripper(builder);
+        this.setUnderlyingReceiver(stripper);
+        super.open();
+    }
 
     /**
     * Get the Transformer used for this transformation
@@ -52,7 +59,6 @@ public class TransformerReceiver extends ProxyReceiver {
 
     public void setSystemId(String url) {
         systemId = url;
-        builder.setSystemId(url);
     }
 
     /**
@@ -67,7 +73,7 @@ public class TransformerReceiver extends ProxyReceiver {
      * Notify the start of an element
      * @param nameCode integer code identifying the name of the element within the name pool.
      * @param typeCode integer code identifying the element's type within the name pool.
-     * @param properties: for future use. Should be set to zero.
+     * @param properties bit-significant properties of the element node.
      */
 
     public void startElement(int nameCode, int typeCode, int locationId, int properties) throws XPathException {
@@ -100,7 +106,7 @@ public class TransformerReceiver extends ProxyReceiver {
 
     public void close() throws XPathException {
         super.close();
-        DocumentInfo doc = builder.getCurrentDocument();
+        DocumentInfo doc = (DocumentInfo)builder.getCurrentRoot();
         if (doc==null) {
             throw new DynamicError("No source document has been built");
         }
@@ -108,7 +114,7 @@ public class TransformerReceiver extends ProxyReceiver {
         try {
             controller.transformDocument(doc, result);
         } catch (TransformerException e) {
-            throw XPathException.wrap(e);
+            throw DynamicError.makeDynamicError(e);
         }
     }
 

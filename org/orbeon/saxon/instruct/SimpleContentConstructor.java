@@ -1,14 +1,14 @@
-package net.sf.saxon.instruct;
+package org.orbeon.saxon.instruct;
 
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.value.StringValue;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Iterator;
@@ -57,11 +57,11 @@ public class SimpleContentConstructor extends ComputedExpression {
      * @param contextItemType the static type of "." at the point where this expression is invoked.
      *                        The parameter is set to null if it is known statically that the context item will be undefined.
      *                        If the type of the context item is not known statically, the argument is set to
-     *                        {@link net.sf.saxon.type.Type#ITEM_TYPE}
+     *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
      * @return the original expression, rewritten to perform necessary
      *         run-time type checks, and to perform other type-related
      *         optimizations
-     * @throws net.sf.saxon.xpath.StaticError if an error is discovered during this phase
+     * @throws org.orbeon.saxon.xpath.StaticError if an error is discovered during this phase
      *                                        (typically a type error)
      */
 
@@ -108,7 +108,7 @@ public class SimpleContentConstructor extends ComputedExpression {
      * as a different expression). The default implementation does nothing.
      *
      * @return the simplified expression
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws org.orbeon.saxon.xpath.XPathException
      *          if an error is discovered during expression
      *          rewriting
      */
@@ -142,7 +142,7 @@ public class SimpleContentConstructor extends ComputedExpression {
      * @return the node or atomic value that results from evaluating the
      *         expression; or null to indicate that the result is an empty
      *         sequence
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws org.orbeon.saxon.xpath.XPathException
      *          if any dynamic error occurs evaluating the
      *          expression
      */

@@ -3,7 +3,7 @@ import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.instruct.ApplyImports;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.om.AttributeCollection;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -38,7 +38,7 @@ public class XSLApplyImports extends StyleElement {
     }
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {
-        ApplyImports inst = new ApplyImports();
+        ApplyImports inst = new ApplyImports(backwardsCompatibleModeIsEnabled());
         inst.setActualParameters(getWithParamInstructions(exec, false),
                                  getWithParamInstructions(exec, true));
         ExpressionTool.makeParentReferences(inst);

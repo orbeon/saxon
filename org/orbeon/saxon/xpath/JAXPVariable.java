@@ -1,12 +1,12 @@
-package net.sf.saxon.xpath;
-import net.sf.saxon.expr.Binding;
-import net.sf.saxon.expr.BindingReference;
-import net.sf.saxon.expr.VariableDeclaration;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.value.QNameValue;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.Value;
+package org.orbeon.saxon.xpath;
+import org.orbeon.saxon.expr.Binding;
+import org.orbeon.saxon.expr.BindingReference;
+import org.orbeon.saxon.expr.VariableDeclaration;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.value.EmptySequence;
+import org.orbeon.saxon.value.QNameValue;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.Value;
 
 import javax.xml.namespace.QName;
 import javax.xml.xpath.XPathVariableResolver;

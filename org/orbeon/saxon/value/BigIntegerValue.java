@@ -23,6 +23,7 @@ import java.math.BigInteger;
 public final class BigIntegerValue extends NumericValue {
 
     private BigInteger value;
+    private ItemType type;
 
     private static final BigInteger MAX_INT = BigInteger.valueOf(Integer.MAX_VALUE);
     private static final BigInteger MIN_INT = BigInteger.valueOf(Integer.MIN_VALUE);
@@ -32,12 +33,24 @@ public final class BigIntegerValue extends NumericValue {
 
     public BigIntegerValue(BigInteger value) {
         this.value = value;
+        this.type = Type.INTEGER_TYPE;
     }
 
     public BigIntegerValue(long value) {
         this.value = BigInteger.valueOf(value);
+        this.type = Type.INTEGER_TYPE;
     }
 
+    /**
+     * This class allows subtypes of xs:integer to be held, as well as xs:integer values.
+     * This method sets the required type label
+     * @param type the subtype of integer required
+     */
+
+    public void setSubType(AtomicType type) {
+        this.type = type;
+        //checkRange(value, type);
+    }
     /**
      * Factory method: makes either an IntegerValue or a BigIntegerValue depending on the value supplied
      */
@@ -246,6 +259,15 @@ public final class BigIntegerValue extends NumericValue {
     }
 
     /**
+     * Determine whether the value is negative, zero, or positive
+     * @return -1 if negative, 0 if zero, +1 if positive, NaN if NaN
+     */
+
+    public double signum() {
+        return value.signum();
+    }
+    
+    /**
      * Determine whether the value is a whole number, that is, whether it compares
      * equal to some integer
      *
@@ -317,7 +339,7 @@ public final class BigIntegerValue extends NumericValue {
      */
 
     public ItemType getItemType() {
-        return Type.INTEGER_TYPE;
+        return type;
     }
 
     /**

@@ -1,19 +1,16 @@
 package org.orbeon.saxon.value;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
-import java.net.URL;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.io.PrintStream;
+import java.net.URL;
 
 
 

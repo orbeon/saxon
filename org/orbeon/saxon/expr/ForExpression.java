@@ -4,10 +4,8 @@ import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.trace.Location;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.value.Cardinality;
-import org.orbeon.saxon.value.IntegerValue;
-import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.value.*;
 import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
@@ -45,7 +43,10 @@ public class ForExpression extends Assignation {
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
 
         if (declaration==null) {
-            // we've already done the type checking, no need to do it again
+            // We've already done the type checking, no need to do it again.
+            // But there may be new information about the context item type.
+            sequence = sequence.analyze(env, contextItemType);
+            action = action.analyze(env, contextItemType);
             return this;
         }
 
@@ -54,35 +55,54 @@ public class ForExpression extends Assignation {
         // which in turn is required when type-checking the action part.
 
         sequence = sequence.analyze(env, contextItemType);
+        if (sequence instanceof EmptySequence) {
+            return EmptySequence.getInstance();
+        }
 
         SequenceType decl = declaration.getRequiredType();
         SequenceType sequenceType =
             new SequenceType(decl.getPrimaryType(),
                              StaticProperty.ALLOWS_ZERO_OR_MORE);
-        RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, getVariableName(env.getNamePool()), 0);
-        sequence = TypeChecker.staticTypeCheck(
-                                sequence, sequenceType, false, role, env);
+        RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, new Integer(nameCode), 0, env.getNamePool());
+        sequence = TypeChecker.strictTypeCheck(
+                                sequence, sequenceType, role, env);
         ItemType actualItemType = sequence.getItemType();
         declaration.refineTypeInformation(actualItemType,
                 StaticProperty.EXACTLY_ONE,
                 null,
                 sequence.getSpecialProperties());
 
-        declaration = null;     // let the garbage collector take it
-
         action = action.analyze(env, contextItemType);
+
+        // Simplify an expression of the form "for $b in a/b/c return $b/d".
+        // (XQuery users seem to write these a lot!)
+
+        if (positionVariable==null && sequence instanceof PathExpression && action instanceof PathExpression) {
+            int count = declaration.getReferenceCount(this);
+            PathExpression path2 = (PathExpression)action;
+            Expression s2 = path2.getStartExpression();
+            if (count == 1 && s2 instanceof VariableReference && ((VariableReference)s2).getBinding() == this) {
+                PathExpression newPath = new PathExpression(sequence, path2.getStepExpression());
+                return newPath.simplify(env).analyze(env, contextItemType);
+            }
+        }
+
+        declaration = null;     // let the garbage collector take it
 
         // Extract subexpressions that don't depend on the range variable.
         // We don't do this if there is a position variable. Ideally we would
         // extract subexpressions so long as they don't depend on either variable,
         // but we don't have the machinery to do that yet.
         // TODO: add this optimisation
+        // If a subexpression is (or might be) creative, this is, if it creates new nodes, we don't
+        // extract it from the loop, but we do extract its non-creative subexpressions
 
         if (positionVariable == null) {
             PromotionOffer offer = new PromotionOffer();
             offer.containingExpression = this;
             offer.action = PromotionOffer.RANGE_INDEPENDENT;
-            offer.binding = this;
+            Binding[] bindingList = {this};
+            offer.bindingList = bindingList;
             Container container = getParentExpression();
             action = action.promote(offer);
             if (offer.containingExpression instanceof LetExpression) {
@@ -93,7 +113,37 @@ public class ForExpression extends Assignation {
             }
             return offer.containingExpression;
         }
+
+        // Try to promote any WHERE clause appearing within the FOR expression
+
+        Expression p = promoteWhereClause();
+        if (p != null) {
+            return p;
+        }
+
         return this;
+    }
+
+    /**
+     * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
+     * This method indicates which of these methods is provided. This implementation provides both iterate() and
+     * process() methods natively.
+     */
+
+    public int getImplementationMethod() {
+        return ITERATE_METHOD | PROCESS_METHOD;
+    }
+
+    /**
+     * Check that any elements and attributes constructed or returned by this expression are acceptable
+     * in the content model of a given complex type. It's always OK to say yes, since the check will be
+     * repeated at run-time. The process of checking element and attribute constructors against the content
+     * model of a complex type also registers the type of content expected of those constructors, so the
+     * static validation can continue recursively.
+     */
+
+    public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException {
+        action.checkPermittedContents(parentType, env, false);
     }
 
     /**
@@ -133,18 +183,6 @@ public class ForExpression extends Assignation {
             action.process(context);
         }
     }
-
-    /**
-    * Process the instruction, optionally returning an uncompleted tail call to
-     * be invoked by the caller
-    * @param context The dynamic context, giving access to the current node,
-    * the current variables, etc.
-    */
-
-//    public TailCall processLeavingTail(XPathContext context) throws XPathException {
-//        process(context);
-//        return null;
-//    }
 
     /**
     * Determine the data type of the items returned by the expression, if possible

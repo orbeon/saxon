@@ -1,5 +1,7 @@
 package org.orbeon.saxon.expr;
 
+import org.orbeon.saxon.om.NamePool;
+
 import java.io.Serializable;
 
 /**
@@ -11,8 +13,9 @@ import java.io.Serializable;
 public class RoleLocator implements Serializable {
 
     private int kind;
-    private String container;
+    private Object container;
     private int operand;
+    private NamePool namePool;
     private String errorCode = "XP0006";  // default error code for type errors
 
     public static final int FUNCTION = 0;
@@ -24,10 +27,21 @@ public class RoleLocator implements Serializable {
     public static final int ORDER_BY = 6;
     public static final int TEMPLATE_RESULT = 7;
 
-    public RoleLocator(int kind, String container, int operand) {
+    /**
+     * Create information about the role of a subexpression within its parent expression
+     * @param kind the kind of parent expression, e.g. a function call or a variable reference
+     * @param container the name of the object in the parent expression, e.g. a function name or
+     * instruction name. May be expressed either as a String or as an Integer nameCode in the name pool.
+     * @param operand Ordinal position of this subexpression, e.g. the position of an argument in
+     * @param namePool The name pool. Must be supplied if the second argument is an Integer namecode.
+     * Otherwise, may be null.
+     */
+
+    public RoleLocator(int kind, Object container, int operand, NamePool namePool) {
         this.kind = kind;
         this.container = container;
         this.operand = operand;
+        this.namePool = namePool;
     }
 
     public void setErrorCode(String code) {
@@ -39,28 +53,38 @@ public class RoleLocator implements Serializable {
     }
 
     public String getMessage() {
+        String name;
+        if (container instanceof String) {
+            name = (String)container;
+        } else {
+            if (namePool == null) {
+                name = "*unknown*";
+            } else {
+                name = namePool.getDisplayName(((Integer)container).intValue());
+            }
+        }
+
         switch (kind) {
             case FUNCTION:
-                return ordinal(operand+1) + " argument of " + container + "()";
+                return ordinal(operand+1) + " argument of " + name + "()";
             case BINARY_EXPR:
-                return ordinal(operand+1) + " operand of '" + container + "'";
+                return ordinal(operand+1) + " operand of '" + name + '\'';
             case TYPE_OP:
-                return "value in '" + container + "' expression";
+                return "value in '" + name + "' expression";
             case VARIABLE:
                 return "value of variable $" + container;
             case INSTRUCTION:
-                int slash = container.indexOf('/');
-                String instructionName = container;
+                int slash = name.indexOf('/');
                 String attributeName = "";
                 if (slash >= 0) {
-                    instructionName = container.substring(0, slash);
-                    attributeName = container.substring(slash+1);
+                    attributeName = name.substring(slash+1);
+                    name = name.substring(0, slash);
                 }
-                return "@" + attributeName + " attribute of " + instructionName;
+                return '@' + attributeName + " attribute of " + name;
             case FUNCTION_RESULT:
-                return "result of function " + container + "()";
+                return "result of function " + name + "()";
             case TEMPLATE_RESULT:
-                return "result of template " + container;
+                return "result of template " + name;
             case ORDER_BY:
                 return ordinal(operand+1) + " sort key";
             default:

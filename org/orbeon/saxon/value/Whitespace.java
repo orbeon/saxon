@@ -1,6 +1,6 @@
-package net.sf.saxon.value;
+package org.orbeon.saxon.value;
 
-import net.sf.saxon.functions.NormalizeSpace;
+import org.orbeon.saxon.functions.NormalizeSpace;
 
 /**
  * This class provides helper methods and constants for handling whitespace

@@ -1,9 +1,8 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.instruct.Instruction;
-import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.om.XMLChar;
-import org.orbeon.saxon.tree.AttributeCollection;
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.XMLChar;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -29,7 +28,7 @@ public class XSLOutputCharacter extends StyleElement {
                 String s = atts.getValue(a);
                 switch (s.length()) {
                     case 0:
-                        compileError("character attribute must not be zero-length");
+                        compileError("character attribute must not be zero-length", "XT0020");
                         codepoint = 256; // for error recovery
                         break;
                     case 1:
@@ -40,12 +39,12 @@ public class XSLOutputCharacter extends StyleElement {
                                 XMLChar.isLowSurrogate(s.charAt(1))) {
                             codepoint = XMLChar.supplemental(s.charAt(0), s.charAt(1));
                         } else {
-                            compileError("character attribute must be a single XML character");
+                            compileError("character attribute must be a single XML character", "XT0020");
                             codepoint = 256; // for error recovery
                         }
                         break;
                     default:
-                        compileError("character attribute must be a single XML character");
+                        compileError("character attribute must be a single XML character", "XT0020");
                         codepoint = 256; // for error recovery
                 }
         	} else if (f==StandardNames.STRING) {
@@ -68,7 +67,7 @@ public class XSLOutputCharacter extends StyleElement {
 
     public void validate() throws TransformerConfigurationException {
         if (!(getParent() instanceof XSLCharacterMap)) {
-            compileError("xsl:output-character may appear only as a child of xsl:character-map");
+            compileError("xsl:output-character may appear only as a child of xsl:character-map", "XT0010");
         };
     }
 

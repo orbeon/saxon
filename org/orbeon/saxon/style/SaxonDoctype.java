@@ -1,9 +1,10 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.instruct.Instruction;
+import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Doctype;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.tree.AttributeCollection;
-import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.value.EmptySequence;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -46,8 +47,11 @@ public class SaxonDoctype extends StyleElement {
     }
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {
-        Doctype inst = new Doctype();
-        compileChildren(exec, inst, true);
+        Expression content = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+        if (content == null) {
+            content = EmptySequence.getInstance();
+        }
+        Doctype inst = new Doctype(content);
         return inst;
     }
 

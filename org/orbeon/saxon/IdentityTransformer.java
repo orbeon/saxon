@@ -1,15 +1,11 @@
 package org.orbeon.saxon;
-import org.orbeon.saxon.event.NamespaceReducer;
-import org.orbeon.saxon.event.Receiver;
-import org.orbeon.saxon.event.ResultWrapper;
-import org.orbeon.saxon.event.Sender;
+import org.orbeon.saxon.event.*;
+import org.orbeon.saxon.xpath.XPathException;
 import org.xml.sax.SAXParseException;
 
 import javax.xml.transform.Result;
 import javax.xml.transform.Source;
 import javax.xml.transform.TransformerException;
-
-import org.orbeon.saxon.xpath.XPathException;
 
 class IdentityTransformer extends Controller {
 
@@ -24,11 +20,12 @@ class IdentityTransformer extends Controller {
     public void transform(Source source, Result result)
     throws TransformerException {
         try {
+            PipelineConfiguration pipe = makePipelineConfiguration();
             Receiver receiver = ResultWrapper.getReceiver(
-                    result, getConfiguration(), getOutputProperties(), null);
+                    result, pipe, getOutputProperties(), null);
             NamespaceReducer reducer = new NamespaceReducer();
             reducer.setUnderlyingReceiver(receiver);
-            new Sender(getConfiguration()).send(source, reducer, true);
+            new Sender(pipe).send(source, reducer, true);
         } catch (XPathException err) {
             Throwable cause = err.getException();
             if (cause != null && cause instanceof SAXParseException) {

@@ -18,8 +18,6 @@ public class UnparsedEntity extends SystemFunction implements XSLTFunction {
     public static int URI = 0;
     public static int PUBLIC_ID = 1;
 
-    //DocumentInfo boundDocument = null;
-
     /**
     * Simplify: add a second implicit argument, the context document
     */

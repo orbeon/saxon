@@ -5,19 +5,14 @@ import org.orbeon.saxon.event.Sender;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NamespaceConstant;
 import org.orbeon.saxon.trace.TraceListener;
+import org.orbeon.saxon.xpath.XPathException;
 import org.xml.sax.InputSource;
 import org.xml.sax.XMLFilter;
-
-import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.*;
 import javax.xml.transform.dom.DOMResult;
 import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.sax.SAXResult;
-import javax.xml.transform.sax.SAXSource;
-import javax.xml.transform.sax.SAXTransformerFactory;
-import javax.xml.transform.sax.TemplatesHandler;
-import javax.xml.transform.sax.TransformerHandler;
+import javax.xml.transform.sax.*;
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
 import java.io.StringReader;
@@ -163,7 +158,7 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
 
 
         try {
-            new Sender(config).send(source, grabber);
+            new Sender(config.makePipelineConfiguration()).send(source, grabber);
             // this parse will be aborted when the first start tag is found
         } catch (XPathException err) {
             if (grabber.isTerminated()) {
@@ -266,6 +261,9 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
     	if (name.equals(StreamResult.FEATURE)) return true;
         if (name.equals(SAXTransformerFactory.FEATURE)) return true;
         if (name.equals(SAXTransformerFactory.FEATURE_XMLFILTER)) return true;
+        if (name.equals(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING)) {
+            return !config.isAllowExternalFunctions();
+        }
     	throw new IllegalArgumentException("Unknown feature " + name);
     }
 
@@ -325,6 +323,12 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
         		throw new IllegalArgumentException("validation-warnings must be a boolean");
         	}
         	config.setValidationWarnings(((Boolean)value).booleanValue());
+
+        } else if (name.equals(FeatureKeys.VERSION_WARNING)) {
+             if (!(value instanceof Boolean)) {
+                 throw new IllegalArgumentException("version-warning must be a boolean");
+             }
+             config.setVersionWarning(((Boolean)value).booleanValue());
 
         } else if (name.equals(FeatureKeys.TRACE_LISTENER)) {
         	if (!(value instanceof TraceListener)) {
@@ -571,6 +575,53 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
         }
         Controller controller = (Controller)templates.newTransformer();
         return new Filter(controller);
+    }
+
+    /**
+     * <p>Set a feature for this <code>TransformerFactory</code> and <code>Transformer</code>s
+     * or <code>Template</code>s created by this factory.</p>
+     * <p/>
+     * <p/>
+     * Feature names are fully qualified {@link java.net.URI}s.
+     * Implementations may define their own features.
+     * An {@link javax.xml.transform.TransformerConfigurationException} is thrown if this <code>TransformerFactory</code> or the
+     * <code>Transformer</code>s or <code>Template</code>s it creates cannot support the feature.
+     * It is possible for an <code>TransformerFactory</code> to expose a feature value but be unable to change its state.
+     * </p>
+     * <p/>
+     * <p>All implementations are required to support the {@link javax.xml.XMLConstants#FEATURE_SECURE_PROCESSING} feature.
+     * When the feature is:</p>
+     * <ul>
+     * <li>
+     * <code>true</code>: the implementation will limit XML processing to conform to implementation limits
+     * and behave in a secure fashion as defined by the implementation.
+     * Examples include resolving user defined style sheets and functions.
+     * If XML processing is limited for security reasons, it will be reported via a call to the registered
+     * {@link javax.xml.transform.ErrorListener#fatalError(javax.xml.transform.TransformerException exception)}.
+     * See {@link  #setErrorListener(javax.xml.transform.ErrorListener listener)}. In the Saxon implementation,
+     * this option causes calls on extension functions and extensions instructions to be disabled, and also
+     * disables the use of xsl:result-document to write to secondary output destinations.
+     * </li>
+     * <li>
+     * <code>false</code>: the implementation will processing XML according to the XML specifications without
+     * regard to possible implementation limits.
+     * </li>
+     * </ul>
+     *
+     * @param name  Feature name.
+     * @param value Is feature state <code>true</code> or <code>false</code>.
+     * @throws javax.xml.transform.TransformerConfigurationException
+     *                              if this <code>TransformerFactory</code>
+     *                              or the <code>Transformer</code>s or <code>Template</code>s it creates cannot support this feature.
+     * @throws NullPointerException If the <code>name</code> parameter is null.
+     */
+
+    public void setFeature(String name, boolean value) throws TransformerConfigurationException {
+        if (name.equals(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING)) {
+            config.setAllowExternalFunctions(!value);
+        } else {
+            throw new TransformerConfigurationException("Unsupported TransformerFactory feature: " + name);
+        }
     }
 
 }

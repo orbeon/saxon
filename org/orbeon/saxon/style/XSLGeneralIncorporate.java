@@ -1,25 +1,20 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.instruct.Instruction;
-import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.StandardURIResolver;
-import org.orbeon.saxon.PreparedStylesheet;
 import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.PreparedStylesheet;
+import org.orbeon.saxon.StandardURIResolver;
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.tree.DocumentImpl;
 import org.orbeon.saxon.tree.ElementImpl;
-import org.orbeon.saxon.tree.AttributeCollection;
-import javax.xml.transform.Source;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.w3c.dom.Node;
 
+import javax.xml.transform.Source;
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
-
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.xpath.DynamicError;
-
 import javax.xml.transform.dom.DOMSource;
-
-import org.w3c.dom.Node;
 
 
 /**

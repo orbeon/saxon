@@ -1,8 +1,7 @@
 package org.orbeon.saxon.number;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
-
-import java.io.Serializable;
 
 /**
   * Class NumberFormatter defines a method to format a ArrayList of integers as a character
@@ -95,7 +94,7 @@ public class NumberFormatter implements Serializable {
     public String format(List numbers, int groupSize, String groupSeparator,
                         String letterValue, String ordinal, Numberer numberer) {
 
-        StringBuffer sb = new StringBuffer();
+        StringBuffer sb = new StringBuffer(20);
         int num = 0;
         int tok = 0;
         // output first punctuation token

@@ -1,9 +1,9 @@
 package org.orbeon.saxon.value;
 import org.orbeon.saxon.expr.StaticProperty;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.AnyItemType;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.pattern.AnyNodeTest;
+import org.orbeon.saxon.type.AnyItemType;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
 
 import java.io.Serializable;
 
@@ -16,6 +16,8 @@ import java.io.Serializable;
 
 public final class SequenceType implements Serializable {
 
+    // TODO: avoid creating multiple objects representing the same SequenceType
+
     private ItemType primaryType;    // the primary type of the item, e.g. "element", "comment", or "integer"
     private int cardinality;    // the required cardinality
 
@@ -23,28 +25,28 @@ public final class SequenceType implements Serializable {
      * A type that allows any sequence of items
      */
 
-    public final static SequenceType ANY_SEQUENCE =
+    public static final SequenceType ANY_SEQUENCE =
             new SequenceType(AnyItemType.getInstance(), StaticProperty.ALLOWS_ZERO_OR_MORE);
 
     /**
      * A type that allows exactly one item, of any kind
      */
 
-    public final static SequenceType SINGLE_ITEM =
+    public static final SequenceType SINGLE_ITEM =
             new SequenceType(AnyItemType.getInstance(), StaticProperty.EXACTLY_ONE);
 
      /**
      * A type that allows zero or one items, of any kind
      */
 
-//    public final static SequenceType OPTIONAL_ITEM =
+//    public static final SequenceType OPTIONAL_ITEM =
 //            new SequenceType(Type.ITEM, Type.ITEM, StaticProperty.CARDINALITY_ALLOWS_ZERO_OR_ONE);
 
     /**
     * A type that allows exactly one atomic value
     */
 
-   public final static SequenceType SINGLE_ATOMIC =
+   public static final SequenceType SINGLE_ATOMIC =
             new SequenceType(Type.ANY_ATOMIC_TYPE,
                              StaticProperty.EXACTLY_ONE);
 
@@ -52,14 +54,14 @@ public final class SequenceType implements Serializable {
     * A type that allows zero or one atomic values
     */
 
-   public final static SequenceType OPTIONAL_ATOMIC =
+   public static final SequenceType OPTIONAL_ATOMIC =
             new SequenceType(Type.ANY_ATOMIC_TYPE,
                              StaticProperty.ALLOWS_ZERO_OR_ONE);
     /**
     * A type that allows zero or more atomic values
     */
 
-   public final static SequenceType ATOMIC_SEQUENCE =
+   public static final SequenceType ATOMIC_SEQUENCE =
             new SequenceType(Type.ANY_ATOMIC_TYPE,
                              StaticProperty.ALLOWS_ZERO_OR_MORE);
 
@@ -67,7 +69,7 @@ public final class SequenceType implements Serializable {
      * A type that allows a single string
      */
 
-    public final static SequenceType SINGLE_STRING =
+    public static final SequenceType SINGLE_STRING =
             new SequenceType(Type.STRING_TYPE,
                              StaticProperty.EXACTLY_ONE);
 
@@ -75,7 +77,7 @@ public final class SequenceType implements Serializable {
      * A type that allows a single integer
      */
 
-    public final static SequenceType SINGLE_INTEGER =
+    public static final SequenceType SINGLE_INTEGER =
             new SequenceType(Type.INTEGER_TYPE,
                              StaticProperty.EXACTLY_ONE);
 
@@ -83,7 +85,7 @@ public final class SequenceType implements Serializable {
      * A type that allows a single integer
      */
 
-    public final static SequenceType OPTIONAL_INTEGER =
+    public static final SequenceType OPTIONAL_INTEGER =
             new SequenceType(Type.INTEGER_TYPE,
                              StaticProperty.ALLOWS_ZERO_OR_ONE);
 
@@ -91,7 +93,7 @@ public final class SequenceType implements Serializable {
      * A type that allows zero or one nodes
      */
 
-    public final static SequenceType OPTIONAL_NODE =
+    public static final SequenceType OPTIONAL_NODE =
             new SequenceType(AnyNodeTest.getInstance(),
                              StaticProperty.ALLOWS_ZERO_OR_ONE);
 
@@ -99,7 +101,7 @@ public final class SequenceType implements Serializable {
      * A type that allows a single node
      */
 
-    public final static SequenceType SINGLE_NODE =
+    public static final SequenceType SINGLE_NODE =
             new SequenceType(AnyNodeTest.getInstance(),
                              StaticProperty.EXACTLY_ONE);
 
@@ -108,7 +110,7 @@ public final class SequenceType implements Serializable {
      * A type that allows a sequence of zero or more nodes
      */
 
-    public final static SequenceType NODE_SEQUENCE =
+    public static final SequenceType NODE_SEQUENCE =
             new SequenceType(AnyNodeTest.getInstance(),
                              StaticProperty.ALLOWS_ZERO_OR_MORE);
 
@@ -154,18 +156,17 @@ public final class SequenceType implements Serializable {
 
     /**
      * Return a string representation of this SequenceType
-     *
      * @return the string representation as an instance of the XPath
      *     SequenceType construct
      */
     public String toString() {
         String s = primaryType.toString();
         if (cardinality == StaticProperty.ALLOWS_ONE_OR_MORE) {
-            s = s + "+";
+            s = s + '+';
         } else if (cardinality == StaticProperty.ALLOWS_ZERO_OR_MORE) {
-            s = s + "*";
+            s = s + '*';
         } else if (cardinality == StaticProperty.ALLOWS_ZERO_OR_ONE) {
-            s = s + "?";
+            s = s + '?';
         }
         return s;
     }

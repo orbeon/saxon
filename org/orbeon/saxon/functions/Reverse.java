@@ -1,8 +1,8 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.sort.Reverser;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * Implement XPath function fn:reverse()

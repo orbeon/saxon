@@ -1,10 +1,10 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.*;
-import org.orbeon.saxon.instruct.Block;
 import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.sort.SortKeyDefinition;
-import org.orbeon.saxon.tree.AttributeCollection;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.SequenceType;
@@ -119,7 +119,7 @@ public class XSLSort extends StyleElement {
                  || (parent instanceof XSLForEachGroup)
                  || (parent instanceof XSLPerformSort)
                  )) {
-            compileError("xsl:sort must be a child of xsl:apply-templates, xsl:for-each[-group], or xsl:perform-sort");
+            compileError("xsl:sort must be a child of xsl:apply-templates, xsl:for-each[-group], or xsl:perform-sort", "XT0010");
         }
 
         // Get the named or default collation
@@ -143,7 +143,7 @@ public class XSLSort extends StyleElement {
         if (select != null) {
             try {
                 RoleLocator role =
-                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:sort/select", 0);
+                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:sort/select", 0, null);
                 select = TypeChecker.staticTypeCheck(select,
                                 SequenceType.ATOMIC_SEQUENCE,
                                 false, role, getStaticContext());
@@ -179,10 +179,14 @@ public class XSLSort extends StyleElement {
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {
         if (select == null) {
-            Block body = new Block();
-            compileChildren(exec, body, true);
+            Expression b = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+            if (b == null) {
+                b = EmptySequence.getInstance();
+            }
             try {
-                sortKeyDefinition.setSortKey(new Atomizer(body.simplify(getStaticContext())));
+                StaticContext env = getStaticContext();
+                sortKeyDefinition.setSortKey(
+                        new Atomizer(b.simplify(env), env.getConfiguration()));
             } catch (XPathException e) {
                 compileError(e);
             }

@@ -1,6 +1,6 @@
 package org.orbeon.saxon.trace;
-import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.Item;
 
 import java.util.EventListener;
 

@@ -1,28 +1,29 @@
 package org.orbeon.saxon.value;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.dom.DOMNodeList;
+import org.orbeon.saxon.event.Builder;
+import org.orbeon.saxon.event.Sender;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.event.Builder;
-import org.orbeon.saxon.event.Sender;
 import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.BuiltInSchemaFactory;
+import org.orbeon.saxon.type.*;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.w3c.dom.NodeList;
 
+import javax.xml.namespace.QName;
 import javax.xml.transform.Source;
 import javax.xml.transform.dom.DOMSource;
 import java.io.Serializable;
-import java.math.BigInteger;
 import java.math.BigDecimal;
-import java.util.List;
-import java.util.Iterator;
+import java.math.BigInteger;
+import java.net.URI;
+import java.net.URL;
 import java.util.Collections;
-
-import org.w3c.dom.NodeList;
+import java.util.Iterator;
+import java.util.List;
 
 /**
 * A value is the result of an expression but it is also an expression in its own right.
@@ -223,19 +224,19 @@ public abstract class Value implements Expression, Serializable {
      * if there is no containing expression or if the containing expression is unknown.
      */
 
-    public Container getParentExpression() {
+    public final Container getParentExpression() {
         return null;
     }
 
     /**
      * Get the static properties of this expression (other than its type). For a
-     * Value, there are no special properties, so the return value is always zero.
-     * @return zero
+     * Value, the only special property is {@link StaticProperty#NON_CREATIVE}.
+     * @return {@link StaticProperty#NON_CREATIVE}
      */
 
 
     public int getSpecialProperties() {
-        return 0;
+        return StaticProperty.NON_CREATIVE;
     }
 
     /**
@@ -247,7 +248,7 @@ public abstract class Value implements Expression, Serializable {
      * @return For a Value, this always returns the value unchanged
      */
 
-     public Expression promote(PromotionOffer offer) {
+     public final Expression promote(PromotionOffer offer) {
         return this;
     }
 
@@ -304,6 +305,19 @@ public abstract class Value implements Expression, Serializable {
     public abstract String getStringValue() throws XPathException;
 
     /**
+     * Check statically that the results of the expression are capable of constructing the content
+     * of a given schema type.
+     * @param parentType The schema type
+     * @param env the static context
+     * @param whole
+     * @throws XPathException if the expression doesn't match the required content type
+     */
+
+    public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException {
+        return;
+    }
+
+    /**
     * Convert the value to a Java object (for passing to external functions)
     * @param target The class required by the external function
     * @param config The configuration (needed for access to schema information)
@@ -315,76 +329,105 @@ public abstract class Value implements Expression, Serializable {
     /**
     * Convert a Java object to an XPath value. This method is called to handle the result
     * of an external function call (but only if the required type is not known),
-    * and also to process global parameters passed to the stylesheet.
-    * @param result The Java object to be converted
-    * @param controller The controller: may be null, in which case a Source object cannot be
+    * and also to process global parameters passed to the stylesheet or query.
+    * @param object The Java object to be converted
+    * @param requiredType The required type of the result (if known)
+    * @param context The XPathContext: may be null, in which case a Source object cannot be
     * supplied
-     * @return the result of converting the value. If the value is null, returns null.
+    * @return the result of converting the value. If the value is null, returns null.
     */
 
-    public static Value convertJavaObjectToXPath(Object result, Controller controller)
+    public static Value convertJavaObjectToXPath(
+            Object object, SequenceType requiredType, XPathContext context)
                                           throws XPathException {
 
-        if (result==null) {
-            return null;
+        ItemType requiredItemType = requiredType.getPrimaryType();
 
-        } else if (result instanceof String) {
-            return new StringValue((String)result);
+        if (object==null) {
+            return EmptySequence.getInstance();
+        }
 
-        } else if (result instanceof Character) {
-            return new StringValue(result.toString());
+        if (requiredItemType instanceof ExternalObjectType) {
+            Class theClass = ((ExternalObjectType)requiredItemType).getJavaClass();
+            if (theClass.isAssignableFrom(object.getClass())) {
+                return new ObjectValue(object);
+            } else {
+                throw new DynamicError("Supplied parameter value is not of class " + theClass.getName());
+            }
+        }
 
-        } else if (result instanceof Boolean) {
-            return BooleanValue.get(((Boolean)result).booleanValue());
+        Value value = convertToBestFit(object, context);
+        return value;
 
-        } else if (result instanceof Double) {
-            return new DoubleValue(((Double)result).doubleValue());
+    }
 
-        } else if (result instanceof Float) {
-            return new FloatValue(((Float)result).floatValue());
+    private static Value convertToBestFit(Object object, XPathContext context) throws XPathException {
+        if (object instanceof String) {
+            return new StringValue((String)object);
 
-        } else if (result instanceof Short) {
-            return new IntegerValue(((Short)result).shortValue(),
-                                    (ItemType)BuiltInSchemaFactory.getSchemaType(StandardNames.XS_SHORT));
-        } else if (result instanceof Integer) {
-            return new IntegerValue(((Integer)result).intValue(),
-                                    (ItemType)BuiltInSchemaFactory.getSchemaType(StandardNames.XS_INT));
-        } else if (result instanceof Long) {
-            return new IntegerValue(((Long)result).longValue(),
-                                    (ItemType)BuiltInSchemaFactory.getSchemaType(StandardNames.XS_LONG));
-        } else if (result instanceof Byte) {
-            return new IntegerValue(((Byte)result).byteValue(),
-                                    (ItemType)BuiltInSchemaFactory.getSchemaType(StandardNames.XS_BYTE));
+        } else if (object instanceof Character) {
+            return new StringValue(object.toString());
 
-        } else if (result instanceof BigInteger) {
-            return BigIntegerValue.makeValue(((BigInteger)result));
+        } else if (object instanceof Boolean) {
+            return BooleanValue.get(((Boolean)object).booleanValue());
 
-        } else if (result instanceof BigDecimal) {
-            return new DecimalValue(((BigDecimal)result));
+        } else if (object instanceof Double) {
+            return new DoubleValue(((Double)object).doubleValue());
 
-        } else if (result instanceof Closure) {
+        } else if (object instanceof Float) {
+            return new FloatValue(((Float)object).floatValue());
+
+        } else if (object instanceof Short) {
+            return new IntegerValue(((Short)object).shortValue(),
+                                    (AtomicType)BuiltInSchemaFactory.getSchemaType(StandardNames.XS_SHORT));
+        } else if (object instanceof Integer) {
+            return new IntegerValue(((Integer)object).intValue(),
+                                    (AtomicType)BuiltInSchemaFactory.getSchemaType(StandardNames.XS_INT));
+        } else if (object instanceof Long) {
+            return new IntegerValue(((Long)object).longValue(),
+                                    (AtomicType)BuiltInSchemaFactory.getSchemaType(StandardNames.XS_LONG));
+        } else if (object instanceof Byte) {
+            return new IntegerValue(((Byte)object).byteValue(),
+                                    (AtomicType)BuiltInSchemaFactory.getSchemaType(StandardNames.XS_BYTE));
+
+        } else if (object instanceof BigInteger) {
+            return BigIntegerValue.makeValue(((BigInteger)object));
+
+        } else if (object instanceof BigDecimal) {
+            return new DecimalValue(((BigDecimal)object));
+
+        } else if (object instanceof QName) {
+            return new QNameValue((QName)object);
+
+        } else if (object instanceof URI) {
+            return new AnyURIValue(object.toString());
+
+        } else if (object instanceof URL) {
+            return new AnyURIValue(object.toString());
+
+        } else if (object instanceof Closure) {
             // Force eager evaluation, because of problems with side-effects.
             // (The value might depend on data that is mutable.)
-            return ExpressionTool.eagerEvaluate((Closure)result, null);
+            return ExpressionTool.eagerEvaluate((Closure)object, null);
 
-        } else if (result instanceof Value) {
-            return (Value)result;
+        } else if (object instanceof Value) {
+            return (Value)object;
 
-        } else if (result instanceof NodeInfo) {
-            return new SingletonNode((NodeInfo)result);
+        } else if (object instanceof NodeInfo) {
+            return new SingletonNode((NodeInfo)object);
 
-        } else if (result instanceof SequenceIterator) {
-            return new SequenceIntent((SequenceIterator)result);
+        } else if (object instanceof SequenceIterator) {
+            return new SequenceIntent((SequenceIterator)object);
 
-        } else if (result instanceof List) {
-            Item[] array = new Item[((List)result).size()];
+        } else if (object instanceof List) {
+            Item[] array = new Item[((List)object).size()];
             int a = 0;
-            for (Iterator i=((List)result).iterator(); i.hasNext(); ) {
+            for (Iterator i=((List)object).iterator(); i.hasNext(); ) {
                 Object obj = i.next();
                 if (obj instanceof NodeInfo) {
                     array[a++] = (NodeInfo)obj;
                 } else {
-                    Value v = convertJavaObjectToXPath(obj, controller);
+                    Value v = convertToBestFit(obj, context);
                     if (v!=null) {
                         if (v instanceof Item) {
                             array[a++] = (Item)v;
@@ -405,15 +448,15 @@ public abstract class Value implements Expression, Serializable {
 
             return new SequenceExtent(array);
 
-        } else if (result instanceof Object[]) {
-             Item[] array = new Item[((Object[])result).length];
+        } else if (object instanceof Object[]) {
+             Item[] array = new Item[((Object[])object).length];
              int a = 0;
-             for (int i = 0; i < ((Object[])result).length; i++){
-                 Object obj = ((Object[])result)[i];
+             for (int i = 0; i < ((Object[])object).length; i++){
+                 Object obj = ((Object[])object)[i];
                  if (obj instanceof NodeInfo) {
                      array[a++] = (NodeInfo)obj;
                  } else {
-                     Value v = convertJavaObjectToXPath(obj, controller);
+                     Value v = convertToBestFit(obj, context);
                      if (v!=null) {
                          if (v instanceof Item) {
                              array[a++] = (Item)v;
@@ -426,58 +469,60 @@ public abstract class Value implements Expression, Serializable {
              }
              return new SequenceExtent(array);
 
-        } else if (result instanceof long[]) {
-             Item[] array = new Item[((long[])result).length];
-             for (int i = 0; i < ((long[])result).length; i++){
-                 array[i] = new IntegerValue(((long[])result)[i]);
+        } else if (object instanceof long[]) {
+             Item[] array = new Item[((long[])object).length];
+             for (int i = 0; i < ((long[])object).length; i++){
+                 array[i] = new IntegerValue(((long[])object)[i]);
              }
              return new SequenceExtent(array);
 
-        } else if (result instanceof int[]) {
-             Item[] array = new Item[((int[])result).length];
-             for (int i = 0; i < ((int[])result).length; i++){
-                 array[i] = new IntegerValue(((int[])result)[i]);
+        } else if (object instanceof int[]) {
+             Item[] array = new Item[((int[])object).length];
+             for (int i = 0; i < ((int[])object).length; i++){
+                 array[i] = new IntegerValue(((int[])object)[i]);
              }
              return new SequenceExtent(array);
 
-        } else if (result instanceof short[]) {
-             Item[] array = new Item[((short[])result).length];
-             for (int i = 0; i < ((short[])result).length; i++){
-                 array[i] = new IntegerValue(((short[])result)[i]);
+        } else if (object instanceof short[]) {
+             Item[] array = new Item[((short[])object).length];
+             for (int i = 0; i < ((short[])object).length; i++){
+                 array[i] = new IntegerValue(((short[])object)[i]);
              }
              return new SequenceExtent(array);
 
-        } else if (result instanceof byte[]) {  // interpret this as unsigned bytes
-             Item[] array = new Item[((byte[])result).length];
-             for (int i = 0; i < ((byte[])result).length; i++){
-                 array[i] = new IntegerValue(255 & (int)((byte[])result)[i]);
+        } else if (object instanceof byte[]) {  // interpret this as unsigned bytes
+             Item[] array = new Item[((byte[])object).length];
+             for (int i = 0; i < ((byte[])object).length; i++){
+                 array[i] = new IntegerValue(255 & (int)((byte[])object)[i]);
              }
              return new SequenceExtent(array);
 
-        } else if (result instanceof char[]) {
-             return new StringValue(new String((char[])result));
+        } else if (object instanceof char[]) {
+             return new StringValue(new String((char[])object));
 
-       } else if (result instanceof boolean[]) {
-             Item[] array = new Item[((boolean[])result).length];
-             for (int i = 0; i < ((boolean[])result).length; i++){
-                 array[i] = BooleanValue.get(((boolean[])result)[i]);
+       } else if (object instanceof boolean[]) {
+             Item[] array = new Item[((boolean[])object).length];
+             for (int i = 0; i < ((boolean[])object).length; i++){
+                 array[i] = BooleanValue.get(((boolean[])object)[i]);
              }
              return new SequenceExtent(array);
 
-        } else if (result instanceof Source && controller != null) {
-            if (result instanceof DOMSource) {
-                return new SingletonNode(controller.prepareInputTree((Source)result));
+        } else if (object instanceof Source && context != null) {
+            if (object instanceof DOMSource) {
+                return new SingletonNode(context.getController().prepareInputTree((Source)object));
             }
             try {
-                Builder b = controller.makeBuilder();
-                new Sender(controller.getConfiguration()).send((Source) result, b);
-                return new SingletonNode(b.getCurrentDocument());
+                Builder b = context.getController().makeBuilder();
+                new Sender(b.getPipelineConfiguration()).send((Source) object, b);
+                return new SingletonNode(b.getCurrentRoot());
             } catch (XPathException err) {
                 throw new DynamicError(err);
             }
-
-        } else if (result instanceof org.w3c.dom.NodeList) {
-            NodeList list = ((NodeList)result);
+        } else if (object instanceof DOMNodeList) {
+            return ((DOMNodeList)object).getSequence();
+            
+        } else if (object instanceof org.w3c.dom.NodeList) {
+            NodeList list = ((NodeList)object);
             NodeInfo[] nodes = new NodeInfo[list.getLength()];
             for (int i=0; i<list.getLength(); i++) {
                 if (list.item(i) instanceof NodeInfo) {
@@ -490,10 +535,10 @@ public abstract class Value implements Expression, Serializable {
             return new SequenceExtent(nodes);
             // Note, we accept the nodes in the order returned by the function; there
             // is no requirement that this should be document order.
-        } else if (result instanceof org.w3c.dom.Node) {
+        } else if (object instanceof org.w3c.dom.Node) {
             throw new DynamicError("Supplied Java object is a non-Saxon DOM Node");
         } else {
-            return new ObjectValue(result);
+            return new ObjectValue(object);
         }
     }
 

@@ -28,15 +28,20 @@ import java.util.*;
 
 public class ResultWrapper {
 
+    // Class is never instantiated
+    private ResultWrapper() {
+    }
+
     /**
     * Get a Receiver that wraps a given Result object
     */
 
     public static Receiver getReceiver( Result result,
-                                        Configuration config,
+                                        PipelineConfiguration pipe,
                                         Properties props,
                                         HashMap characterMapIndex)
                                     throws XPathException {
+        Configuration config = pipe.getConfiguration();
         NamePool namePool = config.getNamePool();
         if (result instanceof Emitter) {
             ((Emitter)result).setOutputProperties(props);
@@ -46,7 +51,7 @@ public class ResultWrapper {
         } else if (result instanceof SAXResult) {
             ContentHandlerProxy proxy = new ContentHandlerProxy();
             proxy.setUnderlyingContentHandler(((SAXResult)result).getHandler());
-            proxy.setConfiguration(config);
+            proxy.setPipelineConfiguration(pipe);
             return proxy;
         } else if (result instanceof StreamResult) {
 
@@ -81,7 +86,7 @@ public class ResultWrapper {
             }
             if (method==null) {
             	emitter = new UncommittedEmitter();
-            	emitter.setConfiguration(config);
+            	emitter.setPipelineConfiguration(pipe);
             	target = emitter;
                 if (characterMapExpander != null) {
                     characterMapExpander.setUnderlyingReceiver(target);
@@ -89,12 +94,12 @@ public class ResultWrapper {
                 }
             } else if ("html".equals(method)) {
                 emitter = new HTMLEmitter();
-                emitter.setConfiguration(config);
+                emitter.setPipelineConfiguration(pipe);
                 target = emitter;
                 if (!"no".equals(props.getProperty(OutputKeys.INDENT))) {
                     HTMLIndenter in = new HTMLIndenter();
                     in.setUnderlyingReceiver(target);
-                    in.setConfiguration(config);
+                    in.setPipelineConfiguration(pipe);
                     in.setOutputProperties(props);
                     target=in;
                 }
@@ -106,12 +111,12 @@ public class ResultWrapper {
                 }
             } else if ("xml".equals(method)) {
                 emitter = new XMLEmitter();
-                emitter.setConfiguration(config);
+                emitter.setPipelineConfiguration(pipe);
                 target = emitter;
                 if ("yes".equals(props.getProperty(OutputKeys.INDENT))) {
                     XMLIndenter in = new XMLIndenter();
                     in.setUnderlyingReceiver(target);
-                    in.setConfiguration(config);
+                    in.setPipelineConfiguration(pipe);
                     in.setOutputProperties(props);
                     target=in;
                 }
@@ -123,18 +128,18 @@ public class ResultWrapper {
                 if (cdataElements!=null && cdataElements.length()>0) {
                     CDATAFilter filter = new CDATAFilter();
                     filter.setUnderlyingReceiver(target);
-                    filter.setConfiguration(config);
+                    filter.setPipelineConfiguration(pipe);
                     filter.setOutputProperties(props);
                     target = filter;
                 }
             } else if ("xhtml".equals(method)) {
                 emitter = new XHTMLEmitter();
-                emitter.setConfiguration(config);
+                emitter.setPipelineConfiguration(pipe);
                 target = emitter;
                 if ("yes".equals(props.getProperty(OutputKeys.INDENT))) {
                     HTMLIndenter in = new HTMLIndenter();
                     in.setUnderlyingReceiver(target);
-                    in.setConfiguration(config);
+                    in.setPipelineConfiguration(pipe);
                     in.setOutputProperties(props);
                     target=in;
                 }
@@ -146,13 +151,13 @@ public class ResultWrapper {
                 if (cdataElements!=null && cdataElements.length()>0) {
                     CDATAFilter filter = new CDATAFilter();
                     filter.setUnderlyingReceiver(target);
-                    filter.setConfiguration(config);
+                    filter.setPipelineConfiguration(pipe);
                     filter.setOutputProperties(props);
                     target = filter;
                 }
             } else if ("text".equals(method)) {
                 emitter = new TEXTEmitter();
-                emitter.setConfiguration(config);
+                emitter.setPipelineConfiguration(pipe);
                 target = emitter;
                 if (characterMapExpander != null) {
                     characterMapExpander.setUnderlyingReceiver(target);
@@ -166,7 +171,7 @@ public class ResultWrapper {
                 int colon = localName.indexOf(':');
                 localName = localName.substring(colon+1);
                 emitter = Emitter.makeEmitter(localName);
-                emitter.setConfiguration(config);
+                emitter.setPipelineConfiguration(pipe);
                 target = emitter;
             }
             emitter.setOutputProperties(props);
@@ -192,7 +197,7 @@ public class ResultWrapper {
                             }
                             builder.setRootNode(doc);
                             builder.setSystemId(result.getSystemId());
-                            builder.setConfiguration(config);
+                            builder.setPipelineConfiguration(pipe);
                             return builder;
                         }
                     } else {
@@ -202,7 +207,7 @@ public class ResultWrapper {
                     // Non-Saxon DOM
                     DOMEmitter emitter = new DOMEmitter();
                     emitter.setSystemId(result.getSystemId());
-                    emitter.setConfiguration(config);
+                    emitter.setPipelineConfiguration(pipe);
                     emitter.setNode(resultNode);
                     return emitter;
                 }
@@ -210,9 +215,10 @@ public class ResultWrapper {
                 // no result node supplied; we must create our own
                 TinyBuilder builder = new TinyBuilder();
                 builder.setSystemId(result.getSystemId());
-                builder.setConfiguration(config);
-                builder.createDocument();
-                Document resultDoc = (Document)builder.getCurrentDocument();
+                builder.setPipelineConfiguration(pipe);
+                builder.open();
+                builder.startDocument(0);
+                Document resultDoc = (Document)builder.getCurrentRoot();
                 ((DOMResult)result).setNode(resultDoc);
                 return builder;
             }

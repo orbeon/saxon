@@ -1,11 +1,14 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.instruct.*;
-import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.instruct.GeneralVariable;
+import org.orbeon.saxon.instruct.GlobalParam;
+import org.orbeon.saxon.instruct.LocalParam;
 import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.om.AxisIterator;
 import org.orbeon.saxon.om.Navigator;
+import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
@@ -41,7 +44,7 @@ public class XSLParam extends XSLVariableDeclaration {
         global = (parent instanceof XSLStylesheet);
 
         if (!local && !global) {
-            compileError("xsl:param must be immediately within a template, function or stylesheet");
+            compileError("xsl:param must be immediately within a template, function or stylesheet", "XT0010");
         }
 
         if (!global) {
@@ -56,11 +59,11 @@ public class XSLParam extends XSLVariableDeclaration {
                         compileError("The name of the parameter is not unique", "XT0580");
                     }
                 } else if (node instanceof StyleElement) {
-                    compileError("xsl:param must be the first element within a template or function");
+                    compileError("xsl:param must be the first element within a template or function", "XT0010");
                 } else {
                     // it must be a text node; allow it if all whitespace
                     if (!Navigator.isWhite(node.getStringValue())) {
-                        compileError("xsl:param must not be preceded by text");
+                        compileError("xsl:param must not be preceded by text", "XT0010");
                     }
                 }
             }
@@ -69,10 +72,10 @@ public class XSLParam extends XSLVariableDeclaration {
         if (requiredParam) {
             if (select != null) {
                 // NB, we do this test before setting the default select attribute
-                compileError("The select attribute should be omitted when required='yes'");
+                compileError("The select attribute should be omitted when required='yes'", "XT0010");
             }
             if (hasChildNodes()) {
-                compileError("A parameter specifying required='yes' must have empty content");
+                compileError("A parameter specifying required='yes' must have empty content", "XT0010");
             }
         }
 
@@ -91,14 +94,15 @@ public class XSLParam extends XSLVariableDeclaration {
         // gets garbage collected if there are no variables that refer to it.)
 
         if (getParent() instanceof XSLFunction) {
-            // For Function arguments, the UserFunctionParameter is more efficient than
-            // the general-purpose Param object
-            UserFunctionParameter arg = new UserFunctionParameter();
-            arg.setRequiredType(getRequiredType());
-            arg.setSlotNumber(getSlotNumber());
-            arg.setVariableName(getVariableName());
-            fixupBinding(arg);
+            // Do nothing. We did everything necessary while compiling the XSLFunction element.
             return null;
+//            // For Function arguments, the UserFunctionParameter is more efficient than
+//            // the general-purpose Param object
+//            UserFunctionParameter arg = new UserFunctionParameter();
+//            arg.setRequiredType(getRequiredType());
+//            arg.setSlotNumber(getSlotNumber());
+//            fixupBinding(arg);
+//            return null;
                 // no need to return an instruction in this case, the parameter definition
                 // is not executable.
         } else {
@@ -111,7 +115,7 @@ public class XSLParam extends XSLVariableDeclaration {
                             pref,
                             requiredType,
                             false,
-                            new RoleLocator(RoleLocator.VARIABLE, getVariableName(), 0), getStaticContext());
+                            new RoleLocator(RoleLocator.VARIABLE, getVariableName(), 0, null), getStaticContext());
                 } catch (XPathException z) {
                     throw new TransformerConfigurationException(z);
                 }

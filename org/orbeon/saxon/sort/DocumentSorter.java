@@ -3,8 +3,8 @@ package org.orbeon.saxon.sort;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * A DocumentSorter is an expression that sorts a sequence of nodes into

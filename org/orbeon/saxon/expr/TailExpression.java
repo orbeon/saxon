@@ -7,8 +7,8 @@ import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.xpath.XPathException;
 
-import java.util.Iterator;
 import java.io.PrintStream;
+import java.util.Iterator;
 
 /**
  * A TailExpression represents a FilterExpression of the form EXPR[position() > n]
@@ -61,11 +61,6 @@ public class TailExpression extends ComputedExpression {
         return base.getCardinality() | StaticProperty.ALLOWS_ZERO;
     }
 
-//    public Expression[] getSubExpressions() {
-//        Expression[] sub = new Expression[1];
-//        sub[0] = base;
-//        return sub;
-//    }
     public Iterator iterateSubExpressions() {
         return new MonoIterator(base);
     }

@@ -1,17 +1,14 @@
 package org.orbeon.saxon.functions;
 
-import org.orbeon.saxon.functions.StandardFunction;
-import org.orbeon.saxon.functions.SystemFunction;
-import org.orbeon.saxon.functions.FunctionLibrary;
-import org.orbeon.saxon.om.NamespaceConstant;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.xpath.StaticError;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.expr.StaticProperty;
+import org.orbeon.saxon.om.NamespaceConstant;
 import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.HashMap;
 
@@ -59,6 +56,9 @@ public class VendorFunctionLibrary implements FunctionLibrary {
         StandardFunction.Entry e;
         e = register("evaluate", Evaluate.class, Evaluate.EVALUATE, 1, 10, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             StandardFunction.arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
+
+        e = register("evaluate-node", Evaluate.class, Evaluate.EVALUATE_NODE, 1, 1, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
+            StandardFunction.arg(e, 0, Type.NODE_TYPE, StaticProperty.EXACTLY_ONE);
 
         e = register("eval", Evaluate.class, Evaluate.EVAL, 1, 10, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             StandardFunction.arg(e, 0, Type.ANY_ATOMIC_TYPE, StaticProperty.EXACTLY_ONE);

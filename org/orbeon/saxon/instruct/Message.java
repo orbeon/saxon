@@ -17,7 +17,6 @@ import javax.xml.transform.OutputKeys;
 import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Properties;
 
@@ -25,7 +24,9 @@ import java.util.Properties;
 * An xsl:message element in the stylesheet.
 */
 
-public class Message extends InstructionWithChildren {
+public class Message extends Instruction {
+
+    // TODO: JAXP 1.3 specifies that xsl:message output is written to the ErrorListener
 
     private Expression terminate;
     private Expression select;
@@ -33,6 +34,51 @@ public class Message extends InstructionWithChildren {
     public Message(Expression select, Expression terminate) {
         this.terminate = terminate;
         this.select = select;
+    }
+
+    /**
+     * Simplify an expression. This performs any static optimization (by rewriting the expression
+     * as a different expression). The default implementation does nothing.
+     * @return the simplified expression
+     * @throws org.orbeon.saxon.xpath.XPathException
+     *          if an error is discovered during expression rewriting
+     */
+
+    public Expression simplify(StaticContext env) throws XPathException {
+        select = select.simplify(env);
+        if (terminate != null) {
+            terminate = terminate.simplify(env);
+        }
+        return this;
+    }
+
+    /**
+     * Perform static analysis of an expression and its subexpressions.
+     * <p/>
+     * <p>This checks statically that the operands of the expression have
+     * the correct type; if necessary it generates code to do run-time type checking or type
+     * conversion. A static type error is reported only if execution cannot possibly succeed, that
+     * is, if a run-time type error is inevitable. The call may return a modified form of the expression.</p>
+     * <p/>
+     * <p>This method is called after all references to functions and variables have been resolved
+     * to the declaration of the function or variable. However, the types of such functions and
+     * variables will only be accurately known if they have been explicitly declared.</p>
+     *
+     * @param env the static context of the expression
+     * @return the original expression, rewritten to perform necessary
+     *         run-time type checks, and to perform other type-related
+     *         optimizations
+     * @throws org.orbeon.saxon.xpath.XPathException
+     *          if an error is discovered during this phase
+     *          (typically a type error)
+     */
+
+    public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
+        select = select.analyze(env, contextItemType);
+        if (terminate != null) {
+            terminate = terminate.analyze(env, contextItemType);
+        }
+        return this;
     }
 
     /**
@@ -51,6 +97,14 @@ public class Message extends InstructionWithChildren {
         return StaticProperty.EMPTY;
     }
 
+    /**
+     * Determine whether this instruction creates new nodes.
+     * This implementation returns true.
+     */
+
+    public final boolean createsNewNodes() {
+        return true;
+    }
     /**
      * Handle promotion offers, that is, non-local tree rewrites.
      * @param offer The type of rewrite being offered
@@ -73,10 +127,7 @@ public class Message extends InstructionWithChildren {
      */
 
     public Iterator iterateSubExpressions() {
-        ArrayList list = new ArrayList(5);
-        if (children != null) {
-            list.addAll(Arrays.asList(children));
-        }
+        ArrayList list = new ArrayList(2);
         if (select != null) {
             list.add(select);
         }
@@ -115,10 +166,7 @@ public class Message extends InstructionWithChildren {
                 rec.append(item, locationId);
             }
         }
-        processChildren(c2);
-
         rec.close();
-        //c2.resetOutputDestination(old);
 
         if (terminate != null) {
             String term = terminate.evaluateAsString(context);

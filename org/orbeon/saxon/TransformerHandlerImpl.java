@@ -3,11 +3,12 @@ import org.orbeon.saxon.event.Builder;
 import org.orbeon.saxon.event.ReceivingContentHandler;
 import org.orbeon.saxon.event.Stripper;
 import org.orbeon.saxon.om.DocumentInfo;
+import org.xml.sax.SAXException;
 
-import javax.xml.transform.*;
+import javax.xml.transform.Result;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
 import javax.xml.transform.sax.TransformerHandler;
-
-import org.xml.sax.*;
 
 
 /**
@@ -36,9 +37,9 @@ public class TransformerHandlerImpl extends ReceivingContentHandler implements T
 
     protected TransformerHandlerImpl(Controller controller) {
         this.controller = controller;
-        setConfiguration(controller.getConfiguration());
+        setPipelineConfiguration(controller.makePipelineConfiguration());
         builder = controller.makeBuilder();
-        builder.setConfiguration(controller.getConfiguration());
+        builder.setPipelineConfiguration(getPipelineConfiguration());
         Stripper stripper = controller.makeStripper(builder);
         this.setReceiver(stripper);
     }
@@ -110,9 +111,8 @@ public class TransformerHandlerImpl extends ReceivingContentHandler implements T
     */
 
     public void endDocument() throws SAXException {
-        // System.err.println("TransformerHandlerImpl " + this + " endDocument()");
         super.endDocument();
-        DocumentInfo doc = builder.getCurrentDocument();
+        DocumentInfo doc = (DocumentInfo)builder.getCurrentRoot();
         if (doc==null) {
             throw new SAXException("No source document has been built");
         }

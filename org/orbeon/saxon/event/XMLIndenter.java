@@ -53,10 +53,7 @@ public final class XMLIndenter extends ProxyReceiver {
 
     public void open() throws XPathException {
         super.open();
-
         xmlspace = getNamePool().allocate("xml", NamespaceConstant.XML, "space") & 0xfffff;
-
-
     }
 
     /**

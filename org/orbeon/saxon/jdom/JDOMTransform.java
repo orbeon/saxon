@@ -1,21 +1,18 @@
 package org.orbeon.saxon.jdom;
 
 import org.orbeon.saxon.Transform;
-
-import javax.xml.transform.sax.SAXSource;
-import javax.xml.transform.Source;
-import javax.xml.transform.stream.StreamSource;
-
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.DynamicError;
-
-import java.util.List;
-import java.util.ArrayList;
-import java.io.IOException;
-
-import org.jdom.input.SAXBuilder;
+import org.orbeon.saxon.xpath.XPathException;
 import org.jdom.JDOMException;
+import org.jdom.input.SAXBuilder;
 import org.xml.sax.InputSource;
+
+import javax.xml.transform.Source;
+import javax.xml.transform.sax.SAXSource;
+import javax.xml.transform.stream.StreamSource;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Variant of command line org.orbeon.saxon.Transform do build the source document

@@ -2,7 +2,6 @@ package org.orbeon.saxon.tree;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.xpath.XPathException;
-
 import org.w3c.dom.Comment;
 
 /**
@@ -40,8 +39,8 @@ final class CommentImpl extends NodeImpl implements Comment {
     * Copy this node to a given outputter
     */
 
-    public void copy(Receiver out, int whichNamespaces) throws XPathException {
-        out.comment(comment, 0, 0);
+    public void copy(Receiver out, int whichNamespaces, boolean copyAnnotations, int locationId) throws XPathException {
+        out.comment(comment, locationId, 0);
     }
 
 }

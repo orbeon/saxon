@@ -9,8 +9,8 @@ import org.orbeon.saxon.trans.KeyManager;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 
 public class Key extends SystemFunction implements MappingFunction, XSLTFunction {
@@ -62,7 +62,7 @@ public class Key extends SystemFunction implements MappingFunction, XSLTFunction
     */
 
     public int computeSpecialProperties() {
-        int prop = StaticProperty.ORDERED_NODESET;
+        int prop = StaticProperty.ORDERED_NODESET | StaticProperty.NON_CREATIVE;
         if ((getNumberOfArguments() == 2) ||
                 (argument[2].getSpecialProperties() & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0) {
             prop |= StaticProperty.CONTEXT_DOCUMENT_NODESET;

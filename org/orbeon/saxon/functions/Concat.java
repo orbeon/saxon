@@ -1,9 +1,9 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.SequenceType;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.xpath.XPathException;
 
 

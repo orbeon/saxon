@@ -7,6 +7,7 @@ import org.orbeon.saxon.om.NamespaceResolver;
 import org.orbeon.saxon.xpath.StaticError;
 import org.orbeon.saxon.xpath.XPathException;
 
+import javax.xml.transform.SourceLocator;
 import java.util.Comparator;
 
 /**
@@ -32,7 +33,7 @@ public interface StaticContext {
     * Issue a compile-time warning
     */
 
-    public void issueWarning(String s);
+    public void issueWarning(String s, SourceLocator locator);
 
     /**
     * Get the System ID of the container of the expression. This is the containing

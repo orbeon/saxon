@@ -1,7 +1,7 @@
 package org.orbeon.saxon.sort;
-import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.value.SequenceExtent;
 import org.orbeon.saxon.xpath.XPathException;
 
@@ -28,9 +28,11 @@ public final class DocumentOrderIterator implements SequenceIterator, Sortable {
         this.comparer = comparer;
 
         sequence = new SequenceExtent(base);
-        // System.err.println("sort into document order: sequence length = " + sequence.getLength());
+        //System.err.println("sort into document order: sequence length = " + sequence.getLength());
         if (sequence.getLength()>1) {
-            QuickSort.sort(this, 0, sequence.getLength()-1);
+            //QuickSort.sort(this, 0, sequence.getLength()-1);
+            GenericSorter.quickSort(0, sequence.getLength(), this);
+            //GenericSorter.mergeSort(0, sequence.getLength(), this);
         }
         iterator = sequence.iterate(null);
     }

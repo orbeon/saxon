@@ -1,13 +1,10 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.instruct.*;
-import org.orbeon.saxon.om.Axis;
-import org.orbeon.saxon.om.AxisIterator;
-import org.orbeon.saxon.om.NamespaceException;
-import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.om.NamespaceResolver;
-import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.instruct.CallTemplate;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.instruct.Template;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.type.AnyItemType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.SequenceType;
@@ -88,7 +85,7 @@ public class XSLCallTemplate extends StyleElement {
                 calledTemplateFingerprint =
             	    makeNameCode(nameAttribute.trim()) & 0xfffff;
             } catch (NamespaceException err) {
-                compileError(err.getMessage());
+                compileError(err.getMessage(), "XT0280");
             } catch (XPathException err) {
                 compileError(err.getMessage());
             }

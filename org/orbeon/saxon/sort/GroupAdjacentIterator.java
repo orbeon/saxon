@@ -2,17 +2,17 @@ package org.orbeon.saxon.sort;
 
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.om.ListIterator;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.ListIterator;
 import org.orbeon.saxon.om.LookaheadIterator;
+import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Comparator;
+import java.util.List;
 
 /**
  * A GroupAdjacentIterator iterates over a sequence of groups defined by
@@ -27,7 +27,8 @@ public class GroupAdjacentIterator implements GroupIterator, LookaheadIterator {
     private Comparator collator;
     private AtomicSortComparer comparer;
     private AtomicSortComparer.ComparisonKey currentComparisonKey;
-    private XPathContext keyContext;
+    private XPathContext baseContext;
+    private XPathContext runningContext;
     private AtomicValue currentKey = null;
     private List currentMembers;
     private AtomicValue nextKey = null;
@@ -36,21 +37,24 @@ public class GroupAdjacentIterator implements GroupIterator, LookaheadIterator {
     private int position = 0;
 
     public GroupAdjacentIterator(SequenceIterator population, Expression keyExpression,
-                                 XPathContext keyContext, Comparator collator)
+                                 XPathContext baseContext, Comparator collator)
     throws XPathException {
         this.population = population;
         this.keyExpression = keyExpression;
-        this.keyContext = keyContext;
+        this.baseContext = baseContext;
+        this.runningContext = baseContext.newMinorContext();
+        //runningContext.setOrigin(baseContext);
+        runningContext.setCurrentIterator(population);
         this.collator = collator;
         this.comparer = new AtomicSortComparer(collator);
         next = population.next();
         if (next != null) {
-            nextKey = (AtomicValue)keyExpression.evaluateItem(keyContext);
+            nextKey = (AtomicValue)keyExpression.evaluateItem(runningContext);
         }
     }
 
     private void advance() throws XPathException {
-        currentMembers = new ArrayList();
+        currentMembers = new ArrayList(20);
         currentMembers.add(current);
         while (true) {
             Item nextCandidate = population.next();
@@ -58,7 +62,7 @@ public class GroupAdjacentIterator implements GroupIterator, LookaheadIterator {
                 break;
             }
             AtomicValue candidateKey =
-                    (AtomicValue)keyExpression.evaluateItem(keyContext);
+                    (AtomicValue)keyExpression.evaluateItem(runningContext);
             try {
                 if (currentComparisonKey.equals(comparer.getComparisonKey(candidateKey))) {
                     currentMembers.add(nextCandidate);
@@ -71,9 +75,9 @@ public class GroupAdjacentIterator implements GroupIterator, LookaheadIterator {
                 DynamicError err = new DynamicError("Grouping key values are of non-comparable types (" +
                         currentKey.getItemType() +
                         " and " +
-                        candidateKey.getItemType() + ")");
+                        candidateKey.getItemType() + ')');
                 err.setIsTypeError(true);
-                err.setXPathContext(keyContext);
+                err.setXPathContext(runningContext);
                 throw err;
             }
         }
@@ -114,9 +118,7 @@ public class GroupAdjacentIterator implements GroupIterator, LookaheadIterator {
     }
 
     public SequenceIterator getAnother() throws XPathException {
-        XPathContext c2 = keyContext.newMinorContext();
-        c2.setOrigin(keyContext.getOrigin());
-        return new GroupAdjacentIterator(population, keyExpression, c2, collator);
+        return new GroupAdjacentIterator(population.getAnother(), keyExpression, baseContext, collator);
     }
 
 

@@ -1,7 +1,5 @@
 package org.orbeon.saxon.sort;
 import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.om.DocumentInfo;
-import org.orbeon.saxon.type.Type;
 
 import java.io.Serializable;
 

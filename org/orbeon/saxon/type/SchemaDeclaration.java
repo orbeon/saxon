@@ -8,7 +8,7 @@ package org.orbeon.saxon.type;
  */
 public interface SchemaDeclaration {
 
-    public SchemaType getType();
+    public ValidSchemaType getValidType();
 
 }
 

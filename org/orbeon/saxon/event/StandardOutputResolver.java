@@ -34,9 +34,8 @@ public class StandardOutputResolver implements OutputURIResolver {
     * Resolve an output URI
     * @param href The relative URI of the output document. This corresponds to the
     * href attribute of the xsl:result-document instruction.
-    * @param base The base URI that should be used. This is the base URI of the
-    * element that contained the href attribute. It may be null if no systemID was supplied
-    * for the stylesheet.
+    * @param base The base URI that should be used. This is the base output URI,
+    * normally the URI of the principal output file.
     * @return a Result object representing the destination for the XML document
     */
 

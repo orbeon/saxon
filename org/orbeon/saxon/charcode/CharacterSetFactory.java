@@ -1,14 +1,14 @@
 package org.orbeon.saxon.charcode;
 import org.orbeon.saxon.Loader;
-import javax.xml.transform.OutputKeys;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
-import java.util.Properties;
-import java.util.Iterator;
+import javax.xml.transform.OutputKeys;
 import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.UnsupportedCharsetException;
+import java.util.Iterator;
+import java.util.Properties;
 
 /**
 * This class creates a CharacterSet object for a given named encoding.
@@ -16,6 +16,12 @@ import java.nio.charset.UnsupportedCharsetException;
 
 
 public class CharacterSetFactory {
+
+    /**
+     * Class is never instantiated
+     */
+    private CharacterSetFactory() {
+    }
 
     /**
     * Make a CharacterSet appropriate to the encoding
@@ -37,8 +43,9 @@ public class CharacterSetFactory {
 
 	private static CharacterSet makeCharacterSet(String encoding)
     throws XPathException {
-
-        if (encoding.equalsIgnoreCase("ASCII")) {
+        if (encoding.equalsIgnoreCase("UTF8")) {
+            return UnicodeCharacterSet.getInstance();
+        } else if (encoding.equalsIgnoreCase("ASCII")) {
             return ASCIICharacterSet.getInstance();
         } else if (encoding.equalsIgnoreCase("US-ASCII")) {
             return ASCIICharacterSet.getInstance();
@@ -56,11 +63,9 @@ public class CharacterSetFactory {
             return Latin2CharacterSet.getInstance();
         } else if (encoding.equalsIgnoreCase("UTF-8")) {
             return UnicodeCharacterSet.getInstance();
-        } else if (encoding.equalsIgnoreCase("UTF8")) {
+        } else if (encoding.equalsIgnoreCase("UTF-16")) {
             return UnicodeCharacterSet.getInstance();
-        } else if (encoding.equalsIgnoreCase("utf-16")) {
-            return UnicodeCharacterSet.getInstance();
-        } else if (encoding.equalsIgnoreCase("utf16")) {
+        } else if (encoding.equalsIgnoreCase("UTF16")) {
             return UnicodeCharacterSet.getInstance();
         } else if (encoding.equalsIgnoreCase("KOI8-R")) {
             return KOI8RCharacterSet.getInstance();
@@ -72,14 +77,20 @@ public class CharacterSetFactory {
             return CP1250CharacterSet.getInstance();
         } else if (encoding.equalsIgnoreCase("windows-1250")) {
             return CP1250CharacterSet.getInstance();
+        } else if (encoding.equalsIgnoreCase("cp1252")) {
+            return CP1252CharacterSet.getInstance();
+        } else if (encoding.equalsIgnoreCase("windows-1252")) {
+            return CP1252CharacterSet.getInstance();
         } else if (encoding.equalsIgnoreCase("cp852")) {
+            return CP852CharacterSet.getInstance();
+        } else if (encoding.equalsIgnoreCase("windows-852")) {
             return CP852CharacterSet.getInstance();
 
         } else {
             // Allow an alias for the character set to be specified as a system property
-            String csname = System.getProperty(OutputKeys.ENCODING + "." + encoding);
+            String csname = System.getProperty(OutputKeys.ENCODING + '.' + encoding);
             if (csname == null) {
-                Charset charset = null;
+                Charset charset;
                 try {
                     charset = Charset.forName(encoding);
                     CharacterSet res = new UnknownCharacterSet(charset);

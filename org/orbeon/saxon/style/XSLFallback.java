@@ -1,7 +1,7 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.tree.AttributeCollection;
+import org.orbeon.saxon.om.AttributeCollection;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -40,7 +40,7 @@ public class XSLFallback extends StyleElement {
     public void validate() throws TransformerConfigurationException {
         StyleElement parent = (StyleElement)getParentNode();
         if (!parent.mayContainFallback()) {
-            compileError("xsl:fallback is not allowed as a child of " + parent.getDisplayName());
+            compileError("xsl:fallback is not allowed as a child of " + parent.getDisplayName(), "XT0010");
         }
     }
 

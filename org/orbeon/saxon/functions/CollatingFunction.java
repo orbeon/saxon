@@ -2,11 +2,12 @@ package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.sort.CodepointCollator;
 import org.orbeon.saxon.sort.AtomicComparer;
-import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.sort.CodepointCollator;
 import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.StaticError;
 import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.Comparator;
@@ -30,6 +31,12 @@ public abstract class CollatingFunction extends SystemFunction {
         if (getNumberOfArguments() == getDetails().maxArguments) {
             // A collection was supplied explicitly (as a compile-time name, or we wouldn't be here)
             collation = env.getCollation(((Value)argument[getNumberOfArguments()-1]).getStringValue());
+            if (collation == null) {
+                StaticError err = new StaticError("Unknown collation {" +
+                        ((Value)argument[getNumberOfArguments()-1]).getStringValue() + '}');
+                err.setLocator(this);
+                throw err;
+            }
             return super.preEvaluate(env);
         } else {
             // Use the default collation

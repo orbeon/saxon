@@ -5,11 +5,15 @@ import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ReversibleIterator;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.functions.EscapeURI;
 import org.orbeon.saxon.pattern.*;
+import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.SequenceExtent;
 import org.orbeon.saxon.xpath.XPathException;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,6 +28,8 @@ import java.util.List;
 
 
 public final class Navigator {
+
+    // Class is never instantiated
     private Navigator() {
     }
 
@@ -54,6 +60,52 @@ public final class Navigator {
     public static String getAttributeValue(NodeInfo element, String uri, String localName) {
         int fingerprint = element.getNamePool().allocate("", uri, localName);
         return element.getAttributeValue(fingerprint);
+    }
+
+    /**
+     * Helper method to get the base URI of an element node
+     */
+
+    public static String getBaseURI(NodeInfo element) {
+        String xmlBase = element.getAttributeValue(StandardNames.XML_BASE);
+        if (xmlBase!=null) {
+            String escaped = EscapeURI.escape(xmlBase, false);
+            URI escapedURI;
+            try {
+                escapedURI = new URI(escaped);
+                if (!escapedURI.isAbsolute()) {
+                    NodeInfo parent = element.getParent();
+                    if (parent==null) {
+                        return escapedURI.toString();
+                    }
+                    String startSystemId = element.getSystemId();
+                    String parentSystemId = parent.getSystemId();
+                    if (startSystemId.equals(parentSystemId)) {
+                        URI base = new URI(element.getParent().getBaseURI());
+                        escapedURI = base.resolve(escapedURI);
+                    } else {
+                        URI base = new URI(startSystemId);
+                        escapedURI = base.resolve(escapedURI);
+                    }
+                }
+            } catch (URISyntaxException e) {
+                // xml:base is an invalid URI. Just return it as is: the operation that needs the base URI
+                // will probably fail as a result.
+                return xmlBase;
+            }
+            return escapedURI.toString();
+        }
+        String startSystemId = element.getSystemId();
+        NodeInfo parent = element.getParent();
+        if (parent==null) {
+            return startSystemId;
+        }
+        String parentSystemId = parent.getSystemId();
+        if (startSystemId.equals(parentSystemId)) {
+            return parent.getBaseURI();
+        } else {
+            return startSystemId;
+        }
     }
 
     /**
@@ -669,7 +721,7 @@ public final class Navigator {
     public static class AxisFilter extends AxisIteratorImpl {
         private AxisIterator base;
         private NodeTest nodeTest;
-        private int last = -1;
+        //private int last = -1;
 
         /**                             S
          * Construct a AxisFilter
@@ -699,27 +751,27 @@ public final class Navigator {
     	    }
         }
 
-    	public int getLastPosition() {
-
-    	    // To find out how many nodes there are in the axis, we
-    	    // make a copy of the original node enumeration, and run through
-    	    // the whole thing again, counting how many nodes match the filter.
-
-    	    if (last>=0) {
-    	        return last;
-    	    }
-    	    last = 0;
-            AxisIterator b = (AxisIterator)base.getAnother();
-            while (true) {
-                NodeInfo n = (NodeInfo)b.next();
-                if (n == null) {
-                    return last;
-                }
-                if (nodeTest.matches(n)) {
-                    last++;
-                }
-            }
-    	}
+//    	public int getLastPosition() {
+//
+//    	    // To find out how many nodes there are in the axis, we
+//    	    // make a copy of the original node enumeration, and run through
+//    	    // the whole thing again, counting how many nodes match the filter.
+//
+//    	    if (last>=0) {
+//    	        return last;
+//    	    }
+//    	    last = 0;
+//            AxisIterator b = (AxisIterator)base.getAnother();
+//            while (true) {
+//                NodeInfo n = (NodeInfo)b.next();
+//                if (n == null) {
+//                    return last;
+//                }
+//                if (nodeTest.matches(n)) {
+//                    last++;
+//                }
+//            }
+//    	}
 
     	public SequenceIterator getAnother() {
     	    return new AxisFilter((AxisIterator)base.getAnother(), nodeTest);

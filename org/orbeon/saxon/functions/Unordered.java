@@ -2,8 +2,8 @@ package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * XPath 2.0 unordered() function

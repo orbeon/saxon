@@ -1,7 +1,7 @@
-package net.sf.saxon.event;
-import net.sf.saxon.om.*;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+package org.orbeon.saxon.event;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -207,7 +207,7 @@ public class StartTagBuffer extends ProxyReceiver implements NamespaceResolver
      * @param useDefault true if the default namespace is to be used to resolve an unprefixed QName
      * @param pool       the NamePool to be used
      * @return the integer fingerprint that uniquely identifies this name
-     * @throws net.sf.saxon.xpath.DynamicError
+     * @throws org.orbeon.saxon.xpath.DynamicError
      *          if the string is not a valid lexical QName or
      *          if the namespace prefix has not been declared
      */

@@ -5,11 +5,11 @@ import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.instruct.NumberInstruction;
 import org.orbeon.saxon.number.Numberer;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.value.*;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.value.*;
 import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerException;
 import java.util.Calendar;
@@ -137,7 +137,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
                 context.getController().getErrorListener().warning(
                         new DynamicError("Unrecognized date/time component [" + specifier + "] (ignored)"));
             } catch (TransformerException e) {
-                throw DynamicError.wrap(e);
+                throw DynamicError.makeDynamicError(e);
             }
             return "";
         }
@@ -360,7 +360,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
                                 new DynamicError("Invalid width specifier '" + widths +
                                 "' in formatDate/Time picture (ignored)"));
                     } catch (TransformerException e) {
-                        throw DynamicError.wrap(e);
+                        throw DynamicError.makeDynamicError(e);
                     }
                     min = 1;
                     max = 50;

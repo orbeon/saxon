@@ -1,15 +1,21 @@
 package org.orbeon.saxon.xpath;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.instruct.SlotManager;
 import org.orbeon.saxon.event.Builder;
 import org.orbeon.saxon.event.Stripper;
-import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.XPathContextMajor;
+import org.orbeon.saxon.instruct.SlotManager;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.*;
+import org.xml.sax.InputSource;
 
+import javax.xml.namespace.NamespaceContext;
+import javax.xml.namespace.QName;
 import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
+import javax.xml.xpath.*;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,18 +30,29 @@ import java.util.List;
   */
 
 
-public class XPathEvaluator {
+public class XPathEvaluator implements XPath {
 
+    private Configuration config;
     private NodeInfo contextNode = null;
-    private StaticContext staticContext;
+    private StandaloneContext staticContext;
     private boolean stripSpace = false;
 
     /**
-    * Default constructor. If this constructor is used, a source document must be subsequently
-    * supplied using the setSource() method.
+    * Default constructor. Creates an XPathEvaluator with a default configuration and name pool.
     */
 
-    public XPathEvaluator() {}
+    public XPathEvaluator() {
+        this(new Configuration());
+    }
+
+    /**
+     * Construct an XPathEvaluator with a specified configuration.
+     * @param config the configuration to be used
+     */
+    public XPathEvaluator(Configuration config) {
+        this.config = config;
+        staticContext = new StandaloneContext(config);
+    }
 
     /**
     * Construct an XPathEvaluator to process a particular source document. This is equivalent to
@@ -44,6 +61,12 @@ public class XPathEvaluator {
     */
 
     public XPathEvaluator(Source source) throws XPathException {
+        super();
+        if (source instanceof NodeInfo) {
+            config = ((NodeInfo)source).getDocumentRoot().getConfiguration();
+        } else {
+            config = new Configuration();
+        }
         setSource(source);
     }
 
@@ -103,7 +126,7 @@ public class XPathEvaluator {
     * core XPath functions) are available.
     */
 
-    public void setStaticContext(StaticContext context) {
+    public void setStaticContext(StandaloneContext context) {
         staticContext = context;
     }
 
@@ -111,29 +134,28 @@ public class XPathEvaluator {
     * Get the current static context
     */
 
-    public StaticContext getStaticContext() {
+    public StandaloneContext getStaticContext() {
         return staticContext;
     }
 
     /**
-    * Prepare an XPath expression for subsequent evaluation. The prepared expression can only
-    * be used with the document that has been established using setSource() at the time this method
-    * is called.
+    * Prepare an XPath expression for subsequent evaluation. 
     * @param expression The XPath expression to be evaluated, supplied as a string.
     * @return an XPathExpression object representing the prepared expression
     * @throws XPathException if the syntax of the expression is wrong, or if it references namespaces,
     * variables, or functions that have not been declared.
     */
 
-    public XPathExpression createExpression(String expression)
-            throws XPathException {
+    public XPathExpressionImpl createExpression(String expression) throws XPathException {
         Expression exp = ExpressionTool.make(expression, staticContext,0,-1,1);
         exp = exp.analyze(staticContext, Type.ITEM_TYPE);
         SlotManager map = staticContext.getConfiguration().makeSlotManager();
-        ExpressionTool.allocateSlots(exp, 0, null);
-        XPathExpression xpe = new XPathExpression(exp, staticContext.getConfiguration());
+        ExpressionTool.allocateSlots(exp, 0, map);
+        XPathExpressionImpl xpe = new XPathExpressionImpl(exp, config);
         xpe.setStackFrameMap(map);
-        xpe.setContextNode(contextNode);
+        if (contextNode != null) {
+            xpe.setContextNode(contextNode);
+        }
         return xpe;
     }
 
@@ -189,6 +211,154 @@ public class XPathEvaluator {
             }
             list.add(convert(item));
         }
+    }
+
+    public void reset() {
+        config = null;
+        contextNode = null;
+        staticContext = null;
+        stripSpace = false;
+    }
+
+    /**
+     * Set the resolver for XPath variables
+     * @param xPathVariableResolver
+     */
+    public void setXPathVariableResolver(XPathVariableResolver xPathVariableResolver) {
+        staticContext.setXPathVariableResolver(xPathVariableResolver);
+    }
+
+    /**
+     * Get the resolver for XPath variables
+     * @return the resolver, if one has been set
+     */
+    public XPathVariableResolver getXPathVariableResolver() {
+        return staticContext.getXPathVariableResolver();
+    }
+
+    /**
+     * Set the resolver for XPath functions
+     * @param xPathFunctionResolver
+     */
+
+    public void setXPathFunctionResolver(XPathFunctionResolver xPathFunctionResolver) {
+        staticContext.setXPathFunctionResolver(xPathFunctionResolver);
+    }
+
+    /**
+     * Get the resolver for XPath functions
+     * @return the resolver, if one has been set
+     */
+
+    public XPathFunctionResolver getXPathFunctionResolver() {
+        return staticContext.getXPathFunctionResolver();
+    }
+
+    /**
+     * Set the namespace context to be used. This supplements any namespaces declared directly
+     * using declareNamespace on the staticContext object
+     * @param namespaceContext The namespace context
+     */
+
+    public void setNamespaceContext(NamespaceContext namespaceContext) {
+        staticContext.setNamespaceContext(namespaceContext);
+    }
+
+    /**
+     * Get the namespace context, if one has been set using {@link #setNamespaceContext}
+     * @return the namespace context if set, or null otherwise
+     */
+
+    public NamespaceContext getNamespaceContext() {
+        return staticContext.getNamespaceContext();
+    }
+
+    /**
+     * Compile an XPath 2.0 expression
+     * @param expr the XPath 2.0 expression to be compiled, as a string
+     * @return the compiled form of the expression
+     * @throws XPathExpressionException if there are any static errors in the expression.
+     * Note that references to undeclared variables are not treated as static errors, because
+     * variables are not pre-declared using this API.
+     */
+    public XPathExpression compile(String expr) throws XPathExpressionException {
+        try {
+            return createExpression(expr);
+        } catch (XPathException e) {
+            throw new XPathExpressionException(e);
+        }
+    }
+
+    /**
+     * Single-shot method to compile and execute an XPath 2.0 expression.
+     * @param expr The XPath 2.0 expression to be compiled and executed
+     * @param node The context node for evaluation of the expression
+     * @param qName The type of result required. For details, see
+     *  {@link XPathExpressionImpl#evaluate(Object, javax.xml.namespace.QName)}
+     * @return the result of evaluating the expression, returned as described in
+     *  {@link XPathExpressionImpl#evaluate(Object, javax.xml.namespace.QName)}
+     * @throws XPathExpressionException if any static or dynamic error occurs
+     * in evaluating the expression.
+     */
+
+    public Object evaluate(String expr, Object node, QName qName) throws XPathExpressionException {
+        XPathExpression exp = compile(expr);
+        return exp.evaluate(node, qName);
+    }
+
+    /**
+     * Single-shot method to compile an execute an XPath 2.0 expression, returning
+     * the result as a string.
+     * @param expr The XPath 2.0 expression to be compiled and executed
+     * @param node The context node for evaluation of the expression
+     * @return the result of evaluating the expression, converted to a string as if
+     * by calling the XPath string() function
+     * @throws XPathExpressionException if any static or dynamic error occurs
+     * in evaluating the expression.
+     */
+
+    public String evaluate(String expr, Object node) throws XPathExpressionException {
+        XPathExpression exp = compile(expr);
+        return exp.evaluate(node);
+    }
+
+    /**
+     * Single-shot method to parse and build a source document, and
+     * compile an execute an XPath 2.0 expression, against that document
+     * @param expr The XPath 2.0 expression to be compiled and executed
+     * @param inputSource The source document: this will be parsed and built into a tree,
+     * and the XPath expression will be executed with the root node of the tree as the
+     * context node
+     * @param qName The type of result required. For details, see
+     *  {@link XPathExpressionImpl#evaluate(Object, javax.xml.namespace.QName)}
+     * @return the result of evaluating the expression, returned as described in
+     *  {@link XPathExpressionImpl#evaluate(Object, javax.xml.namespace.QName)}
+     * @throws XPathExpressionException if any static or dynamic error occurs
+     * in evaluating the expression.
+     */
+
+    public Object evaluate(String expr, InputSource inputSource, QName qName) throws XPathExpressionException {
+        XPathExpression exp = compile(expr);
+        return exp.evaluate(inputSource, qName);
+    }
+
+    /**
+     * Single-shot method to parse and build a source document, and
+     * compile an execute an XPath 2.0 expression, against that document,
+     * returning the result as a string
+     * @param expr The XPath 2.0 expression to be compiled and executed
+     * @param inputSource The source document: this will be parsed and built into a tree,
+     * and the XPath expression will be executed with the root node of the tree as the
+     * context node
+     * @return the result of evaluating the expression, converted to a string as
+     * if by calling the XPath string() function
+     * @throws XPathExpressionException if any static or dynamic error occurs
+     * in evaluating the expression.
+     */
+
+    public String evaluate(String expr, InputSource inputSource) throws XPathExpressionException {
+        XPathExpression exp = compile(expr);
+        return exp.evaluate(inputSource);
     }
 
     /**
@@ -278,7 +448,7 @@ public class XPathEvaluator {
     public static void main(String[] args) throws Exception {
         if (args.length != 2) {
             System.err.println("format: java XPathEvaluator source.xml \"expression\"");
-            System.exit(2);
+            return;
         }
         XPathEvaluator xpe = new XPathEvaluator(new StreamSource(new File(args[0])));
         List results = xpe.evaluate(args[1]);
@@ -300,10 +470,8 @@ public class XPathEvaluator {
 // See the License for the specific language governing rights and limitations under the License.
 //
 // The Original Code is: all this file.
-
+//
 // The Initial Developer of the Original Code is Michael H. Kay
 //
-// The line marked PB-SYNC is by Peter Bryant (pbryant@bigfoot.com). All Rights Reserved.
-//
-// Contributor(s): Michael Kay, Peter Bryant, David Megginson
+// Contributor(s):
 //

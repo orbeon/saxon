@@ -13,9 +13,7 @@ import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.trace.InstructionInfo;
 import org.orbeon.saxon.trace.Location;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.SimpleType;
-import org.orbeon.saxon.type.ValidationException;
+import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.xpath.StaticError;
@@ -91,10 +89,11 @@ public final class FixedAttribute extends SimpleNodeConstructor {
      */
     public void setSelect(Expression select) throws StaticError {
         super.setSelect(select);
+
+        // Attempt early validation if possible
         if (select instanceof AtomicValue && schemaType != null && !schemaType.isNamespaceSensitive()) {
             String value = ((AtomicValue)select).getStringValue();
             try {
-
                 schemaType.validateContent(value, DummyNamespaceResolver.getInstance());
             } catch (ValidationException err) {
                 throw new StaticError("Attribute value " + Err.wrap(value, Err.VALUE) +
@@ -102,7 +101,6 @@ public final class FixedAttribute extends SimpleNodeConstructor {
                                                schemaType.getDescription() + ". " +
                                                err.getMessage());
             }
-
         }
     }
 
@@ -127,6 +125,49 @@ public final class FixedAttribute extends SimpleNodeConstructor {
 
     protected int evaluateNameCode(XPathContext context)  {
         return nameCode;
+    }
+
+    /**
+     * Check that any elements and attributes constructed or returned by this expression are acceptable
+     * in the content model of a given complex type. It's always OK to say yes, since the check will be
+     * repeated at run-time. The process of checking element and attribute constructors against the content
+     * model of a complex type also registers the type of content expected of those constructors, so the
+     * static validation can continue recursively.
+     */
+
+    public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException {
+        if (parentType instanceof SimpleType) {
+             StaticError err = new StaticError("Attribute " + env.getNamePool().getDisplayName(nameCode) +
+                    " is not permitted in the content model of the simple type " + parentType.getDescription());
+            err.setIsTypeError(true);
+            err.setLocator(this);
+            throw err;
+        }
+        SchemaType type;
+        try {
+            type = ((ComplexType)parentType).getAttributeUseType(nameCode & 0xfffff);
+        } catch (SchemaException e) {
+            throw new StaticError(e);
+        }
+        if (type == null) {
+            StaticError err = new StaticError("Attribute " + env.getNamePool().getDisplayName(nameCode) +
+                    " is not permitted in the content model of the complex type " + parentType.getDescription());
+            err.setIsTypeError(true);
+            err.setLocator(this);
+            throw err;
+        }
+        if (type instanceof AnyType) {
+            return;
+        }
+
+        try {
+            select.checkPermittedContents(type, env, true);
+        } catch (XPathException e) {
+            if (e.getLocator() == null || e.getLocator() == e) {
+                e.setLocator(this);
+            }
+            throw e;
+        }
     }
 
     /**

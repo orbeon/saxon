@@ -1,17 +1,14 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.pattern.AnyNodeTest;
-import org.orbeon.saxon.pattern.DocumentNodeTest;
-import org.orbeon.saxon.pattern.NodeKindTest;
-import org.orbeon.saxon.pattern.NodeTest;
-import org.orbeon.saxon.type.AtomicType;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.pattern.*;
+import org.orbeon.saxon.type.*;
+import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.xpath.StaticError;
 import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
+
 
 /**
  * An AxisExpression is always obtained by simplifying a PathExpression.
@@ -28,6 +25,8 @@ public final class AxisExpression extends ComputedExpression {
 
     private byte axis;
     private NodeTest test;
+    private ItemType itemType = null;
+    int computedCardinality = -1;
 
     /**
     * Constructor
@@ -69,17 +68,141 @@ public final class AxisExpression extends ComputedExpression {
 
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
         if (contextItemType == null) {
-            StaticError err = new StaticError("Cannot use an axis here: the context item is undefined");
+            StaticError err = new StaticError("Axis step " + toString() +
+                    " cannot be used here: the context item is undefined");
             err.setIsTypeError(true);
+            err.setErrorCode("XP0020");
             err.setLocator(this);
             throw err;
         }
         if (contextItemType instanceof AtomicType) {
-            StaticError err = new StaticError("Cannot use an axis here: the context item is an atomic value");
+            StaticError err = new StaticError("Axis step " + toString() +
+                    " cannot be used here: the context item is an atomic value");
             err.setIsTypeError(true);
+            err.setErrorCode("XP0020");
             err.setLocator(this);
             throw err;
         }
+
+        if (contextItemType instanceof NodeTest) {
+            int origin = contextItemType.getPrimitiveType();
+            if (origin != Type.NODE) {
+                if (Axis.isAlwaysEmpty(axis, origin)) {
+                    env.issueWarning("The " + Axis.axisName[axis] + " axis starting at " +
+                            (origin==Type.ELEMENT || origin == Type.ATTRIBUTE ? "an " : "a ") +
+                            NodeKindTest.toString(origin) + " node will never select anything",
+                            this);
+                    return EmptySequence.getInstance();
+                }
+            }
+
+            if (test != null) {
+                int kind = test.getPrimitiveType();
+                if (kind != Type.NODE) {
+                    if (!Axis.containsNodeKind(axis, kind)) {
+                        env.issueWarning("The " + Axis.axisName[axis] + " axis will never select any " +
+                            NodeKindTest.toString(origin) + " nodes",
+                            this);
+                        return EmptySequence.getInstance();
+                    }
+                }
+                if (axis==Axis.SELF && kind!=Type.NODE && origin!=Type.NODE && kind!=origin) {
+                    env.issueWarning("The self axis will never select any " +
+                            NodeKindTest.toString(origin) +
+                            " nodes when starting at " +
+                            (origin==Type.ELEMENT || origin == Type.ATTRIBUTE ? "an " : "a ")  +
+                            NodeKindTest.toString(origin) + " node", this);
+                    return EmptySequence.getInstance();
+                }
+
+                // If the content type of the context item is known, see whether the node test can select anything
+
+                SchemaType contentType = ((NodeTest)contextItemType).getContentType();
+                if (contentType == AnyType.getInstance()) {
+                    // fast exit in non-schema-aware case
+                    return this;
+                }
+
+                int targetfp = test.getFingerprint();
+
+                if (contentType.isSimpleType()) {
+                    if ((axis == Axis.CHILD || axis==Axis.ATTRIBUTE || axis==Axis.DESCENDANT || axis==Axis.DESCENDANT_OR_SELF) &&
+                        (kind==Type.ELEMENT || kind==Type.ATTRIBUTE || kind==Type.DOCUMENT)) {
+                        StaticError err = new StaticError("The " + Axis.axisName[axis] + " axis will never select any " +
+                                NodeKindTest.toString(kind) +
+                                " nodes when starting at a node with simple type " +
+                                contentType.getDescription(), this);
+                        throw err;
+                    }
+                } else if (((ComplexType)contentType).isSimpleContent() &&
+                        (axis==Axis.CHILD || axis==Axis.DESCENDANT || axis==Axis.DESCENDANT_OR_SELF) &&
+                        (kind==Type.ELEMENT || kind==Type.DOCUMENT)) {
+                    StaticError err = new StaticError("The " + Axis.axisName[axis] + " axis will never select any " +
+                            NodeKindTest.toString(kind) +
+                            " nodes when starting at a node with type " +
+                            contentType.getDescription() +
+                            ", as this type requires simple content", this);
+                    throw err;
+                } else if (((ComplexType)contentType).isEmptyContent() &&
+                        (axis==Axis.CHILD || axis==Axis.DESCENDANT || axis==Axis.DESCENDANT_OR_SELF)) {
+                    StaticError err = new StaticError("The " + Axis.axisName[axis] + " axis will never select any " +
+                            " nodes when starting at a node with type " +
+                            contentType.getDescription() +
+                            ", as this type requires empty content", this);
+                    throw err;
+                } else if (axis==Axis.ATTRIBUTE && targetfp != -1) {
+                    try {
+                        SchemaType schemaType = ((ComplexType)contentType).getAttributeUseType(targetfp);
+                        if (schemaType == null) {
+                            StaticError err = new StaticError("The complex type " +
+                                    contentType.getDescription() +
+                                    " does not allow an attribute named " +
+                                    env.getNamePool().getDisplayName(targetfp), this);
+                            throw err;
+                        } else {
+                            itemType = new CombinedNodeTest(
+                                    test,
+                                    Token.INTERSECT,
+                                    new ContentTypeTest(Type.ATTRIBUTE, schemaType, env.getConfiguration()));
+                        }
+                    } catch (SchemaException e) {
+                        // ignore the exception
+                    }
+                } else if (axis==Axis.CHILD && kind==Type.ELEMENT && targetfp != -1) {
+                    try {
+                        SchemaType schemaType = ((ComplexType)contentType).getElementParticleType(targetfp);
+                        if (schemaType == null) {
+                            StaticError err = new StaticError("The complex type " +
+                                    contentType.getDescription() +
+                                    " does not allow a child element named " +
+                                    env.getNamePool().getDisplayName(targetfp), this);
+                            throw err;
+                        } else {
+                            itemType = new CombinedNodeTest(
+                                    test,
+                                    Token.INTERSECT,
+                                    new ContentTypeTest(Type.ELEMENT, schemaType, env.getConfiguration()));
+                            computedCardinality = ((ComplexType)contentType).getElementParticleCardinality(targetfp);
+                            resetStaticProperties();
+                        }
+                    } catch (SchemaException e) {
+                        // ignore the exception
+                    }
+                }
+
+//                int originfp = ((NodeTest)contextItemType).getFingerprint();
+//                int targetfp = test.getFingerprint();
+//
+//                if (axis==Axis.CHILD && kind==Type.ELEMENT && origin==Type.ELEMENT && originfp==targetfp && originfp!=-1) {
+//                    String name = '<' + env.getNamePool().getDisplayName(originfp) + '>';
+//                    env.issueWarning("You are selecting a " + name +
+//                            " element that is a child of another " + name +
+//                            " element. Is this what you intended?",
+//                            this);
+//                }
+            }
+        }
+
         return this;
     }
 
@@ -132,6 +255,7 @@ public final class AxisExpression extends ComputedExpression {
 
     public int computeSpecialProperties() {
         return StaticProperty.CONTEXT_DOCUMENT_NODESET |
+               StaticProperty.NON_CREATIVE |
                (Axis.isForwards[axis] ? StaticProperty.ORDERED_NODESET  : StaticProperty.REVERSE_DOCUMENT_ORDER) |
                (Axis.isPeerAxis[axis] ? StaticProperty.PEER_NODESET : 0) |
                (Axis.isSubtreeAxis[axis] ? StaticProperty.SUBTREE_NODESET : 0) |
@@ -140,10 +264,14 @@ public final class AxisExpression extends ComputedExpression {
 
     /**
     * Determine the data type of the items returned by this expression
-    * @return Type.NODE or a subtype, based on the NodeTest in the axis step
+    * @return Type.NODE or a subtype, based on the NodeTest in the axis step, plus
+     * information about the content type if this is known from schema analysis
     */
 
     public final ItemType getItemType() {
+        if (itemType != null) {
+            return itemType;
+        }
         int p = Axis.principalNodeType[axis];
         switch (p) {
         case Type.ATTRIBUTE:
@@ -163,8 +291,17 @@ public final class AxisExpression extends ComputedExpression {
     */
 
     public final int computeCardinality() {
-        return StaticProperty.ALLOWS_ZERO_OR_MORE;
-        // the singleton axes aren't handled by this class
+        if (computedCardinality != -1) {
+            return computedCardinality;
+        }
+        if (axis == Axis.ATTRIBUTE && test instanceof NameTest) {
+            return StaticProperty.ALLOWS_ZERO_OR_ONE;
+        } else if (axis == Axis.SELF) {
+            return StaticProperty.ALLOWS_ZERO_OR_ONE;
+        } else {
+            return StaticProperty.ALLOWS_ZERO_OR_MORE;
+        }
+        // the parent axis isn't handled by this class
     }
 
     /**
@@ -191,12 +328,18 @@ public final class AxisExpression extends ComputedExpression {
     public SequenceIterator iterate(XPathContext context) throws XPathException {
         Item item = context.getContextItem();
         if (item==null) {
-            dynamicError("The context item for an axis step is not set", "XP0018", context);
-        }
-        if (!(item instanceof NodeInfo)) {
-            DynamicError err = new DynamicError("The context item for an axis step is not a node");
+            DynamicError err = new DynamicError("The context item for axis step " + toString() + " is undefined");
             err.setErrorCode("XP0020");
             err.setXPathContext(context);
+            err.setLocator(this);
+            err.setIsTypeError(true);
+            throw err;
+        }
+        if (!(item instanceof NodeInfo)) {
+            DynamicError err = new DynamicError("The context item for axis step " + toString() + " is not a node");
+            err.setErrorCode("XP0020");
+            err.setXPathContext(context);
+            err.setLocator(this);
             err.setIsTypeError(true);
             throw err;
         }
@@ -218,9 +361,17 @@ public final class AxisExpression extends ComputedExpression {
     */
 
     public void display(int level, NamePool pool, PrintStream out) {
-        out.println(ExpressionTool.indent(level) + Axis.axisName[axis] +
+        out.println(ExpressionTool.indent(level) + toString());
+    }
+
+    /**
+     * Represent the expression as a string for diagnostics
+     */
+
+    public String toString() {
+        return Axis.axisName[axis] +
                 "::" +
-                (test==null ? "node()" : test.toString()));
+                (test==null ? "node()" : test.toString());
     }
 }
 

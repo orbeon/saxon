@@ -1,11 +1,10 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.expr.Tokenizer;
 import org.orbeon.saxon.expr.Token;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.IntegerValue;
 import org.orbeon.saxon.value.NumericValue;
-import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.xpath.XPathException;
 
 /**
@@ -15,10 +14,10 @@ import org.orbeon.saxon.xpath.XPathException;
 
 public final class Rounding extends SystemFunction {
 
-    public final static int FLOOR = 0;
-    public final static int CEILING = 1;
-    public final static int ROUND = 2;
-    public final static int HALF_EVEN = 3;
+    public static final int FLOOR = 0;
+    public static final int CEILING = 1;
+    public static final int ROUND = 2;
+    public static final int HALF_EVEN = 3;
     public static final int ABS = 4;
 
     /**
@@ -47,7 +46,7 @@ public final class Rounding extends SystemFunction {
                 }
                 return val.roundToHalfEven(scale);
             case ABS:
-                int sign = val.compareTo(IntegerValue.ZERO);
+                double sign = val.signum();
                 if (sign < 0) {
                     return val.negate();
                 } else if (sign == 0) {

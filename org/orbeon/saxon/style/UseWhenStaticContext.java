@@ -1,13 +1,13 @@
-package net.sf.saxon.style;
+package org.orbeon.saxon.style;
 
-import net.sf.saxon.Configuration;
-import net.sf.saxon.expr.VariableDeclaration;
-import net.sf.saxon.functions.*;
-import net.sf.saxon.instruct.LocationMap;
-import net.sf.saxon.om.*;
-import net.sf.saxon.sort.CodepointCollator;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.expr.VariableDeclaration;
+import org.orbeon.saxon.functions.*;
+import org.orbeon.saxon.instruct.LocationMap;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.sort.CodepointCollator;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.SourceLocator;
 import javax.xml.transform.TransformerException;
@@ -108,7 +108,7 @@ public class UseWhenStaticContext implements XSLTStaticContext {
      * when the prefix is empty.
      *
      * @param prefix The prefix
-     * @throws net.sf.saxon.xpath.XPathException
+     * @throws org.orbeon.saxon.xpath.XPathException
      *          if the prefix is not declared
      */
 

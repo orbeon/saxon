@@ -2,8 +2,8 @@ package org.orbeon.saxon.style;
 import org.orbeon.saxon.Loader;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.NamespaceException;
-import org.orbeon.saxon.tree.AttributeCollection;
 
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;

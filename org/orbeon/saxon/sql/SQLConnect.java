@@ -3,12 +3,12 @@ import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.SimpleExpression;
 import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.instruct.ExtensionInstruction;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.value.ObjectValue;
 import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.instruct.ExtensionInstruction;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.sql.Connection;
@@ -33,7 +33,7 @@ public class SQLConnect extends ExtensionInstruction {
 
         // Get mandatory database attribute
 
-        String dbAtt = attributeList.getValue("database");
+        String dbAtt = attributeList.getValue("", "database");
         if (dbAtt==null) {
             reportAbsence("database");
             dbAtt = ""; // for error recovery
@@ -42,7 +42,7 @@ public class SQLConnect extends ExtensionInstruction {
 
 	    // Get driver attribute
 
-        String dbDriver = attributeList.getValue("driver");
+        String dbDriver = attributeList.getValue("", "driver");
         if (dbDriver==null) {
             if (dbAtt.length()>9 && dbAtt.substring(0,9).equals("jdbc:odbc")) {
                 dbDriver = "sun.jdbc.odbc.JdbcOdbcDriver";
@@ -55,7 +55,7 @@ public class SQLConnect extends ExtensionInstruction {
 
         // Get and expand user attribute, which defaults to empty string
 
-        String userAtt = attributeList.getValue("user");
+        String userAtt = attributeList.getValue("", "user");
         if (userAtt==null) {
             user = StringValue.EMPTY_STRING;
         } else {
@@ -64,7 +64,7 @@ public class SQLConnect extends ExtensionInstruction {
 
         // Get and expand password attribute, which defaults to empty string
 
-        String pwdAtt = attributeList.getValue("password");
+        String pwdAtt = attributeList.getValue("", "password");
         if (pwdAtt==null) {
             password = StringValue.EMPTY_STRING;
         } else {
@@ -104,7 +104,7 @@ public class SQLConnect extends ExtensionInstruction {
          */
 
         public int getImplementationMethod() {
-            return EVALUATE_METHOD;
+            return Expression.EVALUATE_METHOD;
         }
 
         public int computeCardinality() {

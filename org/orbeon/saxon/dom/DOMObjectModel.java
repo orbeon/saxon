@@ -1,9 +1,9 @@
-package net.sf.saxon.dom;
+package org.orbeon.saxon.dom;
 
-import net.sf.saxon.Configuration;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.ExternalObjectModel;
-import net.sf.saxon.om.VirtualNode;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.om.DocumentInfo;
+import org.orbeon.saxon.om.ExternalObjectModel;
+import org.orbeon.saxon.om.VirtualNode;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 

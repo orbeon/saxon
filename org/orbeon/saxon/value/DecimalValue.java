@@ -1,20 +1,17 @@
 package org.orbeon.saxon.value;
-import org.orbeon.saxon.Err;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.Err;
 import org.orbeon.saxon.expr.Token;
-import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.regex.Pattern;
-import java.io.PrintStream;
 
 /**
 * A decimal value
@@ -87,7 +84,7 @@ public final class DecimalValue extends NumericValue {
     */
 
     public DecimalValue(long in) {
-        this.value = new BigDecimal(in);
+        this.value = BigDecimal.valueOf(in);
     }
 
     /**
@@ -260,6 +257,15 @@ public final class DecimalValue extends NumericValue {
             return new DecimalValue(value.setScale(scale, BigDecimal.ROUND_HALF_EVEN));
         }
     }
+
+    /**
+     * Determine whether the value is negative, zero, or positive
+     * @return -1 if negative, 0 if zero, +1 if positive, NaN if NaN
+     */
+
+    public double signum() {
+        return value.signum();
+    }    
 
     /**
     * Determine whether the value is a whole number, that is, whether it compares

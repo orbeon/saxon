@@ -1,13 +1,13 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.om.EmptyIterator;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.sort.GroupIterator;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * Implements the XSLT functions current-group() and current-grouping-key()

@@ -1,14 +1,14 @@
-package net.sf.saxon.expr;
+package org.orbeon.saxon.expr;
 
-import net.sf.saxon.om.*;
-import net.sf.saxon.sort.DocumentOrderIterator;
-import net.sf.saxon.sort.GlobalOrderComparer;
-import net.sf.saxon.trace.Location;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.Cardinality;
-import net.sf.saxon.xpath.DynamicError;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.sort.DocumentOrderIterator;
+import org.orbeon.saxon.sort.GlobalOrderComparer;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.Cardinality;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Iterator;

@@ -1,11 +1,10 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.instruct.Instruction;
-import org.orbeon.saxon.instruct.Comment;
-import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.tree.AttributeCollection;
-import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.instruct.Comment;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.value.StringValue;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -43,8 +42,8 @@ public final class XSLComment extends XSLStringConstructor {
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {
         Comment inst = new Comment();
-        compileContent(exec, inst);
-        inst.setSeparator(new StringValue(select==null ? "" : " "));
+        compileContent(exec, inst, StringValue.SINGLE_SPACE);
+        //inst.setSeparator(new StringValue(select==null ? "" : " "));
         ExpressionTool.makeParentReferences(inst);
         return inst;
     }

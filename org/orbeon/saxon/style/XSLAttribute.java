@@ -1,14 +1,14 @@
 package org.orbeon.saxon.style;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.instruct.Attribute;
-import org.orbeon.saxon.instruct.FixedAttribute;
 import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.instruct.FixedAttribute;
 import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.type.SimpleType;
-import org.orbeon.saxon.tree.AttributeCollection;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.Configuration;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -58,16 +58,16 @@ public final class XSLAttribute extends XSLStringConstructor {
         if (nameAtt==null) {
             reportAbsence("name");
             return;
-        } else {
-            attributeName = makeAttributeValueTemplate(nameAtt);
-            if (attributeName instanceof StringValue) {
-                if (!Name.isQName(nameAtt)) {
-                    compileError("Attribute name is not a valid QName");
-                    // prevent a duplicate error message...
-                    attributeName = new StringValue("saxon-error-attribute");
-                }
+        }
+        attributeName = makeAttributeValueTemplate(nameAtt);
+        if (attributeName instanceof StringValue) {
+            if (!Name.isQName(nameAtt)) {
+                compileError("Attribute name is not a valid QName", "XT0850");
+                // prevent a duplicate error message...
+                attributeName = new StringValue("saxon-error-attribute");
             }
         }
+
 
         if (namespaceAtt!=null) {
             namespace = makeAttributeValueTemplate(namespaceAtt);
@@ -89,26 +89,31 @@ public final class XSLAttribute extends XSLStringConstructor {
 
         if (validationAtt!=null) {
             if (validationAction != Validation.STRIP && !getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("To perform validation, a schema-aware XSLT processor is needed");
+                compileError("To perform validation, a schema-aware XSLT processor is needed", "XT1660");
             }
             validationAction = Validation.getCode(validationAtt);
             if (validationAction == Validation.INVALID) {
-                compileError("Invalid value of validation attribute");
+                compileError("Invalid value of validation attribute", "XT0020");
             }
         }
 
         if (typeAtt!=null) {
             if (!getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("The type attribute is available only with a schema-aware XSLT processor");
+                compileError("The type attribute is available only with a schema-aware XSLT processor", "XT1660");
             }
-            schemaType = (SimpleType)getSchemaType(typeAtt);
-            if (!(schemaType instanceof SimpleType)) {
-                compileError("Type annotation for attributes must be a simple type");
+            SchemaType type = getSchemaType(typeAtt);
+            if (type == null) {
+                compileError("Unknown attribute type " + typeAtt, "XT1520");
+            } else {
+                if (!type.isSimpleType()) {
+                    compileError("Type annotation for attributes must be a simple type", "XT1530");
+                }
+                schemaType = (SimpleType)type;
             }
         }
 
         if (typeAtt != null && validationAtt != null) {
-            compileError("The validation and type attributes are mutually exclusive");
+            compileError("The validation and type attributes are mutually exclusive", "XT1505");
         }
     }
 
@@ -136,13 +141,14 @@ public final class XSLAttribute extends XSLStringConstructor {
             try {
                 parts = Name.getQNameParts(qName);
             } catch (QNameException e) {
-                compileError("Invalid attribute name: " + qName);
+                compileError("Invalid attribute name: " + qName, "XT0850");
+                // TODO: we've already checked this
                 return null;
             }
 
             if (qName.equals("xmlns")) {
                 if (namespace==null) {
-                    compileError("Invalid attribute name: " + qName);
+                    compileError("Invalid attribute name: " + qName, "XT0855");
                     return null;
                 }
             }
@@ -161,7 +167,7 @@ public final class XSLAttribute extends XSLStringConstructor {
                     try {
                         nsuri = getURIForPrefix(parts[0], false);
                     } catch (NamespaceException err) {
-                        compileError(err.getMessage());
+                        compileError(err.getMessage(), "XT0280");
                         return null;
                     }
                 }
@@ -170,8 +176,8 @@ public final class XSLAttribute extends XSLStringConstructor {
                                                          validationAction,
                                                          schemaType,
                                                          annotation);
-                compileContent(exec, inst);
-                inst.setSeparator(separator);
+                compileContent(exec, inst, separator);
+                //inst.setSeparator(separator);
                 ExpressionTool.makeParentReferences(inst);
                 return inst;
             } else if (namespace instanceof StringValue) {
@@ -211,8 +217,8 @@ public final class XSLAttribute extends XSLStringConstructor {
                                                          validationAction,
                                                          schemaType,
                                                          annotation);
-                compileContent(exec, inst);
-                inst.setSeparator(separator);
+                compileContent(exec, inst, separator);
+                //inst.setSeparator(separator);
                 ExpressionTool.makeParentReferences(inst);
                 return inst;
             }
@@ -231,7 +237,7 @@ public final class XSLAttribute extends XSLStringConstructor {
                                         validationAction,
                                         schemaType,
                                         annotation);
-        compileContent(exec, inst);
+        compileContent(exec, inst, separator);
         return inst;
     }
 

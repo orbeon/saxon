@@ -1,12 +1,11 @@
 package org.orbeon.saxon.functions;
 
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.functions.FunctionLibrary;
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.xpath.XPathException;
 
-import java.util.List;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 /**
  * A FunctionLibraryList is a list of FunctionLibraries. It is also a FunctionLibrary in its own right.

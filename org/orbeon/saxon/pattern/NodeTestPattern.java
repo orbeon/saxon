@@ -73,6 +73,15 @@ public class NodeTestPattern extends Pattern {
         return nodeTest.getFingerprint();   
     }
 
+    /**
+     * Display the pattern for diagnostics
+     */
+
+    public String toString() {
+        return nodeTest.toString();
+    }
+
+
 }
 
 //

@@ -1,17 +1,17 @@
 package org.orbeon.saxon.sort;
-import org.orbeon.saxon.expr.StaticProperty;
-import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.CardinalityChecker;
 import org.orbeon.saxon.expr.RoleLocator;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.expr.StaticProperty;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.value.EmptySequence;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
+import java.text.Collator;
 import java.util.Comparator;
 import java.util.Locale;
-import java.text.Collator;
 
 /**
 * A FixedSortKeyDefinition is a SortKeyDefinition in which all aspects of the
@@ -70,7 +70,7 @@ public class FixedSortKeyDefinition extends SortKeyDefinition {
 
         if (dataTypeExpression==null || dataTypeExpression instanceof EmptySequence) {
             RoleLocator role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:sort/sort-key", 0);
+                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:sort/sort-key", 0, null);
             sortKey = new CardinalityChecker(sortKey, StaticProperty.ALLOWS_ZERO_OR_ONE, role);
             comp = new AtomicSortComparer(comp);
         } else {

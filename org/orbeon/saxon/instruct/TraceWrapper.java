@@ -1,16 +1,16 @@
 package org.orbeon.saxon.instruct;
 
-import org.orbeon.saxon.expr.*;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.trace.TraceListener;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.xpath.XPathException;
 
-import java.util.Iterator;
 import java.io.PrintStream;
+import java.util.Iterator;
 
 /**
  * Created by IntelliJ IDEA.
@@ -107,6 +107,16 @@ public class TraceWrapper extends Instruction {
 
     public int getDependencies() {
         return child.getDependencies();
+    }
+
+    /**
+     * Determine whether this instruction creates new nodes.
+     * This implementation returns true unconditionally. This suppresses
+     * optimizations, which is appropriate when tracing.
+     */
+
+    public final boolean createsNewNodes() {
+        return true;
     }
 
     /**

@@ -1,20 +1,18 @@
 package org.orbeon.saxon.dom;
 
 import org.orbeon.saxon.Transform;
-import org.orbeon.saxon.dom.DocumentWrapper;
-
-import javax.xml.transform.sax.SAXSource;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
-import java.util.List;
-import java.util.ArrayList;
+import javax.xml.transform.stream.StreamSource;
 import java.io.IOException;
-
-import org.xml.sax.SAXException;
+import java.util.ArrayList;
+import java.util.List;
 
 
 /**
@@ -29,7 +27,8 @@ public class DOMTransform extends Transform {
         try {
             ArrayList domSources = new ArrayList(sources.size());
             for (int i=0; i<sources.size(); i++) {
-                SAXSource ss = (SAXSource)sources.get(i);
+                StreamSource src = (StreamSource)sources.get(i);
+                InputSource ins = new InputSource(src.getSystemId());
 
                 // The following statement, if uncommented, forces use of the Xerces DOM.
                 // This system property can also be set from the command line using the -D option
@@ -40,9 +39,9 @@ public class DOMTransform extends Transform {
                 DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
                 factory.setNamespaceAware(true);
                 DocumentBuilder builder = factory.newDocumentBuilder();
-                org.w3c.dom.Document doc = builder.parse(ss.getInputSource());
-                DocumentWrapper jdom = new DocumentWrapper(doc, ss.getSystemId(), getConfiguration());
-                domSources.add(jdom);
+                org.w3c.dom.Document doc = builder.parse(ins);
+                DocumentWrapper dom = new DocumentWrapper(doc, src.getSystemId(), getConfiguration());
+                domSources.add(dom);
             }
             return domSources;
         } catch (ParserConfigurationException e) {

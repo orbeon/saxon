@@ -1,15 +1,15 @@
-package net.sf.saxon.style;
+package org.orbeon.saxon.style;
 
-import net.sf.saxon.Controller;
-import net.sf.saxon.event.ProxyReceiver;
-import net.sf.saxon.event.StartTagBuffer;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.instruct.SlotManager;
-import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.xpath.StaticError;
-import net.sf.saxon.xpath.XPathException;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.event.ProxyReceiver;
+import org.orbeon.saxon.event.StartTagBuffer;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.instruct.SlotManager;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerException;
 import java.util.Stack;

@@ -3,11 +3,11 @@ import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.style.ExpressionContext;
 import org.orbeon.saxon.style.StyleNodeFactory;
+import org.orbeon.saxon.style.XSLTStaticContext;
 import org.orbeon.saxon.value.*;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * This class supports the XSLT element-available and function-available functions.
@@ -45,7 +45,7 @@ public class Available extends SystemFunction implements XSLTFunction {
         boolean b = false;
         switch(operation) {
             case ELEMENT_AVAILABLE:
-                b = ((ExpressionContext)env).isElementAvailable(qname);
+                b = ((XSLTStaticContext)env).isElementAvailable(qname);
                 break;
             case FUNCTION_AVAILABLE:
                 long arity = -1;

@@ -1,19 +1,15 @@
 package org.orbeon.saxon.value;
-import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.expr.Token;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Err;
+import org.orbeon.saxon.expr.Token;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
-import java.lang.Math;
 import java.math.BigDecimal;
-import java.io.PrintStream;
 
 /**
 * A numeric (single precision floating point) value
@@ -215,6 +211,20 @@ public final class FloatValue extends NumericValue {
         } catch (XPathException err) {
             throw new AssertionError(err);
         }
+    }
+
+    /**
+     * Determine whether the value is negative, zero, or positive
+     * @return -1 if negative, 0 if zero (including negative zero), +1 if positive, NaN if NaN
+     */
+
+    public double signum() {
+        if (Float.isNaN(value)) {
+            return value;
+        }
+        if (value > 0) return 1;
+        if (value == 0) return 0;
+        return -1;
     }
 
     /**

@@ -1,5 +1,6 @@
 package org.orbeon.saxon.instruct;
 
+import org.orbeon.saxon.Err;
 import org.orbeon.saxon.event.SequenceReceiver;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.NamePool;
@@ -8,16 +9,12 @@ import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.Err;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Iterator;
 
 /**
  * An xsl:processing-instruction element in the stylesheet.
@@ -54,11 +51,16 @@ public class ProcessingInstruction extends SimpleNodeConstructor {
         return StaticProperty.EXACTLY_ONE;
     }
 
+    public Expression simplify(StaticContext env) throws XPathException {
+        name = name.simplify(env);
+        return super.simplify(env);
+    }    
+
     public void typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
         name = name.analyze(env, contextItemType);
 
         RoleLocator role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "processing-instruction:name", 0);
+                new RoleLocator(RoleLocator.INSTRUCTION, "processing-instruction:name", 0, null);
         name = TypeChecker.staticTypeCheck(name, SequenceType.SINGLE_STRING, false, role, env);
     }
 
@@ -68,15 +70,12 @@ public class ProcessingInstruction extends SimpleNodeConstructor {
 
     public Iterator iterateSubExpressions() {
         ArrayList list = new ArrayList(6);
-        if (children != null) {
-            list.addAll(Arrays.asList(children));
-        }
         if (select != null) {
             list.add(select);
         }
-        if (separator != null && !(separator instanceof StringValue)) {
-            list.add(separator);
-        }
+//        if (separator != null && !(separator instanceof StringValue)) {
+//            list.add(separator);
+//        }
         list.add(name);
         return list.iterator();
     }
@@ -132,11 +131,7 @@ public class ProcessingInstruction extends SimpleNodeConstructor {
         int hh = data.indexOf("?>");
         if (hh >= 0) {
             DynamicError err = new DynamicError("Invalid characters (?>) in processing instruction", this);
-            if (context.getController().getConfiguration().getHostLanguage() == Configuration.XSLT) {
-                err.setErrorCode("XT0900");
-            } else {
-                err.setErrorCode("XQ0026");
-            }
+            err.setErrorCode((isXSLT(context) ? "XT0900" : "XQ0026"));
             err.setXPathContext(context);
             context.getController().recoverableError(err);
             data = data.substring(0, hh + 1) + ' ' + data.substring(hh + 1);
@@ -165,22 +160,14 @@ public class ProcessingInstruction extends SimpleNodeConstructor {
             DynamicError e = new DynamicError(
                     "Processing instruction name " + Err.wrap(expandedName) + " is not a valid NCName");
             e.setXPathContext(context);
-            if (context.getController().getConfiguration().getHostLanguage() == Configuration.XQUERY) {
-                e.setErrorCode("XQ0041");
-            } else {
-                e.setErrorCode("XT0890");
-            }
+            e.setErrorCode((isXSLT(context) ? "XT0890" : "XQ0041"));
             context.getController().recoverableError(e);
         }
         if (expandedName.equalsIgnoreCase("xml")) {
             DynamicError e = new DynamicError(
                     "Processing instructions cannot be named 'xml' in any combination of upper/lower case");
             e.setXPathContext(context);
-            if (context.getController().getConfiguration().getHostLanguage() == Configuration.XQUERY) {
-                e.setErrorCode("XQ0064");
-            } else {
-                e.setErrorCode("XT0890");
-            }
+            e.setErrorCode((isXSLT(context) ? "XT0890" : "XQ0064"));
             context.getController().recoverableError(e);
         }
         return expandedName;

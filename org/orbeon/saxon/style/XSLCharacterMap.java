@@ -1,21 +1,11 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.om.Axis;
-import org.orbeon.saxon.om.AxisIterator;
-import org.orbeon.saxon.om.Name;
-import org.orbeon.saxon.om.NamespaceException;
-import org.orbeon.saxon.om.QNameException;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.tree.AttributeCollection;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.StringTokenizer;
+import java.util.*;
 
 /**
 * An xsl:character-map declaration in the stylesheet. <br>
@@ -91,7 +81,7 @@ public class XSLCharacterMap extends StyleElement {
         try {
             setObjectNameCode(makeNameCode(name.trim()));
         } catch (NamespaceException err) {
-            compileError(err.getMessage());
+            compileError(err.getMessage(), "XT0280");
         } catch (XPathException err) {
             compileError(err.getMessage());
         }
@@ -115,7 +105,7 @@ public class XSLCharacterMap extends StyleElement {
                 break;
             }
             if (!(child instanceof XSLOutputCharacter)) {
-                compileError("Only xsl:output-character is allowed within xsl:character-map");
+                compileError("Only xsl:output-character is allowed within xsl:character-map", "XT0010");
             }
         }
 
@@ -126,7 +116,7 @@ public class XSLCharacterMap extends StyleElement {
         XSLCharacterMap other = principal.getCharacterMap(getObjectFingerprint());
         if (other != this) {
             if (this.getPrecedence() == other.getPrecedence()) {
-                compileError("There are two character-maps with the same name and import precedence");
+                compileError("There are two character-maps with the same name and import precedence", "XT1580");
             } else if (this.getPrecedence() < other.getPrecedence()) {
                 redundant = true;
             }
@@ -138,7 +128,7 @@ public class XSLCharacterMap extends StyleElement {
 
             // identify any character maps that this one refers to
 
-            characterMapElements = new ArrayList();
+            characterMapElements = new ArrayList(5);
             StringTokenizer st = new StringTokenizer(use);
 
             while (st.hasMoreTokens()) {
@@ -150,14 +140,14 @@ public class XSLCharacterMap extends StyleElement {
                     XSLCharacterMap ref =
                             principal.getCharacterMap(nameCode & 0xfffff);
                     if (ref == null) {
-                        compileError("No character-map named '" + displayname + "' has been defined");
+                        compileError("No character-map named '" + displayname + "' has been defined", "XT1590");
                     } else {
                         characterMapElements.add(ref);
                     }
                 } catch (QNameException err) {
-                    compileError("Invalid character-map name. " + err.getMessage());
+                    compileError("Invalid character-map name. " + err.getMessage(), "XT1590");
                 } catch (NamespaceException err) {
-                    compileError(err.getMessage());
+                    compileError(err.getMessage(), "XT0280");
                 }
             }
 
@@ -178,7 +168,7 @@ public class XSLCharacterMap extends StyleElement {
 
     private void checkCircularity(XSLCharacterMap origin) throws TransformerConfigurationException {
         if (this==origin) {
-            compileError("The definition of the character map is circular");
+            compileError("The definition of the character map is circular", "XT1600");
             characterMapElements = null;    // for error recovery
         } else {
             if (!validated) {
@@ -218,19 +208,8 @@ public class XSLCharacterMap extends StyleElement {
         }
     }
 
-    /**
-    * Get a pattern that will match the context node
-    * @return null if no such pattern can be identified
-    */
-
-//    public Pattern getContextNodePattern() {
-//        // Context node is not known statically
-//        return null;
-//    }
-
     public Expression compile(Executable exec) throws TransformerConfigurationException {
-
-            return null;
+        return null;
     }
 
 }

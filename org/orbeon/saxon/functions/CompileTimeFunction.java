@@ -1,7 +1,7 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.xpath.XPathException;
@@ -35,7 +35,7 @@ public abstract class CompileTimeFunction extends SystemFunction {
     * Iterate over the results of the function
     */
 
-    public final SequenceIterator iterate(XPathContext c) throws XPathException {
+    public final SequenceIterator iterate(XPathContext c) {
         throw new IllegalStateException("Function " + getName(c) + " should have been resolved at compile-time");
     }
 

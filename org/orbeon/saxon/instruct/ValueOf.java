@@ -1,16 +1,20 @@
 package org.orbeon.saxon.instruct;
+import org.orbeon.saxon.Err;
 import org.orbeon.saxon.event.ReceiverOptions;
 import org.orbeon.saxon.event.SequenceReceiver;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.Navigator;
 import org.orbeon.saxon.om.Orphan;
 import org.orbeon.saxon.pattern.NodeKindTest;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.type.*;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -52,6 +56,8 @@ public final class ValueOf extends SimpleNodeConstructor {
     public int getInstructionNameCode() {
         if (isNumberingInstruction) {
             return StandardNames.XSL_NUMBER;
+        } else if (select instanceof StringValue) {
+            return StandardNames.XSL_TEXT;
         } else {
             return StandardNames.XSL_VALUE_OF;
         }
@@ -71,9 +77,9 @@ public final class ValueOf extends SimpleNodeConstructor {
     */
 
     protected void promoteInst(PromotionOffer offer) throws XPathException {
-        if (separator != null) {
-            separator = separator.promote(offer);
-        }
+//        if (separator != null) {
+//            separator = separator.promote(offer);
+//        }
         super.promoteInst(offer);
     }
 
@@ -89,6 +95,52 @@ public final class ValueOf extends SimpleNodeConstructor {
 
     }
 
+    /**
+      * Check statically that the results of the expression are capable of constructing the content
+      * of a given schema type.
+      *
+      * @param parentType The schema type
+      * @param env        the static context
+      * @param whole
+      * @throws org.orbeon.saxon.xpath.XPathException
+      *          if the expression doesn't match the required content type
+      */
+
+     public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException {
+         // if the expression is a constant value, check that it is valid for the type
+         if (select instanceof Value) {
+             SimpleType stype = null;
+             if (parentType instanceof SimpleType && whole) {
+                 stype = (SimpleType)parentType;
+             } else if (parentType instanceof ComplexType && ((ComplexType)parentType).isSimpleContent()) {
+                 stype = ((ComplexType)parentType).getSimpleContentType();
+             }
+             if (whole && stype != null && !stype.isNamespaceSensitive()) {
+                        // Can't validate namespace-sensitive content statically
+                 try {
+                     stype.validateContent(((Value)select).getStringValue(), null);
+                 } catch (XPathException e) {
+                     e.setLocator(this);
+                     throw e;
+                 }
+                 return;
+             }
+             if (parentType instanceof ComplexType &&
+                     !((ComplexType)parentType).isSimpleContent() &&
+                     !((ComplexType)parentType).isMixedContent() &&
+                     !Navigator.isWhite(((Value)select).getStringValue())) {
+                 StaticError err = new StaticError("Complex type " + parentType.getDescription() +
+                         " does not allow text content " +
+                         Err.wrap(((Value)select).getStringValue()));
+                 err.setLocator(this);
+                 err.setIsTypeError(true);
+                 throw err;
+             }
+         }
+     }
+
+
+
     public TailCall processLeavingTail(XPathContext context) throws XPathException {
         SequenceReceiver out = context.getReceiver();
         out.characters(expandChildren(context), locationId, options);
@@ -98,7 +150,7 @@ public final class ValueOf extends SimpleNodeConstructor {
     public Item evaluateItem(XPathContext context) throws XPathException {
         try {
             CharSequence val = expandChildren(context);
-            Orphan o = new Orphan(context.getController().getNamePool());
+            Orphan o = new Orphan(context.getController().getConfiguration());
             o.setNodeKind(Type.TEXT);
             o.setStringValue(val);
             return o;

@@ -1,20 +1,19 @@
 package org.orbeon.saxon.functions;
+import org.orbeon.saxon.Err;
+import org.orbeon.saxon.charcode.UnicodeCharacterSet;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.sort.GlobalOrderComparer;
+import org.orbeon.saxon.trace.Location;
 import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.*;
 import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.Err;
-import org.orbeon.saxon.trace.Location;
-import org.orbeon.saxon.charcode.UnicodeCharacterSet;
 
 import java.math.BigDecimal;
-import java.util.HashSet;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.List;
 
 /**
 * This class implements functions that are supplied as standard with SAXON,
@@ -72,7 +71,6 @@ public class Extensions  {
     /**
     * Return the line number of the context node.
     */
-    // TODO: to make this usable in XQuery, need a version that accepts a node as its argument
     public static int lineNumber(XPathContext c) {
         Item item = c.getCurrentIterator().current();
         if (item instanceof NodeInfo) {
@@ -80,6 +78,13 @@ public class Extensions  {
         } else {
             return -1;
         }
+    }
+
+    /**
+    * Return the line number of the specified node.
+    */
+    public static int lineNumber(NodeInfo node) {
+        return node.getLineNumber();
     }
 
     /**
@@ -287,43 +292,6 @@ public class Extensions  {
             }
         }
         return SingletonIterator.makeIterator(lowest);
-    }
-
-    /**
-    * Given a node-set, return a subset that includes only nodes with distinct string-values
-    * for the supplied expression
-    */
-
-    public static SequenceIterator distinct(XPathContext context,
-                                        SequenceIterator in,
-                                        Evaluate.PreparedExpression pexp) {
-        DistinctExpressionFunction dkf = new DistinctExpressionFunction(pexp.expression);
-        XPathContext context2 = context.newMinorContext();
-        context2.setOriginatingConstructType(Location.SAXON_HIGHER_ORDER_EXTENSION_FUNCTION);
-    	context2.setCurrentIterator(in);
-
-        return new MappingIterator(in, dkf, context2, new HashSet(32));
-    }
-
-    private static class DistinctExpressionFunction implements MappingFunction {
-
-        public Expression exp;
-
-        public DistinctExpressionFunction(Expression exp) {
-            this.exp = exp;
-        }
-
-        public Object map(Item item, XPathContext context, Object lookup) throws XPathException {
-            Item val = exp.evaluateItem(context);
-            if (val==null) return val;  // treat all () values as distinct
-            String key = val.getStringValue();
-            if (((HashSet)lookup).contains(key)) {
-                return null;
-            } else {
-                ((HashSet)lookup).add(key);
-                return item;
-            }
-        }
     }
 
     /**
@@ -632,7 +600,7 @@ public class Extensions  {
             throw err;
         }
         final NamePool namePool = context.getController().getNamePool();
-        Orphan node = new Orphan(namePool);
+        Orphan node = new Orphan(context.getController().getConfiguration());
         node.setNodeKind(Type.NAMESPACE);
         node.setNameCode(namePool.allocate("", "", prefix));
         node.setStringValue(uri);

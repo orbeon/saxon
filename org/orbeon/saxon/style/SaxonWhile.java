@@ -1,11 +1,11 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.instruct.Block;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.While;
-import org.orbeon.saxon.tree.AttributeCollection;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.value.EmptySequence;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -67,16 +67,18 @@ public class SaxonWhile extends StyleElement {
     }
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {
-        Block block = new Block();
-        compileChildren(exec, block, true);
-        try {
-            While w = new While(test, block.simplify(getStaticContext()));
+        Expression action = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+        if (action == null) {
+            action = EmptySequence.getInstance();
+        }
+        //try {
+            While w = new While(test, action);
             ExpressionTool.makeParentReferences(w);
             return w;
-        } catch (XPathException e) {
-            compileError(e);
-            return null;
-        }
+//        } catch (XPathException e) {
+//            compileError(e);
+//            return null;
+//        }
     }
 
 }

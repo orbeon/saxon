@@ -1,8 +1,8 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.Expression;
 
-import java.lang.reflect.AccessibleObject;
 import java.io.Serializable;
+import java.lang.reflect.AccessibleObject;
 
 /**
 * This class acts as a factory for creating expressions that call extension functions.
@@ -39,8 +39,7 @@ public class ExtensionFunctionFactory implements Serializable {
 
     public Expression makeExtensionFunctionCall(
         int nameCode, Class theClass, AccessibleObject method, Expression[] arguments) {
-        //ExtensionFunctionCall fn = new ExtensionFunctionCall();
-        ExtensionFunctionCall fn = null;
+        ExtensionFunctionCall fn;
         try {
             fn = (ExtensionFunctionCall)(extensionFunctionCallClass.newInstance());
         } catch (InstantiationException e) {

@@ -1,13 +1,13 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.functions.FunctionLibrary;
-import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.VariableDeclaration;
+import org.orbeon.saxon.functions.FunctionLibrary;
 import org.orbeon.saxon.instruct.LocationMap;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.xpath.XPathException;
 import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.xpath.XPathException;
 
+import javax.xml.transform.SourceLocator;
 import java.util.Comparator;
 
 /**
@@ -15,7 +15,7 @@ import java.util.Comparator;
 * in the stylesheet.
 */
 
-public class ExpressionContext implements StaticContext {
+public class ExpressionContext implements XSLTStaticContext {
 
 	private StyleElement element;
 	private NamePool namePool;
@@ -45,8 +45,8 @@ public class ExpressionContext implements StaticContext {
     * Issue a compile-time warning
     */
 
-    public void issueWarning(String s) {
-        element.issueWarning(s);
+    public void issueWarning(String s, SourceLocator locator) {
+        element.issueWarning(s, locator);
     }
 
     /**
@@ -95,7 +95,9 @@ public class ExpressionContext implements StaticContext {
         try {
             return element.getURIForPrefix(prefix, false);
         } catch (NamespaceException err) {
-            throw new StaticError(err);
+            StaticError e = new StaticError(err);
+            e.setErrorCode("XT0280");
+            throw e;
         }
     }
 
@@ -174,7 +176,9 @@ public class ExpressionContext implements StaticContext {
             return element.getPreparedStylesheet().
                                 getStyleNodeFactory().isElementAvailable(uri, parts[1]);
         } catch (QNameException e) {
-            throw new StaticError("Invalid element name. " + e.getMessage());
+            StaticError err = new StaticError("Invalid element name. " + e.getMessage());
+            err.setErrorCode("XT1440");
+            throw err;
         }
     }
 
@@ -193,7 +197,8 @@ public class ExpressionContext implements StaticContext {
     */
 
     public String getDefaultCollationName() {
-        return element.getPrincipalStylesheet().getDefaultCollationName();
+        return element.getDefaultCollationName();
+        //return element.getPrincipalStylesheet().getDefaultCollationName();
     }
 
     /**

@@ -1,7 +1,7 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.value.BooleanValue;
 import org.orbeon.saxon.xpath.XPathException;
@@ -10,8 +10,8 @@ import org.orbeon.saxon.xpath.XPathException;
 
 public class Existence extends SystemFunction {
 
-    public final static int EXISTS = 0;
-    public final static int EMPTY = 1;
+    public static final int EXISTS = 0;
+    public static final int EMPTY = 1;
 
     /**
      * Static analysis: prevent sorting of the argument

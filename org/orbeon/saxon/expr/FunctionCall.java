@@ -5,9 +5,9 @@ import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.xpath.StaticError;
 import org.orbeon.saxon.xpath.XPathException;
 
+import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.io.PrintStream;
 
 /**
 * Abstract superclass for calls to system-defined and user-defined functions

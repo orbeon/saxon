@@ -1,16 +1,16 @@
 package org.orbeon.saxon.expr;
 
 import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.type.AtomicType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.type.AtomicType;
 import org.orbeon.saxon.value.*;
 import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.style.StandardNames;
 
-import java.util.Iterator;
 import java.io.PrintStream;
+import java.util.Iterator;
 
 /**
  * This class supports casting a string to a QName or a notation
@@ -21,17 +21,20 @@ import java.io.PrintStream;
 
 public class CastAsQName extends ComputedExpression {
 
-    private Expression input;
+    private Expression operand;
     private NamespaceResolver nsContext;
     private AtomicType targetType;
 
     public CastAsQName(Expression s, AtomicType target) {
-        input = s;
+        operand = s;
         targetType = target;
     }
 
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
         nsContext = env.getNamespaceResolver();
+        if (operand instanceof Value) {
+            return Value.asValue(evaluateItem(null));    
+        }
         return this;
     }
 
@@ -47,16 +50,26 @@ public class CastAsQName extends ComputedExpression {
         return targetType;
     }
 
+    /**
+     * Determine the special properties of this expression
+     * @return {@link StaticProperty#NON_CREATIVE}.
+     */
+
+    public int computeSpecialProperties() {
+        int p = super.computeSpecialProperties();
+        return p | StaticProperty.NON_CREATIVE;
+    }
+
     public int getIntrinsicDependencies() {
         return 0;
     }
 
     public Iterator iterateSubExpressions() {
-        return new MonoIterator(input);
+        return new MonoIterator(operand);
     }
 
     public Item evaluateItem(XPathContext context) throws XPathException {
-        AtomicValue av = (AtomicValue)input.evaluateItem(context);
+        AtomicValue av = (AtomicValue)operand.evaluateItem(context);
         if (av==null) return null;
         StringValue sv = (StringValue)av.getPrimitiveValue();
 
@@ -72,10 +85,10 @@ public class CastAsQName extends ComputedExpression {
                 return new QNameValue(parts[0], uri, parts[1]);
             } else if (Type.isSubType(targetType, Type.QNAME_TYPE)) {
                 QNameValue q = new QNameValue(parts[0], uri, parts[1]);
-                return DerivedAtomicValue.makeValue(q, sv.getStringValue(), targetType, true);
+                return targetType.makeDerivedValue(q, sv.getStringValue(), true);
             } else {
                 NotationValue n = new NotationValue(parts[0], uri, parts[1]);
-                return DerivedAtomicValue.makeValue(n, sv.getStringValue(), targetType, true);
+                return targetType.makeDerivedValue(n, sv.getStringValue(), true);
             }
         } catch (QNameException err) {
             DynamicError e = new DynamicError(err);
@@ -86,7 +99,7 @@ public class CastAsQName extends ComputedExpression {
 
     public void display(int level, NamePool pool, PrintStream out) {
         out.println(ExpressionTool.indent(level) + "cast as QName");
-        input.display(level+1, pool, out);
+        operand.display(level+1, pool, out);
     }
 }
 //

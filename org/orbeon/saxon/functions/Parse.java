@@ -5,15 +5,12 @@ import org.orbeon.saxon.event.Sender;
 import org.orbeon.saxon.event.Stripper;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.style.ExpressionContext;
-import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.xpath.DynamicError;
 import org.orbeon.saxon.xpath.XPathException;
 import org.xml.sax.InputSource;
-
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.xpath.DynamicError;
 
 import javax.xml.transform.sax.SAXSource;
 import java.io.StringReader;
@@ -35,8 +32,10 @@ public class Parse extends SystemFunction {
     */
 
     public void checkArguments(StaticContext env) throws XPathException {
-        super.checkArguments(env);
-        baseURI = env.getBaseURI();
+        if (baseURI == null) {
+            super.checkArguments(env);
+            baseURI = env.getBaseURI();
+        }
     }
 
     /**
@@ -54,8 +53,8 @@ public class Parse extends SystemFunction {
         Builder b = controller.makeBuilder();
         Stripper s = controller.makeStripper(b);
         try {
-            new Sender(controller.getConfiguration()).send(source, s);
-            return b.getCurrentDocument();
+            new Sender(controller.makePipelineConfiguration()).send(source, s);
+            return (DocumentInfo)b.getCurrentRoot();
         } catch (XPathException err) {
             throw new DynamicError(err);
         }

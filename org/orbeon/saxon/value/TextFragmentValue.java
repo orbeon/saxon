@@ -1,11 +1,10 @@
 package org.orbeon.saxon.value;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.NodeTest;
 import org.orbeon.saxon.type.Type;
-
 import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.Configuration;
 
 /**
 * This class represents a temporary tree whose root document node owns a single text node. <BR>
@@ -21,7 +20,7 @@ public final class TextFragmentValue extends AbstractNode implements DocumentInf
 
     /**
     * Constructor: create a result tree fragment containing a single text node
-    * @param value: a String containing the value
+    * @param value a String containing the value
     */
 
     public TextFragmentValue(CharSequence value, String systemId) {
@@ -415,6 +414,14 @@ public final class TextFragmentValue extends AbstractNode implements DocumentInf
 
         public void setSystemId(String systemId) {}
 
+        /**
+         * Get the configuration
+         */
+
+        public Configuration getConfiguration() {
+            return config;
+        }
+        
         /**
          * Get the name pool for this node
          * @return the NamePool

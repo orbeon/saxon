@@ -7,9 +7,9 @@ import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.xpath.XPathException;
 
+import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.io.PrintStream;
 
 
 /**
@@ -19,11 +19,9 @@ import java.io.PrintStream;
 
 public abstract class SimpleExpression extends ComputedExpression {
 
-    public static final int EVALUATE_METHOD = 0;
-    public static final int ITERATE_METHOD = 1;
-    public static final int PROCESS_METHOD = 2;
-    
-    protected Expression[] arguments = new Expression[0];
+    private static final Expression[] NO_ARGUMENTS = new Expression[0];
+
+    protected Expression[] arguments = NO_ARGUMENTS;
 
     /**
      * Constructor
@@ -139,10 +137,10 @@ public abstract class SimpleExpression extends ComputedExpression {
      */
 
     public int computeCardinality() {
-        if (getImplementationMethod() == EVALUATE_METHOD) {
-            return StaticProperty.ALLOWS_ZERO_OR_ONE;
-        } else {
+        if ((getImplementationMethod() & Expression.EVALUATE_METHOD) == 0) {
             return StaticProperty.ALLOWS_ONE_OR_MORE;
+        } else {
+            return StaticProperty.ALLOWS_ZERO_OR_ONE;
         }
     }
 
@@ -176,20 +174,19 @@ public abstract class SimpleExpression extends ComputedExpression {
 
     public Item evaluateItem(XPathContext context) throws XPathException {
         int m = getImplementationMethod();
-        switch (m) {
-            case EVALUATE_METHOD:
-                dynamicError("evaluateItem() is not implemented in the subclass " + this.getClass(), context);
-            case ITERATE_METHOD:
-                return iterate(context).next();
-            case PROCESS_METHOD:
-                Controller controller = context.getController();
-                XPathContext c2 = context.newMinorContext();
-                c2.setOrigin(this);
-                SequenceOutputter seq = new SequenceOutputter();
-                seq.setConfiguration(controller.getConfiguration());
-                c2.setTemporaryReceiver(seq);
-                process(c2);
-                return seq.getFirstItem();
+        if ((m & Expression.EVALUATE_METHOD) != 0) {
+            dynamicError("evaluateItem() is not implemented in the subclass " + this.getClass(), context);
+        } else if ((m & Expression.ITERATE_METHOD) != 0) {
+            return iterate(context).next();
+        } else {
+            Controller controller = context.getController();
+            XPathContext c2 = context.newMinorContext();
+            c2.setOrigin(this);
+            SequenceOutputter seq = new SequenceOutputter(1);
+            seq.setPipelineConfiguration(controller.makePipelineConfiguration());
+            c2.setTemporaryReceiver(seq);
+            process(c2);
+            return seq.getFirstItem();
         }
         return null;
     }
@@ -210,28 +207,27 @@ public abstract class SimpleExpression extends ComputedExpression {
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
         int m = getImplementationMethod();
-        switch (m) {
-            case EVALUATE_METHOD:
-                Item item = evaluateItem(context);
-                if (item==null) {
-                    return EmptyIterator.getInstance();
-                } else {
-                    return SingletonIterator.makeIterator(item);
-                }
-            case ITERATE_METHOD:
-                dynamicError("iterate() is not implemented in the subclass " + this.getClass(), context);
-                break;
-            case PROCESS_METHOD:
-                Controller controller = context.getController();
-                XPathContext c2 = context.newMinorContext();
-                c2.setOrigin(this);
-                SequenceOutputter seq = new SequenceOutputter();
-                seq.setConfiguration(controller.getConfiguration());
-                c2.setTemporaryReceiver(seq);
-    
-                process(c2);
-    
-                return seq.getSequence().iterate(context);
+        if ((m & Expression.EVALUATE_METHOD) != 0) {
+            Item item = evaluateItem(context);
+            if (item==null) {
+                return EmptyIterator.getInstance();
+            } else {
+                return SingletonIterator.makeIterator(item);
+            }
+        } else if ((m & Expression.ITERATE_METHOD) != 0) {
+            dynamicError("iterate() is not implemented in the subclass " + this.getClass(), context);
+
+        } else {
+            Controller controller = context.getController();
+            XPathContext c2 = context.newMinorContext();
+            c2.setOrigin(this);
+            SequenceOutputter seq = new SequenceOutputter();
+            seq.setPipelineConfiguration(controller.makePipelineConfiguration());
+            c2.setTemporaryReceiver(seq);
+
+            process(c2);
+
+            return seq.getSequence().iterate(context);
         }
         return null;
     }
@@ -244,21 +240,16 @@ public abstract class SimpleExpression extends ComputedExpression {
 
     public void process(XPathContext context) throws XPathException {
         int m = getImplementationMethod();
-        switch (m) {
-            case EVALUATE_METHOD:
-                Item item = evaluateItem(context);
-                context.getReceiver().append(item, locationId);
-                break;
-            case ITERATE_METHOD:
-                SequenceIterator iter = iterate(context);
-                while (true) {
-                    Item it = iter.next();
-                    if (it==null) break;
-                    context.getReceiver().append(it, locationId);
-                }
-                break;
-            case PROCESS_METHOD:
-                dynamicError("process() is not implemented in the subclass " + this.getClass(), context);
+        if ((m & Expression.EVALUATE_METHOD) == 0) {
+            SequenceIterator iter = iterate(context);
+            while (true) {
+                Item it = iter.next();
+                if (it==null) break;
+                context.getReceiver().append(it, locationId);
+            }
+        } else {
+            Item item = evaluateItem(context);
+            context.getReceiver().append(item, locationId);
         }
     }
 

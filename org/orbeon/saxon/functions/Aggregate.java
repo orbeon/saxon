@@ -2,11 +2,11 @@ package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.value.*;
-import org.orbeon.saxon.xpath.XPathException;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.xpath.DynamicError;
+import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * This class implements the sum(), avg(), count() functions,
@@ -100,7 +100,7 @@ public class Aggregate extends SystemFunction {
                 return IntegerValue.ZERO;
             }
         }
-        if (sum instanceof DerivedAtomicValue) {
+        if (!sum.hasBuiltInType()) {
             sum = sum.getPrimitiveValue();
         }
         if (sum instanceof UntypedAtomicValue) {
@@ -165,7 +165,7 @@ public class Aggregate extends SystemFunction {
             return null;
         }
         count++;
-        if (sum instanceof DerivedAtomicValue) {
+        if (!sum.hasBuiltInType()) {
             sum = sum.getPrimitiveValue();
         }
         if (sum instanceof UntypedAtomicValue) {

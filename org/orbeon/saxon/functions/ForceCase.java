@@ -1,8 +1,8 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.xpath.XPathException;
 
 
@@ -12,8 +12,8 @@ import org.orbeon.saxon.xpath.XPathException;
 
 public class ForceCase extends SystemFunction {
 
-    public final static int UPPERCASE = 0;
-    public final static int LOWERCASE = 1;
+    public static final int UPPERCASE = 0;
+    public static final int LOWERCASE = 1;
 
     /**
     * Evaluate in a general context
@@ -21,7 +21,9 @@ public class ForceCase extends SystemFunction {
 
     public Item evaluateItem(XPathContext c) throws XPathException {
         AtomicValue sv = (AtomicValue)argument[0].evaluateItem(c);
-        if (sv==null) return null;
+        if (sv==null) {
+            return StringValue.EMPTY_STRING;
+        }
 
         switch(operation) {
             case UPPERCASE:

@@ -1,11 +1,14 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.instruct.*;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.instruct.ForEach;
+import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.sort.SortExpression;
 import org.orbeon.saxon.sort.SortKeyDefinition;
-import org.orbeon.saxon.tree.AttributeCollection;
 import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
@@ -84,8 +87,13 @@ public class XSLForEach extends StyleElement {
             sortedSequence = new SortExpression(select, sortKeys);
             ExpressionTool.makeParentReferences(sortedSequence);
         }
-        Block block = new Block();
-        compileChildren(exec, block, true);
+//        Block block = new Block();
+//        compileChildren(exec, block, true);
+        Expression block = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+        if (block == null) {
+            // body of for-each is empty: it's a no-op.
+            return EmptySequence.getInstance();
+        }
         try {
             ForEach inst = new ForEach(sortedSequence, block.simplify(getStaticContext()));
             ExpressionTool.makeParentReferences(inst);

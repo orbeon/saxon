@@ -6,9 +6,9 @@ package org.orbeon.saxon;
 
 public final class Version {
 
-    private static final String VERSION = "8.1.1";
-    private static final String BUILD = "100601";
-    private static final String RELEASE_DATE = "2004-10-07";
+    private static final String VERSION = "8.2";
+    private static final String BUILD = "121614";
+    private static final String RELEASE_DATE = "2004-12-22";
 
     private Version() {
         // class is never instantiated
@@ -79,6 +79,10 @@ public final class Version {
         return "http://www.saxonica.com/";
     }
 
+    /**
+     * Invoking org.orbeon.saxon.Version from the command line outputs the build number
+     * @param args not used
+     */
     public static void main(String[] args) {
         System.err.println(getProductTitle() + " (build " + BUILD + ')');
     }
