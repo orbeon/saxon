@@ -76,6 +76,10 @@ public class RangeVariableDeclaration implements VariableDeclaration {
         this.references = references;
     }
 
+    public List getReferenceList() {
+        return references;
+    }
+
     /**
      * Determine how often the range variable is referenced. This is the number of times
      * it is referenced at run-time: so a reference in a loop counts as "many".
@@ -172,8 +176,7 @@ public class RangeVariableDeclaration implements VariableDeclaration {
                     // this will probably lead to a type error later
                     newcard = ((VariableReference)ref).getCardinality();
                 }
-                SequenceType seqType =
-                        new SequenceType(newItemType, newcard);
+                SequenceType seqType = SequenceType.makeSequenceType(newItemType, newcard);
 
                 ref.setStaticType(seqType, constantValue, properties);
             }

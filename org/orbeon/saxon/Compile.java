@@ -1,8 +1,7 @@
 package org.orbeon.saxon;
 import org.orbeon.saxon.instruct.TerminationException;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
-
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 import org.xml.sax.InputSource;
 
 import javax.xml.transform.Source;

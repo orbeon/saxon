@@ -2,7 +2,8 @@ package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.Err;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.*;
@@ -136,6 +137,10 @@ public class XSLCharacterMap extends StyleElement {
                 try {
                     String[] parts = Name.getQNameParts(displayname);
                     String uri = getURIForPrefix(parts[0], false);
+                    if (uri == null) {
+                        compileError("Undeclared namespace prefix " + Err.wrap(parts[0])
+                                + " in character map name", "XT0280");
+                    }
                     int nameCode = getTargetNamePool().allocate(parts[0], uri, parts[1]);
                     XSLCharacterMap ref =
                             principal.getCharacterMap(nameCode & 0xfffff);
@@ -146,8 +151,6 @@ public class XSLCharacterMap extends StyleElement {
                     }
                 } catch (QNameException err) {
                     compileError("Invalid character-map name. " + err.getMessage(), "XT1590");
-                } catch (NamespaceException err) {
-                    compileError(err.getMessage(), "XT0280");
                 }
             }
 

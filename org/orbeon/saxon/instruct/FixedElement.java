@@ -9,9 +9,9 @@ import org.orbeon.saxon.pattern.NameTest;
 import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.trace.InstructionInfo;
 import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -65,7 +65,7 @@ public class FixedElement extends ElementCreator {
      * as a different expression). The default implementation does nothing.
      *
      * @return the simplified expression
-     * @throws org.orbeon.saxon.xpath.XPathException
+     * @throws org.orbeon.saxon.trans.XPathException
      *          if an error is discovered during expression rewriting
      */
 
@@ -81,7 +81,7 @@ public class FixedElement extends ElementCreator {
                     err.setLocator(this);
                     throw err;
                 }
-                schemaType = decl.getValidType();
+                schemaType = decl.getType();
                 itemType = new CombinedNodeTest(
                         new NameTest(Type.ELEMENT, nameCode, env.getNamePool()),
                         Token.INTERSECT,
@@ -99,7 +99,7 @@ public class FixedElement extends ElementCreator {
                                 BuiltInSchemaFactory.getSchemaType(StandardNames.XDT_UNTYPED),
                                 env.getConfiguration()));
                 } else {
-                    schemaType = decl.getValidType();
+                    schemaType = decl.getType();
                     itemType = new CombinedNodeTest(
                             new NameTest(Type.ELEMENT, nameCode, env.getNamePool()),
                             Token.INTERSECT,
@@ -140,7 +140,7 @@ public class FixedElement extends ElementCreator {
      * @return the original expression, rewritten to perform necessary
      *         run-time type checks, and to perform other type-related
      *         optimizations
-     * @throws org.orbeon.saxon.xpath.XPathException
+     * @throws org.orbeon.saxon.trans.XPathException
      *          if an error is discovered during this phase
      *          (typically a type error)
      */

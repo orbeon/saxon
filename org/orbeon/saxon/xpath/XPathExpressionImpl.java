@@ -10,10 +10,8 @@ import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.NodeTest;
 import org.orbeon.saxon.sort.FixedSortKeyDefinition;
 import org.orbeon.saxon.sort.SortedIterator;
-import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.value.DoubleValue;
-import org.orbeon.saxon.value.NumericValue;
-import org.orbeon.saxon.value.SequenceExtent;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.value.*;
 import org.xml.sax.InputSource;
 
 import javax.xml.namespace.QName;
@@ -103,7 +101,7 @@ public class XPathExpressionImpl implements XPathExpression {
         context.openStackFrame(stackFrameMap);
         SequenceIterator iter = expression.iterate(context);
         SequenceExtent extent = new SequenceExtent(iter);
-        return (List)extent.convertToJava(Object.class, config, context);
+        return (List)extent.convertToJava(Object.class, context);
     }
 
     /**
@@ -125,7 +123,7 @@ public class XPathExpressionImpl implements XPathExpression {
         if (item == null) {
             return null;
         } else {
-            return XPathEvaluator.convert(item);
+            return Value.convert(item);
         }
     }
 
@@ -249,7 +247,7 @@ public class XPathExpressionImpl implements XPathExpression {
             } else if (qName.equals(XPathConstants.NODESET)) {
                 SequenceIterator iter = expression.iterate(context);
                 SequenceExtent extent = new SequenceExtent(iter);
-                return extent.convertToJava(Object.class, config, context);
+                return extent.convertToJava(List.class, context);
             } else {
                 throw new IllegalArgumentException("Unknown type for expected result");
             }

@@ -93,14 +93,6 @@ public class NodeKindTest extends NodeTest {
     }
 
     /**
-     * Indicate whether this NodeTest is capable of matching text nodes
-     */
-
-    public boolean allowsTextNodes() {
-        return kind == Type.TEXT;
-    }
-
-    /**
      * Get a mask indicating which kinds of nodes this NodeTest can match. This is a combination
      * of bits: 1<<Type.ELEMENT for element nodes, 1<<Type.TEXT for text nodes, and so on.
      */

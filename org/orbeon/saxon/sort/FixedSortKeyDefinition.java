@@ -4,10 +4,10 @@ import org.orbeon.saxon.expr.CardinalityChecker;
 import org.orbeon.saxon.expr.RoleLocator;
 import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.text.Collator;
 import java.util.Comparator;
@@ -22,6 +22,8 @@ import java.util.Locale;
 
 
 public class FixedSortKeyDefinition extends SortKeyDefinition {
+
+    public FixedSortKeyDefinition() {}
 
     private transient Comparator comparer = null;
     // Note, the "collation" defines the collating sequence for the sort key. The

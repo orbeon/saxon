@@ -39,6 +39,7 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
         Node p = node;
         while (p != null) {
             if (p == docWrapper.node) {
+                // TODO: use isSameNode() (DOM level 3) when we can rely on it being available
                 return makeWrapper(node, this);
             }
             p = p.getParentNode();

@@ -5,9 +5,9 @@ import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 
 public class SystemProperty extends SystemFunction implements XSLTFunction {
@@ -31,7 +31,7 @@ public class SystemProperty extends SystemFunction implements XSLTFunction {
     */
 
     public Expression preEvaluate(StaticContext env) throws XPathException {
-        String name = ((StringValue)argument[0]).getStringValue();
+        CharSequence name = ((StringValue)argument[0]).getStringValueCS();
 
         try {
             String[] parts = Name.getQNameParts(name);
@@ -56,7 +56,7 @@ public class SystemProperty extends SystemFunction implements XSLTFunction {
 
     public Item evaluateItem(XPathContext context) throws XPathException {
 
-        String name = argument[0].evaluateItem(context).getStringValue();
+        CharSequence name = argument[0].evaluateItem(context).getStringValueCS();
 
         try {
             String[] parts = Name.getQNameParts(name);

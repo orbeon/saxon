@@ -4,8 +4,8 @@ import org.orbeon.saxon.Loader;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.AttributeCollection;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.text.Collator;
@@ -65,10 +65,6 @@ public class SaxonCollation extends StyleElement {
         if (nameAtt!=null) {
             collationName = nameAtt.trim();
         }
-
-        // TODO: not all attributes are supported yet...
-
-        // TODO: code has been copied into CollationFactory, could call the methods there
 
         if (classAtt!=null) {
             if (rulesAtt != null || langAtt != null || strengthAtt != null || decompositionAtt != null) {

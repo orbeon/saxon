@@ -56,73 +56,74 @@ public class XSLPreserveSpace extends StyleElement {
             pat.setSystemId(getSystemId());
             pat.setLineNumber(getLineNumber());
             NodeTest nt;
-            try {
-                if (s.equals("*")) {
-                    nt = AnyNodeTest.getInstance();
-                    pat.setNodeTest(nt);
-                    stripperRules.addRule(
-                                pat,
-                                preserve,
-                                getPrecedence(),
-                                -0.5);
+            if (s.equals("*")) {
+                nt = AnyNodeTest.getInstance();
+                pat.setNodeTest(nt);
+                stripperRules.addRule(
+                            pat,
+                            preserve,
+                            getPrecedence(),
+                            -0.5);
 
-                } else if (s.endsWith(":*")) {
-                    if (s.length()==2) {
-                        compileError("No prefix before ':*'");
-                    }
-                    String prefix = s.substring(0, s.length()-2);
-                    String uri = getURIForPrefix(prefix, false);
-                    nt = new NamespaceTest(
-                    			        getTargetNamePool(),
-    	                				Type.ELEMENT,
-    	                				uri);
-                    pat.setNodeTest(nt);
-                    stripperRules.addRule(
-                    			pat,
-                    			preserve,
-                    			getPrecedence(),
-                    			-0.25);
-                } else if (s.startsWith("*:")) {
-                    if (s.length()==2) {
-                        compileError("No local name after '*:'");
-                    }
-                    String localname = s.substring(2);
-                    nt = new LocalNameTest(
-                    			        getTargetNamePool(),
-    	                				Type.ELEMENT,
-    	                				localname);
-                    pat.setNodeTest(nt);
-                    stripperRules.addRule(
-                    			pat,
-                    			preserve,
-                    			getPrecedence(),
-                    			-0.25);
-                } else {
-                    String prefix;
-                    String localName = null;
-                    String uri = null;
-                    try {
-                        String[] parts = Name.getQNameParts(s);
-                        prefix = parts[0];
-                        uri = getURIForPrefix(prefix, false);
-                        localName = parts[1];
-                    } catch (QNameException err) {
-                        compileError("Element name " + s + " is not a valid QName");
-                    }
-                    NamePool target = getTargetNamePool();
-                    int nameCode = target.allocate("", uri, localName);
-                    nt = new NameTest(Type.ELEMENT, nameCode, getNamePool());
-                    pat.setNodeTest(nt);
-                	stripperRules.addRule(
-                				pat,
-                				preserve,
-                				getPrecedence(),
-                				0);
+            } else if (s.endsWith(":*")) {
+                if (s.length()==2) {
+                    compileError("No prefix before ':*'");
                 }
-
-            } catch (NamespaceException err) {
-                compileError(err.getMessage(), "XT0280");
+                String prefix = s.substring(0, s.length()-2);
+                String uri = getURIForPrefix(prefix, false);
+                nt = new NamespaceTest(
+                                    getTargetNamePool(),
+                                    Type.ELEMENT,
+                                    uri);
+                pat.setNodeTest(nt);
+                stripperRules.addRule(
+                            pat,
+                            preserve,
+                            getPrecedence(),
+                            -0.25);
+            } else if (s.startsWith("*:")) {
+                if (s.length()==2) {
+                    compileError("No local name after '*:'");
+                }
+                String localname = s.substring(2);
+                nt = new LocalNameTest(
+                                    getTargetNamePool(),
+                                    Type.ELEMENT,
+                                    localname);
+                pat.setNodeTest(nt);
+                stripperRules.addRule(
+                            pat,
+                            preserve,
+                            getPrecedence(),
+                            -0.25);
+            } else {
+                String prefix;
+                String localName = null;
+                String uri = null;
+                try {
+                    String[] parts = Name.getQNameParts(s);
+                    prefix = parts[0];
+                    uri = getURIForPrefix(prefix, false);
+                    if (uri == null) {
+                        undeclaredNamespaceError(prefix, "XT0280");
+                        return null;
+                    }
+                    localName = parts[1];
+                } catch (QNameException err) {
+                    compileError("Element name " + s + " is not a valid QName");
+                    return null;
+                }
+                NamePool target = getTargetNamePool();
+                int nameCode = target.allocate("", uri, localName);
+                nt = new NameTest(Type.ELEMENT, nameCode, getNamePool());
+                pat.setNodeTest(nt);
+                stripperRules.addRule(
+                            pat,
+                            preserve,
+                            getPrecedence(),
+                            0);
             }
+
         }
         return null;
     }

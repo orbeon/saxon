@@ -6,15 +6,12 @@ import org.orbeon.saxon.expr.TypeChecker;
 import org.orbeon.saxon.functions.Matches;
 import org.orbeon.saxon.instruct.AnalyzeString;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.om.AttributeCollection;
-import org.orbeon.saxon.om.Axis;
-import org.orbeon.saxon.om.AxisIterator;
-import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.RegexTranslator;
 import org.orbeon.saxon.value.SequenceType;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.regex.Pattern;
@@ -102,13 +99,13 @@ public class XSLAnalyzeString extends StyleElement {
         if (regex instanceof StringValue && flags instanceof StringValue) {
             int jflags = 0;
             try {
-                jflags = Matches.setFlags(((StringValue)flags).getStringValue());
+                jflags = Matches.setFlags(((StringValue)flags).getStringValueCS());
             } catch (XPathException err) {
                 compileError("Invalid value of flags attribute: " + err, "XT1145");
             }
             try {
                 String javaRegex = RegexTranslator.translate(
-                        ((StringValue)regex).getStringValue(), true);
+                        ((StringValue)regex).getStringValueCS(), true);
                 pattern = Pattern.compile(javaRegex, jflags);
                 if (pattern.matcher("").matches()) {
                     compileError("The regular expression must not be one that matches a zero-length string", "XT1150");
@@ -131,7 +128,9 @@ public class XSLAnalyzeString extends StyleElement {
             if (curr == null) {
                 break;
             }
-            if (curr instanceof XSLMatchingSubstring) {
+            if (curr instanceof XSLFallback) {
+                // no-op
+            } else if (curr instanceof XSLMatchingSubstring) {
                 boolean b = curr.getLocalPart().equals("matching-substring");
                 if (b) {
                     if (matching!=null) {

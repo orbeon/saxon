@@ -4,9 +4,9 @@ import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.sort.GlobalOrderComparer;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.SingletonNode;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * This class implements extension functions in the

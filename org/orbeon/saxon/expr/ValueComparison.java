@@ -3,13 +3,13 @@ import org.orbeon.saxon.functions.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.sort.AtomicComparer;
 import org.orbeon.saxon.sort.CodepointCollator;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AtomicType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.*;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.Comparator;
 
@@ -76,15 +76,15 @@ public final class ValueComparison extends BinaryExpression {
                 // This is a comparison such as (xs:integer? eq xs:date?). This is almost
                 // certainly an error, but we need to let it through because it will work if
                 // one of the operands is an empty sequence.
-                try {
-                    String which = null;
-                    if (opt0) which = "the first operand is";
-                    if (opt1) which = "the second operand is";
-                    if (opt0 && opt1) which = "one or both operands are";
-                    env.issueWarning(
-                            "Comparison of " + t1.toString(env.getNamePool()) + (opt0?"?":"") + " to " + t2.toString(env.getNamePool()) +
-                            (opt1?"?":"") + " will fail unless " + which + " empty", this);
-                } catch (Exception err) {}
+
+                String which = null;
+                if (opt0) which = "the first operand is";
+                if (opt1) which = "the second operand is";
+                if (opt0 && opt1) which = "one or both operands are";
+                env.issueWarning(
+                        "Comparison of " + t1.toString(env.getNamePool()) + (opt0?"?":"") + " to " + t2.toString(env.getNamePool()) +
+                        (opt1?"?":"") + " will fail unless " + which + " empty", this);
+
             } else {
                 StaticError err =
                     new StaticError("Cannot compare " + t1.toString(env.getNamePool()) +
@@ -98,12 +98,14 @@ public final class ValueComparison extends BinaryExpression {
             if (!Type.isOrdered(p1)) {
                 StaticError err = new StaticError(
                         "Type " + t1.toString(env.getNamePool()) + " is not an ordered type");
+                err.setErrorCode("XP0004");
                 err.setIsTypeError(true);
                 throw err;
             }
             if (!Type.isOrdered(p2)) {
                 StaticError err = new StaticError(
                         "Type " + t2.toString(env.getNamePool()) + " is not an ordered type");
+                err.setErrorCode("XP0004");
                 err.setIsTypeError(true);
                 throw err;
             }
@@ -162,7 +164,7 @@ public final class ValueComparison extends BinaryExpression {
 
         if (Aggregate.isCountFunction(operand1) && isZero(operand0)) {
         	Expression s =
-        	    new ValueComparison(operand1, Value.inverse(operator), operand0).analyze(env, contextItemType);
+        	    new ValueComparison(operand1, Token.inverse(operator), operand0).analyze(env, contextItemType);
 			//((ValueComparison)s).defaultCollation = defaultCollation;
 			return s;
         }
@@ -310,7 +312,7 @@ public final class ValueComparison extends BinaryExpression {
                 return ((BigIntegerValue)exp).compareTo(BigIntegerValue.ZERO) == 0;
             }
 
-            Value val = ((AtomicValue)exp).convert(Type.INTEGER, null);
+            Value val = ((AtomicValue)exp).convert(Type.INTEGER);
             return isZero(val);
         } catch (XPathException err) {
             return false;
@@ -328,12 +330,12 @@ public final class ValueComparison extends BinaryExpression {
             AtomicValue v1 = (AtomicValue)operand0.evaluateItem(context);
             if (v1==null) return false;
             if (v1 instanceof UntypedAtomicValue) {
-                v1 = v1.convert(Type.STRING, context);
+                v1 = v1.convert(Type.STRING);
             }
             AtomicValue v2 = (AtomicValue)operand1.evaluateItem(context);
             if (v2==null) return false;
             if (v2 instanceof UntypedAtomicValue) {
-                v2 = v2.convert(Type.STRING, context);
+                v2 = v2.convert(Type.STRING);
             }
             return compare(v1, operator, v2, comparer);
         } catch (DynamicError e) {
@@ -355,7 +357,7 @@ public final class ValueComparison extends BinaryExpression {
      * {@link Token#FLT}
      * @param v2 the second operand
      * @param collator the Collator to be used when comparing strings
-    * @throws org.orbeon.saxon.xpath.DynamicError if the values are not comparable
+    * @throws org.orbeon.saxon.trans.DynamicError if the values are not comparable
     */
 
     static boolean compare(AtomicValue v1, int op, AtomicValue v2,
@@ -387,6 +389,7 @@ public final class ValueComparison extends BinaryExpression {
         } catch (ClassCastException err) {
             DynamicError e2 = new DynamicError (
                 "Cannot compare " + v1.getItemType() + " to " + v2.getItemType());
+            e2.setErrorCode("XP0006");
             e2.setIsTypeError(true);
             throw e2;
         }
@@ -404,12 +407,12 @@ public final class ValueComparison extends BinaryExpression {
             AtomicValue v1 = (AtomicValue)operand0.evaluateItem(context);
             if (v1==null) return null;
             if (v1 instanceof UntypedAtomicValue) {
-                v1 = v1.convert(Type.STRING, context);
+                v1 = v1.convert(Type.STRING);
             }
             AtomicValue v2 = (AtomicValue)operand1.evaluateItem(context);
             if (v2==null) return null;
             if (v2 instanceof UntypedAtomicValue) {
-                v2 = v2.convert(Type.STRING, context);
+                v2 = v2.convert(Type.STRING);
             }
             return BooleanValue.get(compare(v1, operator, v2, comparer));
         } catch (DynamicError e) {

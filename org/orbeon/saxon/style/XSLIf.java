@@ -5,9 +5,9 @@ import org.orbeon.saxon.instruct.Choose;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 

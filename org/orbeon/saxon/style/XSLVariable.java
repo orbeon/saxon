@@ -64,7 +64,7 @@ public class XSLVariable extends XSLVariableDeclaration {
             } else {
                 try {
                     // try to infer the type from the select expression
-                    return new SequenceType(select.getItemType(), select.getCardinality());
+                    return SequenceType.makeSequenceType(select.getItemType(), select.getCardinality());
                 } catch (Exception err) {
                     // this may fail because the select expression references a variable or function
                     // whose type is not yet known, because of forwards (perhaps recursive) references.
@@ -72,7 +72,7 @@ public class XSLVariable extends XSLVariableDeclaration {
                 }
             }
         } else if (hasChildNodes()) {
-            return new SequenceType(NodeKindTest.DOCUMENT, StaticProperty.EXACTLY_ONE);
+            return SequenceType.makeSequenceType(NodeKindTest.DOCUMENT, StaticProperty.EXACTLY_ONE);
         } else {
             // no select attribute or content: value is an empty string
             return SequenceType.SINGLE_STRING;

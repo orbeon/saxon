@@ -3,8 +3,8 @@ package org.orbeon.saxon.exslt;
 import org.orbeon.saxon.om.AxisIteratorImpl;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.DoubleValue;
-import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * This class implements extension functions in the

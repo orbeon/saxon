@@ -2,6 +2,7 @@ package org.orbeon.saxon.xpath;
 
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.functions.FunctionLibrary;
+import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.namespace.QName;
 import javax.xml.xpath.XPathFunction;

@@ -3,10 +3,12 @@ import org.orbeon.saxon.expr.Binding;
 import org.orbeon.saxon.expr.BindingReference;
 import org.orbeon.saxon.expr.VariableDeclaration;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.QNameValue;
 import org.orbeon.saxon.value.SequenceType;
 import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.om.ValueRepresentation;
 
 import javax.xml.namespace.QName;
 import javax.xml.xpath.XPathVariableResolver;
@@ -35,27 +37,26 @@ import javax.xml.xpath.XPathVariableResolver;
 
 public final class JAXPVariable implements VariableDeclaration, Binding {
 
-    private QName name;
+    private QNameValue name;
     private XPathVariableResolver resolver;
 
     /**
     * Private constructor: for use only be the protected factory method make()
     */
 
-    public JAXPVariable(QName name, XPathVariableResolver resolver) {
+    public JAXPVariable(QNameValue name, XPathVariableResolver resolver) {
         this.name = name;
         this.resolver = resolver;
     };
 
     /**
-     * Get the SequenceType of the variable. Free-standing XPath variables allow values of
-     * any type.
-     * @return the required type: always item()*
+     * Indicate whether the binding is local or global. A global binding is one that has a fixed
+     * value for the life of a query or transformation; any other binding is local.
      */
 
-//    public SequenceType getRequiredType() {
-//        return SequenceType.ANY_SEQUENCE;
-//    }
+    public boolean isGlobal() {
+        return true;
+    }
 
     /**
      * Get the name of the variable. Used for diagnostic purposes only.
@@ -63,7 +64,7 @@ public final class JAXPVariable implements VariableDeclaration, Binding {
      */
 
     public String getVariableName() {
-        return new QNameValue(name).getStringValue();
+        return name.getStringValue();
     }
 
     /**
@@ -93,12 +94,17 @@ public final class JAXPVariable implements VariableDeclaration, Binding {
      * @return           The value of the variable
      */
 
-    public Value evaluateVariable(XPathContext context) throws XPathException {
-        Object value = resolver.resolveVariable(name);
+    public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException {
+        Object value = resolver.resolveVariable((QName)name.makeQName());
         if (value == null) {
             return EmptySequence.getInstance();
         }
-        return Value.convertJavaObjectToXPath(value, SequenceType.ANY_SEQUENCE, context);
+        return Value.convertJavaObjectToXPath(
+                value, SequenceType.ANY_SEQUENCE, context.getController().getConfiguration());
+    }
+
+    QName makeQName(QNameValue in) {
+        return new QName(in.getNamespaceURI(), in.getLocalName(), in.getPrefix());
     }
 }
 

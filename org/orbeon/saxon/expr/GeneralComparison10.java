@@ -4,17 +4,17 @@ import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.sort.AtomicComparer;
 import org.orbeon.saxon.sort.CodepointCollator;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AtomicType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.*;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
 
-import java.util.Comparator;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 
 /**
  * GeneralComparison10: a boolean expression that compares two expressions
@@ -95,6 +95,17 @@ public class GeneralComparison10 extends BinaryExpression {
             maybeBoolean1 = false;
         }
 
+        if (!maybeBoolean0 && !maybeBoolean1) {
+            boolean maybeNumeric0 = Type.relationship(type0, Type.NUMBER_TYPE) != Type.DISJOINT;
+            boolean maybeNumeric1 = Type.relationship(type1, Type.NUMBER_TYPE) != Type.DISJOINT;
+
+            // Use the 2.0 path if we don't have to deal with the possibility of boolean values,
+            // or the complications of converting values to numbers
+            if (!maybeNumeric0 && !maybeNumeric1) {
+                return new GeneralComparison(operand0, operator, operand1).analyze(env, contextItemType);
+            }
+        }
+
         return this;
     }
 
@@ -167,11 +178,11 @@ public class GeneralComparison10 extends BinaryExpression {
         }
 
         if (atomize0) {
-            iter0 = new MappingIterator(iter0, Atomizer.AtomizingFunction.getInstance(), null, null);
+            iter0 = Atomizer.AtomizingFunction.getAtomizingIterator(iter0);
         }
 
         if (atomize1) {
-            iter1 = new MappingIterator(iter1, Atomizer.AtomizingFunction.getInstance(), null, null);
+            iter1 = Atomizer.AtomizingFunction.getAtomizingIterator(iter1);
         }
 
         // If the operator is one of <, >, <=, >=, then convert both operands to sequences of xs:double
@@ -259,8 +270,8 @@ public class GeneralComparison10 extends BinaryExpression {
 
         if (t0 == Type.STRING_TYPE || t1 == Type.STRING_TYPE ||
                 (t0 == Type.UNTYPED_ATOMIC_TYPE && t1 == Type.UNTYPED_ATOMIC_TYPE)) {
-            StringValue s0 = (StringValue)a0.convert(Type.STRING, context);
-            StringValue s1 = (StringValue)a1.convert(Type.STRING, context);
+            StringValue s0 = (StringValue)a0.convert(Type.STRING);
+            StringValue s1 = (StringValue)a1.convert(Type.STRING);
             return ValueComparison.compare(s0, operator, s1, comparer);
         }
 
@@ -268,11 +279,17 @@ public class GeneralComparison10 extends BinaryExpression {
         // convert it to the type of the other operand, and compare
 
         if (t0 == Type.UNTYPED_ATOMIC_TYPE) {
-            a0 = a0.convert(t1, context);
+            a0 = a0.convert(t1, context, true);
+            if (a0 instanceof ErrorValue) {
+                throw ((ErrorValue)a0).getException();
+            }
         }
 
         if (t1 == Type.UNTYPED_ATOMIC_TYPE) {
-            a1 = a1.convert(t0, context);
+            a1 = a1.convert(t0, context, true);
+            if (a1 instanceof ErrorValue) {
+                throw ((ErrorValue)a1).getException();
+            }
         }
 
         return ValueComparison.compare(a0, operator, a1, comparer);

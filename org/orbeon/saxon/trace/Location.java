@@ -70,7 +70,8 @@ public class Location {
     public static final int FOR_EXPRESSION = 2012;
 
     /**
-     * An XQuery "let" clause. Usage: Q
+     * An XQuery "let" clause, or an XSLT local variable (which compiles into a LET clause).
+     * Usage: Q,T
      */
 
     public static final int LET_EXPRESSION = 2013;
@@ -209,6 +210,8 @@ public class Location {
      */
     public static final int UNCLASSIFIED = 2099;
 
+    private Location() {
+    }
 }
 
 

@@ -1,13 +1,9 @@
 package org.orbeon.saxon.value;
 
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.FastStringBuffer;
 import org.orbeon.saxon.om.XMLChar;
-import org.orbeon.saxon.type.AtomicType;
-import org.orbeon.saxon.type.BuiltInSchemaFactory;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.type.*;
 
 
 /**
@@ -21,35 +17,50 @@ public final class RestrictedStringValue extends StringValue {
     private int type;
 
     /**
-     * Constructor
+     * Factory method to create a restricted string value from a string
      * @param value the String value. Null is taken as equivalent to "".
+     * @param validate true if validation is required, false if the caller already knows that the value is valid
+     * @return either the required RestrictedStringValue if the value is valid, or an ErrorValue encapsulating
+     * the error message if not.
      */
 
-    public RestrictedStringValue(CharSequence value, int type) throws XPathException {
-        this.type = type;
+    public static AtomicValue makeRestrictedString(CharSequence value, int type, boolean validate) {
+        RestrictedStringValue rsv = new RestrictedStringValue();
+        rsv.type = type;
         if (value == null) {
-            this.value = "";
+            rsv.value = "";
         } else if (type == Type.NORMALIZED_STRING) {
-            this.value = normalizeWhitespace(value);
+            rsv.value = normalizeWhitespace(value);
         } else if (type == Type.TOKEN) {
-            this.value = collapseWhitespace(value);
+            rsv.value = collapseWhitespace(value);
         } else {
-            this.value = trimWhitespace(value);
-            validate();
+            rsv.value = trimWhitespace(value);
+            if (validate) {
+                ValidationException err = rsv.validate();
+                if (err == null) {
+                    return rsv;
+                } else {
+                    return new ErrorValue(err);
+                }
+            } else {
+                return rsv;
+            }
         }
+        return rsv;
     }
 
     /**
      * Validate that the string conforms to the rules for its type
+     * @return null if the value is OK, otherwise a DynamicError containing details of the failure
      */
 
-    private void validate() throws XPathException {
+    private ValidationException validate() {
         switch (type) {
 
             case Type.TOKEN:
-                return;
+                return null;
             case Type.NORMALIZED_STRING:
-                return;
+                return null;
             case Type.LANGUAGE:
                 String regex =
                         "(([a-z]|[A-Z])([a-z]|[A-Z])|" // ISO639Code
@@ -57,43 +68,43 @@ public final class RestrictedStringValue extends StringValue {
                         + "([xX]-([a-z]|[A-Z])+))"     // UserCode
                         + "(-([a-z]|[A-Z])+)*";        // Subcode
                 if (!java.util.regex.Pattern.matches(regex, value.toString())) {
-                    DynamicError err = new DynamicError("The value '" + value + "' is not a valid xs:language");
+                    ValidationException err = new ValidationException("The value '" + value + "' is not a valid xs:language");
                     err.setErrorCode("FORG0001");
-                    throw err;
+                    return err;
                 }
-                return;
+                return null;
             case Type.NAME:
                 // replace any colons by underscores and then test if it's a valid NCName
-                StringBuffer buff = new StringBuffer(value.length());
-                buff.append(value.toString());      // TODO: JDK 1.5 allows append(value)
+                FastStringBuffer buff = new FastStringBuffer(value.length());
+                buff.append(value.toString());
                 for (int i = 0; i < buff.length(); i++) {
                     if (buff.charAt(i) == ':') {
                         buff.setCharAt(i, '_');
                     }
                 }
                 if (!XMLChar.isValidNCName(buff.toString())) {
-                    DynamicError err = new DynamicError("The value '" + value + "' is not a valid Name");
+                    ValidationException err = new ValidationException("The value '" + value + "' is not a valid Name");
                     err.setErrorCode("FORG0001");
-                    throw err;
+                    return err;
                 }
-                return;
+                return null;
             case Type.NCNAME:
             case Type.ID:
             case Type.IDREF:
             case Type.ENTITY:
                 if (!XMLChar.isValidNCName(value.toString())) {
-                    DynamicError err = new DynamicError("The value '" + value + "' is not a valid NCName");
+                    ValidationException err = new ValidationException("The value '" + value + "' is not a valid NCName");
                     err.setErrorCode("FORG0001");
-                    throw err;
+                    return err;
                 }
-                return;
+                return null;
             case Type.NMTOKEN:
                 if (!XMLChar.isValidNmtoken(value.toString())) {
-                    DynamicError err = new DynamicError("The value '" + value + "' is not a valid NMTOKEN");
+                    ValidationException err = new ValidationException("The value '" + value + "' is not a valid NMTOKEN");
                     err.setErrorCode("FORG0001");
-                    throw err;
+                    return err;
                 }
-                return;
+                return null;
             default:
                 throw new IllegalArgumentException("Unknown string value type " + type);
         }
@@ -111,22 +122,22 @@ public final class RestrictedStringValue extends StringValue {
     /**
      * Convert to target data type
      * @param requiredType an integer identifying the required atomic type
-     * @return an AtomicValue, a value of the required type
-     * @throws XPathException if the conversion is not possible
+     * @return an AtomicValue, a value of the required type; or an ErrorValue
      */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
-        if (requiredType == Type.STRING) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+        int req = requiredType.getPrimitiveType();
+        if (req == Type.STRING) {
             return new StringValue(value);
-        } else if (requiredType == Type.UNTYPED_ATOMIC) {
+        } else if (req == Type.UNTYPED_ATOMIC) {
             return new UntypedAtomicValue(value);
         } else {
-            return super.convert(requiredType, context);
+            return super.convertPrimitive(requiredType, validate);
         }
     }
 
     public String toString() {
-        return getItemType().toString() + "(" + super.toString() + ")";
+        return getItemType().toString() + '(' + super.toString() + ')';
     }
 
 

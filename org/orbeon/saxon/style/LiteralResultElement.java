@@ -1,23 +1,18 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.PreparedStylesheet;
-import org.orbeon.saxon.expr.AppendExpression;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.expr.Token;
-import org.orbeon.saxon.instruct.AttributeSet;
-import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.instruct.FixedAttribute;
-import org.orbeon.saxon.instruct.FixedElement;
+import org.orbeon.saxon.instruct.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.tree.DocumentImpl;
 import org.orbeon.saxon.tree.TreeBuilder;
 import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
@@ -42,7 +37,6 @@ public class LiteralResultElement extends StyleElement {
     private SchemaType schemaType = null;
     private int validation = Validation.STRIP;
     private boolean inheritNamespaces = true;
-    private static final int[] INT_0 = new int[0];
 
     /**
     * Determine whether this type of element is allowed to contain a template-body
@@ -50,6 +44,14 @@ public class LiteralResultElement extends StyleElement {
     */
 
     public boolean mayContainSequenceConstructor() {
+        return true;
+    }
+
+    /**
+     * Specify that this is an instruction
+     */
+
+    public boolean isInstruction() {
         return true;
     }
 
@@ -125,7 +127,7 @@ public class LiteralResultElement extends StyleElement {
                     attributeChecked[numberOfAttributes] = false;
                     boolean special = false;
                     if (exp instanceof StringValue) {
-                        String val = ((StringValue)exp).getStringValue();
+                        CharSequence val = ((StringValue)exp).getStringValueCS();
                         for (int k=0; k<val.length(); k++) {
                             char c = val.charAt(k);
                             if ((int)c<33 || (int)c>126 ||
@@ -166,7 +168,7 @@ public class LiteralResultElement extends StyleElement {
 
     public void validate() throws TransformerConfigurationException {
 
-        toplevel = (getParentNode() instanceof XSLStylesheet);
+        toplevel = (getParent() instanceof XSLStylesheet);
 
         resultNameCode = getNameCode();
 
@@ -216,9 +218,9 @@ public class LiteralResultElement extends StyleElement {
             }
 
             if (optimizeNS) {
-            	namespaceCodes = INT_0;
+            	namespaceCodes = NodeInfo.EMPTY_NAMESPACE_LIST;
             } else {
-                namespaceCodes = getNamespaceCodes();
+                namespaceCodes = getInScopeNamespaceCodes();
 	        }
 
             // apply any aliases required to create the list of output namespaces
@@ -411,7 +413,8 @@ public class LiteralResultElement extends StyleElement {
                 if (firstChild == null) {
                     firstChild = att;
                 } else {
-                    firstChild = new AppendExpression(att, Token.COMMA, firstChild);
+                    //firstChild = new AppendExpression(att, Token.COMMA, firstChild);
+                    firstChild = Block.makeBlock(att, firstChild);
                 }
             }
         }

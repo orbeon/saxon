@@ -11,7 +11,7 @@ import org.orbeon.saxon.value.Whitespace;
  * This class has a singleton instance which represents the XML Schema built-in type xs:anySimpleType
  */
 
-public final class AnySimpleType implements SimpleType, ValidSchemaType {
+public final class AnySimpleType implements SimpleType {
 
     private static AnySimpleType theInstance = new AnySimpleType();
 
@@ -66,15 +66,6 @@ public final class AnySimpleType implements SimpleType, ValidSchemaType {
     }
 
     /**
-     * Test whether this ComplexType has been marked as abstract.
-     * @return false: this class is not abstract.
-     */
-
-//    public boolean isAbstract() {
-//        return false;
-//    }
-
-    /**
      * Test whether this SchemaType is a complex type
      *
      * @return true if this SchemaType is a complex type
@@ -99,6 +90,16 @@ public final class AnySimpleType implements SimpleType, ValidSchemaType {
      */
 
     public int getFingerprint() {
+        return StandardNames.XS_ANY_SIMPLE_TYPE;
+    }
+
+    /**
+     * Get the namecode of the name of this type. This includes the prefix from the original
+     * type declaration: in the case of built-in types, there may be a conventional prefix
+     * or there may be no prefix.
+     */
+
+    public int getNameCode() {
         return StandardNames.XS_ANY_SIMPLE_TYPE;
     }
 
@@ -152,7 +153,7 @@ public final class AnySimpleType implements SimpleType, ValidSchemaType {
      *          if the derivation is not allowed
      */
 
-    public void checkDerivation(SchemaType type, int block) throws SchemaException {
+    public void isTypeDerivationOK(SchemaType type, int block) throws SchemaException {
         throw new SchemaException("Cannot derive xs:anySimpleType from another type");
     }
 
@@ -198,16 +199,16 @@ public final class AnySimpleType implements SimpleType, ValidSchemaType {
 
     /**
      * Check whether a given input string is valid according to this SimpleType
-     *
-     * @param value      the input string to be checked
+     * @param value the input string to be checked
      * @param nsResolver a namespace resolver used to resolve namespace prefixes if the type
-     *                   is namespace sensitive. The value supplied may be null; in this case any namespace-sensitive
-     *                   content will throw an UnsupportedOperationException.
-     *                                       if the content is invalid
+     * is namespace sensitive. The value supplied may be null; in this case any namespace-sensitive
+     * content will throw an UnsupportedOperationException.
+     * @return null if validation succeeds (which it always does for this implementation)
+     * @throws UnsupportedOperationException if the type is namespace-sensitive and no namespace
+     * resolver is supplied
      */
-
-    public void validateContent(CharSequence value, NamespaceResolver nsResolver) {
-        return;
+    public ValidationException validateContent(CharSequence value, NamespaceResolver nsResolver) {
+        return null;
     }
 
     /**
@@ -220,7 +221,7 @@ public final class AnySimpleType implements SimpleType, ValidSchemaType {
 
     /**
      * Returns the value of the 'block' attribute for this type, as a bit-signnificant
-     * integer with fields such as {@link org.w3c.dom.TypeInfo#DERIVATION_LIST} and {@link org.w3c.dom.TypeInfo#DERIVATION_EXTENSION}
+     * integer with fields such as {@link SchemaType#DERIVATION_LIST} and {@link SchemaType#DERIVATION_EXTENSION}
      *
      * @return the value of the 'block' attribute for this type
      */
@@ -233,18 +234,18 @@ public final class AnySimpleType implements SimpleType, ValidSchemaType {
      * Gets the integer code of the derivation method used to derive this type from its
      * parent. Returns zero for primitive types.
      *
-     * @return a numeric code representing the derivation method, for example {@link org.w3c.dom.TypeInfo#DERIVATION_RESTRICTION}
+     * @return a numeric code representing the derivation method, for example {@link SchemaType#DERIVATION_RESTRICTION}
      */
 
     public int getDerivationMethod() {
-        return org.w3c.dom.TypeInfo.DERIVATION_RESTRICTION;
+        return SchemaType.DERIVATION_RESTRICTION;
     }
 
     /**
      * Determines whether derivation (of a particular kind)
      * from this type is allowed, based on the "final" property
      *
-     * @param derivation the kind of derivation, for example {@link org.w3c.dom.TypeInfo#DERIVATION_LIST}
+     * @param derivation the kind of derivation, for example {@link SchemaType#DERIVATION_LIST}
      * @return true if this kind of derivation is allowed
      */
 
@@ -264,57 +265,12 @@ public final class AnySimpleType implements SimpleType, ValidSchemaType {
     }
 
     /**
-     * The name of a type declared for the associated element or attribute,
-     * or <code>null</code> if unknown.
-     */
-    public String getTypeName() {
-        return "anySimpleType";
-    }
-
-    /**
-     * The namespace of the type declared for the associated element or
-     * attribute or <code>null</code> if the element does not have
-     * declaration or if no namespace information is available.
-     */
-    public String getTypeNamespace() {
-        return NamespaceConstant.SCHEMA;
-    }
-
-    /**
-     * This method returns if there is a derivation between the reference
-     * type definition, i.e. the <code>TypeInfo</code> on which the method
-     * is being called, and the other type definition, i.e. the one passed
-     * as parameters.
-     *
-     * @param typeNamespaceArg the namespace of the other type definition.
-     * @param typeNameArg      the name of the other type definition.
-     * @param derivationMethod the type of derivation and conditions applied
-     *                         between two types, as described in the list of constants provided
-     *                         in this interface.
-     * @return If the document's schema is a DTD or no schema is associated
-     *         with the document, this method will always return <code>false</code>
-     *         .  If the document's schema is an XML Schema, the method will
-     *         <code>true</code> if the reference type definition is derived from
-     *         the other type definition according to the derivation parameter. If
-     *         the value of the parameter is <code>0</code> (no bit is set to
-     *         <code>1</code> for the <code>derivationMethod</code> parameter),
-     *         the method will return <code>true</code> if the other type
-     *         definition can be reached by recursing any combination of {base
-     *         type definition}, {item type definition}, or {member type
-     *         definitions} from the reference type definition.
-     */
-    public boolean isDerivedFrom(String typeNamespaceArg, String typeNameArg, int derivationMethod) {
-        return (typeNamespaceArg.equals(NamespaceConstant.SCHEMA) &&
-                typeNameArg.equals("anyType"));
-    }
-
-    /**
      * Analyze an expression to see whether the expression is capable of delivering a value of this
      * type.
      *
      * @param expression the expression that delivers the content
-     * @param kind       the node kind whose content is being delivered: {@link org.orbeon.saxon.type.Type.ELEMENT},
-     *                   {@link org.orbeon.saxon.type.Type.ATTRIBUTE}, or {@link org.orbeon.saxon.type.Type.DOCUMENT}
+     * @param kind       the node kind whose content is being delivered: {@link org.orbeon.saxon.type.Type#ELEMENT},
+     *                   {@link org.orbeon.saxon.type.Type#ATTRIBUTE}, or {@link org.orbeon.saxon.type.Type#DOCUMENT}
      * @param env
      */
 

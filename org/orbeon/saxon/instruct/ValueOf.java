@@ -9,12 +9,12 @@ import org.orbeon.saxon.om.Navigator;
 import org.orbeon.saxon.om.Orphan;
 import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -102,7 +102,7 @@ public final class ValueOf extends SimpleNodeConstructor {
       * @param parentType The schema type
       * @param env        the static context
       * @param whole
-      * @throws org.orbeon.saxon.xpath.XPathException
+      * @throws org.orbeon.saxon.trans.XPathException
       *          if the expression doesn't match the required content type
       */
 
@@ -117,11 +117,10 @@ public final class ValueOf extends SimpleNodeConstructor {
              }
              if (whole && stype != null && !stype.isNamespaceSensitive()) {
                         // Can't validate namespace-sensitive content statically
-                 try {
-                     stype.validateContent(((Value)select).getStringValue(), null);
-                 } catch (XPathException e) {
-                     e.setLocator(this);
-                     throw e;
+                 XPathException err = stype.validateContent(((Value)select).getStringValue(), null);
+                 if (err != null) {
+                     err.setLocator(this);
+                     throw err;
                  }
                  return;
              }

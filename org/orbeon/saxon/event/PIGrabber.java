@@ -2,8 +2,8 @@ package org.orbeon.saxon.event;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.StandardURIResolver;
 import org.orbeon.saxon.om.ProcInstParser;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.TransformerException;
@@ -122,7 +122,7 @@ public class PIGrabber extends ProxyReceiver {
     /**
     * Return list of stylesheets that matched, as an array of Source objects
     * @return null if there were no matching stylesheets.
-    * @throws XPathException if a URI cannot be resolved
+    * @throws net.sf.saxon.trans.XPathException if a URI cannot be resolved
     */
 
     public Source[] getAssociatedStylesheets() throws TransformerException {

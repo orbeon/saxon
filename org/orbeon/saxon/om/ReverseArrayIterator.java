@@ -62,18 +62,6 @@ public final class ReverseArrayIterator implements AxisIterator,
     }
 
     /**
-     * Indicate that any nodes returned in the sequence will be atomized. This
-     * means that if it wishes to do so, the implementation can return the typed
-     * values of the nodes rather than the nodes themselves. The implementation
-     * is free to ignore this hint.
-     * @param atomizing true if the caller of this iterator will atomize any
-     * nodes that are returned, and is therefore willing to accept the typed
-     * value of the nodes instead of the nodes themselves.
-     */
-
-    //public void setIsAtomizing(boolean atomizing) {}
-
-    /**
      * Get an iterator that processes the same items in reverse order.
      * Since this iterator is processing the items backwards, this method
      * returns an ArrayIterator that processes them forwards.

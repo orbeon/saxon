@@ -3,7 +3,6 @@ import org.orbeon.saxon.Loader;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.AttributeCollection;
-import org.orbeon.saxon.om.NamespaceException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
@@ -50,11 +49,10 @@ public class SaxonScript extends StyleElement {
             reportAbsence("implements-prefix");
             return;
         }
-        try {
-            short uriCode = getURICodeForPrefix(implementsAtt);
-            implementsURI = getNamePool().getURIFromURICode(uriCode);
-        } catch (NamespaceException err) {
-            compileError(err.getMessage());
+        implementsURI = getURIForPrefix(implementsAtt, false);
+        if (implementsURI == null) {
+            undeclaredNamespaceError(implementsAtt, null);
+            return;
         }
 
         if (languageAtt==null) {

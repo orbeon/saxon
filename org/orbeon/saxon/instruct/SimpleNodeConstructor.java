@@ -1,11 +1,11 @@
 package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Iterator;
@@ -47,6 +47,19 @@ public abstract class SimpleNodeConstructor extends Instruction {
         return this;
         //return super.simplify(env);
     }
+
+    /**
+     * Get the static properties of this expression (other than its type). The result is
+     * bit-signficant. These properties are used for optimizations. In general, if
+     * property bit is set, it is true, but if it is unset, the value is unknown.
+     *
+     * @return a set of flags indicating static properties of this expression
+     */
+
+    public int computeSpecialProperties() {
+        return super.computeSpecialProperties() |
+                StaticProperty.SINGLE_DOCUMENT_NODESET;
+    }    
 
     public abstract void typeCheck(StaticContext env, ItemType contextItemType) throws XPathException;
 
@@ -92,48 +105,9 @@ public abstract class SimpleNodeConstructor extends Instruction {
         if (item==null) {
             return "";
         } else {
-            return item.getStringValue();
+            return item.getStringValueCS();
         }
-
-//        String sep = " ";
-//        if (separator != null) {
-//            sep = separator.evaluateAsString(context);
-//        }
-//
-//        if (select != null) {
-//            if (select instanceof StringValue) {
-//                return ((StringValue)select).getStringValue();
-//            } else {
-//                return flatten(select.iterate(context), sep);
-//            }
-//
-//        } else {
-//            return "";
-//        }
     }
-
-    /**
-     * Flatten the value of the sequence to a character string
-     */
-
-//    private StringBuffer flatten(SequenceIterator content, String separator)
-//    throws XPathException {
-//        StringBuffer buffer = new StringBuffer(80);
-//        boolean first = true;
-//        while(true) {
-//            Item item = content.next();
-//            if (item == null) {
-//                break;
-//            }
-//            if (first) {
-//                first = false;
-//            } else {
-//                buffer.append(separator);
-//            }
-//            buffer.append(item.getStringValue());
-//        }
-//        return buffer;
-//    }
 
     /**
      * Evaluate as an expression. We rely on the fact that when these instructions

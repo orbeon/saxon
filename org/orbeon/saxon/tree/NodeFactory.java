@@ -1,6 +1,6 @@
 package org.orbeon.saxon.tree;
 import org.orbeon.saxon.event.LocationProvider;
-import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.AttributeCollectionImpl;
 import org.orbeon.saxon.om.NodeInfo;
 
 
@@ -30,7 +30,7 @@ public interface NodeFactory {
     public ElementImpl makeElementNode(
             NodeInfo parent,
             int nameCode,
-            AttributeCollection attlist,
+            AttributeCollectionImpl attlist,
             int[] namespaces,
             int namespacesUsed,
             LocationProvider locator,

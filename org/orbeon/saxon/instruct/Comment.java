@@ -7,9 +7,9 @@ import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 
@@ -67,7 +67,7 @@ public final class Comment extends SimpleNodeConstructor {
      * @param comment    the supplied content
      * @param context the dynamic context
      * @return the original content, unless adjustments are needed
-     * @throws org.orbeon.saxon.xpath.DynamicError
+     * @throws org.orbeon.saxon.trans.DynamicError
      *          if the content is invalid
      */
 

@@ -3,14 +3,14 @@ import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.RegexTranslator;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.BooleanValue;
 import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -28,7 +28,7 @@ public class Matches extends SystemFunction {
     * Simplify and validate.
     * This is a pure function so it can be simplified in advance if the arguments are known
     * @return the simplified expression
-    * @throws org.orbeon.saxon.xpath.StaticError if any error is found (e.g. invalid regular expression)
+    * @throws org.orbeon.saxon.trans.StaticError if any error is found (e.g. invalid regular expression)
     */
 
      public Expression simplify(StaticContext env) throws XPathException {
@@ -46,10 +46,10 @@ public class Matches extends SystemFunction {
      * Set the Java flags from the supplied XPath flags.
      * @param inFlags the flags as a string, e.g. "im"
      * @return the flags as a bit-significant integer
-     * @throws org.orbeon.saxon.xpath.StaticError if the supplied value is invalid
+     * @throws org.orbeon.saxon.trans.StaticError if the supplied value is invalid
      */
 
-    public static int setFlags(String inFlags) throws StaticError {
+    public static int setFlags(CharSequence inFlags) throws StaticError {
         int flags = Pattern.UNIX_LINES;
         for (int i=0; i<inFlags.length(); i++) {
             char c = inFlags.charAt(i);
@@ -84,7 +84,7 @@ public class Matches extends SystemFunction {
      * @param flagsArg the position of the argument containing the flags
      * @return the compiled regular expression, or null indicating that the information
      * is not available statically so it cannot be precompiled
-     * @throws org.orbeon.saxon.xpath.StaticError if any failure occurs, in particular, if the regular
+     * @throws org.orbeon.saxon.trans.StaticError if any failure occurs, in particular, if the regular
      * expression is invalid
      */
 
@@ -94,11 +94,11 @@ public class Matches extends SystemFunction {
             // too few arguments were supplied; the error will be reported in due course
             return null;
         }
-        String flagstr = null;
+        CharSequence flagstr = null;
         if (args.length-1 < flagsArg) {
             flagstr = "";
         } else if (args[flagsArg] instanceof StringValue) {
-            flagstr = ((StringValue)args[flagsArg]).getStringValue();
+            flagstr = ((StringValue)args[flagsArg]).getStringValueCS();
         }
 
         if (args[patternArg] instanceof StringValue && flagstr != null) {
@@ -106,7 +106,7 @@ public class Matches extends SystemFunction {
 
             try {
                 String javaRegex = RegexTranslator.translate(
-                        ((StringValue)args[patternArg]).getStringValue(), true);
+                        ((StringValue)args[patternArg]).getStringValueCS(), true);
                 return Pattern.compile(javaRegex, flags);
             } catch (RegexTranslator.RegexSyntaxException err) {
                 throw new StaticError(err);
@@ -127,7 +127,9 @@ public class Matches extends SystemFunction {
 
     public Item evaluateItem(XPathContext c) throws XPathException {
         AtomicValue sv0 = (AtomicValue)argument[0].evaluateItem(c);
-        if (sv0==null) return null;
+        if (sv0==null) {
+            sv0 = StringValue.EMPTY_STRING;
+        };
 
         Pattern re = regexp;
         if (re == null) {
@@ -135,17 +137,17 @@ public class Matches extends SystemFunction {
             AtomicValue pat = (AtomicValue)argument[1].evaluateItem(c);
             if (pat==null) return null;
 
-            String flags;
+            CharSequence flags;
             if (argument.length==2) {
                 flags = "";
             } else {
                 AtomicValue sv2 = (AtomicValue)argument[2].evaluateItem(c);
                 if (sv2==null) return null;
-                flags = sv2.getStringValue();
+                flags = sv2.getStringValueCS();
             }
 
             try {
-                String javaRegex = RegexTranslator.translate(pat.getStringValue(), true);
+                String javaRegex = RegexTranslator.translate(pat.getStringValueCS(), true);
                 re = Pattern.compile(javaRegex, setFlags(flags));
             } catch (RegexTranslator.RegexSyntaxException err) {
                 DynamicError de = new DynamicError(err);
@@ -158,10 +160,10 @@ public class Matches extends SystemFunction {
                 de.setXPathContext(c);
                 throw de;
             } catch (StaticError serr) {
-                dynamicError(serr.getMessage(), serr.getErrorCode().getLocalPart(), c);
+                dynamicError(serr.getMessage(), serr.getErrorCodeLocalPart(), c);
             }
         }
-        return BooleanValue.get(re.matcher(sv0.getStringValue()).find());
+        return BooleanValue.get(re.matcher(sv0.getStringValueCS()).find());
     }
 
 }

@@ -1,5 +1,5 @@
 package org.orbeon.saxon.om;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.XPathException;
 
 /**
  * <p>
@@ -58,7 +58,6 @@ public interface SequenceIterator {
     public SequenceIterator getAnother() throws XPathException;
 
 }
-
 
 
 //

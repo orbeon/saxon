@@ -2,11 +2,11 @@ package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.SingletonIterator;
+import org.orbeon.saxon.om.ValueRepresentation;
 import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.trace.InstructionInfo;
-import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 
 /**
 * Handler for global variables in a stylesheet or query. <br>
@@ -50,7 +50,7 @@ public class GlobalVariable extends GeneralVariable implements Container {
      * of the element otherwise, either as a tree or as a sequence
     */
 
-    public Value getSelectValue(XPathContext context) throws XPathException {
+    public ValueRepresentation getSelectValue(XPathContext context) throws XPathException {
         if (select==null) {
             throw new AssertionError("*** No select expression!!");
         } else {
@@ -60,7 +60,7 @@ public class GlobalVariable extends GeneralVariable implements Container {
             if (stackFrameMap != null) {
                 c2.openStackFrame(stackFrameMap);
             }
-            return ExpressionTool.eagerEvaluate(select, c2);
+            return ExpressionTool.lazyEvaluate(select, c2, true);
         }
     }
 
@@ -68,11 +68,11 @@ public class GlobalVariable extends GeneralVariable implements Container {
     * Evaluate the variable
     */
 
-    public Value evaluateVariable(XPathContext context) throws XPathException {
+    public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException {
         Controller controller = context.getController();
         Bindery b = controller.getBindery();
 
-        Value v = b.getGlobalVariableValue(this);
+        ValueRepresentation v = b.getGlobalVariableValue(this);
 
         if (v != null) {
             return v;
@@ -84,7 +84,7 @@ public class GlobalVariable extends GeneralVariable implements Container {
 
             try {
                 b.setExecuting(this, true);
-                Value value = getSelectValue(context);
+                ValueRepresentation value = getSelectValue(context);
                 b.defineGlobalVariable(this, value);
                 b.setExecuting(this, false);
                 return value;

@@ -6,8 +6,7 @@ import org.orbeon.saxon.event.SaxonLocator;
 import javax.xml.transform.SourceLocator;
 
 /**
- * Class to hold details of the location of an expression.
- * Currently only the linenumber is used.
+ * Class to hold details of the location of an expression, of an error in a source file, etc.
  */
 
 public class ExpressionLocation implements SaxonLocator {
@@ -27,7 +26,7 @@ public class ExpressionLocation implements SaxonLocator {
     private String systemId;
 //    private String publicId;
     private int lineNumber;
-//    private int columnNumber;
+    private int columnNumber;
 
     public String getSystemId() {
         return systemId;
@@ -42,7 +41,7 @@ public class ExpressionLocation implements SaxonLocator {
     }
 
     public int getColumnNumber() {
-        return -1;
+        return columnNumber;
     }
 
     public void setSystemId(String systemId) {
@@ -58,7 +57,7 @@ public class ExpressionLocation implements SaxonLocator {
     }
 
     public void setColumnNumber(int columnNumber) {
-//        this.columnNumber = columnNumber;
+        this.columnNumber = columnNumber;
     }
 
     public String getSystemId(int locationId) {

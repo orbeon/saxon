@@ -1,12 +1,12 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.sort.AtomicComparer;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.BooleanValue;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.Comparator;
 

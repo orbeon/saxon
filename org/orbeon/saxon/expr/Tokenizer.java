@@ -1,6 +1,6 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.functions.NormalizeSpace;
-import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.trans.StaticError;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -116,8 +116,8 @@ public final class Tokenizer {
     private int precedingToken = Token.UNKNOWN;
 
 
-    public boolean recognizePragmas = false;
-    public String lastPragma = null;
+    //public boolean recognizePragmas = false;
+    //public String lastPragma = null;
 
     //
     // Lexical analyser for expressions, queries, and XSLT patterns
@@ -131,7 +131,7 @@ public final class Tokenizer {
      * @param start start point within the string
      * @param end end point within the string (last character not read):
      * -1 means end of string
-     * @exception org.orbeon.saxon.xpath.StaticError if a lexical error occurs, e.g. unmatched
+     * @exception org.orbeon.saxon.trans.StaticError if a lexical error occurs, e.g. unmatched
      *     string quotes
      */
     public void tokenize(String input, int start, int end, int lineNumber) throws StaticError {
@@ -170,7 +170,7 @@ public final class Tokenizer {
      * Get the next token from the input expression. The type of token is returned in the
      * currentToken variable, the string value of the token in currentTokenValue.
      *
-     * @exception org.orbeon.saxon.xpath.StaticError if a lexical error is detected
+     * @exception org.orbeon.saxon.trans.StaticError if a lexical error is detected
      */
 
     public void next() throws StaticError {
@@ -220,11 +220,11 @@ public final class Tokenizer {
             switch (nextToken) {
                 case Token.LPAR:
                     int op = getBinaryOp(currentTokenValue);
-                    if (op != Token.UNKNOWN) {
-                        currentToken = op;
-                    } else {
+                    if (op == Token.UNKNOWN) {
 	                    currentToken = getFunctionType(currentTokenValue);
 	                    lookAhead();    // swallow the "("
+                    } else {
+                        currentToken = op;
                     }
                     break;
 
@@ -291,7 +291,7 @@ public final class Tokenizer {
                         }
 
                     }
-                    String composite = currentTokenValue + " " + nextTokenValue;
+                    String composite = currentTokenValue + ' ' + nextTokenValue;
                     Integer val = (Integer)Token.doubleKeywords.get(composite);
                     if (val==null) {
                         break;
@@ -330,7 +330,7 @@ public final class Tokenizer {
      * The method is normally called internally, but the XQuery parser also
      * calls it to resume normal tokenization after dealing with pseudo-XML
      * syntax.
-     * @exception org.orbeon.saxon.xpath.StaticError if a lexical error occurs
+     * @exception org.orbeon.saxon.trans.StaticError if a lexical error occurs
      */
     public void lookAhead() throws StaticError {
         precedingToken = nextToken;
@@ -388,42 +388,67 @@ public final class Tokenizer {
                 state = DEFAULT_STATE;
                 return;
             case '(':
+                if (inputOffset < inputLength && input.charAt(inputOffset) == '#') {
+	                inputOffset++;
+                    int pragmaStart = inputOffset;
+                    int nestingDepth = 1;
+                    while (nestingDepth > 0 && inputOffset < (inputLength-1)) {
+                        if (input.charAt(inputOffset) == '\n') {
+                            incrementLineNumber();
+                        } else if (input.charAt(inputOffset) == '#' &&
+                               input.charAt(inputOffset+1) == ')') {
+                            nestingDepth--;
+                            inputOffset++;
+                        } else if (input.charAt(inputOffset) == '(' &&
+                               input.charAt(inputOffset+1) == '#') {
+                            nestingDepth++;
+                            inputOffset++;
+                        }
+                        inputOffset++;
+                    }
+                    if (nestingDepth > 0) {
+                        throw new StaticError("Unclosed XPath comment");
+                    }
+	                nextToken = Token.PRAGMA;
+                    nextTokenValue = input.substring(pragmaStart, inputOffset-2 );
+	                return;
+	            }
 	            if (inputOffset < inputLength && input.charAt(inputOffset) == ':') {
                     // XPath comment syntax is (: .... :)
                     // Comments may be nested
                     // Pragmas are recognized as anything starting with "(::", in which case the terminator
                     // must be "::)"
                     inputOffset++;
-                    int pragmaStart = -1;
-                    if (recognizePragmas && inputOffset < inputLength && input.charAt(inputOffset) == ':') {
-                        inputOffset++;
-                        pragmaStart = inputOffset;
-                    }
+//                    int pragmaStart = -1;
+//                    if (recognizePragmas && inputOffset < inputLength && input.charAt(inputOffset) == ':') {
+//                        inputOffset++;
+//                        pragmaStart = inputOffset;
+//                    }
                     int nestingDepth = 1;
                     while (nestingDepth > 0 && inputOffset < (inputLength-1)) {
                         if (input.charAt(inputOffset) == '\n') {
                             incrementLineNumber();
                         } else if (input.charAt(inputOffset) == ':' &&
                                input.charAt(inputOffset+1) == ')') {
-                            if (pragmaStart >=0 && nestingDepth==1) {
-                                if (input.charAt(inputOffset-1) == ':') {
-                                    lastPragma = input.substring(pragmaStart, inputOffset-1).trim();
-                                    if (lastPragma.startsWith("extension")) {
-                                        inputOffset+=2;
-                                        throw new StaticError("Unrecognized must-understand extension");
-                                    } else if (lastPragma.startsWith("pragma")) {
-                                        lastPragma = lastPragma.substring(6).trim();
-                                    } else {
-                                        inputOffset+=2;
-                                        throw new StaticError("'(::' must be followed by 'pragma' or 'extension'");
-                                    }
-                                    nestingDepth--;
-                                    inputOffset++;
-                                }
-                            } else {
+//                            if (pragmaStart >=0 && nestingDepth==1) {
+//                                if (input.charAt(inputOffset-1) == ':') {
+//                                    lastPragma = input.substring(pragmaStart, inputOffset-1).trim();
+//                                    if (lastPragma.startsWith("extension")) {
+//                                        inputOffset+=2;
+//                                        throw new StaticError("Unrecognized must-understand extension");
+//                                    } else if (lastPragma.startsWith("pragma")) {
+//                                        lastPragma = lastPragma.substring(6).trim();
+//                                    } else {
+//                                        inputOffset+=2;
+//                                        throw new StaticError("'(::' must be followed by 'pragma' or 'extension'");
+//                                    }
+//                                    nestingDepth--;
+//                                    inputOffset++;
+//                                }
+//                            } else {
                                 nestingDepth--;
                                 inputOffset++;
-                            }
+//                            }
                         } else if (input.charAt(inputOffset) == '(' &&
                                input.charAt(inputOffset+1) == ':') {
                             nestingDepth++;
@@ -432,11 +457,11 @@ public final class Tokenizer {
                         inputOffset++;
                     }
                     if (nestingDepth > 0) {
-                        if (pragmaStart >= 0) {
-                            throw new StaticError("Unclosed XQuery pragma");
-                        } else {
+//                        if (pragmaStart >= 0) {
+//                            throw new StaticError("Unclosed XQuery pragma");
+//                        } else {
                             throw new StaticError("Unclosed XPath comment");
-                        }
+//                        }
                     }
                     lookAhead();
                 } else {
@@ -625,7 +650,7 @@ public final class Tokenizer {
                         if (nextTokenValue.charAt(i) == '\n') {
                             lineNumber++;
                             if (newlineOffsets==null) {
-                                newlineOffsets = new ArrayList();
+                                newlineOffsets = new ArrayList(20);
                             }
                             newlineOffsets.add(new Integer(nextTokenStartOffset+i));
                         }
@@ -703,7 +728,7 @@ public final class Tokenizer {
      *     known operator
      */
 
-    static private int getBinaryOp(String s) {
+    private static int getBinaryOp(String s) {
         switch(s.length()) {
             case 2:
                 if (s=="or") return Token.OR;
@@ -754,7 +779,7 @@ public final class Tokenizer {
      * @return the token number
      */
 
-    static private int getFunctionType(String s) {
+    private static int getFunctionType(String s) {
         switch(s.length()) {
             case 2:
                 if (s=="if") return Token.IF;
@@ -846,7 +871,7 @@ public final class Tokenizer {
     private void incrementLineNumber() {
         nextLineNumber++;
         if (newlineOffsets==null) {
-            newlineOffsets = new ArrayList();
+            newlineOffsets = new ArrayList(20);
         }
         newlineOffsets.add(new Integer(inputOffset-1));
     }
@@ -877,7 +902,7 @@ public final class Tokenizer {
             return input.substring(0, inputOffset);
         } else {
             return NormalizeSpace.normalize(
-                    "..." + input.substring(inputOffset-30, inputOffset));
+                    "..." + input.substring(inputOffset-30, inputOffset)).toString();
         }
     }
 

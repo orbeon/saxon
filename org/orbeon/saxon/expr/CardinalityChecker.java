@@ -2,10 +2,10 @@ package org.orbeon.saxon.expr;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.ObjectValue;
-import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * A CardinalityChecker implements the cardinality checking of "treat as": that is,
@@ -46,6 +46,15 @@ public final class CardinalityChecker extends UnaryExpression implements Mapping
     }
 
     /**
+     * Set the error code to be returned (this is used when evaluating the functions such
+     * as exactly-one() which have their own error codes)
+     */
+
+    public void setErrorCode(String code) {
+        role.setErrorCode(code);
+    }
+
+    /**
     * Iterate over the sequence of values
     */
 
@@ -59,7 +68,7 @@ public final class CardinalityChecker extends UnaryExpression implements Mapping
             // once. This item will cause an error if it is the first in the sequence,
             // and will be ignored otherwise.
             stopper = new ObjectValue(this);
-            base = new AppendExpression.AppendIterator(base, stopper, context);
+            base = new AppendIterator(base, stopper, context);
         }
         return new MappingIterator(base, this, null, base);
     }
@@ -74,7 +83,7 @@ public final class CardinalityChecker extends UnaryExpression implements Mapping
             // we've hit the stopper object
             if (pos==1) {
                  typeError("An empty sequence is not allowed as the " +
-                         role.getMessage(), context);
+                         role.getMessage(), role.getErrorCode(), context);
             }
             // don't include the stopper in the result
             return null;
@@ -82,7 +91,7 @@ public final class CardinalityChecker extends UnaryExpression implements Mapping
         if (pos==2 && !Cardinality.allowsMany(requiredCardinality)) {
             typeError(
                     "A sequence of more than one item is not allowed as the " +
-                    role.getMessage(), context);
+                    role.getMessage(), role.getErrorCode(), context);
             return null;
         }
         return item;
@@ -100,14 +109,14 @@ public final class CardinalityChecker extends UnaryExpression implements Mapping
             if (nextItem == null) break;
             if (item != null) {
                 typeError("A sequence of more than one item is not allowed as the " +
-                    role.getMessage(), context);
+                    role.getMessage(), role.getErrorCode(), context);
                 return null;
             }
             item = nextItem;
         }
         if (item == null && !Cardinality.allowsZero(requiredCardinality)) {
             typeError("An empty sequence is not allowed as the " +
-                    role.getMessage(), context);
+                    role.getMessage(), role.getErrorCode(), context);
             return null;
         }
         return item;

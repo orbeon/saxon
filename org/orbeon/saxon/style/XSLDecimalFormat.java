@@ -1,13 +1,10 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.om.AttributeCollection;
-import org.orbeon.saxon.om.Name;
-import org.orbeon.saxon.om.NamespaceException;
-import org.orbeon.saxon.om.QNameException;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trans.DecimalFormatManager;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.text.DecimalFormatSymbols;
@@ -176,7 +173,7 @@ public class XSLDecimalFormat extends StyleElement {
             try {
                 dfm.setDefaultDecimalFormat(d, getPrecedence());
             } catch (StaticError err) {
-                compileError(err.getMessage(), err.getErrorCode());
+                compileError(err.getMessage(), err.getErrorCodeLocalPart());
             }
         } else {
             try {
@@ -186,7 +183,7 @@ public class XSLDecimalFormat extends StyleElement {
                 try {
                     dfm.setNamedDecimalFormat(uri, parts[1], d, getPrecedence());
                 } catch (StaticError err) {
-                    compileError(err.getMessage(), err.getErrorCode());
+                    compileError(err.getMessage(), err.getErrorCodeLocalPart());
                 }
             } catch (XPathException err) {
                 compileError("Invalid decimal format name. " + err.getMessage(), "XT0020");

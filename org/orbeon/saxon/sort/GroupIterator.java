@@ -1,8 +1,8 @@
 package org.orbeon.saxon.sort;
 
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * A GroupIterator is an iterator that iterates over a sequence of groups.

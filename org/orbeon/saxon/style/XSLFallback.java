@@ -38,10 +38,11 @@ public class XSLFallback extends StyleElement {
     }
 
     public void validate() throws TransformerConfigurationException {
-        StyleElement parent = (StyleElement)getParentNode();
-        if (!parent.mayContainFallback()) {
-            compileError("xsl:fallback is not allowed as a child of " + parent.getDisplayName(), "XT0010");
-        }
+        // Parent elements are now responsible for validating their children
+//        StyleElement parent = (StyleElement)getParent();
+//        if (!parent.mayContainFallback()) {
+//            compileError("xsl:fallback is not allowed as a child of " + parent.getDisplayName(), "XT0010");
+//        }
     }
 
     public Expression compile(Executable exec) throws TransformerConfigurationException {

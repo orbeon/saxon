@@ -1,9 +1,9 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Arrays;
@@ -156,7 +156,7 @@ public abstract class FunctionCall extends ComputedExpression {
     * @param min the minimum number of arguments allowed
     * @param max the maximum number of arguments allowed
     * @return the actual number of arguments
-    * @throws XPathException if the number of arguments is out of range
+    * @throws net.sf.saxon.trans.XPathException if the number of arguments is out of range
     */
 
     protected int checkArgumentCount(int min, int max, StaticContext env) throws XPathException {

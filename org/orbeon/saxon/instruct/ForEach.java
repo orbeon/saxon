@@ -6,10 +6,10 @@ import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.trace.TraceListener;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.value.EmptySequence;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.Iterator;

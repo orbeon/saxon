@@ -1,11 +1,9 @@
 package org.orbeon.saxon.value;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.Err;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.*;
 
 /**
  * A boolean XPath value
@@ -17,11 +15,11 @@ public final class BooleanValue extends AtomicValue implements Comparable {
     /**
      * The boolean value TRUE
      */
-    public final static BooleanValue TRUE = new BooleanValue(true);
+    public static final BooleanValue TRUE = new BooleanValue(true);
     /**
      * The boolean value FALSE
      */
-    public final static BooleanValue FALSE = new BooleanValue(false);
+    public static final BooleanValue FALSE = new BooleanValue(false);
 
     /**
      * Private Constructor: create a boolean value. Only two instances of this class are
@@ -46,6 +44,27 @@ public final class BooleanValue extends AtomicValue implements Comparable {
     }
 
     /**
+     * Convert a string to a boolean value, using the XML Schema rules (including
+     * whitespace trimming)
+     * @param s the input string
+     * @return the relevant BooleanValue if validation succeeds; or an ErrorValue if not.
+     */
+
+    public static AtomicValue fromString(CharSequence s) {
+        s = trimWhitespace(s).toString();
+        if (s.equals("true") || s.equals("1")) {
+            return TRUE;
+        } else if (s.equals("false") || s.equals("0")) {
+            return FALSE;
+        } else {
+            ValidationException err = new ValidationException(
+                                "The string " + Err.wrap(s, Err.VALUE) + " cannot be cast to a boolean");
+            err.setErrorCode("FORG0001");
+            return new ErrorValue(err);
+        }
+    }
+
+    /**
      * Get the value
      * @return true or false, the actual boolean value of this BooleanValue
      */
@@ -67,14 +86,12 @@ public final class BooleanValue extends AtomicValue implements Comparable {
 
     /**
      * Convert to target data type
-     *
-     * @exception XPathException if the conversion is not possible
      * @param requiredType an integer identifying the required atomic type
      * @return an AtomicValue, a value of the required type
      */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
-        switch(requiredType) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+        switch(requiredType.getPrimitiveType()) {
         case Type.BOOLEAN:
         case Type.ATOMIC:
         case Type.ITEM:
@@ -85,17 +102,17 @@ public final class BooleanValue extends AtomicValue implements Comparable {
         case Type.DECIMAL:
         case Type.FLOAT:
         case Type.DOUBLE:
-            return new IntegerValue(value ? 1 : 0).convert(requiredType, context);
+            return new IntegerValue(value ? 1 : 0).convertPrimitive(requiredType, validate);
         case Type.STRING:
-            return new StringValue(getStringValue());
+            return new StringValue(getStringValueCS());
         case Type.UNTYPED_ATOMIC:
-            return new UntypedAtomicValue(getStringValue());
+            return new UntypedAtomicValue(getStringValueCS());
         default:
-            DynamicError err = new DynamicError("Cannot convert boolean to " +
-                                     StandardNames.getDisplayName(requiredType));
-            err.setXPathContext(context);
+            ValidationException err = new ValidationException("Cannot convert boolean to " +
+                                     requiredType.getDisplayName());
+            //err.setXPathContext(context);
             err.setErrorCode("FORG0001");
-            throw err;
+            return new ErrorValue(err);
         }
     }
 
@@ -125,7 +142,7 @@ public final class BooleanValue extends AtomicValue implements Comparable {
      * @return An object of the specified Java class
      */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
+    public Object convertToJava(Class target, XPathContext context) throws XPathException {
         if (target==Object.class) {
             return Boolean.valueOf(value);
         } else if (target.isAssignableFrom(BooleanValue.class)) {
@@ -165,7 +182,7 @@ public final class BooleanValue extends AtomicValue implements Comparable {
         } else if (target==Character.class) {
             return new Character(value ? '1' : '0');
         } else {
-            Object o = super.convertToJava(target, config, context);
+            Object o = super.convertToJava(target, context);
             if (o == null) {
                 DynamicError err = new DynamicError("Conversion of boolean to " + target.getName() +
                         " is not supported");

@@ -2,6 +2,9 @@ package org.orbeon.saxon.om;
 
 import org.orbeon.saxon.expr.LastPositionFinder;
 import org.orbeon.saxon.expr.ReversibleIterator;
+import org.orbeon.saxon.value.SequenceExtent;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.value.SingletonNode;
 
 
 /**
@@ -9,7 +12,7 @@ import org.orbeon.saxon.expr.ReversibleIterator;
 */
 
 public class SingletonIterator implements AxisIterator,
-        ReversibleIterator, LastPositionFinder {
+        ReversibleIterator, LastPositionFinder, GroundedIterator {
 
     private Item value;
     private boolean gone;
@@ -69,6 +72,22 @@ public class SingletonIterator implements AxisIterator,
 
     public Item getValue() {
         return value;
+    }
+
+    /**
+     * Return a SequenceExtent containing all the items in the sequence returned by this
+     * SequenceIterator
+     *
+     * @return the corresponding SequenceExtent if it exists, or null if it doesn't; in this case
+     *         the caller must construct a new SequenceExtent by calling new SequenceExtent(iter.getAnother())
+     */
+
+    public Value materialize() {
+        if (value instanceof Value) {
+            return (Value)value;
+        } else {
+            return new SingletonNode((NodeInfo)value);
+        }
     }
 
 }

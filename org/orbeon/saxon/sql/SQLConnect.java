@@ -4,11 +4,11 @@ import org.orbeon.saxon.expr.SimpleExpression;
 import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.instruct.ExtensionInstruction;
+import org.orbeon.saxon.style.ExtensionInstruction;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.ObjectValue;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.sql.Connection;

@@ -1,10 +1,14 @@
 package org.orbeon.saxon.event;
 import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.ExpressionLocation;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trans.Mode;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.type.ComplexType;
 
 /**
   * The Stripper class maintains details of which elements need to be stripped.
@@ -14,8 +18,6 @@ import org.orbeon.saxon.xpath.XPathException;
 
 
 public class Stripper extends ProxyReceiver {
-
-    // TODO: check for error XT0275 (stripping whitespace from an element with simple content)
 
     private boolean preserveAll;              // true if all elements have whitespace preserved
     private boolean stripAll;                 // true if all whitespace nodes are stripped
@@ -35,6 +37,8 @@ public class Stripper extends ProxyReceiver {
 	// of rules is known as a Mode. (We are reusing the code for template rule matching)
 
 	private Mode stripperMode;
+
+    //private PipelineConfiguration pipe;
 
 	// Mode expects to test an Element, so we create a dummy element for it to test
 	private Orphan element;
@@ -117,7 +121,7 @@ public class Stripper extends ProxyReceiver {
     * Decide whether an element is in the set of white-space preserving element types
     * @param nameCode Identifies the name of the element whose whitespace is to
      * be preserved
-    * @return ALWAYS_PRESERVE if the element is in the set of white-space preserving
+     * @return ALWAYS_PRESERVE if the element is in the set of white-space preserving
      *  element types, ALWAYS_STRIP if the element is to be stripped regardless of the
      * xml:space setting, and STRIP_DEFAULT otherwise
     */
@@ -141,6 +145,7 @@ public class Stripper extends ProxyReceiver {
     public static final byte ALWAYS_STRIP = 0x02;
     public static final byte STRIP_DEFAULT = 0x00;
     public static final byte PRESERVE_PARENT = 0x04;
+    public static final byte CANNOT_STRIP = 0x08;
 
     /**
     * Decide whether an element is in the set of white-space preserving element types.
@@ -188,6 +193,13 @@ public class Stripper extends ProxyReceiver {
         if (isSpacePreserving(nameCode) == ALWAYS_PRESERVE) {
             preserve |= ALWAYS_PRESERVE;
         }
+        if (preserve == 0 && typeCode != -1) {
+            // if the element has simple content, whitespace stripping is not allowed (error XT0275)
+            SchemaType type = controller.getConfiguration().getSchemaType(typeCode);
+            if (type.isSimpleType() || ((ComplexType)type).isSimpleContent()) {
+                preserve |= CANNOT_STRIP;
+            }
+        }
 
         // put "preserve" value on top of stack
 
@@ -203,11 +215,13 @@ public class Stripper extends ProxyReceiver {
     public void attribute(int nameCode, int typeCode, CharSequence value, int locationId, int properties)
     throws XPathException {
 
-        // test for xml:space="preserve"
+        // test for xml:space="preserve" | "default"
 
         if (nameCode == xmlSpaceCode) {
-            if (value.equals("preserve")) {
+            if (value.toString().equals("preserve")) {
                 stripStack[top] |= PRESERVE_PARENT;
+            } else {
+                stripStack[top] &= ~PRESERVE_PARENT;
             }
         }
         super.attribute(nameCode, typeCode, value, locationId, properties);
@@ -233,8 +247,16 @@ public class Stripper extends ProxyReceiver {
 
         if (chars.length() > 0) {
             if (stripStack[top]!=0 || !Navigator.isWhite(chars)) {
-                if ((stripStack[top] & ALWAYS_STRIP) == 0) {
+                if ((stripStack[top] & (ALWAYS_STRIP | CANNOT_STRIP)) == 0) {
                     super.characters(chars, locationId, properties);
+
+                } else if ((stripStack[top] & CANNOT_STRIP) != 0) {
+                    DynamicError err = new DynamicError(
+                                    "Cannot apply strip-space to a schema-defined element with simple content");
+                    err.setErrorCode("XT0275");
+                    err.setLocator(new ExpressionLocation(
+                            getPipelineConfiguration().getLocationProvider(), locationId));
+                    controller.recoverableError(err);
                 }
             }
         }

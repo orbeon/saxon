@@ -4,8 +4,8 @@ import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * Implements the unparsed-entity-uri() function defined in XSLT 1.0

@@ -4,16 +4,15 @@ import org.orbeon.saxon.functions.NumberFn;
 import org.orbeon.saxon.functions.StringFn;
 import org.orbeon.saxon.functions.SystemFunction;
 import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.type.AnyItemType;
 import org.orbeon.saxon.type.AtomicType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.value.Cardinality;
-import org.orbeon.saxon.value.SequenceExtent;
-import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.pattern.NoNodeTest;
 
 /**
  * This class provides Saxon's type checking capability. It contains a static method,
@@ -60,7 +59,7 @@ public final class TypeChecker {
      *                      this is used only to locate a NamePool
      * @return              The original expression if it is type-safe, or the expression
      *                      wrapped in a run-time type checking expression if not.
-     * @throws org.orbeon.saxon.xpath.StaticError if the supplied type is statically inconsistent with the
+     * @throws org.orbeon.saxon.trans.StaticError if the supplied type is statically inconsistent with the
      *                      required type (that is, if they have no common subtype)
      */
 
@@ -98,8 +97,13 @@ public final class TypeChecker {
         // NOTE: we don't currently do any static inference regarding the content type
         if (!itemTypeOK) {
             suppliedItemType = exp.getItemType();
-            int relation = Type.relationship(reqItemType, suppliedItemType);
-            itemTypeOK = relation == Type.SAME_TYPE || relation == Type.SUBSUMES;
+            if (suppliedItemType instanceof NoNodeTest) {
+                // supplied type is empty(): this can violate a cardinality constraint but not an item type constraint
+                itemTypeOK = true;
+            } else {
+                int relation = Type.relationship(reqItemType, suppliedItemType);
+                itemTypeOK = relation == Type.SAME_TYPE || relation == Type.SUBSUMES;
+            }
         }
 
 
@@ -131,7 +135,6 @@ public final class TypeChecker {
                 }
                 // rule 3
                 if (reqItemType == Type.NUMBER_TYPE || reqItemType == Type.DOUBLE_TYPE) {
-                    // TODO: see resolution of issue [IR1] MHK-XP-003
                     NumberFn fn = (NumberFn)SystemFunction.makeSystemFunction("number", 1, env.getNamePool());
                     Expression[] args = {exp};
                     fn.setArguments(args);
@@ -202,7 +205,7 @@ public final class TypeChecker {
                     }
                 }
 
-                // Rule 3: numeric promotion decimal -> float -> double
+                // Rule 3a: numeric promotion decimal -> float -> double
 
                 int rt = ((AtomicType)reqItemType).getFingerprint();
                 if (rt == StandardNames.XS_DOUBLE || rt == StandardNames.XS_FLOAT) {
@@ -215,6 +218,17 @@ public final class TypeChecker {
                         }
                         suppliedItemType = (rt == StandardNames.XS_DOUBLE ? Type.DOUBLE_TYPE : Type.FLOAT_TYPE);
                     }
+                }
+
+                // Rule 3b: promotion from anyURI -> string
+
+                if (rt == Type.STRING &&
+                        Type.isSubType(suppliedItemType, Type.ANY_URI_TYPE)) {
+                    suppliedItemType = Type.STRING_TYPE;
+                    itemTypeOK = true;
+                        // we don't generate code to do a run-time type conversion; rather, we rely on
+                        // operators and functions that accept a string to also accept an xs:anyURI. This
+                        // is straightforward, because anyURIValue is a subclass of StringValue
                 }
 
             }
@@ -323,7 +337,7 @@ public final class TypeChecker {
      *                      this is used only to locate a NamePool
      * @return              The original expression if it is type-safe, or the expression
      *                      wrapped in a run-time type checking expression if not.
-     * @throws org.orbeon.saxon.xpath.StaticError if the supplied type is statically inconsistent with the
+     * @throws org.orbeon.saxon.trans.StaticError if the supplied type is statically inconsistent with the
      *                      required type (that is, if they have no common subtype)
      */
 
@@ -370,7 +384,11 @@ public final class TypeChecker {
 
         // If we haven't evaluated the cardinality of the supplied expression, do it now
         if (suppliedCard == -1) {
-            suppliedCard = exp.getCardinality();
+            if (suppliedItemType instanceof NoNodeTest) {
+                suppliedCard = StaticProperty.EMPTY;
+            } else {
+                suppliedCard = exp.getCardinality();
+            }
             if (!cardOK) {
                 cardOK = Cardinality.subsumes(reqCard, suppliedCard);
             }
@@ -456,6 +474,32 @@ public final class TypeChecker {
         return exp;
     }
 
+    /**
+     * Test whether a given value conforms to a given type
+     * @param val the value
+     * @param requiredType the required type
+     * @return a DynamicError describing the error condition if the value doesn't conform;
+     * or null if it does.
+     */
+
+    public static DynamicError testConformance(Value val, SequenceType requiredType) {
+        ItemType reqItemType = requiredType.getPrimaryType();
+        if (!Type.isSubType(val.getItemType(), reqItemType)) {
+            DynamicError err = new DynamicError (
+                    "Global parameter requires type " + reqItemType +
+                    "; supplied value has type " + val.getItemType());
+            err.setIsTypeError(true);
+            return err;
+        }
+        int reqCardinality = requiredType.getCardinality();
+        if (!Cardinality.subsumes(reqCardinality, val.getCardinality())) {
+            DynamicError err = new DynamicError (
+                    "Supplied value of external parameter does not match the required cardinality");
+            err.setIsTypeError(true);
+            return err;
+        }
+        return null;
+    }
 }
 
 //

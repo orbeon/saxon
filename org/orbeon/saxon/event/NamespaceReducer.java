@@ -1,8 +1,9 @@
 package org.orbeon.saxon.event;
-import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.om.NamespaceResolver;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.SimpleType;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -22,8 +23,8 @@ public class NamespaceReducer extends ProxyReceiver implements NamespaceResolver
 {
     // TODO: this class could extend StartTagBuffer and re-use some of the code.
 
-    private int nscodeXML;
-    private int nscodeNull;
+//    private int nscodeXML ;
+//    private int nscodeNull;
 
     // We keep track of namespaces to avoid outputting duplicate declarations. The namespaces
     // vector holds a list of all namespaces currently declared (organised as pairs of entries,
@@ -44,18 +45,6 @@ public class NamespaceReducer extends ProxyReceiver implements NamespaceResolver
     private boolean[] disinheritStack = new boolean[50];
 
     private int[] pendingUndeclarations = null;
-
-	/**
-	* Set the pipeline configuration
-	*/
-
-	public void setPipelineConfiguration(PipelineConfiguration pipe) {
-        super.setPipelineConfiguration(pipe);
-		NamePool namePool = pipe.getConfiguration().getNamePool();
-		nscodeXML = namePool.getNamespaceCode("xml", NamespaceConstant.XML);   // TODO: expensive!
-		nscodeNull = namePool.getNamespaceCode("", "");
-	}
-
 
     /**
     * startElement. This call removes redundant namespace declarations, and
@@ -120,7 +109,10 @@ public class NamespaceReducer extends ProxyReceiver implements NamespaceResolver
         if (typeCode != -1 && (properties & ReceiverOptions.NEEDS_PREFIX_CHECK) != 0) {
             // checking has been deferred until the namespace context is available
             SimpleType type = (SimpleType)getConfiguration().getSchemaType(typeCode);
-            type.validateContent(value, this);
+            XPathException err = type.validateContent(value, this);
+            if (err != null) {
+                throw err;
+            }
             properties &= (~ReceiverOptions.NEEDS_PREFIX_CHECK);
         }
         super.attribute(nameCode, typeCode, value, locationId, properties);
@@ -131,7 +123,7 @@ public class NamespaceReducer extends ProxyReceiver implements NamespaceResolver
     */
 
     private boolean isNeeded(int nscode) {
-        if (nscode==nscodeXML) {
+        if (nscode==NamespaceConstant.XML_NAMESPACE_CODE) {
         		// Ignore the XML namespace
             return false;
         }
@@ -159,7 +151,7 @@ public class NamespaceReducer extends ProxyReceiver implements NamespaceResolver
         }
 
         // we need it unless it's a redundant xmlns=""
-        return (nscode != nscodeNull);
+        return (nscode != NamespaceConstant.NULL_NAMESPACE_CODE);
     }
 
     /**
@@ -257,28 +249,6 @@ public class NamespaceReducer extends ProxyReceiver implements NamespaceResolver
                 return null;
             }
             return pool.getURIFromURICode(uriCode);
-        }
-    }
-
-    /**
-     * Use this NamespaceContext to resolve a lexical QName
-     *
-     * @param qname      the lexical QName; this must have already been lexically validated
-     * @param useDefault true if the default namespace is to be used to resolve an unprefixed QName
-     * @param pool       the NamePool to be used
-     * @return the integer fingerprint that uniquely identifies this name
-     * @throws org.orbeon.saxon.xpath.DynamicError
-     *          if the string is not a valid lexical QName or
-     *          if the namespace prefix has not been declared
-     */
-
-    public int getFingerprint(String qname, boolean useDefault, NamePool pool) throws DynamicError {
-        try {
-            String[] parts = Name.getQNameParts(qname);
-            String uri = getURIForPrefix(parts[0], useDefault);
-            return pool.allocate(parts[0], uri, parts[1]);
-        } catch (QNameException e) {
-            throw new DynamicError(e.getMessage());
         }
     }
 

@@ -4,7 +4,7 @@ import org.orbeon.saxon.om.LookaheadIterator;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.sort.NodeOrderComparer;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.XPathException;
 
 /**
 * An enumeration representing a nodeset that is a union of two other NodeSets.

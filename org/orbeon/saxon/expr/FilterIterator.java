@@ -3,11 +3,8 @@ import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.trace.Location;
-import org.orbeon.saxon.value.BooleanValue;
-import org.orbeon.saxon.value.IntegerValue;
-import org.orbeon.saxon.value.NumericValue;
-import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.value.*;
 
 /**
 * A FilterIterator filters an input sequence using a filter expression. Note that a FilterIterator
@@ -44,8 +41,6 @@ public class FilterIterator implements SequenceIterator {
     */
 
     public Item next() throws XPathException {
-        // System.err.println("FilterIterator " + this + ".next() - returning " + nextItem);
-
         current = getNextMatchingItem();
         if (current != null) {
             position++;
@@ -64,7 +59,6 @@ public class FilterIterator implements SequenceIterator {
             if (next == null) {
                 return null;
             }
-            // System.err.println("FilterIterator base.next() = " + next + ", matches=" + matches(next));
             if (matches()) {
                 return next;
             }
@@ -80,24 +74,37 @@ public class FilterIterator implements SequenceIterator {
         // This code is carefully designed to avoid reading more items from the
         // iteration of the filter expression than are absolutely essential.
 
-        SequenceIterator iter = filter.iterate(filterContext);
+        // The code is almost identical to the code in ExpressionTool#effectiveBooleanValue
+        // except for the handling of a numeric result
 
-        Item first = iter.next();
+        SequenceIterator iterator = filter.iterate(filterContext);
+        Item first = iterator.next();
         if (first == null) {
             return false;
-        } else if (first instanceof NodeInfo) {
+        }
+        if (first instanceof NodeInfo) {
             return true;
-        } else if (first instanceof BooleanValue) {
-            return ((BooleanValue)first).getBooleanValue() || (iter.next() != null);
-        } else if (first instanceof IntegerValue) {
-            return ((IntegerValue)first).longValue() == base.position() || (iter.next() != null);
-        } else if (first instanceof NumericValue) {
-            IntegerValue basePos = new IntegerValue(base.position());
-            return first.equals(basePos) || (iter.next() != null);
-        } else if (first instanceof StringValue) {
-            return !first.getStringValue().equals("") || (iter.next() != null);
         } else {
-            return true;
+            if (first instanceof BooleanValue) {
+                if (iterator.next() != null) {
+                    ExpressionTool.ebvError("sequence of two or more items starting with an atomic value");
+                }
+                return ((BooleanValue)first).getBooleanValue();
+            } else if (first instanceof StringValue) {
+                if (iterator.next() != null) {
+                    ExpressionTool.ebvError("sequence of two or more items starting with an atomic value");
+                }
+                return (first.getStringValueCS().length()!=0);
+            } else if (first instanceof NumericValue) {
+                if (iterator.next() != null) {
+                    ExpressionTool.ebvError("sequence of two or more items starting with an atomic value");
+                }
+                IntegerValue basePos = new IntegerValue(base.position());
+                return first.equals(basePos);
+            } else {
+                ExpressionTool.ebvError("sequence starting with an atomic value other than a boolean, number, or string");
+                return false;
+            }
         }
     }
 
@@ -156,7 +163,7 @@ public class FilterIterator implements SequenceIterator {
     public static final class Leading extends FilterIterator {
 
         public Leading(SequenceIterator base, Expression filter,
-                            XPathContext context) throws XPathException {
+                            XPathContext context) {
             super(base, filter, context);
         }
 

@@ -1,7 +1,7 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.xpath.StaticError;
+import org.orbeon.saxon.trans.StaticError;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -11,6 +11,10 @@ import javax.xml.transform.TransformerConfigurationException;
 */
 
 public class AbsentExtensionElement extends StyleElement {
+
+    public boolean isInstruction() {
+        return true;
+    }
 
     /**
     * Determine whether this type of element is allowed to contain a template-body

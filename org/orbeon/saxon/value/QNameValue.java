@@ -1,17 +1,20 @@
 package org.orbeon.saxon.value;
 
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.Loader;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.functions.Component;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.XMLChar;
 import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.type.ValidationException;
 
-import javax.xml.namespace.QName;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 
 
 /**
@@ -66,11 +69,11 @@ public class QNameValue extends AtomicValue {
      * the supplied QName.
      */
 
-    public QNameValue(QName qname) {
-        this.prefix = qname.getPrefix();
-        this.uri = qname.getNamespaceURI();
-        this.localPart = qname.getLocalPart();
-    }
+//    public QNameValue(QName qname) {
+//        this.prefix = qname.getPrefix();
+//        this.uri = qname.getNamespaceURI();
+//        this.localPart = qname.getLocalPart();
+//    }
 
     /**
      * Get the string value as a String. Returns the QName as a lexical QName, retaining the original
@@ -89,9 +92,9 @@ public class QNameValue extends AtomicValue {
      * Get the value as a JAXP QName
      */
 
-    public QName getQName() {
-        return new QName(uri, localPart, prefix);
-    }
+//    public QName getQName() {
+//        return new QName(uri, localPart, prefix);
+//    }
 
     /**
      * Get the name in Clark notation, that is {uri}local
@@ -122,6 +125,14 @@ public class QNameValue extends AtomicValue {
     }
 
     /**
+     * Get the prefix
+     */
+
+    public String getPrefix() {
+        return prefix;
+    }
+
+    /**
      * Get a component. Returns a zero-length string if the namespace-uri component is
      * requested and is not present.
      * @param part either Component.LOCALNAME or Component.NAMESPACE indicating which
@@ -131,28 +142,26 @@ public class QNameValue extends AtomicValue {
 
     public AtomicValue getComponent(int part) {
         if (part == Component.LOCALNAME) {
-            try {
-                return new RestrictedStringValue(localPart, StandardNames.XS_NCNAME);
-            } catch (XPathException e) {
-                throw new IllegalStateException("Local part of QName is not a valid NCName");
-                // TODO: revalidation should be unnecessary
-            }
+            return RestrictedStringValue.makeRestrictedString(
+                    localPart, StandardNames.XS_NCNAME, false);
         } else if (part == Component.NAMESPACE) {
-            return new StringValue(uri);
+            return new AnyURIValue(uri);
+        } else if (part == Component.PREFIX) {
+            return RestrictedStringValue.makeRestrictedString(
+                    prefix, StandardNames.XS_NCNAME, false);
         } else {
-            throw new UnsupportedOperationException("Component of QName must be URI or Local Name");
+            throw new UnsupportedOperationException("Component of QName must be URI, Local Name, or Prefix");
         }
     }
 
     /**
      * Convert to target data type
      * @param requiredType an integer identifying the required atomic type
-     * @return an AtomicValue, a value of the required type
-     * @throws XPathException if the conversion is not possible
+     * @return an AtomicValue, a value of the required type; or an ErrorValue
      */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
-        switch (requiredType) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+        switch (requiredType.getPrimitiveType()) {
             case Type.ATOMIC:
             case Type.ITEM:
             case Type.QNAME:
@@ -162,11 +171,11 @@ public class QNameValue extends AtomicValue {
             case Type.UNTYPED_ATOMIC:
                 return new UntypedAtomicValue(getStringValue());
             default:
-                DynamicError err = new DynamicError("Cannot convert QName to " +
-                        StandardNames.getDisplayName(requiredType));
-                err.setXPathContext(context);
+                ValidationException err = new ValidationException("Cannot convert QName to " +
+                        requiredType.getDisplayName());
+                //err.setXPathContext(context);
                 err.setErrorCode("FORG0001");
-                throw err;
+                return new ErrorValue(err);
         }
     }
 
@@ -201,13 +210,14 @@ public class QNameValue extends AtomicValue {
      * Convert to Java object (for passing to external functions)
      */
 
-    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
+    public Object convertToJava(Class target, XPathContext context) throws XPathException {
         if (target.isAssignableFrom(QNameValue.class)) {
             return this;
-        } else if (target.isAssignableFrom(QName.class)) {
-            return getQName();
+        } else if (target.getClass().getName().equals("javax.xml.namespace.QName")) {
+            // TODO: rewrite this under JDK 1.5
+            return makeQName();
         } else {
-            Object o = super.convertToJava(target, config, context);
+            Object o = super.convertToJava(target, context);
             if (o == null) {
                 throw new DynamicError("Conversion of QName to " + target.getName() +
                         " is not supported");
@@ -224,6 +234,40 @@ public class QNameValue extends AtomicValue {
     public String toString() {
         return "QName(\"" + uri + "\", \"" + localPart + ')';
     }
+
+    /**
+     * Temporary method to construct a javax.xml.namespace.QName without actually mentioning it
+     * by name
+     */
+
+    public Object makeQName() {
+        try {
+            Class qnameClass = Loader.getClass("javax.xml.namespace.QName", false);
+            Class[] argTypes = {String.class, String.class, String.class};
+            Constructor  constructor = qnameClass.getConstructor(argTypes);
+            String[] argValues = {uri, localPart, prefix};
+            Object result = constructor.newInstance(argValues);
+            return result;
+        } catch (XPathException e) {
+            return null;
+        } catch (NoSuchMethodException e) {
+            return null;
+        } catch (InstantiationException e) {
+            return null;
+        } catch (IllegalAccessException e) {
+            return null;
+        } catch (InvocationTargetException e) {
+            return null;
+        }
+
+    }
+
+//    public static void main(String[] args) throws Exception {
+//        QName q = (QName)new QNameValue("a", "b", "c").makeQName();
+//        QNameValue v = Value.makeQNameValue(q);
+//        System.err.println(q);
+//        System.err.println(v);
+//    }
 
 }
 

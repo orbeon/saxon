@@ -5,7 +5,7 @@ import org.orbeon.saxon.event.Sender;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NamespaceConstant;
 import org.orbeon.saxon.trace.TraceListener;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.XPathException;
 import org.xml.sax.InputSource;
 import org.xml.sax.XMLFilter;
 
@@ -313,10 +313,10 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
         	config.setValidation(((Boolean)value).booleanValue());
 
         } else if (name.equals(FeatureKeys.SCHEMA_VALIDATION)) {
-        	if (!(value instanceof Boolean)) {
-        		throw new IllegalArgumentException("Schema validation must be a boolean");
+        	if (!(value instanceof Integer)) {
+        		throw new IllegalArgumentException("Schema validation must be an integer");
         	}
-        	config.setSchemaValidation(((Boolean)value).booleanValue());
+        	config.setSchemaValidationMode(((Integer)value).intValue());
 
         } else if (name.equals(FeatureKeys.VALIDATION_WARNINGS)) {
         	if (!(value instanceof Boolean)) {

@@ -8,13 +8,13 @@ import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.ContentTypeTest;
 import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.QNameValue;
 import org.orbeon.saxon.value.SequenceType;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
@@ -92,7 +92,7 @@ public class Element extends ElementCreator {
 
         if (allowNameAsQName) {
             // Can only happen in XQuery
-            elementName = TypeChecker.staticTypeCheck(elementName, SequenceType.SINGLE_ITEM, false, role, env);
+            elementName = TypeChecker.staticTypeCheck(elementName, SequenceType.SINGLE_ATOMIC, false, role, env);
         } else {
             elementName = TypeChecker.staticTypeCheck(elementName, SequenceType.SINGLE_STRING, false, role, env);
         }
@@ -139,7 +139,7 @@ public class Element extends ElementCreator {
      * @param offer details of the offer, for example the offer to move
      *              expressions that don't depend on the context to an outer level in
      *              the containing expression
-     * @throws XPathException if any error is detected
+     * @throws net.sf.saxon.trans.XPathException if any error is detected
      */
 
     protected void promoteInst(PromotionOffer offer) throws XPathException {
@@ -199,7 +199,7 @@ public class Element extends ElementCreator {
         Item nameValue = elementName.evaluateItem(context);
         if (nameValue instanceof StringValue) {
             // this will always be the case in XSLT
-            String rawName = nameValue.getStringValue();
+            CharSequence rawName = nameValue.getStringValueCS();
             try {
                 String[] parts = Name.getQNameParts(rawName);
                 prefix = parts[0];

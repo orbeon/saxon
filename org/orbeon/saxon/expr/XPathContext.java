@@ -7,13 +7,13 @@ import org.orbeon.saxon.instruct.RegexIterator;
 import org.orbeon.saxon.instruct.Template;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.ValueRepresentation;
 import org.orbeon.saxon.sort.GroupIterator;
 import org.orbeon.saxon.trace.InstructionInfoProvider;
+import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.Mode;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.SchemaType;
-import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.Result;
 import java.util.Comparator;
@@ -198,13 +198,13 @@ public interface XPathContext {
      * Get the value of a local variable, identified by its slot number
      */
 
-    public Value evaluateLocalVariable(int slotnumber);
+    public ValueRepresentation evaluateLocalVariable(int slotnumber);
 
     /**
      * Set the value of a local variable, identified by its slot number
      */
 
-    public void setLocalVariable(int slotnumber, Value value);
+    public void setLocalVariable(int slotnumber, ValueRepresentation value);
 
     /**
      * Set a new output destination, supplying the output format details. <BR>

@@ -1,8 +1,8 @@
 package org.orbeon.saxon.value;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * NumericValue is an abstract superclass for IntegerValue, DecimalValue,
@@ -21,16 +21,22 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
      */
 
     public static NumericValue parseNumber(String in) {
-        try {
-            if (in.indexOf('e') >= 0 || in.indexOf('E') >= 0) {
-                return new DoubleValue(Double.parseDouble(in));
-            } else if (in.indexOf('.') >= 0) {
-                return new DecimalValue(in);
+        if (in.indexOf('e') >= 0 || in.indexOf('E') >= 0) {
+            return new DoubleValue(Double.parseDouble(in));
+        } else if (in.indexOf('.') >= 0) {
+            AtomicValue v = DecimalValue.makeDecimalValue(in, true);
+            if (v instanceof ErrorValue) {
+                return DoubleValue.NaN;
             } else {
-                return IntegerValue.stringToInteger(in);
+                return (NumericValue)v;
             }
-        } catch (XPathException e) {
-            return DoubleValue.NaN;
+        } else {
+            AtomicValue v = IntegerValue.stringToInteger(in);
+            if (v instanceof ErrorValue) {
+                return DoubleValue.NaN;
+            } else {
+                return (NumericValue)v;
+            }
         }
     }
     /**
@@ -41,7 +47,7 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
      */
     public double getDoubleValue() {
         try {
-            return ((DoubleValue)convert(Type.DOUBLE, null)).getDoubleValue();
+            return ((DoubleValue)convert(Type.DOUBLE)).getDoubleValue();
         } catch (XPathException err) {
             return Double.NaN;
         }
@@ -73,12 +79,12 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
     /**
      * Return the numeric value as a Java long.
      *
-     * @exception XPathException if the value cannot be converted
+     * @exception net.sf.saxon.trans.XPathException if the value cannot be converted
      * @return the numeric value as a Java long. This performs truncation
      *     towards zero.
      */
     public long longValue() throws XPathException {
-        return ((IntegerValue)convert(Type.INTEGER, null)).longValue();
+        return ((IntegerValue)convert(Type.INTEGER)).longValue();
     }
 
     /**
@@ -197,6 +203,8 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
 
     public final boolean equals(Object other) {
         return compareTo(other) == 0;
+        // TODO: this is implementing the XPath definition of equality, not the XML Schema definition.
+        // However, the equals() function is probably used largely for XML Schema comparisons...
     }
 
     /**

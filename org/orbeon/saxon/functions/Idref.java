@@ -9,10 +9,10 @@ import org.orbeon.saxon.sort.DocumentOrderIterator;
 import org.orbeon.saxon.sort.LocalOrderComparer;
 import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.trans.KeyManager;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.XPathException;
 
 
 public class Idref extends SystemFunction implements MappingFunction {
@@ -44,7 +44,9 @@ public class Idref extends SystemFunction implements MappingFunction {
     */
 
     public int computeSpecialProperties() {
-        int prop = StaticProperty.ORDERED_NODESET | StaticProperty.NON_CREATIVE;
+        int prop = StaticProperty.ORDERED_NODESET |
+                StaticProperty.SINGLE_DOCUMENT_NODESET |
+                StaticProperty.NON_CREATIVE;
         if ((getNumberOfArguments() == 1) ||
                 (argument[1].getSpecialProperties() & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0) {
             prop |= StaticProperty.CONTEXT_DOCUMENT_NODESET;

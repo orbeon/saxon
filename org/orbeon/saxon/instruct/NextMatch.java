@@ -5,9 +5,9 @@ import org.orbeon.saxon.expr.XPathContextMajor;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.Mode;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.XPathException;
 
 /**
 * An xsl:next-match element in the stylesheet

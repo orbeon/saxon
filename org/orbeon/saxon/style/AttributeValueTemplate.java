@@ -3,11 +3,11 @@ import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.functions.Concat;
 import org.orbeon.saxon.functions.SystemFunction;
 import org.orbeon.saxon.instruct.SimpleContentConstructor;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,35 +29,28 @@ public abstract class AttributeValueTemplate {
     */
 
     public static Expression make(String avt,
-                                  int start,
-                                  char terminator,
                                   int lineNumber,
                                   StaticContext env) throws XPathException {
 
         List components = new ArrayList(5);
 
-        int i0, i1, i2, i8, i9, len, last;
-        last = start;
-        len = avt.length();
+        int i0, i1, i8, i9;
+        int len = avt.length();
+        int last = 0;
         while (last < len) {
-            i2 = avt.indexOf(terminator, last);
+
             i0 = avt.indexOf("{", last);
             i1 = avt.indexOf("{{", last);
             i8 = avt.indexOf("}", last);
             i9 = avt.indexOf("}}", last);
 
-            if ((i0 < 0 || i2 < i0) && (i8 < 0 || i2 < i8)) {   // found end of string
-                addStringComponent(components, avt, last, i2);
+            if ((i0 < 0 || len < i0) && (i8 < 0 || len < i8)) {   // found end of string
+                addStringComponent(components, avt, last, len);
                 break;
-            } else if (i0 >= 0 && i0 != i1 && i8 < i0) {   // found a "{" with no matching "}"
-                StaticError err = new StaticError(
-                        "Unmatched opening curly brace in attribute value template \"" + avt.substring(0,i2) + '\"');
-                err.setErrorCode("XT0350");
-                throw err;
             } else if (i8 >= 0 && (i0 < 0 || i8 < i0)) {             // found a "}"
                 if (i8 != i9) {                        // a "}" that isn't a "}}"
                     StaticError err = new StaticError(
-                            "Closing curly brace in attribute value template \"" + avt.substring(0,i2) + "\" must be doubled");
+                            "Closing curly brace in attribute value template \"" + avt.substring(0,len) + "\" must be doubled");
                     err.setErrorCode("XT0360");
                     throw err;
                 }
@@ -79,7 +72,6 @@ public abstract class AttributeValueTemplate {
                 if (env.isInBackwardsCompatibleMode()) {
                     components.add(makeFirstItem(exp, env));
                 } else {
-                    //components.add(makeStringJoin(exp, env));
                     components.add(new SimpleContentConstructor(exp, StringValue.SINGLE_SPACE));
                 }
 

@@ -2,7 +2,7 @@ package org.orbeon.saxon.expr;
 import org.orbeon.saxon.om.AtomizableIterator;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.XPathException;
 
 /**
 * MappingIterator merges a sequence of sequences into a single flat

@@ -4,8 +4,8 @@ import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.value.AnyURIValue;
 
 /**
 * This class supports the base-uri() functions in XPath 2.0
@@ -32,7 +32,11 @@ public class BaseURI extends SystemFunction {
         if (node==null) {
             return null;
         }
-        return new StringValue(node.getBaseURI());
+        String s = node.getBaseURI();
+        if (s == null) {
+            return null;
+        }
+        return new AnyURIValue(s);
     }
 
 }

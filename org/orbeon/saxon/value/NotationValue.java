@@ -1,12 +1,11 @@
 package org.orbeon.saxon.value;
 
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.type.ValidationException;
 
 
 /**
@@ -30,24 +29,23 @@ public final class NotationValue extends QNameValue {
     /**
      * Convert to target data type
      * @param requiredType an integer identifying the required atomic type
-     * @return an AtomicValue, a value of the required type
-     * @throws org.orbeon.saxon.xpath.XPathException if the conversion is not possible
+     * @return an AtomicValue, a value of the required type; or an ErrorValue
      */
 
-    public AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
-        switch (requiredType) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+        switch (requiredType.getPrimitiveType()) {
             case Type.ATOMIC:
             case Type.ITEM:
             case Type.QNAME:
             case Type.STRING:
             case Type.UNTYPED_ATOMIC:
-                return super.convert(requiredType, context);
+                return super.convertPrimitive(requiredType, validate);
             default:
-                DynamicError err = new DynamicError("Cannot convert NOTATION to " +
-                        StandardNames.getDisplayName(requiredType));
-                err.setXPathContext(context);
+                ValidationException err = new ValidationException("Cannot convert NOTATION to " +
+                        requiredType.getDisplayName());
+                //err.setXPathContext(context);
                 err.setErrorCode("FORG0001");
-                throw err;
+                return new ErrorValue(err);
         }
     }
 

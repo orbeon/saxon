@@ -1,8 +1,8 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.om.AttributeCollection;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -42,7 +42,7 @@ public class XSLMatchingSubstring extends StyleElement {
     }
 
     public void validate() throws TransformerConfigurationException {
-        if (!(getParentNode() instanceof XSLAnalyzeString)) {
+        if (!(getParent() instanceof XSLAnalyzeString)) {
             compileError(getDisplayName() + " must be immediately within xsl:analyze-string", "XT0010");
         }
     }

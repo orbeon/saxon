@@ -3,8 +3,8 @@ import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * Implement the fn:doc() function - a simplified form of the Document function

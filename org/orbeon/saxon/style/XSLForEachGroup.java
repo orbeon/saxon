@@ -8,9 +8,10 @@ import org.orbeon.saxon.instruct.ForEachGroup;
 import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.pattern.Pattern;
+import org.orbeon.saxon.pattern.PatternSponsor;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import java.util.Comparator;
@@ -37,6 +38,14 @@ public final class XSLForEachGroup extends StyleElement {
     public boolean isInstruction() {
         return true;
     }
+
+    /**
+     * Specify that xsl:sort is a permitted child
+     */
+
+    protected boolean isPermittedChild(StyleElement child) {
+        return (child instanceof XSLSort);
+    }    
 
     /**
     * Determine whether this type of element is allowed to contain a template-body
@@ -171,7 +180,7 @@ public final class XSLForEachGroup extends StyleElement {
         }
 
         byte algorithm = 0;
-        Object key = null;
+        Expression key = null;
         if (groupBy != null) {
             algorithm = ForEachGroup.GROUP_BY;
             key = groupBy;
@@ -180,10 +189,10 @@ public final class XSLForEachGroup extends StyleElement {
             key = groupAdjacent;
         } else if (starting != null) {
             algorithm = ForEachGroup.GROUP_STARTING;
-            key = starting;
+            key = new PatternSponsor(starting);
         } else if (ending != null) {
             algorithm = ForEachGroup.GROUP_ENDING;
-            key = ending;
+            key = new PatternSponsor(ending);
         }
 
 //        Block action = new Block();

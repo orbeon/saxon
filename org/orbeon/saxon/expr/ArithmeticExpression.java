@@ -1,12 +1,13 @@
 package org.orbeon.saxon.expr;
 
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.type.AtomicType;
 import org.orbeon.saxon.value.*;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 /**
  * Arithmetic Expression: an expression using one of the operators
@@ -55,8 +56,6 @@ class ArithmeticExpression extends BinaryExpression {
         new Signature(Type.DURATION_TYPE, Type.DATE_TIME_TYPE, DATE_AND_DURATION, Type.DATE_TIME_TYPE),
 
         new Signature(Type.DURATION_TYPE, Type.DURATION_TYPE, DURATION_ADDITION, Type.DURATION_TYPE)
-        //new Signature(Type.YEAR_MONTH_DURATION_TYPE, Type.YEAR_MONTH_DURATION_TYPE, DURATION_ADDITION, Type.YEAR_MONTH_DURATION_TYPE),
-        //new Signature(Type.DAY_TIME_DURATION_TYPE, Type.DAY_TIME_DURATION_TYPE, DURATION_ADDITION, Type.DAY_TIME_DURATION_TYPE)
 
     };
 
@@ -76,8 +75,6 @@ class ArithmeticExpression extends BinaryExpression {
         new Signature(Type.DATE_TIME_TYPE, Type.DURATION_TYPE, DATE_AND_DURATION, Type.DATE_TIME_TYPE),
 
         new Signature(Type.DURATION_TYPE, Type.DURATION_TYPE, DURATION_ADDITION, Type.DURATION_TYPE)
-        //new Signature(Type.YEAR_MONTH_DURATION_TYPE, Type.YEAR_MONTH_DURATION_TYPE, DURATION_ADDITION, Type.YEAR_MONTH_DURATION_TYPE),
-        //new Signature(Type.DAY_TIME_DURATION_TYPE, Type.DAY_TIME_DURATION_TYPE, DURATION_ADDITION, Type.DAY_TIME_DURATION_TYPE)
 
     };
 
@@ -152,8 +149,8 @@ class ArithmeticExpression extends BinaryExpression {
 
         Expression e = super.analyze(env, contextItemType);
         if (e instanceof ArithmeticExpression) {
-            ItemType type0 = operand0.getItemType().getPrimitiveItemType();
-            ItemType type1 = operand1.getItemType().getPrimitiveItemType();
+            AtomicType type0 = (AtomicType)operand0.getItemType().getPrimitiveItemType();
+            AtomicType type1 = (AtomicType)operand1.getItemType().getPrimitiveItemType();
             if (backwardsCompatible) {
                 if (type0 == Type.BOOLEAN_TYPE) {
                     type0 = Type.NUMBER_TYPE;
@@ -228,7 +225,17 @@ class ArithmeticExpression extends BinaryExpression {
      * Decide what action is required based on types of operands
      */
 
-    private int getAction(ItemType type1, int operator, ItemType type2) {
+    private int getAction(AtomicType type1, int operator, AtomicType type2) {
+        if (type1.getFingerprint() == Type.DAY_TIME_DURATION) {
+            type1 = Type.DURATION_TYPE;
+        } else if (type1.getFingerprint() == Type.YEAR_MONTH_DURATION) {
+            type1 = Type.DURATION_TYPE;
+        }
+        if (type2.getFingerprint() == Type.DAY_TIME_DURATION) {
+            type2 = Type.DURATION_TYPE;
+        } else if (type2.getFingerprint() == Type.YEAR_MONTH_DURATION) {
+            type2 = Type.DURATION_TYPE;
+        }
         Signature[] table = getOperatorTable(operator);
         int entry = getEntry(table, type1, type2);
         if (entry < 0) {
@@ -331,9 +338,9 @@ class ArithmeticExpression extends BinaryExpression {
         }
         v2 = v2.getPrimitiveValue();
 
-        int action = getAction(v1.getItemType().getPrimitiveItemType(),
+        int action = getAction((AtomicType)v1.getItemType().getPrimitiveItemType(),
                 operator,
-                v2.getItemType().getPrimitiveItemType());
+                (AtomicType)v2.getItemType().getPrimitiveItemType());
 
         Expression e;
         switch (action) {
@@ -361,8 +368,8 @@ class ArithmeticExpression extends BinaryExpression {
                     NumericValue nv1;
                     NumericValue nv2;
                     try {
-                        nv1 = (NumericValue)v1.convert(Type.DOUBLE, context);
-                        nv2 = (NumericValue)v2.convert(Type.DOUBLE, context);
+                        nv1 = (NumericValue)v1.convert(Type.DOUBLE);
+                        nv2 = (NumericValue)v2.convert(Type.DOUBLE);
                     } catch (XPathException err) {
                         typeError("Unsuitable operands for arithmetic operation (" +
                                 v1.getItemType() + ", " +
@@ -405,8 +412,8 @@ class ArithmeticExpression extends BinaryExpression {
 
             Expression e = super.analyze(env, contextItemType);
             if (e instanceof ArithmeticExpression) {
-                ItemType type0 = operand0.getItemType().getPrimitiveItemType();
-                ItemType type1 = operand1.getItemType().getPrimitiveItemType();
+                AtomicType type0 = (AtomicType)operand0.getItemType().getPrimitiveItemType();
+                AtomicType type1 = (AtomicType)operand1.getItemType().getPrimitiveItemType();
                 if (backwardsCompatible) {
                     if (type0 == Type.BOOLEAN_TYPE) {
                         type0 = Type.NUMBER_TYPE;
@@ -506,7 +513,7 @@ class ArithmeticExpression extends BinaryExpression {
             v1 = v1.getPrimitiveValue();
             if (v1 instanceof BooleanValue || v1 instanceof StringValue || v1 instanceof NumericValue) {
                 try {
-                    v1 = v1.convert(Type.DOUBLE, context);
+                    v1 = v1.convert(Type.DOUBLE);
                 } catch (XPathException e) {
                     return DoubleValue.NaN;
                 }
@@ -519,15 +526,15 @@ class ArithmeticExpression extends BinaryExpression {
             v2 = v2.getPrimitiveValue();
             if (v2 instanceof BooleanValue || v2 instanceof StringValue || v2 instanceof NumericValue) {
                 try {
-                    v2 = v2.convert(Type.DOUBLE, context);
+                    v2 = v2.convert(Type.DOUBLE);
                 } catch (XPathException e) {
                     return DoubleValue.NaN;
                 }
             }
 
-            int action = getAction(v1.getItemType().getPrimitiveItemType(),
+            int action = getAction((AtomicType)v1.getItemType().getPrimitiveItemType(),
                     operator,
-                    v2.getItemType().getPrimitiveItemType());
+                    (AtomicType)v2.getItemType().getPrimitiveItemType());
 
             Expression e;
             switch (action) {
@@ -586,7 +593,7 @@ class ArithmeticExpression extends BinaryExpression {
             v1 = v1.getPrimitiveValue();
             if (v1 instanceof UntypedAtomicValue) {
                 try {
-                    v1 = new DoubleValue(Value.stringToNumber(v1.getStringValue()));
+                    v1 = new DoubleValue(Value.stringToNumber(v1.getStringValueCS()));
                 } catch (NumberFormatException e) {
                     v1 = DoubleValue.NaN;
                 }
@@ -598,7 +605,7 @@ class ArithmeticExpression extends BinaryExpression {
             v2 = v2.getPrimitiveValue();
             if (v2 instanceof UntypedAtomicValue) {
                 try {
-                    v2 = new DoubleValue(Value.stringToNumber(v2.getStringValue()));
+                    v2 = new DoubleValue(Value.stringToNumber(v2.getStringValueCS()));
                 } catch (NumberFormatException e) {
                     v2 = DoubleValue.NaN;
                 }
@@ -818,7 +825,7 @@ class ArithmeticExpression extends BinaryExpression {
             }
             CalendarValue v2 = (CalendarValue)av2.getPrimitiveValue();
 
-            return v1.subtract(v2);
+            return v1.subtract(v2, context);
 
         }
     }

@@ -1,21 +1,15 @@
 package org.orbeon.saxon;
-import org.orbeon.saxon.dom.DocumentWrapper;
 import org.orbeon.saxon.event.*;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.XPathContextMajor;
+import org.orbeon.saxon.functions.Component;
 import org.orbeon.saxon.instruct.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.tinytree.TinyBuilder;
 import org.orbeon.saxon.trace.*;
-import org.orbeon.saxon.trans.DecimalFormatManager;
-import org.orbeon.saxon.trans.KeyManager;
-import org.orbeon.saxon.trans.Mode;
-import org.orbeon.saxon.trans.RuleManager;
+import org.orbeon.saxon.trans.*;
 import org.orbeon.saxon.tree.TreeBuilder;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.XPathException;
-import org.w3c.dom.Document;
-import org.w3c.dom.Node;
+import org.orbeon.saxon.value.DateTimeValue;
 import org.xml.sax.SAXParseException;
 
 import javax.xml.transform.*;
@@ -58,10 +52,11 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     private int treeModel = Builder.TINY_TREE;
     private boolean disableStripping = false;
     private Template initialTemplate = null;
-
+    private HashSet allOutputDestinations;
     private DocumentPool sourceDocumentPool;
     private HashMap userDataTable;
-    private GregorianCalendar currentDateTime;
+    private DateTimeValue currentDateTime;
+    private boolean dateTimePreset = false;
     private int initialMode = -1;
     private NodeInfo lastRememberedNode = null;
     private int lastRememberedNumber = -1;
@@ -130,44 +125,6 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     //////////////////////////////////////////////////////////////////////////
     // Methods to process the tree
     //////////////////////////////////////////////////////////////////////////
-
-
-    /**
-     * Process a Document.<p>
-     * This method is intended for use when performing a pure Java transformation,
-     * without a stylesheet. Where there is an XSLT stylesheet, use transformDocument()
-     * or transform() instead: those methods set up information from the stylesheet before calling
-     * run(). <p>
-     * The process starts by calling the registered node
-     * handler to process the supplied node. Note that the same document can be processed
-     * any number of times, typically with different node handlers for each pass. The NodeInfo
-     * will typically be the root of a tree built using org.orbeon.saxon.event.Builder.<p>
-     *
-     * @param context The initial context; the context node is the one at which processing should start
-     * @exception XPathException if the transformation fails for any
-     *     reason
-     */
-
-//    public void run(XPathContext context) throws XPathException
-//    {
-//        NodeInfo node = (NodeInfo)context.getContextItem();
-//        principalSourceDocument = node.getDocumentRoot();
-//        if (principalSourceDocument == null) {
-//            throw new DynamicError("Source tree must be rooted at a document node");
-//        }
-//        XPathContextMajor c2 = context.newContext();
-//        c2.setOrigin(this);
-//        TailCall tc = ApplyTemplates.applyTemplates(
-//                            context.getCurrentIterator(),
-//                            getRuleManager().getMode(initialMode),
-//                            null, null, c2);
-//        while (tc != null) {
-//            tc = tc.processLeavingTail(context);
-//        }
-//    }
-
-
-
 
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -291,6 +248,20 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         return principalResult;
     }
 
+    /**
+     * Check that an output destination has not been used before
+     */
+
+    public boolean checkUniqueOutputDestination(String uri) {
+        if (allOutputDestinations == null) {
+            allOutputDestinations = new HashSet(20);
+        }
+        if (allOutputDestinations.contains(uri)) {
+            return false;
+        }
+        allOutputDestinations.add(uri);
+        return true;
+    }
 
     ///////////////////////////////////////////////////////////////////////////////
 
@@ -324,6 +295,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         pipe.setConfiguration(getConfiguration());
         pipe.setErrorListener(getErrorListener());
         pipe.setURIResolver(getURIResolver());
+        pipe.setController(this);
         if (getExecutable() != null) {
             // can be null for an IdentityTransformer
             pipe.setLocationProvider(getExecutable().getLocationMap());
@@ -368,6 +340,41 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     public Emitter getMessageEmitter() {
        return messageEmitter;
+    }
+
+    /**
+     * Make a CharacterMapExpander to handle the character map definitions in the serialization
+     * properties.
+     * @param useMaps the expanded use-character-maps property: a space-separated list of names
+     * of character maps to be used, each one expressed as an expanded-QName in Clark notation
+     * (that is, {uri}local-name).
+     * @return a CharacterMapExpander if one is required, or null if not (for example, if the
+     * useMaps argument is an empty string).
+     * @throws XPathException if a name in the useMaps property cannot be resolved to a declared
+     * character map.
+     */
+
+    public CharacterMapExpander makeCharacterMapExpander(String useMaps) throws XPathException {
+        CharacterMapExpander characterMapExpander = null;
+        HashMap characterMapIndex = getExecutable().getCharacterMapIndex();
+        if (useMaps != null && characterMapIndex != null) {
+            List characterMaps = new ArrayList(5);
+            StringTokenizer st = new StringTokenizer(useMaps);
+            while (st.hasMoreTokens()) {
+                String expandedName = st.nextToken();
+                int f = namePool.getFingerprintForExpandedName(expandedName);
+                HashMap map = (HashMap)characterMapIndex.get(new Integer(f));
+                if (map==null) {
+                    throw new DynamicError("Character map '" + expandedName + "' has not been defined");
+                }
+                characterMaps.add(map);
+            }
+            if (characterMaps.size() > 0) {
+                characterMapExpander = new CharacterMapExpander();
+                characterMapExpander.setCharacterMaps(characterMaps);
+            }
+        }
+        return characterMapExpander;
     }
 
     /**
@@ -675,7 +682,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         }
         Stripper stripper;
         if (executable==null) {
-            stripper = new Stripper(new Mode(true));
+            stripper = new Stripper(new Mode(Mode.STRIPPER_MODE));
         } else {
             stripper = executable.newStripper();
         }
@@ -683,6 +690,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         if (b != null) {
 		    stripper.setUnderlyingReceiver(b);
         }
+
 		return stripper;
     }
 
@@ -914,24 +922,25 @@ public class Controller extends Transformer implements InstructionInfoProvider {
             throw new DynamicError("Stylesheet has not been prepared");
         }
 
-        currentDateTime = null;     // reset at start of each transformation
-        //principalResultURI = result.getSystemId();
+        if (!dateTimePreset) {
+            currentDateTime = null;     // reset at start of each transformation
+        }
 
         try {
             NodeInfo startNode = null;
             boolean wrap = true;
-            boolean validate = config.isSchemaValidation();
+            int validationMode = config.getSchemaValidationMode();
             Source underSource = source;
             if (source instanceof AugmentedSource) {
                 Boolean localWrap = ((AugmentedSource)source).getWrapDocument();
                 if (localWrap != null) {
                     wrap = localWrap.booleanValue();
                 }
-                Boolean localValidate = ((AugmentedSource)source).getSchemaValidation();
-                if (localValidate != null) {
-                    validate = localValidate.booleanValue();
+                int localValidate = ((AugmentedSource)source).getSchemaValidation();
+                if (localValidate != Validation.DEFAULT) {
+                    validationMode = localValidate;
                 }
-                if (validate) {
+                if (validationMode == Validation.STRICT || validationMode == Validation.LAX) {
                     // If validation of a DOMSource or NodeInfo is requested, we must copy it, we can't wrap it
                     wrap = false;
                 }
@@ -945,6 +954,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
                 if (initialTemplate == null) {
                     throw new DynamicError("Either a source document or an initial template must be specified");
                 }
+
             } else {
                 // The input is a SAXSource or StreamSource, or
                 // a DOMSource with wrap=no: build the document tree
@@ -954,6 +964,9 @@ public class Controller extends Transformer implements InstructionInfoProvider {
                 Receiver r = sourceBuilder;
                 if (executable.stripsWhitespace()) {
                     r = makeStripper(sourceBuilder);
+                }
+                if (executable.stripsInputTypeAnnotations()) {
+                    r = config.getAnnotationStripper(r);
                 }
                 sender.send(source, r);
                 DocumentInfo doc = (DocumentInfo)sourceBuilder.getCurrentRoot();
@@ -996,30 +1009,32 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      */
 
     public NodeInfo prepareInputTree(Source source) {
-        NodeInfo start;
-        if (source instanceof DOMSource) {
-            Node dsnode = ((DOMSource)source).getNode();
-            if (dsnode instanceof NodeInfo) {
-                start = (NodeInfo)dsnode;
-            } else {
-                Document dom;
-                if (dsnode instanceof Document) {
-                    dom = (Document)dsnode;
-                } else {
-                    dom = dsnode.getOwnerDocument();
-                }
-                DocumentWrapper docWrapper = new DocumentWrapper(dom, source.getSystemId(), getConfiguration());
-                start = docWrapper.wrap(dsnode);
-            }
-        } else {
-            start = (NodeInfo)source;
-        }
+        NodeInfo start = unravel(source, getConfiguration());
         if (executable.stripsWhitespace() && !disableStripping) {
             DocumentInfo docInfo = start.getDocumentRoot();
             StrippedDocument strippedDoc = new StrippedDocument(docInfo, makeStripper(null));
             start = strippedDoc.wrap(start);
         }
         return start;
+    }
+
+    /**
+     * Get a NodeInfo corresponding to a DOM Node, either by wrapping or unwrapping the DOM Node
+     */
+
+    public static NodeInfo unravel(Source source, Configuration config) {
+        List externalObjectModels = config.getExternalObjectModels();
+        for (int m=0; m<externalObjectModels.size(); m++) {
+            ExternalObjectModel model = (ExternalObjectModel)externalObjectModels.get(m);
+            NodeInfo node = model.unravel(source, config);
+            if (node != null) {
+                return node;
+            }
+        }
+        if (source instanceof NodeInfo) {
+            return (NodeInfo)source;
+        }
+        return null;
     }
 
     /**
@@ -1254,16 +1269,37 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
-     * Get the current date and time for this transformation.
+     * Set the current date and time for this query or transformation.
+     * This method is provided primarily for testing purposes, to allow tests to be run with
+     * a fixed date and time. The supplied date/time must include a timezone, which is used
+     * as the implicit timezone. Calls are ignored if a current date/time has already been
+     * established by calling getCurrentDateTime().
+     *
+     * <p>Note that comparisons of date/time values currently use the implicit timezone
+     * taken from the system clock, not from the value supplied here.</p>
+     */
+
+    public void setCurrentDateTime(DateTimeValue dateTime) throws XPathException {
+        if (currentDateTime==null) {
+            if (dateTime.getComponent(Component.TIMEZONE) == null) {
+                throw new DynamicError("No timezone is present in supplied value of current date/time");
+            }
+            currentDateTime = dateTime;
+            dateTimePreset = true;
+        }
+    }
+
+    /**
+     * Get the current date and time for this query or transformation.
      * All calls during one transformation return the same answer.
      *
      * @return Get the current date and time. This will deliver the same value
      *      for repeated calls within the same transformation
      */
 
-    public GregorianCalendar getCurrentDateTime() {
+    public DateTimeValue getCurrentDateTime() {
         if (currentDateTime==null) {
-            currentDateTime = new GregorianCalendar();
+            currentDateTime = new DateTimeValue(new GregorianCalendar(), true);
         }
         return currentDateTime;
     }

@@ -4,11 +4,11 @@ import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.pattern.CombinedNodeTest;
 import org.orbeon.saxon.sort.DocumentOrderIterator;
 import org.orbeon.saxon.sort.GlobalOrderComparer;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.xpath.XPathException;
 
 
 /**

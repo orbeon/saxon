@@ -1,14 +1,12 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.expr.AppendExpression;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.expr.Token;
+import org.orbeon.saxon.instruct.Block;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.Message;
 import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.value.EmptySequence;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -77,7 +75,7 @@ public final class XSLMessage extends StyleElement {
     }
 
     public void validate() throws TransformerConfigurationException {
-        if (!(getParentNode() instanceof XSLFunction)) {
+        if (!(getParent() instanceof XSLFunction)) {
             checkWithinTemplate();
         }
         select = typeCheck("select", select);
@@ -90,7 +88,8 @@ public final class XSLMessage extends StyleElement {
             if (select == null) {
                 select = b;
             } else {
-                select = new AppendExpression(select, Token.COMMA, b);
+                //select = new AppendExpression(select, Token.COMMA, b);
+                select = Block.makeBlock(select, b);
             }
         }
         if (select == null) {

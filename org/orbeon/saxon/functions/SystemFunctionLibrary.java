@@ -1,10 +1,10 @@
 package org.orbeon.saxon.functions;
 
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.om.NamespaceConstant;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.Err;
 
 /**
  * The SystemFunctionLibrary represents the collection of functions in the fn: namespace. That is, the
@@ -14,17 +14,20 @@ import org.orbeon.saxon.xpath.XPathException;
 
 public class SystemFunctionLibrary implements FunctionLibrary {
 
-    private boolean allowXSLTFunctions;
-    //private Configuration config;
+    private int functionSet;
+
+    public static final int XPATH_ONLY = 0;
+    public static final int FULL_XSLT = 1;
+    public static final int USE_WHEN = 2;
 
     /**
      * Create a SystemFunctionLibrary
-     * @param allowXSLT true if XSLT additional functions (such as generate-id() and format-date()) are allowed.
+     * @param functionSet determines the set of functions allowed. One of
+     * {@link #XPATH_ONLY}, {@link #FULL_XSLT}, {@link #USE_WHEN}
      */
 
-    public SystemFunctionLibrary(Configuration config, boolean allowXSLT) {
-        //this.config = config;
-        allowXSLTFunctions = allowXSLT;
+    public SystemFunctionLibrary(int functionSet) {
+        this.functionSet = functionSet;
     }
 
     /**
@@ -62,7 +65,7 @@ public class SystemFunctionLibrary implements FunctionLibrary {
      * be used as part of the binding algorithm.
      * @return An object representing the extension function to be called, if one is found;
      * null if no extension function was found matching the required name and arity.
-     * @throws org.orbeon.saxon.xpath.XPathException if a function is found with the required name and arity, but
+     * @throws org.orbeon.saxon.trans.XPathException if a function is found with the required name and arity, but
      * the implementation of the function cannot be loaded or used; or if an error occurs
      * while searching for the function; or if this function library "owns" the namespace containing
      * the function call, but no function was found.
@@ -86,8 +89,21 @@ public class SystemFunctionLibrary implements FunctionLibrary {
             f.setFunctionNameCode(nameCode);
             f.setArguments(staticArgs);
             checkArgumentCount(staticArgs.length, entry.minArguments, entry.maxArguments, local);
-            if (f instanceof XSLTFunction && !allowXSLTFunctions) {
-                throw new StaticError("Cannot use the " + local + "() function in a non-XSLT context");
+            if (functionSet != FULL_XSLT) {
+                if (f instanceof XSLTFunction || (f instanceof NamePart && entry.opcode==NamePart.GENERATE_ID)) {
+                    if (functionSet == XPATH_ONLY) {
+                        StaticError err = new StaticError(
+                                "Cannot use the " + local + "() function in a non-XSLT context");
+                        err.setErrorCode("XP0017");
+                        throw err;
+                    } else if (functionSet == USE_WHEN &&
+                            !(f instanceof Available || f instanceof SystemProperty)) {
+                        StaticError err = new StaticError(
+                                "Cannot use the " + local + "() function in a use-when expression");
+                        err.setErrorCode("XP0017");
+                        throw err;
+                    }
+                }
             }
             return f;
         } else {
@@ -101,20 +117,20 @@ public class SystemFunctionLibrary implements FunctionLibrary {
     * @param min the minimum number of arguments allowed
     * @param max the maximum number of arguments allowed
     * @return the actual number of arguments
-    * @throws org.orbeon.saxon.xpath.XPathException if the number of arguments is out of range
+    * @throws org.orbeon.saxon.trans.XPathException if the number of arguments is out of range
     */
 
     private int checkArgumentCount(int numArgs, int min, int max, String local) throws XPathException {
         if (min==max && numArgs != min) {
-            throw new StaticError("Function " + local + " must have "
+            throw new StaticError("Function " + Err.wrap(local, Err.FUNCTION) + " must have "
                     + min + pluralArguments(min));
         }
         if (numArgs < min) {
-            throw new StaticError("Function " + local + " must have at least "
+            throw new StaticError("Function " + Err.wrap(local, Err.FUNCTION) + " must have at least "
                     + min + pluralArguments(min));
         }
         if (numArgs > max) {
-            throw new StaticError("Function " + local + " must have no more than "
+            throw new StaticError("Function " + Err.wrap(local, Err.FUNCTION) + " must have no more than "
                     + max + pluralArguments(max));
         }
         return numArgs;

@@ -6,6 +6,7 @@ import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetEncoder;
+import java.util.HashMap;
 
 /**
 * This class establishes properties of a character set that is
@@ -18,24 +19,35 @@ import java.nio.charset.CharsetEncoder;
 
 public class BuggyCharacterSet implements CharacterSet {
 
+    private static HashMap map;
+
     private CharsetEncoder encoder;
 
     // This class is written on the assumption that the CharsetEncoder.canEncode()
     // method may be expensive. For BMP characters, it therefore remembers the results
     // so each character is only looked up the first time it is encountered.
 
-    // TODO: only create one instance of this class for each charset
-
     private byte[] charinfo = new byte[65536];
         // rely on initialization to zeroes
-    private StringBuffer supplementary = new StringBuffer(2);
 
     //private final static byte UNKNOWN = 0;
-    private final static byte GOOD = 1;
-    private final static byte BAD = 2;
+    private static final byte GOOD = 1;
+    private static final byte BAD = 2;
 
-    protected BuggyCharacterSet(Charset charset) {
+    private BuggyCharacterSet(Charset charset) {
         encoder = charset.newEncoder();
+    }
+    
+    public static synchronized BuggyCharacterSet makeCharSet(Charset charset) {
+        if (map == null) {
+            map = new HashMap(10);
+        }
+        BuggyCharacterSet c = (BuggyCharacterSet)map.get(charset);
+        if (c == null) {
+            c = new BuggyCharacterSet(charset);
+            map.put(charset, c);
+        }
+        return c;
     }
 
     public final boolean inCharset(int c) {
@@ -65,16 +77,6 @@ public class BuggyCharacterSet implements CharacterSet {
         } catch (CharacterCodingException ex) {
             return false;
         }
-    }
-
-    private boolean reallyInCharset(CharSequence cb) {
-        try {
-            encoder.encode(CharBuffer.wrap(cb));
-            return true;
-        } catch (CharacterCodingException ex) {
-            return false;
-        }
-
     }
 
 }

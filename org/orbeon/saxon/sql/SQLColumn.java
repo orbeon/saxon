@@ -7,15 +7,12 @@ import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.GeneralVariable;
 import org.orbeon.saxon.instruct.InstructionDetails;
 import org.orbeon.saxon.instruct.TailCall;
-import org.orbeon.saxon.om.AttributeCollection;
-import org.orbeon.saxon.om.Name;
-import org.orbeon.saxon.om.Navigator;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.style.XSLGeneralVariable;
 import org.orbeon.saxon.trace.InstructionInfo;
 import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.xpath.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -78,7 +75,7 @@ public class SQLColumn extends XSLGeneralVariable {
 
 
     public void validate() throws TransformerConfigurationException {
-        if (!(getParentNode() instanceof SQLInsert)) {
+        if (!(getParent() instanceof SQLInsert)) {
             compileError("parent node must be sql:insert");
         }
         select = typeCheck("select", select);
@@ -122,7 +119,7 @@ public class SQLColumn extends XSLGeneralVariable {
          * Evaluate the variable (method exists only to satisfy the interface)
          */
 
-        public Value evaluateVariable(XPathContext context) throws XPathException {
+        public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException {
             throw new UnsupportedOperationException();
         }
 

@@ -3,7 +3,7 @@ import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.instruct.Assign;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 

@@ -1,9 +1,8 @@
 package org.orbeon.saxon.tinytree;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.xpath.XPathException;
-import org.w3c.dom.Attr;
 
 
 /**
@@ -12,7 +11,7 @@ import org.w3c.dom.Attr;
   * @author Michael H. Kay
   */
 
-final class TinyAttributeImpl extends TinyNodeImpl implements Attr {
+final class TinyAttributeImpl extends TinyNodeImpl {
 
     public TinyAttributeImpl(TinyTree tree, int nodeNr) {
         this.tree = tree;

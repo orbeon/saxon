@@ -7,9 +7,9 @@ import org.orbeon.saxon.instruct.SimpleNodeConstructor;
 import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.om.AxisIterator;
 import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.StaticError;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -59,7 +59,7 @@ public abstract class XSLStringConstructor extends StyleElement {
                     // there is exactly one child node
                     if (first.getNodeKind() == Type.TEXT) {
                         // it is a text node: optimize for this case
-                        select = new StringValue(first.getStringValue());
+                        select = new StringValue(first.getStringValueCS());
                     }
                 }
             }

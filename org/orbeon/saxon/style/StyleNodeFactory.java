@@ -1,13 +1,10 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.Loader;
 import org.orbeon.saxon.event.LocationProvider;
-import org.orbeon.saxon.om.AttributeCollection;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.om.NamespaceConstant;
-import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.tree.ElementImpl;
 import org.orbeon.saxon.tree.NodeFactory;
-import org.orbeon.saxon.xpath.StaticError;
 
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactoryConfigurationError;
@@ -46,7 +43,7 @@ public class StyleNodeFactory implements NodeFactory {
     public ElementImpl makeElementNode(
                         NodeInfo parent,
                         int nameCode,
-                        AttributeCollection attlist,
+                        AttributeCollectionImpl attlist,
                         int[] namespaces,
                         int namespacesUsed,
                         LocationProvider locator,

@@ -8,12 +8,12 @@ import org.orbeon.saxon.om.Name;
 import org.orbeon.saxon.om.NamespaceResolver;
 import org.orbeon.saxon.om.QNameException;
 import org.orbeon.saxon.trans.DecimalFormatManager;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.NumericValue;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.StaticError;
-import org.orbeon.saxon.xpath.XPathException;
 
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;

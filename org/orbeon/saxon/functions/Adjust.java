@@ -3,11 +3,10 @@ import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.CalendarValue;
-import org.orbeon.saxon.value.DateTimeValue;
 import org.orbeon.saxon.value.SecondsDurationValue;
-import org.orbeon.saxon.xpath.XPathException;
 
 /**
 * This class implements the XPath 2.0 functions
@@ -38,10 +37,10 @@ public class Adjust extends SystemFunction {
         CalendarValue in = (CalendarValue)av1.getPrimitiveValue();
 
         int nargs = argument.length;
-        SecondsDurationValue tz = null;
+        SecondsDurationValue tz;
         if (nargs==1) {
             // use the implicit timezone
-            tz = (SecondsDurationValue)new DateTimeValue(c).getComponent(Component.TIMEZONE);
+            tz = CurrentDateTime.getImplicitTimezone(c);
             return in.setTimezone(tz);
         } else {
             AtomicValue av2 = (AtomicValue)argument[1].evaluateItem(c);

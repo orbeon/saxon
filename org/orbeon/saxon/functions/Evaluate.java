@@ -4,16 +4,13 @@ import org.orbeon.saxon.instruct.InstructionDetails;
 import org.orbeon.saxon.instruct.SlotManager;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.IndependentContext;
+import org.orbeon.saxon.trans.Variable;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.value.EmptySequence;
-import org.orbeon.saxon.value.ObjectValue;
-import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.xpath.DynamicError;
-import org.orbeon.saxon.xpath.IndependentContext;
-import org.orbeon.saxon.xpath.Variable;
-import org.orbeon.saxon.xpath.XPathException;
+import org.orbeon.saxon.value.*;
 
 import java.util.Iterator;
 
@@ -62,6 +59,7 @@ public class Evaluate extends SystemFunction {
                 NamespaceResolver nsContext = env.getNamespaceResolver();
                 staticContext = new IndependentContext(env.getConfiguration());
                 staticContext.setBaseURI(env.getBaseURI());
+                staticContext.setSchemaImporter(env);
                 staticContext.setDefaultFunctionNamespace(env.getDefaultFunctionNamespace());
                 for (Iterator iter = nsContext.iteratePrefixes(); iter.hasNext();) {
                     String prefix = (String)iter.next();
@@ -83,8 +81,28 @@ public class Evaluate extends SystemFunction {
     * (because the value of the expression depends on the runtime context)
     */
 
-    public Expression preEvaluate(StaticContext env) {
-        // TODO: allow preevaluation of saxon:expression()
+    public Expression preEvaluate(StaticContext env) throws XPathException {
+        if (operation == EXPRESSION) {
+            // compile-time evaluation of saxon:expression is allowed
+            if (argument[0] instanceof StringValue) {
+                PreparedExpression pexpr = new PreparedExpression();
+                staticContext.setFunctionLibrary(env.getFunctionLibrary());
+                String exprText = ((StringValue)argument[0]).getStringValue();
+                pexpr.variables = new Variable[10];
+                for (int i=1; i<10; i++) {
+                    pexpr.variables[i-1] = staticContext.declareVariable("p"+i, EmptySequence.getInstance());
+                }
+                Expression expr = ExpressionTool.make(exprText, staticContext, 0, Token.EOF, 1);
+
+                ItemType contextItemType = Type.ITEM_TYPE;
+                expr = expr.analyze(staticContext, contextItemType);
+                pexpr.stackFrameMap = staticContext.getStackFrameMap();
+                ExpressionTool.allocateSlots(expr, pexpr.stackFrameMap.getNumberOfVariables(), pexpr.stackFrameMap);
+                pexpr.expression = expr;
+                return new ObjectValue(pexpr);
+            }
+        }
+        // the other operations don't allow compile time evaluation because they need a run-time context
         return this;
     }
 
@@ -188,7 +206,8 @@ public class Evaluate extends SystemFunction {
             c2.setOrigin(details);
             c2.openStackFrame(pexpr.stackFrameMap);
             c2.setCurrentIterator(c.getCurrentIterator());
-            return ExpressionTool.lazyEvaluate(pexpr.expression,  c2, false).iterate(c2);
+            return Value.getIterator(
+                    ExpressionTool.lazyEvaluate(pexpr.expression,  c2, false));
         }
     }
 
@@ -206,7 +225,7 @@ public class Evaluate extends SystemFunction {
     * evaluated
     */
 
-    protected static class PreparedExpression {
+    public static class PreparedExpression {
         public Expression expression;
         public Variable[] variables;
         public SlotManager stackFrameMap;
