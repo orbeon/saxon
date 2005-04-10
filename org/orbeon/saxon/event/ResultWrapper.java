@@ -155,7 +155,7 @@ public class ResultWrapper {
                 String localName = method.substring(brace+1);
                 int colon = localName.indexOf(':');
                 localName = localName.substring(colon+1);
-                Receiver userReceiver = Emitter.makeEmitter(localName);
+                Receiver userReceiver = Emitter.makeEmitter(localName, pipe.getController());
                 userReceiver.setPipelineConfiguration(pipe);
                 target = userReceiver;
                 if (userReceiver instanceof Emitter) {

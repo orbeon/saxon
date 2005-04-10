@@ -27,12 +27,10 @@ public class Copy extends ElementCreator {
     private boolean copyNamespaces;
     private ItemType contextItemType;
 
-    public Copy( AttributeSet[] useAttributeSets,
-                 boolean copyNamespaces,
-                 boolean inheritNamespaces,
-                 SchemaType schemaType,
-                 int validation) {
-        this.useAttributeSets = useAttributeSets;
+    public Copy(boolean copyNamespaces,
+                boolean inheritNamespaces,
+                SchemaType schemaType,
+                int validation) {
         this.copyNamespaces = copyNamespaces;
         this.inheritNamespaces = inheritNamespaces;
         this.schemaType = schemaType;
@@ -48,8 +46,11 @@ public class Copy extends ElementCreator {
     }
 
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
+        setLazyConstruction(env.getConfiguration().isLazyConstructionMode());
         this.contextItemType = contextItemType;
-        return super.analyze(env, contextItemType);
+        Expression res = super.analyze(env, contextItemType);
+        verifyLazyConstruction();
+        return res;
     }
 
     /**
@@ -72,7 +73,7 @@ public class Copy extends ElementCreator {
      * @throws XPathException
      */
 
-    protected int getNameCode(XPathContext context)
+    public int getNameCode(XPathContext context)
             throws XPathException {
         return ((NodeInfo)context.getContextItem()).getNameCode();
     }
@@ -89,6 +90,20 @@ public class Copy extends ElementCreator {
         if (copyNamespaces) {
             NodeInfo element = (NodeInfo)context.getContextItem();
             element.sendNamespaceDeclarations(receiver, true);
+        }
+    }
+
+    /**
+     * Callback to get a list of the intrinsic namespaces that need to be generated for the element.
+     * The result is an array of namespace codes, the codes either occupy the whole array or are
+     * terminated by a -1 entry. A result of null is equivalent to a zero-length array.
+     */
+
+    public int[] getActiveNamespaces() throws XPathException {
+        if (copyNamespaces) {
+            throw new UnsupportedOperationException(); // TODO: pull mode not yet implemented for XSLT instructions
+        } else {
+            return null;
         }
     }
 
@@ -116,10 +131,8 @@ public class Copy extends ElementCreator {
             try {
                 CopyOf.copyAttribute(source, schemaType, validation, locationId, c2);
             } catch (NoOpenStartTagException err) {
-                DynamicError e = new DynamicError(err.getMessage());
-                e.setXPathContext(context);
-                e.setErrorCode(err.getErrorCodeLocalPart());
-                context.getController().recoverableError(e);
+                err.setXPathContext(context);
+                throw dynamicError(this, err, c2);
             }
             break;
 
@@ -142,7 +155,7 @@ public class Copy extends ElementCreator {
                 DynamicError e = new DynamicError(err.getMessage());
                 e.setXPathContext(context);
                 e.setErrorCode(err.getErrorCodeLocalPart());
-                context.getController().recoverableError(e);
+                throw dynamicError(this, e, context);
             }
             break;
 

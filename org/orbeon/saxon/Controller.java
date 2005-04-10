@@ -20,11 +20,35 @@ import java.io.PrintStream;
 import java.util.*;
 
 /**
- * <B>Controller</B> processes an XML file, calling registered node handlers
- * when appropriate to process its elements, character content, and attributes.
- * This is Saxon's implementation of the JAXP Transformer class<P>
+ * The Controller is Saxon's implementation of the JAXP Transformer class, and represents
+ * an executing instance of a transformation or query. Multiple concurrent executions of
+ * the same transformation or query will use different Controller instances. This class is
+ * therefore not thread-safe.
+ * <p>
+ * The Controller is serially reusable, as required by JAXP: when one transformation or query
+ * is finished, it can be used to run another. However, there is no advantage in doing this
+ * rather than allocating a new Controller each time.
+ * <p>
+ * The Controller can also be used when running Java applications that use neither XSLT nor
+ * XQuery. A dummy Controller is created when running free-standing XPath expressions.
+ * <p>
+ * The Controller holds those parts of the dynamic context that do not vary during the course
+ * of a transformation or query, or that do not change once their value has been computed.
+ * This also includes those parts of the static context that are required at run-time.
+ * <p>
+ * Wherever possible XSLT applications should use the JAXP Transformer class directly,
+ * rather than relying on Saxon-specific methods in the Controller. However, some
+ * features are currently available only through this class. This applies especially
+ * to new features specific to XSLT 2.0, since the JAXP interface still supports
+ * only XSLT 1.0. Such methods may be superseded in the future by JAXP methods.
+ * <p>
+ * Many methods on the Controller are designed for internal use and should not be
+ * considered stable. From release 8.4 onwards, those methods that are considered sufficiently
+ * stable to constitute path of the Saxon public API are labelled with the JavaDoc tag "since":
+ * the value indicates the release at which the method was added to the public API.
  *
  * @author Michael H. Kay
+ * @since 8.4
  */
 
 public class Controller extends Transformer implements InstructionInfoProvider {
@@ -48,7 +72,6 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     private OutputURIResolver outputURIResolver;
     private ErrorListener errorListener;
     private Executable executable;
-    private int recoveryPolicy = Configuration.RECOVER_WITH_WARNINGS;
     private int treeModel = Builder.TINY_TREE;
     private boolean disableStripping = false;
     private Template initialTemplate = null;
@@ -60,6 +83,8 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     private int initialMode = -1;
     private NodeInfo lastRememberedNode = null;
     private int lastRememberedNumber = -1;
+    private ClassLoader classLoader;
+//    private int nextLocalDocumentNumber = -1;
 
     /**
      * Create a Controller and initialise variables. Constructor is protected,
@@ -71,6 +96,25 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     public Controller(Configuration config) {
         this.config = config;
+        // create a dummy executable
+        executable = new Executable();
+        executable.setConfiguration(config);
+        executable.setHostLanguage(config.getHostLanguage());
+        init();
+    }
+
+    /**
+     * Create a Controller and initialise variables. Constructor is protected,
+     * the Controller should be created using newTransformer() in the PreparedStylesheet
+     * class.
+     *
+     * @param config The Configuration used by this Controller
+     * @param executable The executable used by this Controller
+     */
+
+    public Controller(Configuration config, Executable executable) {
+        this.config = config;
+        this.executable = executable;
         init();
     }
 
@@ -84,9 +128,10 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         errorListener = config.getErrorListener();
         if (errorListener instanceof StandardErrorListener) {
             // if using a standard error listener, make a fresh one
-            // for each transformation, because it is stateful
+            // for each transformation, because it is stateful - and also because the
+            // host language is now known (a Configuration can serve multiple host languages)
             PrintStream ps = ((StandardErrorListener)errorListener).getErrorOutput();
-            errorListener = ((StandardErrorListener)errorListener).makeAnother();
+            errorListener = ((StandardErrorListener)errorListener).makeAnother(executable.getHostLanguage());
             ((StandardErrorListener)errorListener).setErrorOutput(ps);
             ((StandardErrorListener)errorListener).setRecoveryPolicy(
                     config.getRecoveryPolicy());
@@ -103,16 +148,29 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     }
 
+    /**
+     * Get the Configuration associated with this Controller. The Configuration holds
+     * settings that potentially apply globally to many different queries and transformations.
+     * @return the Configuration object
+     * @since 8.4
+     */
     public Configuration getConfiguration() {
         return config;
     }
 
     /**
      * Set the initial mode for the transformation.
+     * <p>
+     * XSLT 2.0 allows a transformation to be started in a mode other than the default mode.
+     * The transformation then starts by looking for the template rule in this mode that best
+     * matches the initial context node.
+     * <p>
+     * This method may eventually be superseded by a standard JAXP method.
      *
      * @param expandedModeName the name of the initial mode.  The mode is
      *     supplied as an expanded QName, that is "localname" if there is no
      *     namespace, or "{uri}localname" otherwise
+     * @since 8.4
      */
 
     public void setInitialMode(String expandedModeName) {
@@ -120,12 +178,6 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         if (expandedModeName.equals("")) return;
         initialMode = namePool.allocateClarkName(expandedModeName);
     }
-
-
-    //////////////////////////////////////////////////////////////////////////
-    // Methods to process the tree
-    //////////////////////////////////////////////////////////////////////////
-
 
     ////////////////////////////////////////////////////////////////////////////////
     // Methods for managing output destinations and formatting
@@ -135,9 +187,18 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      * Set the output properties for the transformation.  These
      * properties will override properties set in the templates
      * with xsl:output.
+     * <p>
+     * As well as the properties defined in the JAXP OutputKeys class,
+     * Saxon defines an additional set of properties in {@link SaxonOutputKeys}.
+     * These fall into two categories: Constants representing serialization
+     * properties defined in XSLT 2.0 (which are not yet supported by JAXP),
+     * and constants supporting Saxon extensions to the set of serialization
+     * properties.
      *
      * @param properties the output properties to be used for the
      *     transformation
+     * @see SaxonOutputKeys
+     * @since 8.4
      */
 
     public void setOutputProperties(Properties properties) {
@@ -150,10 +211,19 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Get the output properties for the transformation.
+     * <p>
+     * As well as the properties defined in the JAXP OutputKeys class,
+     * Saxon defines an additional set of properties in {@link SaxonOutputKeys}.
+     * These fall into two categories: Constants representing serialization
+     * properties defined in XSLT 2.0 (which are not yet supported by JAXP),
+     * and constants supporting Saxon extensions to the set of serialization
+     * properties.
      *
      * @return the output properties being used for the transformation,
      *     including properties defined in the stylesheet for the unnamed
      *     output format
+     * @see SaxonOutputKeys
+     * @since 8.4
      */
 
     public Properties getOutputProperties() {
@@ -178,9 +248,18 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Set an output property for the transformation.
+     * <p>
+     * As well as the properties defined in the JAXP OutputKeys class,
+     * Saxon defines an additional set of properties in {@link SaxonOutputKeys}.
+     * These fall into two categories: Constants representing serialization
+     * properties defined in XSLT 2.0 (which are not yet supported by JAXP),
+     * and constants supporting Saxon extensions to the set of serialization
+     * properties.
      *
      * @param name the name of the property
      * @param value the value of the property
+     * @see SaxonOutputKeys
+     * @since 8.4
      */
 
     public void setOutputProperty(String name, String value) {
@@ -197,10 +276,18 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Get the value of an output property.
+     * <p>
+     * As well as the properties defined in the JAXP OutputKeys class,
+     * Saxon defines an additional set of properties in {@link SaxonOutputKeys}.
+     * These fall into two categories: Constants representing serialization
+     * properties defined in XSLT 2.0 (which are not yet supported by JAXP),
+     * and constants supporting Saxon extensions to the set of serialization
+     * properties.
      *
      * @param name the name of the requested property
      * @return the value of the requested property
-     * @see net.sf.saxon.event.SaxonOutputKeys
+     * @see SaxonOutputKeys
+     * @since 8.4
      */
 
     public String getOutputProperty(String name) {
@@ -220,10 +307,18 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
-     * Set the base output URI (as it is known in the XSLT spec).
+     * Set the base output URI.
      * This defaults to the system ID of the principal Result object, but
      * a different value can be set for use where there is no principal result.
      * The command line interface sets this to the current working directory.
+     * <p>
+     * The concept of the base output URI is new in XSLT 2.0: it defines the
+     * base URI for resolving relative URIs in the <code>href</code> attribute
+     * of the <code>xsl:result-document</code> instruction. This method may be
+     * superseded by a standard JAXP method when JAXP is updated to support XSLT 2.0.
+     *
+     * @param uri the base output URI
+     * @since 8.4
      */
 
     public void setBaseOutputURI(String uri) {
@@ -231,17 +326,28 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
-     * Get the URI of the principal result destination.
+     * Get the base output URI.
+     * This defaults to the system ID of the principal Result object, but
+     * a different value can be set for use where there is no principal result.
+     * The command line interface sets this to the current working directory.
+     * <p>
+     * The concept of the base output URI is new in XSLT 2.0: it defines the
+     * base URI for resolving relative URIs in the <code>href</code> attribute
+     * of the <code>xsl:result-document</code> instruction. This method may be
+     * superseded by a standard JAXP method when JAXP is updated to support XSLT 2.0.
      *
-     * @return the URI, as a String
+     * @return the base output URI
+     * @since 8.4
      */
 
-    public String getPrincipalResultURI() {
+    public String getBaseOutputURI() {
         return principalResultURI;
     }
 
     /**
-     * Get the principal result destination
+     * Get the principal result destination.
+     * <p>
+     * This method is intended for internal use only.
      */
 
     public Result getPrincipalResult() {
@@ -249,7 +355,9 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
-     * Check that an output destination has not been used before
+     * Check that an output destination has not been used before.
+     * <p>
+     * This method is intended for internal use only.
      */
 
     public boolean checkUniqueOutputDestination(String uri) {
@@ -266,9 +374,22 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     ///////////////////////////////////////////////////////////////////////////////
 
     /**
-     * Set the initial named template to be used as the entry point
+     * Set the initial named template to be used as the entry point.
+     * <p>
+     * XSLT 2.0 allows a transformation to start by executing a named template, rather than
+     * by matching an initial context node in a source document. This method may eventually
+     * be superseded by a standard JAXP method once JAXP supports XSLT 2.0.
+     * <p>
+     * Although the Saxon command line interface does not allow both a source document and
+     * an initial template to be specified, this API has no such restriction.
+     * <p>
+     * Note that any parameters supplied using {@link #setParameter} are used as the values
+     * of global stylesheet parameters. There is no way to supply values for local parameters
+     * of the initial template.
+     *
      * @param expandedName The expanded name of the template in {uri}local format
      * @throws XPathException if there is no named template with this name
+     * @since 8.4
      */
 
     public void setInitialTemplate(String expandedName) throws XPathException {
@@ -277,7 +398,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         if (t == null) {
             DynamicError err = new DynamicError("There is no named template with expanded name "
                                            + expandedName);
-            err.setErrorCode("XT0040");
+            err.setErrorCode("XTDE0040");
             throw err;
         } else {
             initialTemplate = t;
@@ -287,7 +408,11 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     ///////////////////////////////////////////////////////////////////////////////
 
     /**
-     * Make a PipelineConfiguration based on the properties of this Controller
+     * Make a PipelineConfiguration based on the properties of this Controller.
+     * <p>
+     * This interface is intended primarily for internal use, although it may be necessary
+     * for applications to call it directly for use in conjunction with the experimental pull
+     * API.
      */
 
     public PipelineConfiguration makePipelineConfiguration() {
@@ -305,6 +430,8 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Make an Emitter to be used for xsl:message output.
+     * <p>
+     * This method is intended for internal use only.
      *
      * @exception XPathException if any dynamic error occurs; in
      *     particular, if the registered MessageEmitter class is not an
@@ -315,7 +442,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     public Emitter makeMessageEmitter() throws XPathException {
         String emitterClass = config.getMessageEmitterClass();
 
-        Object emitter = Loader.getInstance(emitterClass);
+        Object emitter = config.getInstance(emitterClass, getClassLoader());
         if (!(emitter instanceof Emitter)) {
             throw new DynamicError(emitterClass + " is not an Emitter");
         }
@@ -324,7 +451,25 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
-     * Set the Emitter to be used for xsl:message output
+     * Set the Emitter to be used for xsl:message output.
+     * <p>
+     * Recent versions of the JAXP interface specify that by default the
+     * output of xsl:message is sent to the registered ErrorListener. Saxon
+     * does not yet implement this convention. Instead, the output is sent
+     * to a default message emitter, which is a slightly customised implementation
+     * of the standard Saxon Emitter interface.
+     * <p>
+     * This interface can be used to change the way in which Saxon outputs
+     * xsl:message output.
+     * <p>
+     * It is not necessary to use this interface in order to change the destination
+     * to which messages are written: that can be achieved by obtaining the standard
+     * message emitter and calling its {@link Emitter#setWriter} method.
+     * <p>
+     * This method is intended for use by advanced applications. The Emitter interface
+     * itself is not part of the stable Saxon public API.
+     *
+     * @param emitter The emitter to receive xsl:message output.
      */
 
     public void setMessageEmitter(Emitter emitter) {
@@ -333,7 +478,9 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
-     * Get the Emitter used for xsl:message output.
+     * Get the Emitter used for xsl:message output. This returns the emitter
+     * previously supplied to the {@link #setMessageEmitter} method, or the
+     * default message emitter otherwise.
      *
      * @return the Emitter being used for xsl:message output
      */
@@ -345,6 +492,9 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     /**
      * Make a CharacterMapExpander to handle the character map definitions in the serialization
      * properties.
+     * <p>
+     * This method is intended for internal use only.
+     *
      * @param useMaps the expanded use-character-maps property: a space-separated list of names
      * of character maps to be used, each one expressed as an expanded-QName in Clark notation
      * (that is, {uri}local-name).
@@ -379,12 +529,19 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Get the policy for handling recoverable errors.
+     * <p>
+     * This method is intended for internal use
      *
-     * @return the current policy, as set by setRecoveryPolicy
+     * @return the current policy. This is obtained from the error listener; if the error listener is
+     * not a StandardErrorListener, the value RECOVER_WITH_WARNINGS is returned.
      */
 
     public int getRecoveryPolicy() {
-        return recoveryPolicy;
+        if (errorListener instanceof StandardErrorListener) {
+            return ((StandardErrorListener)errorListener).getRecoveryPolicy();
+        } else {
+            return Configuration.RECOVER_WITH_WARNINGS;
+        }
     }
 
 	/**
@@ -411,6 +568,8 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      * Report a recoverable error. This is an XSLT concept: by default, such an error results in a warning
      * message, and processing continues. In XQuery, however, there are no recoverable errors so a fatal
      * error is reported.
+     * <p>
+     * This method is intended for internal use only.
      *
      * @param err An exception holding information about the error
      * @exception DynamicError if the error listener decides not to
@@ -419,7 +578,8 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     public void recoverableError(XPathException err) throws DynamicError {
         try {
-            if (config.getHostLanguage() == Configuration.XQUERY) {
+            if (executable.getHostLanguage() == Configuration.XQUERY) {
+                errorListener.fatalError(err);
                 throw err;
             } else {
                 errorListener.error(err);
@@ -436,6 +596,8 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Get the Executable object.
+     * <p>
+     * This method is intended for internal use only.
      *
      * @return the Executable (which represents the compiled stylesheet)
      */
@@ -445,7 +607,9 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
-     * Get the document pool. This is used only for source documents, not for stylesheet modules
+     * Get the document pool. This is used only for source documents, not for stylesheet modules.
+     * <p>
+     * This method is intended for internal use only.
      *
      * @return the source document pool
      */
@@ -456,7 +620,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Clear the document pool.
-     * This is sometimes useful when using the same Transformer
+     * This is sometimes useful when re-using the same Transformer
      * for a sequence of transformations, but it isn't done automatically, because when
      * the transformations use common look-up documents, the caching is beneficial.
      */
@@ -466,16 +630,14 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
-     * Set line numbering (of the source document) on or off.
+     * Set the principal source document (used for evaluating global variables).
+     * When a transformation is invoked using the {@link #transform} method, the
+     * principal source document is set automatically. This method is useful in XQuery,
+     * to define an initial context node for evaluating global variables, and also
+     * in XSLT 2.0, when the transformation is started by invoking a named template.
      *
-     * @param onOrOff true to switch line numbering on; false to switch it off
-     */
-
-    public void setLineNumbering(boolean onOrOff) {
-    }
-
-    /**
-     * Set the principal source document (used for evaluating global variables)
+     * @param doc The principal source document
+     * @since 8.4
      */
 
     public void setPrincipalSourceDocument(DocumentInfo doc) {
@@ -484,6 +646,8 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Get the current bindery.
+     * <p>
+     * This method is intended for internal use only.
      *
      * @return the Bindery (in which values of all variables are held)
      */
@@ -493,7 +657,11 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
-     * Get the principal source document
+     * Get the principal source document. This returns the document
+     * previously supplied to the {@link #setPrincipalSourceDocument} method, or the
+     * principal source document set implicitly using methods such as {@link #transform}.
+     * @return the principal source document
+     * @since 8.4
      */
 
     public DocumentInfo getPrincipalSourceDocument() {
@@ -514,19 +682,24 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
-     * Get the primary URI resolver.
+     * Get the URI resolver.
      *
      * @return the user-supplied URI resolver if there is one, or the
      *     system-defined one otherwise (Note, this isn't quite as JAXP
-     *     specifies it).
+     *     specifies it; it is likely to change to conform to JAXP in a subsequent
+     *     release).
      */
 
     public URIResolver getURIResolver() {
+        // TODO: make this conform to JAXP
         return (userURIResolver==null ? standardURIResolver : userURIResolver);
     }
 
     /**
-     * Get the fallback URI resolver.
+     * Get the fallback URI resolver. This is the URIResolver that Saxon uses when
+     * the user-supplied URI resolver returns null.
+     * <p>
+     * This method is intended for internal use only.
      *
      * @return the the system-defined URIResolver
      */
@@ -537,9 +710,18 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
      /**
      * Set the URI resolver for secondary output documents.
+      * <p>
+      * XSLT 2.0 introduces the <code>xsl:result-document</code instruction,
+      * allowing a transformation to have multiple result documents. JAXP does
+      * not yet support this capability. This method allows an OutputURIResolver
+      * to be specified that takes responsibility for deciding the destination
+      * (and, if it wishes, the serialization properties) of secondary output files.
+      * <p>
+      * This method may eventually be superseded by a standard JAXP method.
      *
      * @param resolver An object that implements the OutputURIResolver
      *     interface, or null.
+      * @since 8.4
      */
 
     public void setOutputURIResolver(OutputURIResolver resolver) {
@@ -555,6 +737,8 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      *
      * @return the user-supplied URI resolver if there is one, or the
      *     system-defined one otherwise.
+     * @see #setOutputURIResolver
+     * @since 8.4
      */
 
     public OutputURIResolver getOutputURIResolver() {
@@ -563,6 +747,8 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Get the KeyManager.
+     * <p>
+     * This method is intended for internal use only.
      *
      * @return the KeyManager, which holds details of all key declarations
      */
@@ -571,22 +757,14 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         return executable.getKeyManager();
     }
 
-// --Recycle Bin START (30/06/03 19:50):
-//	/**
-//	 * Set the name pool to be used.
-//	 *
-//	 * @param pool the name pool to be used
-//	 */
-//
-//	public void setConfiguration(NamePool pool) {
-//		namePool = pool;
-//	}
-// --Recycle Bin STOP (30/06/03 19:50)
-
 	/**
-	 * Get the name pool in use.
+	 * Get the name pool in use. The name pool is responsible for mapping QNames used in source
+     * documents and compiled stylesheets and queries into numeric codes. All source documents
+     * used by a given transformation or query must use the same name pool as the compiled stylesheet
+     * or query.
 	 *
 	 * @return the name pool in use
+     * @since 8.4
 	 */
 
 	public NamePool getNamePool() {
@@ -594,59 +772,25 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 	}
 
     /**
-     * Set the tree data model to use.
+     * Set the tree data model to use. This affects all source documents subsequently constructed using a
+     * Builder obtained from this Controller. This includes a document built from a StreamSource or
+     * SAXSource supplied as a parameter to the {@link #transform} method.
      *
-     * @param model the required tree model: Builder.STANDARD_TREE or
-     *     Builder.TINY_TREE
+     * @param model the required tree model: {@link Builder#STANDARD_TREE} or
+     *     {@link Builder#TINY_TREE}
      * @see net.sf.saxon.event.Builder
+     * @since 8.4
      */
 
     public void setTreeModel(int model) {
         treeModel = model;
     }
 
-// --Recycle Bin START (30/06/03 19:50):
-//    /**
-//     * Get the tree model in use.
-//     *
-//     * @return the tree model in use
-//     * @see net.sf.saxon.event.Builder
-//     */
-//
-//    public int getTreeModel() {
-//        return treeModel;
-//    }
-// --Recycle Bin STOP (30/06/03 19:50)
-
-// --Recycle Bin START (30/06/03 19:48):
-//    /**
-//     * Disable whitespace stripping.
-//     *
-//     * @param disable true if whitespace stripping is to be disabled, false if
-//     *      it is to be enabled
-//     */
-//
-//    public void disableWhitespaceStripping(boolean disable) {
-//        disableStripping = disable;
-//    }
-// --Recycle Bin STOP (30/06/03 19:48)
-
-// --Recycle Bin START (30/06/03 19:48):
-//    /**
-//     * Determine if whitespace stripping is disabled.
-//     *
-//     * @return true if whitespace stripping is disabled
-//     */
-//
-//    public boolean isWhitespaceStrippingDisabled() {
-//        return disableStripping;
-//    }
-// --Recycle Bin STOP (30/06/03 19:48)
-
     /**
      * Make a builder for the selected tree model.
      *
      * @return an instance of the Builder for the chosen tree model
+     * @since 8.4
      */
 
     public Builder makeBuilder() {
@@ -664,12 +808,23 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Make a Stripper configured to implement the whitespace stripping rules.
+     * In the case of XSLT the whitespace stripping rules are normally defined
+     * by <code>xsl:strip-space</code> and <code>xsl:preserve-space</code elements
+     * in the stylesheet. Alternatively, stripping of all whitespace text nodes
+     * may be defined at the level of the Configuration, using the method
+     * {@link Configuration#setStripsAllWhiteSpace(boolean)}.
      *
      * @param b the Builder to which the events filtered by this stripper are
      *     to be sent. May be null if the stripper is not being used for filtering
      *     into a Builder.
-     * @return the required stripper
+     * @return the required Stripper. A Stripper may be used in two ways. It acts as
+     * a filter applied to an event stream, that can be used to remove the events
+     * representing whitespace text nodes before they reach a Builder. Alternatively,
+     * it can be used to define a view of an existing tree in which the whitespace
+     * text nodes are dynamically skipped while navigating the XPath axes.
+     * @since 8.4
      */
+
     public Stripper makeStripper(Builder b) {
         if (config.isStripsAllWhiteSpace()) {
             if (b==null) {
@@ -696,6 +851,8 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Add a document to the document pool.
+     * <p>
+     * This method is intended for internal use only.
      *
      * @param doc the root node of the document to be added
      * @param systemId thesystem ID of this document
@@ -712,6 +869,8 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Set the Decimal Format Manager.
+     * <p>
+     * This method is intended for internal use only.
      *
      * @param manager the Decimal Format Manager. This object is responsible
      *     for maintaining all named and unnamed decimal format declarations
@@ -722,6 +881,9 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Get the Decimal Format Manager.
+     * <p>
+     * This method is intended for internal use only.
+     *
      * @return the Decimal Format Manager
      */
     public DecimalFormatManager getDecimalFormatManager() {
@@ -739,6 +901,8 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Set the RuleManager, used to manage template rules for each mode.
+     * <p>
+     * This method is intended for internal use only.
      *
      * @param r the Rule Manager
      */
@@ -748,6 +912,8 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Get the Rule Manager.
+     * <p>
+     * This method is intended for internal use only.
      *
      * @return the Rule Manager, used to hold details of template rules for
      *     all modes
@@ -761,27 +927,39 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     /////////////////////////////////////////////////////////////////////////
 
     /**
-     * Get the TraceListener.
+     * Get the TraceListener. By default, there is no TraceListener, and this
+     * method returns null. A TraceListener may be added using the method
+     * {@link #addTraceListener}. If more than one TraceListener has been added,
+     * this method will return a composite TraceListener. Because this form
+     * this takes is implementation-dependent, this method is not part of the
+     * stable Saxon public API.
      *
-     * @return the TraceListener used for XSLT instruction tracing
+     * @return the TraceListener used for XSLT or XQuery instruction tracing
      */
     public TraceListener getTraceListener() { // e.g.
         return traceListener;
     }
 
     /**
-     * Test whether instruction execution is being traced.
+     * Test whether instruction execution is being traced. This will be true
+     * if (a) at least one TraceListener has been registered using the
+     * {@link #addTraceListener} method, and (b) tracing has not been temporarily
+     * paused using the {@link #pauseTracing} method.
      *
      * @return true if tracing is active, false otherwise
+     * @since 8.4
      */
+
     public final boolean isTracing() { // e.g.
         return traceListener != null && !tracingPaused;
     }
 
     /**
-     * Pause or resume tracing.
+     * Pause or resume tracing. While tracing is paused, trace events are not sent to any
+     * of the registered TraceListeners.
      *
      * @param pause true if tracing is to pause; false if it is to resume
+     * @since 8.4
      */
     public final void pauseTracing(boolean pause) {
         tracingPaused = pause;
@@ -789,10 +967,17 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Adds the specified trace listener to receive trace events from
-     * this instance.
-     * Must be called before the invocation of the render method.
+     * this instance. Note that although TraceListeners can be added
+     * or removed dynamically, this has no effect unless the stylesheet
+     * or query has been compiled with tracing enabled. This is achieved
+     * by calling {@link Configuration#setTraceListener} or by setting
+     * the attribute {@link FeatureKeys#TRACE_LISTENER} on the
+     * TransformerFactory. Conversely, if this property has been set in the
+     * Configuration or TransformerFactory, the TraceListener will automatically
+     * be added to every Controller that uses that Configuration.
      *
      * @param trace the trace listener.
+     * @since 8.4
      */
 
     public void addTraceListener(TraceListener trace) { // e.g.
@@ -800,10 +985,11 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
-     * Removes the specified trace listener so that the next invocation
-     * of the render method will not send trace events to the listener.
+     * Removes the specified trace listener so that the listener will no longer
+     * receive trace events.
      *
      * @param trace the trace listener.
+     * @since 8.4
      */
 
     public void removeTraceListener(TraceListener trace) { // e.g.
@@ -812,13 +998,14 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Associate this Controller with a compiled stylesheet.
+     * <p>
+     * This method is intended for internal use only.
      *
      * @param sheet the compiled stylesheet
      */
 
     public void setPreparedStylesheet(PreparedStylesheet sheet) {
         preparedStylesheet = sheet;
-        //styleSheetElement = (XSLStylesheet)sheet.getStyleSheetDocument().getDocumentElement();
         executable = sheet.getExecutable();
         //setOutputProperties(sheet.getOutputProperties());
         // above line deleted for bug 490964 - may have side-effects
@@ -828,6 +1015,9 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      * Associate this Controller with an Executable. This method is used by the XQuery
      * processor. The Executable object is overkill in this case - the only thing it
      * currently holds are copies of the collation table.
+     * <p>
+     * This method is intended for internal use only
+     * @param exec the Executable
      */
 
     public void setExecutable(Executable exec) {
@@ -862,6 +1052,13 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         defineGlobalParameters(bindery);
     }
 
+    /**
+     * Define the global parameters of the transformation or query.
+     * <p>
+     * This method is intended for internal use only
+     * @param bindery The Bindery, which holds values of global variables and parameters
+     */
+
     public void defineGlobalParameters(Bindery bindery) {
         bindery.defineGlobalParameters(parameters);
     }
@@ -873,30 +1070,51 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     /////////////////////////////////////////////////////////////////////////
 
     /**
-     * Get user data associated with a node.
-     * @param node the node to which the data is attached
+     * Get user data associated with a key. To retrieve user data, two objects are required:
+     * an arbitrary object that may be regarded as the container of the data (originally, and
+     * typically still, a node in a tree), and a name. The name serves to distingush data objects
+     * associated with the same node by different client applications.
+     * <p>
+     * This method is intended primarily for internal use, though it may also be
+     * used by advanced applications.
+     *
+     * @param key an object acting as a key for this user data value. This must be equal
+     * (in the sense of the equals() method) to the key supplied when the data value was
+     * registered using {@link #setUserData}.
      * @param name the name of the required property
      * @return the value of the required property
      */
-    public Object getUserData(Object node, String name) {
-        String key = node.hashCode() + " " + name;
+
+    public Object getUserData(Object key, String name) {
+        String keyValue = key.hashCode() + " " + name;
         // System.err.println("getUserData " + name + " on object returning " + userDataTable.get(key));
-        return userDataTable.get(key);
+        return userDataTable.get(keyValue);
     }
 
     /**
-     * Set user data associated with a node (or any other object).
-     * @param node
-     * @param name
-     * @param data
+     * Set user data associated with a key. To store user data, two objects are required:
+     * an arbitrary object that may be regarded as the container of the data (originally, and
+     * typically still, a node in a tree), and a name. The name serves to distingush data objects
+     * associated with the same node by different client applications.
+     * <p>
+     * This method is intended primarily for internal use, though it may also be
+     * used by advanced applications.
+     *
+     * @param key an object acting as a key for this user data value. This must be equal
+     * (in the sense of the equals() method) to the key supplied when the data value was
+     * registered using {@link #setUserData}. If data for the given object and name already
+     * exists, it is overwritten.
+     * @param name the name of the required property
+     * @param data the value of the required property
      */
-    public void setUserData(Object node, String name, Object data)  {
+
+    public void setUserData(Object key, String name, Object data)  {
         // System.err.println("setUserData " + name + " on object to " + data);
-        String key = node.hashCode() + " " + name;
+        String keyVal = key.hashCode() + " " + name;
         if (data==null) {
-            userDataTable.remove(key);
+            userDataTable.remove(keyVal);
         } else {
-            userDataTable.put(key, data);
+            userDataTable.put(keyVal, data);
         }
     }
 
@@ -1004,6 +1222,9 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      * DOMSource. The preparation consists of wrapping a DOM document inside a wrapper
      * that implements the NodeInfo interface, and/or adding a space-stripping wrapper
      * if the stylesheet strips whitespace nodes.
+     * <p>
+     * This method is intended for internal use.
+     *
      * @param source the input tree. Must be either a DOMSource or a NodeInfo
      * @return the NodeInfo representing the input node, suitably wrapped.
      */
@@ -1019,7 +1240,9 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
-     * Get a NodeInfo corresponding to a DOM Node, either by wrapping or unwrapping the DOM Node
+     * Get a NodeInfo corresponding to a DOM Node, either by wrapping or unwrapping the DOM Node.
+     * <p>
+     * This method is intended for internal use.
      */
 
     public static NodeInfo unravel(Source source, Configuration config) {
@@ -1038,9 +1261,14 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
-     * Render a source XML document supplied as a tree. <br>
+     * Transform a source XML document supplied as a tree. <br>
      * A new output destination should be created for each source document,
-     * by using setOutputDetails(). <br>
+     * by using setOutputDetails().
+     * <p>
+     * This method is intended for internal use. External applications should use
+     * the {@link #transform} method, which is part of the JAXP interface. Note that
+     * <code>NodeInfo</code> implements the JAXP <code>Source</code> interface, so
+     * it may be supplied directly to the transform() method.
      *
      * @exception XPathException if any dynamic error occurs
      * @param startNode A Node that identifies the source document to be
@@ -1086,14 +1314,16 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
             if (sourceDoc.getConfiguration()==null) {
                 // must be a non-standard document implementation
-                sourceDoc.setConfiguration(getConfiguration());
+                throw new TransformerException("The supplied source document must be associated with a Configuration");
+                //sourceDoc.setConfiguration(getConfiguration());
             }
 
             if (sourceDoc.getNamePool() != preparedStylesheet.getTargetNamePool()) {
                 throw new DynamicError("Source document and stylesheet must use the same name pool");
             }
-
-            initialContext.setCurrentIterator(SingletonIterator.makeIterator(sourceDoc));
+            SequenceIterator currentIter = SingletonIterator.makeIterator(sourceDoc);
+            currentIter.next();
+            initialContext.setCurrentIterator(currentIter);
         }
 
         initializeController();
@@ -1123,11 +1353,13 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         }
 
         initialContext.changeOutputDestination(xslOutputProps, result, true, Validation.PRESERVE, null);
+        initialContext.getReceiver().startDocument(0);
 
         // Process the source document using the handlers that have been set up
 
         if (initialTemplate == null) {
-            initialContext.setCurrentIterator(SingletonIterator.makeIterator(startNode));
+            AxisIterator single = SingletonIterator.makeIterator(startNode);
+            initialContext.setCurrentIterator(single);
             principalSourceDocument = (startNode==null ? null : startNode.getDocumentRoot());
             if (principalSourceDocument == null) {
                 throw new DynamicError("Source tree must be rooted at a document node");
@@ -1135,7 +1367,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
             TailCall tc = ApplyTemplates.applyTemplates(
                                 initialContext.getCurrentIterator(),
                                 getRuleManager().getMode(initialMode),
-                                null, null, initialContext, false);
+                                null, null, initialContext, false, 0);
             while (tc != null) {
                 tc = tc.processLeavingTail(initialContext);
             }
@@ -1147,12 +1379,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
             c2.setLocalParameters(new ParameterSet());
             c2.setTunnelParameters(new ParameterSet());
 
-            TailCall tc;
-            //if (isTracing()) {
-            //    tc = t.traceExpand(c2);
-            //} else {
-                tc = t.expand(c2);
-            //}
+            TailCall tc = t.expand(c2);
             while (tc != null) {
                 tc = tc.processLeavingTail(c2);
             }
@@ -1162,7 +1389,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
             traceListener.close();
         }
 
-        //initialContext.resetOutputDestination(null);
+        initialContext.getReceiver().endDocument();
         initialContext.getReceiver().close();
 
         if (mustClose && result instanceof StreamResult) {
@@ -1179,7 +1406,9 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
-     * Pre-evaluate global variables (when debugging/tracing)
+     * Pre-evaluate global variables (when debugging/tracing).
+     * <p>
+     * This method is intended for internal use.
      */
 
     public void preEvaluateGlobals(XPathContext context) throws XPathException {
@@ -1193,6 +1422,9 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Prepare another stylesheet to handle the output of this one.
+     * <p>
+     * This method is intended for internal use, to support the
+     * <code>saxon:next-in-chain</code> extension.
      *
      * @exception XPathException if any dynamic error occurs
      * @param href URI of the next stylesheet to be applied
@@ -1228,11 +1460,44 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Set a parameter for the transformation.
+     * <p>
+     * The following table shows some of the classes that are supported
+     * by this method. (Others may also be supported, but continued support is
+     * not guaranteed.) Each entry in the table shows first the Java class of the
+     * supplied object, and then the type of the resulting XPath value.
+     * <p>
+     * <table>
+     * <thead>
+     *   <tr><th>Java Class</th><th>XPath 2.0 type</th></tr>
+     * </thead>
+     * <tbody>
+     *   <tr><td>String</td><td>xs:string</td></tr>
+     *   <tr><td>Boolean</td><td>xs:boolean</td></tr>
+     *   <tr><td>Integer</td><td>xs:integer</td></tr>
+     *   <tr><td>Long</td><td>xs:integer</td></tr>
+     *   <tr><td>Double</td><td>xs:double</td></tr>
+     *   <tr><td>Float</td><td>xs:float</td></tr>
+     *   <tr><td>BigDecimal</td><td>xs:decimal</td></tr>
+     *   <tr><td>BigInteger</td><td>xs:integer</td></tr>
+     *   <tr><td>Date</td><td>xs:dateTime</td></tr>
+     *   <tr><td>Array or List of any of the above</td><td>sequence of the above</td></tr>
+     *   <tr><td>null</td><td>empty sequence</td></tr>
+     * </tbody></table>
+     * <p>
+     * A node may be supplied as a <code>NodeInfo</code> object, a sequence of nodes
+     * as an array or List of <code>NodeInfo</code> objects.
+     * <p>
+     * In addition, any object that implements the Saxon {@link net.sf.saxon.value.Value} interface
+     * may be supplied, and will be used without conversion.
+     * <p>
+     * A node belong to an external object model (such as DOM, JDOM, or XOM) may be supplied provided (a)
+     * that the external object model is registered with the Configuration, and (b) that the node is part
+     * of a document tree that has been registered in the document pool.
      *
      * @param expandedName The name of the parameter in {uri}local format
-     * @param value The value object.  This can be any valid Java
-     *     object  it follows the same conversion rules as a value returned
-     *     from a Saxon extension function.
+     * @param value The value object.  This must follow the rules above.
+     * Other formats in addition to those listed above may be accepted.
+     * @since 8.4
      */
 
     public void setParameter(String expandedName, Object value) {
@@ -1255,7 +1520,9 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
-     * Get a parameter to the transformation.
+     * Get a parameter to the transformation. This returns the value of a parameter
+     * that has been previously set using the {@link #setParameter} method. The value
+     * is returned exactly as supplied, that is, before any conversion to an XPath value.
      *
      * @param expandedName the name of the required parameter, in
      *     "{uri}local-name" format
@@ -1292,6 +1559,8 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     /**
      * Get the current date and time for this query or transformation.
      * All calls during one transformation return the same answer.
+     * <p>
+     * This method is intended for internal use.
      *
      * @return Get the current date and time. This will deliver the same value
      *      for repeated calls within the same transformation
@@ -1310,6 +1579,9 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Make an XPathContext object for expression evaluation.
+     * <p>
+     * This method is intended for internal use.
+     *
      * @return the new XPathContext
      */
 
@@ -1319,6 +1591,8 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Set the last remembered node, for node numbering purposes.
+     * <p>
+     * This method is strictly for internal use only.
      *
      * @param node the node in question
      * @param number the number of this node
@@ -1331,6 +1605,8 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Get the number of a node if it is the last remembered one.
+     * <p>
+     * This method is strictly for internal use only.
      *
      * @param node the node for which remembered information is required
      * @return the number of this node if known, else -1.
@@ -1342,7 +1618,9 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
-     * Get diagnostic information about this context
+     * Get diagnostic information about this context.
+     * <p>
+     * This method is intended for internal use.
      */
 
     public InstructionInfo getInstructionInfo() {
@@ -1351,6 +1629,46 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         return details;
     }
 
+    /**
+     * Set a ClassLoader to be used when loading external classes. Examples of classes that are
+     * loaded include SAX parsers, localization modules for formatting numbers and dates,
+     * extension functions, external object models. In an environment such as Eclipse that uses
+     * its own ClassLoader, this ClassLoader should be nominated to ensure that any class loaded
+     * by Saxon is identical to a class of the same name loaded by the external environment.
+     * <p>
+     * This method is for application use, but is experimental and subject to change.
+     *
+     * @param loader the ClassLoader to be used.
+     */
+
+    public void setClassLoader(ClassLoader loader) {
+        this.classLoader = loader;
+    }
+
+    /**
+     * Get the ClassLoader supplied using the method {@link #setClassLoader}.
+     * If none has been supplied, return null.
+     * <p>
+     * This method is for application use, but is experimental and subject to change.
+     *
+     * @return the ClassLoader in use.
+     */
+
+    public ClassLoader getClassLoader() {
+        return classLoader;
+    }
+
+    /**
+     * Allocate a local document number: that is, a document number for a document
+     * that is used only locally within this query or transformation (a temporary tree).
+     * Local document numbers are allocated by the controller to avoid the synchronization
+     * overhead of allocating a global document number from the NamePool. Local document
+     * numbers are always negative, global document numbers are positive.
+     */
+
+//    public int allocateLocalDocumentNumber() {
+//        return nextLocalDocumentNumber--;
+//    }
 }
 
 //

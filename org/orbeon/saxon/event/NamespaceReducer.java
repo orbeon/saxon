@@ -109,7 +109,7 @@ public class NamespaceReducer extends ProxyReceiver implements NamespaceResolver
         if (typeCode != -1 && (properties & ReceiverOptions.NEEDS_PREFIX_CHECK) != 0) {
             // checking has been deferred until the namespace context is available
             SimpleType type = (SimpleType)getConfiguration().getSchemaType(typeCode);
-            XPathException err = type.validateContent(value, this);
+            XPathException err = type.validateContent(value, this, getConfiguration());
             if (err != null) {
                 throw err;
             }

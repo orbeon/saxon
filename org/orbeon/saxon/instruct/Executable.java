@@ -14,7 +14,7 @@ import java.io.Serializable;
 import java.util.*;
 
 /**
-* A compiled stylesheet in executable form.
+* A compiled stylesheet or query in executable form.
 * Note that the original stylesheet tree is not retained.
 */
 
@@ -73,10 +73,11 @@ public class Executable implements Serializable {
                 // flag to indicate that source documents are to have their type annotations stripped
     private boolean stripsInputTypeAnnotations;
 
-
-
-    // list of functions available in the static context
+                // list of functions available in the static context
     private FunctionLibrary functionLibrary;
+
+                // flag to indicate whether the principal language is for example XSLT or XQuery
+    private int hostLanguage = Configuration.XSLT;
 
     public Executable() {
 
@@ -98,6 +99,23 @@ public class Executable implements Serializable {
         return config;
     }
 
+    /**
+     * Set the host language
+     */
+
+    public void setHostLanguage(int language) {
+        hostLanguage = language;
+    }
+
+    /**
+     * Get the host language
+     * @return a value identifying the host language: {@link Configuration#XQUERY} or {@link Configuration#XSLT}
+     * or {@link Configuration#JAVA_APPLICATION}
+     */
+
+    public int getHostLanguage() {
+        return hostLanguage;
+    }
     /**
     * Set the RuleManager that handles template rules
     * @param rm the RuleManager containing details of all the template rules

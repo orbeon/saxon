@@ -1,7 +1,6 @@
 package net.sf.saxon.functions;
 
 import net.sf.saxon.Configuration;
-import net.sf.saxon.Loader;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
@@ -211,7 +210,7 @@ public class JavaExtensionLibrary implements FunctionLibrary {
      * @param uri  The URI of the function name
      * @param local  The local part of the function name
      * @param staticArgs  The expressions supplied statically in the function call. The intention is
-     * that the static type of the arguments (obtainable via getItemType() and getCardinality() may
+     * that the static type of the arguments (obtainable via getItemType() and getCardinality()) may
      * be used as part of the binding algorithm.
      * @return An object representing the extension function to be called, if one is found;
      * null if no extension function was found matching the required name, arity, or signature.
@@ -852,7 +851,7 @@ public class JavaExtensionLibrary implements FunctionLibrary {
             // support the URN format java:full.class.Name
 
             if (uri.startsWith("java:")) {
-                return Loader.getClass(uri.substring(5), config.isTraceExternalFunctions());
+                return config.getClass(uri.substring(5), config.isTraceExternalFunctions(), null);
             }
 
             // extract the class name as anything in the URI after the last "/"
@@ -860,11 +859,11 @@ public class JavaExtensionLibrary implements FunctionLibrary {
 
             int slash = uri.lastIndexOf('/');
             if (slash < 0) {
-                return Loader.getClass(uri, config.isTraceExternalFunctions());
+                return config.getClass(uri, config.isTraceExternalFunctions(), null);
             } else if (slash == uri.length() - 1) {
                 return null;
             } else {
-                return Loader.getClass(uri.substring(slash + 1), config.isTraceExternalFunctions());
+                return config.getClass(uri.substring(slash + 1), config.isTraceExternalFunctions(), null);
             }
         } catch (XPathException err) {
             return null;
@@ -918,6 +917,21 @@ public class JavaExtensionLibrary implements FunctionLibrary {
                 return factory.makeExtensionFunctionCall(nameCode, theClass, method, argument);
             }
         }
+    }
+
+    /**
+     * This method creates a copy of a FunctionLibrary: if the original FunctionLibrary allows
+     * new functions to be added, then additions to this copy will not affect the original, or
+     * vice versa.
+     *
+     * @return a copy of this function library. This must be an instance of the original class.
+     */
+
+    public FunctionLibrary copy() {
+        JavaExtensionLibrary jel = new JavaExtensionLibrary(config);
+        jel.explicitMappings = new HashMap(explicitMappings);
+        jel.diag = diag;
+        return jel;
     }
 
 }

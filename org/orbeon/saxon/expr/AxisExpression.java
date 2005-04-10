@@ -71,7 +71,7 @@ public final class AxisExpression extends ComputedExpression {
             StaticError err = new StaticError("Axis step " + toString() +
                     " cannot be used here: the context item is undefined");
             err.setIsTypeError(true);
-            err.setErrorCode("XP0020");
+            err.setErrorCode("XPDY0002");
             err.setLocator(this);
             throw err;
         }
@@ -79,7 +79,7 @@ public final class AxisExpression extends ComputedExpression {
             StaticError err = new StaticError("Axis step " + toString() +
                     " cannot be used here: the context item is an atomic value");
             err.setIsTypeError(true);
-            err.setErrorCode("XP0020");
+            err.setErrorCode("XPTY0020");
             err.setLocator(this);
             throw err;
         }
@@ -101,7 +101,7 @@ public final class AxisExpression extends ComputedExpression {
                 if (kind != Type.NODE) {
                     if (!Axis.containsNodeKind(axis, kind)) {
                         env.issueWarning("The " + Axis.axisName[axis] + " axis will never select any " +
-                            NodeKindTest.toString(origin) + " nodes",
+                            NodeKindTest.toString(kind) + " nodes",
                             this);
                         return EmptySequence.getInstance();
                     }
@@ -111,7 +111,7 @@ public final class AxisExpression extends ComputedExpression {
                             NodeKindTest.toString(origin) +
                             " nodes when starting at " +
                             (origin==Type.ELEMENT || origin == Type.ATTRIBUTE ? "an " : "a ")  +
-                            NodeKindTest.toString(origin) + " node", this);
+                            NodeKindTest.toString(kind) + " node", this);
                     return EmptySequence.getInstance();
                 }
 
@@ -157,12 +157,22 @@ public final class AxisExpression extends ComputedExpression {
                     try {
                         SchemaType schemaType = ((ComplexType)contentType).getAttributeUseType(targetfp);
                         if (schemaType == null) {
-                            StaticError err = new StaticError("The complex type " +
+                            String n = env.getNamePool().getDisplayName(targetfp);
+                            if (contentType.allowsDerivation(SchemaType.DERIVATION_EXTENSION)) {
+                                env.issueWarning("The complex type " +
+                                        contentType.getDescription() +
+                                        " does not allow an attribute named " +
+                                        n +
+                                        ". The expression will select nothing, unless " +
+                                        "there is another type that extends this type", this);
+                                itemType = NodeKindTest.ELEMENT;
+                            } else {
+                                StaticError err = new StaticError("The complex type " +
                                     contentType.getDescription() +
-                                    " does not allow an attribute named " +
-                                    env.getNamePool().getDisplayName(targetfp), this);
-                            err.setLocator(this);
-                            throw err;
+                                    " does not allow an attribute named " + n);
+                                err.setLocator(this);
+                                throw err;
+                            }
                         } else {
                             itemType = new CombinedNodeTest(
                                     test,
@@ -176,12 +186,22 @@ public final class AxisExpression extends ComputedExpression {
                     try {
                         SchemaType schemaType = ((ComplexType)contentType).getElementParticleType(targetfp);
                         if (schemaType == null) {
-                            StaticError err = new StaticError("The complex type " +
+                            String n = env.getNamePool().getDisplayName(targetfp);
+                            if (contentType.allowsDerivation(SchemaType.DERIVATION_EXTENSION)) {
+                                env.issueWarning("The complex type " +
+                                        contentType.getDescription() +
+                                        " does not allow a child element named " +
+                                        n +
+                                        ". The expression will select nothing, unless " +
+                                        "there is another type that extends this one", this);
+                                itemType = NodeKindTest.ELEMENT;
+                            } else {
+                                StaticError err = new StaticError("The complex type " +
                                     contentType.getDescription() +
-                                    " does not allow a child element named " +
-                                    env.getNamePool().getDisplayName(targetfp), this);
-                            err.setLocator(this);
-                            throw err;
+                                    " does not allow a child element named " + n);
+                                err.setLocator(this);
+                                throw err;
+                            }
                         } else {
                             itemType = new CombinedNodeTest(
                                     test,
@@ -194,17 +214,6 @@ public final class AxisExpression extends ComputedExpression {
                         // ignore the exception
                     }
                 }
-
-//                int originfp = ((NodeTest)contextItemType).getFingerprint();
-//                int targetfp = test.getFingerprint();
-//
-//                if (axis==Axis.CHILD && kind==Type.ELEMENT && origin==Type.ELEMENT && originfp==targetfp && originfp!=-1) {
-//                    String name = '<' + env.getNamePool().getDisplayName(originfp) + '>';
-//                    env.issueWarning("You are selecting a " + name +
-//                            " element that is a child of another " + name +
-//                            " element. Is this what you intended?",
-//                            this);
-//                }
             }
         }
 
@@ -336,7 +345,7 @@ public final class AxisExpression extends ComputedExpression {
         Item item = context.getContextItem();
         if (item==null) {
             DynamicError err = new DynamicError("The context item for axis step " + toString() + " is undefined");
-            err.setErrorCode("XP0020");
+            err.setErrorCode("XPDY0002");
             err.setXPathContext(context);
             err.setLocator(this);
             err.setIsTypeError(true);
@@ -344,7 +353,7 @@ public final class AxisExpression extends ComputedExpression {
         }
         if (!(item instanceof NodeInfo)) {
             DynamicError err = new DynamicError("The context item for axis step " + toString() + " is not a node");
-            err.setErrorCode("XP0020");
+            err.setErrorCode("XPTY0020");
             err.setXPathContext(context);
             err.setLocator(this);
             err.setIsTypeError(true);

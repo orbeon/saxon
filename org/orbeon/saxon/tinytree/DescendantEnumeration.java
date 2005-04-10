@@ -46,9 +46,20 @@ final class DescendantEnumeration extends AxisIteratorImpl {
 
         do {
             nextNodeNr++;
-            if (tree.depth[nextNodeNr] <= startDepth) {
+            try {
+                if (tree.depth[nextNodeNr] <= startDepth) {
+                    nextNodeNr = -1;
+                    current = null;
+                    position = -1;
+                    return null;
+                }
+            } catch (ArrayIndexOutOfBoundsException e) {
+                // this shouldn't happen. If it does happen, it means the tree wasn't properly closed
+                // during construction (there is no stopper node at the end). In this case, we'll recover
+                // by returning end-of sequence
                 nextNodeNr = -1;
                 current = null;
+                position = -1;
                 return null;
             }
         } while (!test.matches(tree.nodeKind[nextNodeNr],

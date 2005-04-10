@@ -51,9 +51,9 @@ public class CurrentDateTime extends SystemFunction {
             case Type.DATE_TIME:
                 return dt;
             case Type.DATE:
-                return (DateValue)dt.convert(Type.DATE);
+                return (DateValue)dt.convert(Type.DATE, context);
             case Type.TIME:
-                return (TimeValue)dt.convert(Type.TIME);
+                return (TimeValue)dt.convert(Type.TIME, context);
             case Type.DAY_TIME_DURATION:
             case Type.DURATION:
                 return dt.getComponent(Component.TIMEZONE);

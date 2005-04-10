@@ -56,6 +56,8 @@ public class IntersectionEnumeration implements SequenceIterator {
         // is found that match.
 
         if (nextNode1 == null || nextNode2 == null) {
+            current = null;
+            position = -1;
             return null;
         }
 

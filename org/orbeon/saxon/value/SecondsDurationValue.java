@@ -66,12 +66,12 @@ public final class SecondsDurationValue extends DurationValue {
                         state = 6;
                         break;
                     case '.':
-                        if (state > 6) badDuration("misplaced decimal point", s);
+                        if (state < 4 || state > 6) badDuration("misplaced decimal point", s);
                         seconds = value;
                         state = 7;
                         break;
                     case 'S':
-                        if (state > 7) badDuration("S is out of sequence", s);
+                        if (state < 4 || state > 7) badDuration("S is out of sequence", s);
                         if (state==7) {
                             while (part.length() < 3) part += "0";
                             if (part.length() > 3) part = part.substring(0, 3);

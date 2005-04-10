@@ -1,6 +1,7 @@
 package net.sf.saxon.expr;
 
 import net.sf.saxon.instruct.Executable;
+import net.sf.saxon.event.LocationProvider;
 
 import javax.xml.transform.SourceLocator;
 
@@ -17,6 +18,12 @@ public interface Container extends SourceLocator {
      */
 
     public Executable getExecutable();
+
+    /**
+     * Get the LocationProvider allowing location identifiers to be resolved.
+     */
+
+    public LocationProvider getLocationProvider();
 
 }
 

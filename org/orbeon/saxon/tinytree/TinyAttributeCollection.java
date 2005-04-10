@@ -134,6 +134,19 @@ public class TinyAttributeCollection implements AttributeCollection {
     }
 
     /**
+     * Get the prefix of the name of an attribute (by position).
+     *
+     * @param index The position of the attribute in the list.
+     * @return The prefix of the attribute name as a string, or null if there
+     *         is no attribute at that position. Returns "" for an attribute that
+     *         has no prefix.
+     */
+
+    public String getPrefix(int index) {
+        return tree.getNamePool().getPrefix(getNameCode(index));
+    }
+
+    /**
      * Get the lexical QName of an attribute (by position).
      *
      * @param index The position of the attribute in the list.

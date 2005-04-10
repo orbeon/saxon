@@ -34,6 +34,8 @@ final class PrecedingSiblingEnumeration extends AxisIteratorImpl {
         while (true) {
             nextNodeNr = document.prior[nextNodeNr];
             if (nextNodeNr < 0) {
+                current = null;
+                position = -1;
                 return null;
             }
             if (test.matches(document.nodeKind[nextNodeNr],

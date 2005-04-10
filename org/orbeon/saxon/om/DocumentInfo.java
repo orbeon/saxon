@@ -1,25 +1,26 @@
 package net.sf.saxon.om;
 
-import net.sf.saxon.Configuration;
-
 /**
- * The root node of an XPath tree. (Or equivalently, the tree itself).<P>
- * This class is used not only for the root of a document,
- * but also for the root of a result tree fragment, which is not constrained to contain a
- * single top-level element.
+ * This interface represents a document node as defined in the XPath 2.0 data model.
+ * It extends NodeInfo, which is used to represent any node. Every document node must
+ * be an instance of DocumentInfo.
+ * <p>
+ * The interface supports two methods in addition to those for NodeInfo: one to find
+ * elements given their ID value, and one to locate unparsed entities. In addition,
+ * document nodes have an important property that is not true of nodes in general:
+ * two distinct Java DocumentInfo objects never represent the same document node.
+ * So the Java "==" operator returns the same result as the {@link NodeInfo#isSameNodeInfo}
+ * method.
+ * <p>
+ * This interface is part of the Saxon public API, and as such (from Saxon8.4 onwards)
+ * those methods that form part of the stable public API are labelled with a JavaDoc "since" tag
+ * to indicate when they were added to the product.
  *
  * @author Michael H. Kay
+ * @since 8.4
  */
 
 public interface DocumentInfo extends NodeInfo {
-
-	/**
-	 * Set the configuration, which defines the name pool used for all names in this document.
-     * This is always called after a new document has been created. 
-	 * @param config The configuration to be used
-	 */
-
-	public void setConfiguration(Configuration config);
 
     /**
      * Get the element with a given ID, if any
@@ -28,6 +29,7 @@ public interface DocumentInfo extends NodeInfo {
      * @return the element with the given ID, or null if there is no such ID
      *     present (or if the parser has not notified attributes as being of
      *     type ID)
+     * @since 8.4
      */
 
     public NodeInfo selectID(String id);
@@ -39,7 +41,10 @@ public interface DocumentInfo extends NodeInfo {
      * @return if the entity exists, return an array of two Strings, the first
      *      holding the system ID of the entity, the second holding the public
      *      ID if there is one, or null if not. If the entity does not exist,
-     *     return null.
+     *      the method returns null. Applications should be written on the
+     *      assumption that this array may be extended in the future to provide
+     *      additional information.
+     * @since 8.4
      */
 
     public String[] getUnparsedEntity(String name);

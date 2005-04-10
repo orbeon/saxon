@@ -1,13 +1,11 @@
 package net.sf.saxon;
 import net.sf.saxon.instruct.TerminationException;
-import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.XPathException;
 import org.xml.sax.InputSource;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.Templates;
 import javax.xml.transform.TransformerFactoryConfigurationError;
-import javax.xml.transform.URIResolver;
 import javax.xml.transform.sax.SAXSource;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -96,7 +94,7 @@ public class Compile {
                         i++;
                         if (args.length < i+2) badUsage("No URIResolver class");
                         String r = args[i++];
-                        factory.setURIResolver(makeURIResolver(r));
+                        factory.setURIResolver(factory.getConfiguration().makeURIResolver(r));
                     }
 
                     else badUsage("Unknown option " + args[i]);
@@ -192,24 +190,6 @@ public class Compile {
         System.err.println("  -y classname    Use specified SAX parser for stylesheet");
         System.err.println("  -?              Display this message ");
         System.exit(2);
-    }
-
-    /** Load a URIResolver given its class name
-     *
-     * @param className The fully-qualified name of the URIResolver class to
-     *     be loaded
-     * @exception XPathException The class specified is not an instance
-     *     of javax.xml.transform.URIResolver
-     * @return A URIResolver that is an instance of the specified class
-     */
-    public static URIResolver makeURIResolver (String className)
-    throws XPathException
-    {
-        Object obj = Loader.getInstance(className);
-        if (obj instanceof URIResolver) {
-            return (URIResolver)obj;
-        }
-        throw new DynamicError("Class " + className + " is not a URIResolver");
     }
 
 }

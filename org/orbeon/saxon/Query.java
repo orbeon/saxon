@@ -1,5 +1,6 @@
 package net.sf.saxon;
 import net.sf.saxon.event.Builder;
+import net.sf.saxon.event.SaxonOutputKeys;
 import net.sf.saxon.instruct.TerminationException;
 import net.sf.saxon.om.DocumentInfo;
 import net.sf.saxon.om.SequenceIterator;
@@ -18,12 +19,10 @@ import org.xml.sax.InputSource;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Source;
 import javax.xml.transform.TransformerFactoryConfigurationError;
-import javax.xml.transform.URIResolver;
 import javax.xml.transform.sax.SAXSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.*;
 import java.util.Date;
-import java.util.List;
 import java.util.Properties;
 
 /**
@@ -100,6 +99,7 @@ public class Query {
         String outputFileName = null;
         boolean explain = false;
         boolean wrap = false;
+        boolean pullMode = false;
 
         Properties outputProps = new Properties();
         outputProps.setProperty(OutputKeys.INDENT, "yes");
@@ -153,12 +153,17 @@ public class Query {
                         outputFileName = args[i++];
                     }
 
+                    else if (args[i].equals("-pull")) {
+                        i++;
+                        pullMode = true;
+                    }
+
                     else if (args[i].equals("-r")) {
                         i++;
                         if (args.length < i+1) badUsage(name, "No URIResolver class");
                         String r = args[i++];
-                        config.setURIResolver(makeURIResolver(r));
-                        dynamicEnv.setURIResolver(makeURIResolver(r));
+                        config.setURIResolver(config.makeURIResolver(r));
+                        dynamicEnv.setURIResolver(config.makeURIResolver(r));
                     }
 
                     else if (args[i].equals("-s")) {
@@ -175,7 +180,6 @@ public class Query {
                     else if (args[i].equals("-t")) {
                         System.err.println(config.getProductTitle());
                         System.err.println("Java version " + System.getProperty("java.version"));
-                        //Loader.setTracing(true);
                         config.setTiming(true);
                         showTime = true;
                         i++;
@@ -193,7 +197,7 @@ public class Query {
 
                     else if (args[i].equals("-TL")) {
                         if (args.length < i+2) badUsage(name, "No TraceListener class specified");
-                        TraceListener traceListener = Transform.makeTraceListener(args[++i]);
+                        TraceListener traceListener = config.makeTraceListener(args[++i]);
                         config.setTraceListener(traceListener);
                         config.setLineNumbering(true);
                         i++;
@@ -262,7 +266,7 @@ public class Query {
                 String arg = args[p];
                 int eq = arg.indexOf("=");
                 if (eq<1 || eq>=arg.length()-1) {
-                    badUsage(name, "Bad param=value pair on command line");
+                    badUsage(name, "Bad param=value pair on command line: " + arg);
                 }
                 String argname = arg.substring(0,eq);
                 if (argname.startsWith("!")) {
@@ -270,7 +274,7 @@ public class Query {
                     outputProps.setProperty(argname.substring(1), arg.substring(eq+1));
                 } else if (argname.startsWith("+")) {
                     // parameters starting with "+" are taken as input documents
-                    List sources = Transform.loadDocuments(arg.substring(eq+1), useURLs, config, true);
+                    Object sources = Transform.loadDocuments(arg.substring(eq+1), useURLs, config, true);
                     dynamicEnv.setParameter(argname.substring(1), sources);
                 } else {
                     dynamicEnv.setParameter(argname, new UntypedAtomicValue(arg.substring(eq+1)));
@@ -278,6 +282,9 @@ public class Query {
             }
 
             config.displayLicenseMessage();
+            if (pullMode) {
+                config.setLazyConstructionMode(true);
+            }
 
             Source sourceInput = null;
 
@@ -347,7 +354,7 @@ public class Query {
                     module = err.getLocator().getSystemId();
                 }
                 if (err.hasBeenReported()) {
-                    quit(err.getMessage(), 2);
+                    quit("Failed to compile query", 2);
                 } else {
                     if (line == -1) {
                         System.err.println("Failed to compile query: " + err.getMessage());
@@ -385,6 +392,18 @@ public class Query {
                                 outputProps,
                                 config);
                         destination.close();
+                    } else if (pullMode) {
+                        if (wrap) {
+                            outputProps.setProperty(SaxonOutputKeys.WRAP, "yes");
+                        }
+                        try {
+                            exp.pull(dynamicEnv, new StreamResult(destination), outputProps);
+                        } catch (XPathException err) {
+                            if (!err.hasBeenReported()) {
+                                config.getErrorListener().fatalError(err);
+                            }
+                            throw err;
+                        }
                     } else {
                         exp.run(dynamicEnv, new StreamResult(destination), outputProps);
                     }
@@ -449,6 +468,7 @@ public class Query {
         System.err.println("  -e              Explain optimized query expression");
         System.err.println("  -noext          Disallow calls to Java methods");
         System.err.println("  -o filename     Send output to named file");
+        System.err.println("  -pull           Run query in pull mode");
         System.err.println("  -r classname    Use specified URIResolver class");
         System.err.println("  -s file|URI     Provide initial context document");
         System.err.println("  -strip          Strip whitespace text nodes");
@@ -459,7 +479,7 @@ public class Query {
         System.err.println("  -u              Names are URLs not filenames");
         if (config.isSchemaAware(Configuration.XQUERY)) {
             System.err.println("  -val            Validate source documents using schema");
-            System.err.println("  -vlax           Lax validation of source documents using schema");                  
+            System.err.println("  -vlax           Lax validation of source documents using schema");
             System.err.println("  -vw             Treat validation errors on result document as warnings");
         }
         System.err.println("  -wrap           Wraps result sequence in XML elements");
@@ -473,68 +493,6 @@ public class Query {
             System.exit(2);
         }
     }
-
-    /**
-     * Create an instance of a URIResolver with a specified class name
-     *
-     * @exception XPathException if the requested class does not
-     *     implement the javax.xml.transform.URIResolver interface
-     * @param className The fully-qualified name of the URIResolver class
-     * @return The newly created URIResolver
-     */
-    public static URIResolver makeURIResolver (String className)
-    throws XPathException
-    {
-        Object obj = Loader.getInstance(className);
-        if (obj instanceof URIResolver) {
-            return (URIResolver)obj;
-        }
-        throw new DynamicError("Class " + className + " is not a URIResolver");
-    }
-
-    /**
-     * Load a document, or all the documents in a directory, given a filename or URL
-     */
-
-//    protected List loadDocuments(String sourceFileName, boolean useURLs)
-//    throws XPathException {
-//
-//        List result = new ArrayList();
-//        Source sourceInput;
-//        if (useURLs || sourceFileName.startsWith("http:") || sourceFileName.startsWith("file:")) {
-//            sourceInput = config.getURIResolver().resolve(sourceFileName, null);
-//            if (sourceInput==null) {
-//                sourceInput = new StandardURIResolver().resolve(sourceFileName, null);
-//            }
-//            result.add(sourceInput);
-//        } else if (sourceFileName.equals("-")) {
-//            // take input from stdin
-//            sourceInput = new SAXSource(config.getSourceParser(), new InputSource(System.in));
-//            result.add(sourceInput);
-//        } else {
-//            File sourceFile = new File(sourceFileName);
-//            if (!sourceFile.exists()) {
-//                quit("Source file " + sourceFile + " does not exist", 2);
-//            }
-//            if (sourceFile.isDirectory()) {
-//                String[] files = sourceFile.list();
-//                for (int f=0; f<files.length; f++) {
-//                    File file = new File(sourceFile, files[f]);
-//                    if (!file.isDirectory()) {
-//                        InputSource eis = new InputSource(file.toURI().toString());
-//                        Source source = new SAXSource(config.getSourceParser(), eis);
-//                        result.add(source);
-//                    }
-//                }
-//            } else {
-//                InputSource eis = new InputSource(sourceFile.toURI().toString());
-//                sourceInput = new SAXSource(config.getSourceParser(), eis);
-//                result.add(sourceInput);
-//            }
-//        }
-//        return result;
-//    }
-
 
 }
 

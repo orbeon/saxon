@@ -1,15 +1,9 @@
 package net.sf.saxon.expr;
-import net.sf.saxon.om.EmptyIterator;
-import net.sf.saxon.om.Item;
-import net.sf.saxon.om.LookaheadIterator;
-import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.om.*;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.IntegerValue;
-import net.sf.saxon.value.NumericValue;
-import net.sf.saxon.value.SequenceType;
+import net.sf.saxon.value.*;
 
 /**
 * A RangeExpression is an expression that represents an integer sequence as
@@ -39,12 +33,24 @@ public class RangeExpression extends BinaryExpression {
         operand1 = operand1.analyze(env, contextItemType);
 
         RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, "to", 0, null);
+        role0.setSourceLocator(this);
         operand0 = TypeChecker.staticTypeCheck(
                 operand0, SequenceType.OPTIONAL_INTEGER, false, role0, env);
 
         RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, "to", 1, null);
+        role1.setSourceLocator(this);
         operand1 = TypeChecker.staticTypeCheck(
                 operand1, SequenceType.OPTIONAL_INTEGER, false, role1, env);
+
+        if (operand0 instanceof IntegerValue && operand1 instanceof IntegerValue) {
+            long i0 = ((IntegerValue)operand0).longValue();
+            long i1 = ((IntegerValue)operand1).longValue();
+            if (i0 > i1) {
+                return EmptySequence.getInstance();
+            } else {
+                return new IntegerRange(i0, i1);
+            }
+        }
         return super.simplify(env);
     }
 
@@ -89,17 +95,20 @@ public class RangeExpression extends BinaryExpression {
 
     /**
     * Iterator that produces numeric values in a monotonic sequence,
-    * ascending or descending
+    * ascending or descending. Although a range expression (N to M) is always
+     * in ascending order, applying the reverse() function will produce
+     * a RangeIterator that works in descending order.
     */
 
     public static class RangeIterator implements SequenceIterator,
                                                   ReversibleIterator,
                                                   LastPositionFinder,
-                                                  LookaheadIterator {
+                                                  LookaheadIterator,
+                                                  GroundedIterator  {
 
         long start;
         long currentValue;
-        int increment;
+        int increment;   // always +1 or -1
         long limit;
 
         public RangeIterator(long start, long end) {
@@ -112,13 +121,16 @@ public class RangeExpression extends BinaryExpression {
         public boolean hasNext() {
             if (increment>0) {
                 return currentValue <= limit;
-            } else {
+            } else if (increment<0) {
                 return currentValue >= limit;
+            } else {
+                return false;
             }
         }
 
         public Item next() {
             if (!hasNext()) {
+                increment = 0;
                 return null;
             }
             long d = currentValue;
@@ -127,14 +139,20 @@ public class RangeExpression extends BinaryExpression {
         }
 
         public Item current() {
-            return new IntegerValue(currentValue - increment);
+            if (increment == 0) {
+                return null;
+            } else {
+                return new IntegerValue(currentValue - increment);
+            }
         }
 
         public int position() {
-            if (increment>0) {
+            if (increment > 0) {
                 return (int)(currentValue - start);
-            } else {
+            } else if (increment < 0) {
                 return (int)(start - currentValue);
+            } else {
+                return -1;
             }
         }
 
@@ -148,6 +166,21 @@ public class RangeExpression extends BinaryExpression {
 
         public SequenceIterator getReverseIterator() {
             return new RangeIterator(limit, start);
+        }
+
+        /**
+         * Return a Value containing all the items in the sequence returned by this
+         * SequenceIterator. This should be an "in-memory" value, not a Closure.
+         *
+         * @return the corresponding Value
+         */
+
+        public Value materialize() throws XPathException {
+            if (increment == 1) {
+                return new IntegerRange(start, limit);
+            } else {
+                return new SequenceExtent(getAnother());
+            }
         }
     }
 }

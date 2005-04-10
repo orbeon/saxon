@@ -39,8 +39,9 @@ final class PrecedingEnumeration extends AxisIteratorImpl {
             if (!includeAncestors) {
                 // skip over ancestor elements
                 while (nextAncestorDepth >= 0 && tree.depth[nextNodeNr] == nextAncestorDepth) {
-                    if (--nextAncestorDepth <= 0) {
+                    if (nextAncestorDepth-- <= 0) {  // bug 1121528
                         current = null;
+                        position = -1;
                         return null;
                     };
                     nextNodeNr--;
@@ -55,6 +56,7 @@ final class PrecedingEnumeration extends AxisIteratorImpl {
             }
             if (tree.depth[nextNodeNr] == 0) {
                 current = null;
+                position = -1;
                 return null;
             }
         }

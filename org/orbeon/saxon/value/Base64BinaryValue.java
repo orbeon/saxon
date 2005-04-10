@@ -5,6 +5,7 @@ import net.sf.saxon.om.FastStringBuffer;
 import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.*;
+import net.sf.saxon.ConversionContext;
 
 import java.io.ByteArrayOutputStream;
 
@@ -47,10 +48,11 @@ public class Base64BinaryValue extends AtomicValue {
     /**
      * Convert to target data type
      * @param requiredType an integer identifying the required atomic type
+     * @param conversion
      * @return an AtomicValue, a value of the required type; or an ErrorValue
      */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, ConversionContext conversion) {
         switch (requiredType.getPrimitiveType()) {
         case Type.BASE64_BINARY:
         case Type.ATOMIC:
@@ -66,7 +68,7 @@ public class Base64BinaryValue extends AtomicValue {
             ValidationException err = new ValidationException("Cannot convert base64Binary to " +
                                      requiredType.getDisplayName());
             err.setErrorCode("FORG0001");
-            return new ErrorValue(err);
+            return new ValidationErrorValue(err);
         }
     }
 
@@ -131,7 +133,7 @@ public class Base64BinaryValue extends AtomicValue {
             v2 = (Base64BinaryValue)other;
         } else if (other instanceof AtomicValue) {
             try {
-                v2 = (Base64BinaryValue)((AtomicValue)other).convert(Type.BASE64_BINARY);
+                v2 = (Base64BinaryValue)((AtomicValue)other).convert(Type.BASE64_BINARY, null);
             } catch (XPathException err) {
                 return false;
             }

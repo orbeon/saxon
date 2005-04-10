@@ -77,7 +77,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
     private static CharSequence formatDate(CalendarValue value, String format, String language, XPathContext context)
     throws XPathException {
 
-        Numberer numberer = NumberInstruction.makeNumberer(language);
+        Numberer numberer = NumberInstruction.makeNumberer(language, context);
         FastStringBuffer sb = new FastStringBuffer(32);
         int i = 0;
         while (true) {
@@ -127,7 +127,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
         if (ignoreDate) {
             dtvalue = ((TimeValue)value).toDateTime();
         } else if (ignoreTime) {
-            dtvalue = (DateTimeValue)value.convert(Type.DATE_TIME);
+            dtvalue = (DateTimeValue)value.convert(Type.DATE_TIME, context);
         } else {
             dtvalue = (DateTimeValue)value;
         }
@@ -144,24 +144,29 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
         }
         String component = matcher.group(1);
         String format = matcher.group(2);
-        if (format==null || "".equals(format)) {
-            switch (component.charAt(0)) {
+        if (format==null) {
+            format = "";
+        }
+        boolean defaultFormat = false;
+        if ("".equals(format) || format.startsWith(",")) {
+            defaultFormat = true;
+            switch (component.charAt(0) ) {
                 case 'F':
-                    format = "Nn";
+                    format = "Nn" + format;
                     break;
                 case 'P':
-                    format = "n";
+                    format = 'n' + format;
                     break;
                 case 'C':
                 case 'E':
-                    format = "N";
+                    format = 'N' + format;
                     break;
                 case 'm':
                 case 's':
-                    format = "01";
+                    format = "01" + format;
                     break;
                 default:
-                    format = "1";
+                    format = '1' + format;
             }
         }
 
@@ -170,43 +175,43 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
                 if (ignoreDate) {
                     return "";
                 } else {
-                    return formatNumber(component, cal.get(Calendar.YEAR), format, numberer, context);
+                    return formatNumber(component, cal.get(Calendar.YEAR), format, defaultFormat, numberer, context);
                 }
             case 'M':       // month
                 if (ignoreDate) {
                     return "";
                 } else {
-                    return formatNumber(component, cal.get(Calendar.MONTH)+1, format, numberer, context);
+                    return formatNumber(component, cal.get(Calendar.MONTH)+1, format, defaultFormat, numberer, context);
                 }
             case 'D':       // day in month
                 if (ignoreDate) {
                     return "";
                 } else {
-                    return formatNumber(component, cal.get(Calendar.DAY_OF_MONTH), format, numberer, context);
+                    return formatNumber(component, cal.get(Calendar.DAY_OF_MONTH), format, defaultFormat, numberer, context);
                 }
             case 'd':       // day in year
                 if (ignoreDate) {
                     return "";
                 } else {
-                    return formatNumber(component, cal.get(Calendar.DAY_OF_YEAR), format, numberer, context);
+                    return formatNumber(component, cal.get(Calendar.DAY_OF_YEAR), format, defaultFormat, numberer, context);
                 }
             case 'W':       // week of year
                 if (ignoreDate) {
                     return "";
                 } else {
-                    return formatNumber(component, cal.get(Calendar.WEEK_OF_YEAR), format, numberer, context);
+                    return formatNumber(component, cal.get(Calendar.WEEK_OF_YEAR), format, defaultFormat, numberer, context);
                 }
             case 'w':       // week in month
                 if (ignoreDate) {
                     return "";
                 } else {
-                    return formatNumber(component, cal.get(Calendar.WEEK_OF_MONTH), format, numberer, context);
+                    return formatNumber(component, cal.get(Calendar.WEEK_OF_MONTH), format, defaultFormat, numberer, context);
                 }
             case 'H':       // hour in day
                 if (ignoreTime) {
                     return "";
                 } else {
-                    return formatNumber(component, cal.get(Calendar.HOUR_OF_DAY), format, numberer, context);
+                    return formatNumber(component, cal.get(Calendar.HOUR_OF_DAY), format, defaultFormat, numberer, context);
                 }
             case 'h':       // hour in half-day (12 hour clock)
                 if (ignoreTime) {
@@ -214,19 +219,19 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
                 } else {
                     int hr = cal.get(Calendar.HOUR);
                     if (hr==0) hr = 12;
-                    return formatNumber(component, hr, format, numberer, context);
+                    return formatNumber(component, hr, format, defaultFormat, numberer, context);
                 }
             case 'm':       // minutes
                 if (ignoreTime) {
                     return "";
                 } else {
-                    return formatNumber(component, cal.get(Calendar.MINUTE), format, numberer, context);
+                    return formatNumber(component, cal.get(Calendar.MINUTE), format, defaultFormat, numberer, context);
                 }
             case 's':       // seconds
                 if (ignoreTime) {
                     return "";
                 } else {
-                    return formatNumber(component, cal.get(Calendar.SECOND), format, numberer, context);
+                    return formatNumber(component, cal.get(Calendar.SECOND), format, defaultFormat, numberer, context);
                 }
             case 'f':       // fractional seconds
                 // ignore the format
@@ -247,7 +252,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
                 if (ignoreDate) {
                     return "";
                 } else {
-                    return formatNumber(component, cal.get(Calendar.DAY_OF_WEEK), format, numberer, context);
+                    return formatNumber(component, cal.get(Calendar.DAY_OF_WEEK), format, defaultFormat, numberer, context);
                 }
             case 'P':       // am/pm marker
                 if (ignoreTime) {
@@ -255,7 +260,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
                 } else {
                     int hour = cal.get(Calendar.HOUR_OF_DAY);
                     int minutes = cal.get(Calendar.MINUTE);
-                    return formatNumber(component, hour*60 + minutes, format, numberer, context);
+                    return formatNumber(component, hour*60 + minutes, format, defaultFormat, numberer, context);
                 }
             case 'C':       // calendar
                 return "Gregorian";
@@ -280,7 +285,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
             Pattern.compile(",(\\*|[0-9]+)(\\-(\\*|[0-9]+))?");
 
     private static CharSequence formatNumber(String component, int value,
-                                       String format, Numberer numberer, XPathContext context)
+                                             String format, boolean defaultFormat, Numberer numberer, XPathContext context)
     throws XPathException {
         Matcher matcher = formatPattern.matcher(format);
         if (!matcher.matches()) {
@@ -301,6 +306,24 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
             int[] range = getWidths(widths, context);
             min = range[0];
             max = range[1];
+            if (defaultFormat) {
+                // if format was defaulted, the explicit widths override the implicit format
+                if (primary.endsWith("1") && min != primary.length()) {
+                    FastStringBuffer sb = new FastStringBuffer(min+1);
+                    for (int i=1; i<min; i++) {
+                        sb.append('0');
+                    }
+                    sb.append('1');
+                    primary = sb.toString();
+                }
+            }
+        }
+
+        if ("P".equals(component)) {
+            // A.M./P.M. can only be formatted as a name
+            if (!("N".equals(primary) || "n".equals(primary) || "Nn".equals(primary))) {
+                primary = "n";
+            }
         }
 
         if ("N".equals(primary) || "n".equals(primary) || "Nn".equals(primary)) {

@@ -4,6 +4,7 @@ import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.*;
+import net.sf.saxon.ConversionContext;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -24,7 +25,8 @@ public final class BigIntegerValue extends NumericValue {
     private static final BigInteger MIN_INT = BigInteger.valueOf(Integer.MIN_VALUE);
     private static final BigInteger MAX_LONG = BigInteger.valueOf(Long.MAX_VALUE);
     private static final BigInteger MIN_LONG = BigInteger.valueOf(Long.MIN_VALUE);
-    public static final BigInteger ZERO = BigInteger.valueOf(0);
+    public static final BigInteger MAX_UNSIGNED_LONG = new BigInteger("18446744073709551615");
+    public static final BigIntegerValue ZERO = new BigIntegerValue(BigInteger.ZERO);
 
     public BigIntegerValue(BigInteger value) {
         this.value = value;
@@ -38,12 +40,25 @@ public final class BigIntegerValue extends NumericValue {
 
     /**
      * This class allows subtypes of xs:integer to be held, as well as xs:integer values.
-     * This method sets the required type label
+     * This method sets the required type label. This method should only be used for values that
      * @param type the subtype of integer required
+     * @return null if the operation succeeds, or a ValidationException if the value is out of range
      */
 
-    public void setSubType(AtomicType type) {
-        this.type = type;
+    public ValidationException convertToSubType(AtomicType type, boolean validate) {
+        if (!validate) {
+            this.type = type;
+            return null;
+        }
+        if (IntegerValue.checkBigRange(value, type)) {
+            this.type = type;
+            return null;
+        } else {
+            ValidationException err = new ValidationException(
+                    "Integer value is out of range for subtype " + type.getDisplayName());
+            err.setErrorCode("FORG0001");
+            return err;
+        }
     }
 
     /**
@@ -131,11 +146,12 @@ public final class BigIntegerValue extends NumericValue {
      * Convert to target data type
      *
      * @param requiredType an integer identifying the required atomic type
+     * @param conversion
      * @return an AtomicValue, a value of the required type; or an ErrorValue
      */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
-        switch (requiredType.getPrimitiveType()) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, ConversionContext conversion) {
+        switch (requiredType.getFingerprint()) {
             case Type.BOOLEAN:
                 return BooleanValue.get(effectiveBooleanValue(null));
 
@@ -158,16 +174,20 @@ public final class BigIntegerValue extends NumericValue {
             case Type.UNSIGNED_BYTE:
                 if (isWithinLongRange()) {
                     IntegerValue val = new IntegerValue(longValue());
-                    ValidationException err = val.convertToSubtype(requiredType, true);
-                    if (err != null) {
-                        return new ErrorValue(err);
+                    ValidationException err = val.convertToSubtype(requiredType, validate);
+                    if (err == null) {
+                        return val;
+                    } else {
+                        return new ValidationErrorValue(err);
                     }
-                    return val;
                 } else {
-                    ValidationException err = new ValidationException("Integer value is out of range for type " +
-                            requiredType.getDisplayName());
-                    err.setErrorCode("FORG0001");
-                    return new ErrorValue(err);
+                    BigIntegerValue val = new BigIntegerValue(value);
+                    ValidationException err = val.convertToSubType(requiredType, validate);
+                    if (err == null) {
+                        return val;
+                    } else {
+                        return new ValidationErrorValue(err);
+                    }
                 }
 
             case Type.UNSIGNED_LONG:
@@ -176,17 +196,20 @@ public final class BigIntegerValue extends NumericValue {
                             requiredType.getDisplayName());
                     err.setErrorCode("FORG0001");
                     //err.setXPathContext(context);
-                    return new ErrorValue(err);
+                    return new ValidationErrorValue(err);
                 } else if (isWithinLongRange()) {
                     IntegerValue val = new IntegerValue(longValue());
-                    ValidationException err = val.convertToSubtype(requiredType, true);
+                    ValidationException err = val.convertToSubtype(requiredType, validate);
                     if (err != null) {
-                        return new ErrorValue(err);
+                        return new ValidationErrorValue(err);
                     }
                     return val;
                 } else {
                     BigIntegerValue nv = new BigIntegerValue(value);
-                    nv.setSubType(requiredType);
+                    ValidationException err = nv.convertToSubType(requiredType, validate);
+                    if (err != null) {
+                        return new ValidationErrorValue(err);
+                    }
                     return nv;
                 }
 
@@ -210,7 +233,7 @@ public final class BigIntegerValue extends NumericValue {
                                          requiredType.getDisplayName());
                 //err.setXPathContext(context);
                 err.setErrorCode("FORG0001");
-                return new ErrorValue(err);
+                return new ValidationErrorValue(err);
         }
     }
 
@@ -297,7 +320,7 @@ public final class BigIntegerValue extends NumericValue {
     public double signum() {
         return value.signum();
     }
-    
+
     /**
      * Determine whether the value is a whole number, that is, whether it compares
      * equal to some integer
@@ -357,7 +380,7 @@ public final class BigIntegerValue extends NumericValue {
             BigIntegerValue val = new BigIntegerValue(other.longValue());
             return arithmetic(operator, val, context);
         } else {
-            NumericValue v = (NumericValue)convert(other.getItemType().getPrimitiveType());
+            NumericValue v = (NumericValue)convert(other.getItemType().getPrimitiveType(), context);
             return v.arithmetic(operator, other, context);
         }
     }
@@ -391,7 +414,7 @@ public final class BigIntegerValue extends NumericValue {
         } else if (target == BigInteger.class) {
             return value;
         } else {
-            return convert(Type.DECIMAL).convertToJava(target, context);
+            return convert(Type.DECIMAL, context).convertToJava(target, context);
         }
     }
 

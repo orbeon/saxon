@@ -8,10 +8,9 @@ import net.sf.saxon.om.Axis;
 import net.sf.saxon.om.AxisIterator;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.StringValue;
-
-import javax.xml.transform.TransformerConfigurationException;
 
 /**
  * Common superclass for XSLT elements whose content template produces a text
@@ -43,7 +42,7 @@ public abstract class XSLStringConstructor extends StyleElement {
         return true;
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         if (select != null && hasChildNodes()) {
             compileError("An " + getDisplayName() + " element with a select attribute must be empty");
         }
@@ -66,7 +65,7 @@ public abstract class XSLStringConstructor extends StyleElement {
         }
     }
 
-    protected void compileContent(Executable exec, SimpleNodeConstructor inst, Expression separator) throws TransformerConfigurationException {
+    protected void compileContent(Executable exec, SimpleNodeConstructor inst, Expression separator) throws XPathException {
         if (separator == null) {
             separator = StringValue.SINGLE_SPACE;
         }

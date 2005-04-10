@@ -187,7 +187,7 @@ public final class SimpleMappingExpression extends ComputedExpression implements
         context2.setCurrentIterator(result);
         context2.setOriginatingConstructType(Location.PATH_EXPRESSION);
 
-        result = new MappingIterator(result, this, context2, null);
+        result = new MappingIterator(result, this, context2);
         if (isHybrid) {
             // This case is rare so we don't worry too much about performance
             // Peek at the first node, and depending on its type, check that all the items
@@ -196,10 +196,10 @@ public final class SimpleMappingExpression extends ComputedExpression implements
             if (first == null) {
                 return EmptyIterator.getInstance();
             } else if (first instanceof AtomicValue) {
-                return new MappingIterator(result.getAnother(), new AtomicValueChecker(), null, null);
+                return new MappingIterator(result.getAnother(), AtomicValueChecker.theInstance, null);
             } else {
                 return new DocumentOrderIterator(
-                    new MappingIterator(result.getAnother(), new NodeChecker(), null, null),
+                    new MappingIterator(result.getAnother(), NodeChecker.theInstance, null),
                     GlobalOrderComparer.getInstance());
             }
         } else {
@@ -212,7 +212,7 @@ public final class SimpleMappingExpression extends ComputedExpression implements
      * returned by the child.
      */
 
-    public Object map(Item item, XPathContext context, Object info) throws XPathException {
+    public Object map(Item item, XPathContext context) throws XPathException {
         return step.iterate(context);
     }
 
@@ -227,27 +227,29 @@ public final class SimpleMappingExpression extends ComputedExpression implements
     }
 
     private static class AtomicValueChecker implements MappingFunction {
-        public Object map(Item item, XPathContext context, Object info) throws XPathException {
+        public static AtomicValueChecker theInstance = new AtomicValueChecker();
+        public Object map(Item item, XPathContext context) throws XPathException {
             if (item instanceof AtomicValue) {
                 return item;
             } else {
                 DynamicError err = new DynamicError(
                         "Cannot mix nodes and atomic values in the result of a path expression");
-                err.setErrorCode("XP0018");
+                err.setErrorCode("XPTY0018");
                 err.setXPathContext(context);
                 throw err;
             }
         }
     }
 
-   private static class NodeChecker implements MappingFunction {
-        public Object map(Item item, XPathContext context, Object info) throws XPathException {
+    private static class NodeChecker implements MappingFunction {
+        public static NodeChecker theInstance = new NodeChecker();
+        public Object map(Item item, XPathContext context) throws XPathException {
             if (item instanceof NodeInfo) {
                 return item;
             } else {
                 DynamicError err = new DynamicError(
                         "Cannot mix nodes and atomic values in the result of a path expression");
-                err.setErrorCode("XP0018");
+                err.setErrorCode("XPTY0018");
                 err.setXPathContext(context);
                 throw err;
             }

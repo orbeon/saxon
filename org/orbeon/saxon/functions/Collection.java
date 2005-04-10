@@ -53,7 +53,7 @@ public class Collection extends SystemFunction implements MappingFunction {
         String href = argument[0].evaluateItem(context).getStringValue();
 
         DocumentInfo catalog =
-                (DocumentInfo) Document.makeDoc(href, expressionBaseURI, context);
+                (DocumentInfo) Document.makeDoc(href, expressionBaseURI, context, this);
         if (catalog==null) {
             // we failed to read the catalogue
             dynamicError("Failed to load collection catalogue " + href, context);
@@ -78,7 +78,7 @@ public class Collection extends SystemFunction implements MappingFunction {
         SequenceIterator documents =
                 top.iterateAxis(Axis.CHILD, NodeKindTest.ELEMENT);
 
-        return new MappingIterator(documents, this, context, null);
+        return new MappingIterator(documents, this, context);
 
     }
 
@@ -87,14 +87,13 @@ public class Collection extends SystemFunction implements MappingFunction {
      * returned in the result
      * @param item A doc element in the catalogue document
      * @param context The dynamic evaluation context
-     * @param info not used (set to null)
      * @return the document or element referenced by the @href attribute of the doc
      * element in the catalogue
      * @throws XPathException if the document cannot be retrieved or parsed, unless
      * error recovery has been chosen.
      */
 
-    public Object map(Item item, XPathContext context, Object info) throws XPathException {
+    public Object map(Item item, XPathContext context) throws XPathException {
         NodeInfo element = (NodeInfo)item;
         if (!("doc".equals(element.getLocalPart()) &&
                 element.getURI().equals("") )) {
@@ -105,7 +104,7 @@ public class Collection extends SystemFunction implements MappingFunction {
             dynamicError("<doc> element in catalogue has no @href attribute", context);
         }
 
-        NodeInfo target = Document.makeDoc(href, element.getBaseURI(), context);
+        NodeInfo target = Document.makeDoc(href, element.getBaseURI(), context, this);
         return target;
     }
 

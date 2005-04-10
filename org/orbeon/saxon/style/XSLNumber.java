@@ -1,9 +1,5 @@
 package net.sf.saxon.style;
-import net.sf.saxon.Loader;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.RoleLocator;
-import net.sf.saxon.expr.TypeChecker;
+import net.sf.saxon.expr.*;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.instruct.NumberInstruction;
 import net.sf.saxon.instruct.ValueOf;
@@ -67,7 +63,7 @@ public class XSLNumber extends StyleElement {
         return NodeKindTest.TEXT;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 
@@ -120,16 +116,16 @@ public class XSLNumber extends StyleElement {
         if (valueAtt!=null) {
             value = makeExpression(valueAtt);
             if (selectAtt != null) {
-                compileError("The select attribute and value attribute must not both be present", "XT0975");
+                compileError("The select attribute and value attribute must not both be present", "XTSE0975");
             }
             if (countAtt != null) {
-                compileError("The count attribute and value attribute must not both be present", "XT0975");
+                compileError("The count attribute and value attribute must not both be present", "XTSE0975");
             }
             if (fromAtt != null) {
-                compileError("The from attribute and value attribute must not both be present", "XT0975");
+                compileError("The from attribute and value attribute must not both be present", "XTSE0975");
             }
             if (levelAtt != null) {
-                compileError("The level attribute and value attribute must not both be present", "XT0975");
+                compileError("The level attribute and value attribute must not both be present", "XTSE0975");
             }
         }
 
@@ -158,7 +154,7 @@ public class XSLNumber extends StyleElement {
         } else if (levelAtt.equals("any")) {
             level = ANY;
         } else {
-            compileError("Invalid value for level attribute", "XT0020");
+            compileError("Invalid value for level attribute", "XTSE0020");
         }
 
         if (level==SINGLE && from==null && count==null) {
@@ -202,7 +198,7 @@ public class XSLNumber extends StyleElement {
 
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
         checkEmpty();
 
@@ -221,6 +217,7 @@ public class XSLNumber extends StyleElement {
             try {
                 RoleLocator role =
                     new RoleLocator(RoleLocator.INSTRUCTION, "xsl:number/select", 0, null);
+                role.setSourceLocator(new ExpressionLocation(this));
                 select = TypeChecker.staticTypeCheck(select,
                                             SequenceType.SINGLE_NODE,
                                             false, role, getStaticContext());
@@ -230,7 +227,7 @@ public class XSLNumber extends StyleElement {
         }
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         NumberInstruction expr = new NumberInstruction ( select,
                                         level,
                                         count,
@@ -260,7 +257,7 @@ public class XSLNumber extends StyleElement {
     * Load a Numberer class for a given language and check it is OK.
     */
 
-    protected static Numberer makeNumberer (String language) {
+    protected Numberer makeNumberer (String language) {
         Numberer numberer;
         if (language.equals("en")) {
             numberer = defaultNumberer;
@@ -272,7 +269,7 @@ public class XSLNumber extends StyleElement {
                 }
             }
             try {
-                numberer = (Numberer)(Loader.getInstance(langClassName));
+                numberer = (Numberer)(getConfiguration().getInstance(langClassName, null));
             } catch (Exception err) {
                 numberer = defaultNumberer;
             }

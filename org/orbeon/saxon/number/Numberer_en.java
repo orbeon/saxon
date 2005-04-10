@@ -348,10 +348,13 @@ public class Numberer_en implements Numberer, Serializable {
     * Convert the number into a decimal or other representation using the given set of
     * digits.
     * For example, if the digits are "01" the sequence is 1, 10, 11, 100, 101, 110, 111, ...
+    * More commonly, the digits will be "0123456789", giving the usual decimal numbering.
     * @param number the number to be formatted
     * @param digits the set of digits to be used
     * @param picture the formatting token, for example 001 means include leading zeroes to give at least
-    * three decimal places
+    * three decimal places. In practice, it is only the length of the picture that is significant: a
+    * picture of "999" gives the same results as "001". (This isn't what a strict reading of the spec
+    * suggests should happen, but it seems a reasonable fallback in practice.)
     * @param groupSize the number of digits in each group
     * @param groupSeparator the separator to use between groups of digits.
     */

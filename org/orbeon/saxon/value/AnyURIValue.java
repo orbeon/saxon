@@ -3,6 +3,7 @@ import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.*;
+import net.sf.saxon.ConversionContext;
 
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -35,10 +36,11 @@ public final class AnyURIValue extends StringValue {
     /**
     * Convert to target data type
     * @param requiredType integer code representing the item type required
-    * @return the result of the conversion, or an ErrorValue
+    * @param conversion
+     * @return the result of the conversion, or an ErrorValue
     */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, ConversionContext conversion) {
         int req = requiredType.getPrimitiveType();
         switch(req) {
         case Type.ATOMIC:
@@ -64,7 +66,7 @@ public final class AnyURIValue extends StringValue {
             ValidationException err = new ValidationException("Cannot convert anyURI to " +
                                      requiredType.getDisplayName());
             err.setErrorCode("FORG0001");
-            return new ErrorValue(err);
+            return new ValidationErrorValue(err);
         }
     }
 

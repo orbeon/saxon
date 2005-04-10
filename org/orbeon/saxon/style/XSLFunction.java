@@ -6,7 +6,6 @@ import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.SequenceType;
 
-import javax.xml.transform.TransformerConfigurationException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -45,7 +44,7 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
         references.add(ref);
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 
@@ -55,12 +54,12 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
             if (f==StandardNames.NAME) {
 				nameAtt = atts.getValue(a).trim();
 				if (nameAtt.indexOf(':')<0) {
-					compileError("Function name must have a namespace prefix", "XT0740");
+					compileError("Function name must have a namespace prefix", "XTSE0740");
 				}
 				try {
 				    setObjectNameCode(makeNameCode(nameAtt.trim()));
         		} catch (NamespaceException err) {
-        		    compileError(err.getMessage(), "XT0280");
+        		    compileError(err.getMessage(), "XTSE0280");
         		} catch (XPathException err) {
                     compileError(err);
                 }
@@ -73,7 +72,7 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
                 } else if (overrideAtt.equals("no")) {
                     override = false;
                 } else {
-                    compileError("override must be 'yes' or 'no'", "XT0020");
+                    compileError("override must be 'yes' or 'no'", "XTSE0020");
                 }
             } else if (f==StandardNames.SAXON_MEMO_FUNCTION) {
                 String memoAtt = atts.getValue(a).trim();
@@ -82,7 +81,7 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
                 } else if (memoAtt.equals("no")) {
                     memoFunction = false;
                 } else {
-                    compileError("saxon:memo-function must be 'yes' or 'no'", "XT0020");
+                    compileError("saxon:memo-function must be 'yes' or 'no'", "XTSE0020");
                 }
         	} else {
         		checkUnknownAttribute(nc);
@@ -129,10 +128,10 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
 
     /**
     * Notify all references to this function of the data type.
-     * @throws TransformerConfigurationException
+     * @throws XPathException
     */
 
-    public void fixupReferences() throws TransformerConfigurationException {
+    public void fixupReferences() throws XPathException {
         Iterator iter = references.iterator();
         while (iter.hasNext()) {
             ((UserFunctionCall)iter.next()).setStaticType(resultType);
@@ -140,7 +139,7 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
         super.fixupReferences();
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
 
         stackFrameMap = getConfiguration().makeSlotManager();
 
@@ -171,7 +170,7 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
             }
         }
         if (isDuplicate) {
-            compileError("Duplicate function declaration", "XT0770");
+            compileError("Duplicate function declaration", "XTSE0770");
         }
     }
 
@@ -182,10 +181,10 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
      * rather irrelevant; the compile() method has the side-effect of binding
      * all references to the function to the executable representation
      * (a UserFunction object)
-     * @throws TransformerConfigurationException
+     * @throws XPathException
      */
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         compileAsExpression(exec);
         return null;
     }
@@ -198,10 +197,10 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
      * The UserFunction that is created will be linked from all calls to
      * this function, so nothing else needs to be done with the result. If there are
      * no calls to it, the compiled function will be garbage-collected away.
-     * @throws TransformerConfigurationException
+     * @throws XPathException
      */
 
-    private void compileAsExpression(Executable exec) throws TransformerConfigurationException {
+    private void compileAsExpression(Executable exec) throws XPathException {
         //Block body = new Block();
         //compileChildren(exec, body, false);
         Expression exp = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), false);
@@ -230,6 +229,7 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
             if (resultType != null) {
                 RoleLocator role =
                         new RoleLocator(RoleLocator.FUNCTION_RESULT, functionName, 0, null);
+                role.setSourceLocator(new ExpressionLocation(this));
                 exp2 = TypeChecker.staticTypeCheck(exp2, resultType, false, role, getStaticContext());
             }
 
@@ -248,6 +248,8 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
             fn.setBody(exp2);
         }
 
+        boolean tailCalls = ExpressionTool.markTailFunctionCalls(exp2);
+        fn.setTailRecursive(tailCalls);
         fixupInstruction(fn, getStaticContext());
         compiledFunction = fn;
     }
@@ -255,11 +257,11 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
     /**
     * Fixup all function references.
      * @param compiledFunction the Instruction representing this function in the compiled code
-     * @throws TransformerConfigurationException if an error occurs.
+     * @throws XPathException if an error occurs.
     */
 
     private void fixupInstruction(UserFunction compiledFunction, StaticContext env)
-    throws TransformerConfigurationException {
+    throws XPathException {
         try {
             Iterator iter = references.iterator();
             while (iter.hasNext()) {
@@ -291,7 +293,7 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
             // this is a forwards reference to the function
             try {
         	    prepareAttributes();
-        	} catch (TransformerConfigurationException err) {
+        	} catch (XPathException err) {
         	    return -1;              // we'll report the error later
         	}
         }

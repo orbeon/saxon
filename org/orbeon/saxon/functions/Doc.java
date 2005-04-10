@@ -5,12 +5,20 @@ import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.AtomicValue;
+import net.sf.saxon.value.BooleanValue;
+import net.sf.saxon.Controller;
+
+import javax.xml.transform.ErrorListener;
+import javax.xml.transform.TransformerException;
 
 /**
  * Implement the fn:doc() function - a simplified form of the Document function
  */
 
 public class Doc extends SystemFunction {
+
+    public static final int DOC = 0;
+    public static final int DOC_AVAILABLE = 1;
 
     private String expressionBaseURI = null;
 
@@ -30,12 +38,35 @@ public class Doc extends SystemFunction {
     }
 
     public Item evaluateItem(XPathContext context) throws XPathException {
+        if (operation == DOC) {
+            return doc(context);
+        } else {
+            // operation == DOC_AVAILABLE
+            try {
+                Controller controller = context.getController();
+                // suppress all error messages while attempting to fetch the document
+                ErrorListener old = controller.getErrorListener();
+                controller.setErrorListener(new ErrorListener() {
+                    public void warning(TransformerException exception) {}
+                    public void error(TransformerException exception) {}
+                    public void fatalError(TransformerException exception) {}
+                });
+                Item item = doc(context);
+                controller.setErrorListener(old);
+                return BooleanValue.get(item != null);
+            } catch (XPathException err) {
+                return BooleanValue.FALSE;
+            }
+        }
+    }
+
+    private Item doc(XPathContext context) throws XPathException {
         AtomicValue hrefVal = (AtomicValue)argument[0].evaluateItem(context);
         if (hrefVal==null) {
             return null;
         }
         String href = hrefVal.getStringValue();
-        Item item = Document.makeDoc(href, expressionBaseURI, context);
+        Item item = Document.makeDoc(href, expressionBaseURI, context, this);
         if (item==null) {
             // we failed to read the document
             dynamicError("Failed to load document " + href, "FODC0005", context);

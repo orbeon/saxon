@@ -11,6 +11,7 @@ import net.sf.saxon.trace.Location;
 import net.sf.saxon.trans.StaticError;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.SequenceType;
+import net.sf.saxon.event.LocationProvider;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -58,6 +59,14 @@ public class XQueryFunction implements InstructionInfo, Container {
 
     public Executable getExecutable() {
         return executable;
+    }
+
+    /**
+     * Get the LocationProvider allowing location identifiers to be resolved.
+     */
+
+    public LocationProvider getLocationProvider() {
+        return executable.getLocationMap();
     }
 
     public StaticContext getStaticContext() {
@@ -124,6 +133,7 @@ public class XQueryFunction implements InstructionInfo, Container {
                 }
                 RoleLocator role =
                         new RoleLocator(RoleLocator.FUNCTION_RESULT, new Integer(nameCode), 0, env.getNamePool());
+                role.setSourceLocator(this);
                 body = TypeChecker.staticTypeCheck(body, resultType, false, role, env);
                 if (body instanceof ComputedExpression) {
                     ((ComputedExpression)body).setParentExpression(this);
@@ -154,7 +164,8 @@ public class XQueryFunction implements InstructionInfo, Container {
 
                 // mark tail calls within the function body
 
-                ExpressionTool.markTailFunctionCalls(body);
+                boolean tailCalls = ExpressionTool.markTailFunctionCalls(body);
+                compiledFunction.setTailRecursive(tailCalls);
 
                 for (int i=0; i<params.length; i++) {
                     RangeVariableDeclaration decl = (RangeVariableDeclaration)arguments.get(i);

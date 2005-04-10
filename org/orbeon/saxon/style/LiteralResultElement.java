@@ -8,13 +8,13 @@ import net.sf.saxon.om.*;
 import net.sf.saxon.trace.Location;
 import net.sf.saxon.trans.StaticError;
 import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.trans.SaxonErrorCode;
 import net.sf.saxon.tree.DocumentImpl;
 import net.sf.saxon.tree.TreeBuilder;
 import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.StringValue;
 
-import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
 
 
@@ -59,7 +59,7 @@ public class LiteralResultElement extends StyleElement {
     * Process the attribute list
     */
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
         // Process the values of all attributes. At this stage we deal with attribute
         // values (especially AVTs), but we do not apply namespace aliasing to the
@@ -109,10 +109,10 @@ public class LiteralResultElement extends StyleElement {
                         } else if (inheritAtt.equals("no")) {
                             inheritNamespaces = false;
                         } else {
-                            compileError("The xsl:inherit-namespaces attribute has permitted values (yes, no)", "XT0020");
+                            compileError("The xsl:inherit-namespaces attribute has permitted values (yes, no)", "XTSE0020");
                         }
                     } else {
-                        compileError("Unknown XSL attribute " + namePool.getDisplayName(anameCode), "XT0010");
+                        compileError("Unknown XSL attribute " + namePool.getDisplayName(anameCode), "XTSE0010");
                     }
                 } else {
                     attributeNames[numberOfAttributes] = anameCode;
@@ -166,7 +166,7 @@ public class LiteralResultElement extends StyleElement {
     * Validate that this node is OK
     */
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
 
         toplevel = (getParent() instanceof XSLStylesheet);
 
@@ -180,7 +180,7 @@ public class LiteralResultElement extends StyleElement {
             // but this class gets used for unknown elements found at the top level
 
             if (elementURICode == 0) {
-                compileError("Top level elements must have a non-null namespace URI", "XT0010");
+                compileError("Top level elements must have a non-null namespace URI", "XTSE0010");
             }
         } else {
 
@@ -259,7 +259,7 @@ public class LiteralResultElement extends StyleElement {
             String type = getAttributeValue(StandardNames.XSL_TYPE);
             if (type != null) {
                 if (!getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                    compileError("The xsl:type attribute is available only with a schema-aware XSLT processor", "XT1660");
+                    compileError("The xsl:type attribute is available only with a schema-aware XSLT processor", "XTSE1660");
                 }
                 schemaType = getSchemaType(type);
             }
@@ -268,11 +268,11 @@ public class LiteralResultElement extends StyleElement {
             if (validate != null) {
                 validation = Validation.getCode(validate);
                 if (validation != Validation.STRIP && !getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                    compileError("To perform validation, a schema-aware XSLT processor is needed", "XT1660");
+                    compileError("To perform validation, a schema-aware XSLT processor is needed", "XTSE1660");
                 }
                 if (validation == Validation.INVALID) {
                     compileError("Invalid value for xsl:validation. " +
-                                 "Permitted values are (strict, lax, preserve, strip)", "XT0020");
+                                 "Permitted values are (strict, lax, preserve, strip)", "XTSE0020");
                 }
             } else {
                 validation = getContainingStylesheet().getDefaultValidation();
@@ -355,7 +355,7 @@ public class LiteralResultElement extends StyleElement {
     * data elements.
     */
 
-    protected void validateChildren() throws TransformerConfigurationException {
+    protected void validateChildren() throws XPathException {
         if (!toplevel) {
             super.validateChildren();
         }
@@ -378,19 +378,18 @@ public class LiteralResultElement extends StyleElement {
 	* Process the literal result element by copying it to the result tree
 	*/
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         // top level elements in the stylesheet are ignored
         if (toplevel) return null;
 
         FixedElement inst = new FixedElement(
                         resultNameCode,
                         namespaceCodes,
-                        attributeSets,
-                        inheritNamespaces,
+                inheritNamespaces,
                         schemaType,
                         validation);
 
-        Expression firstChild = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+        Expression content = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
 
         if (numberOfAttributes > 0) {
             for (int i=attributeNames.length - 1; i>=0; i--) {
@@ -410,19 +409,27 @@ public class LiteralResultElement extends StyleElement {
                 if (attributeChecked[i]) {
                     att.setNoSpecialChars();
                 }
-                if (firstChild == null) {
-                    firstChild = att;
+                if (content == null) {
+                    content = att;
                 } else {
-                    //firstChild = new AppendExpression(att, Token.COMMA, firstChild);
-                    firstChild = Block.makeBlock(att, firstChild);
+                    content = Block.makeBlock(att, content);
                 }
             }
         }
 
-        if (firstChild == null) {
-            firstChild = EmptySequence.getInstance();
+        if (attributeSets != null) {
+            UseAttributeSets use = new UseAttributeSets(attributeSets);
+            if (content == null) {
+                content = use;
+            } else {
+                content = Block.makeBlock(use, content);
+            }
         }
-        inst.setContent(firstChild);
+
+        if (content == null) {
+            content = EmptySequence.getInstance();
+        }
+        inst.setContentExpression(content);
 
         ExpressionTool.makeParentReferences(inst);
         return inst;
@@ -435,7 +442,7 @@ public class LiteralResultElement extends StyleElement {
 
     public DocumentImpl makeStylesheet(PreparedStylesheet pss,
                                        StyleNodeFactory nodeFactory)
-            throws TransformerConfigurationException {
+            throws XPathException {
 
         // the implementation grafts the LRE node onto a containing xsl:template and
         // xsl:stylesheet
@@ -453,8 +460,9 @@ public class LiteralResultElement extends StyleElement {
             } else {
                 message = "The supplied file does not appear to be a stylesheet";
             }
-            TransformerConfigurationException err = new TransformerConfigurationException (message);
+            StaticError err = new StaticError (message);
             err.setLocator(this);
+            err.setErrorCode(SaxonErrorCode.SXIN0004);
             try {
                 pss.reportError(err);
             } catch (TransformerException err2) {}
@@ -469,12 +477,12 @@ public class LiteralResultElement extends StyleElement {
         if (version==null) {
             StaticError err = new StaticError (
                 "Simplified stylesheet: xsl:version attribute is missing");
-            err.setErrorCode("XT0150");
+            err.setErrorCode("XTSE0150");
             err.setLocator(this);
             try {
                 pss.reportError(err);
             } catch(TransformerException err2) {}
-            throw new TransformerConfigurationException(err);
+            throw err;
         }
 
         try {
@@ -506,9 +514,9 @@ public class LiteralResultElement extends StyleElement {
 
             return (DocumentImpl)builder.getCurrentRoot();
         } catch (XPathException err) {
-            TransformerConfigurationException e = new TransformerConfigurationException(err);
-            e.setLocator(this);
-            throw e;
+            //TransformerConfigurationException e = new TransformerConfigurationException(err);
+            err.setLocator(this);
+            throw err;
         }
 
     }

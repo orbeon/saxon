@@ -7,6 +7,13 @@ import javax.xml.transform.Result;
   * based on SAX2's ContentHandler, but adapted to handle additional events, and
   * to use Saxon's name pool. Namespaces and Attributes are handled by separate events
   * following the startElement event. Schema types can be defined for elements and attributes.
+  * <p>
+  * The Receiver interface is an important internal interface within Saxon, and provides a powerful
+  * mechanism for integrating Saxon with other applications. It has been designed with extensibility
+  * and stability in mind. However, it should be considered as an interface designed primarily for
+  * internal use, and not as a completely stable part of the public Saxon API.
+  * <p>
+  * @author Michael H. Kay
   */
 
 public interface Receiver extends Result {

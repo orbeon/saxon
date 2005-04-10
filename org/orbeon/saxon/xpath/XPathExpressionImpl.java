@@ -148,7 +148,7 @@ public class XPathExpressionImpl implements XPathExpression {
 
             sk[0] = new FixedSortKeyDefinition();
             sk[0].setSortKey(key);
-            sk[0].bindComparer();
+            sk[0].bindComparer(context);
 
             iterator = new SortedIterator(context, iterator, sk);
         }
@@ -219,6 +219,9 @@ public class XPathExpressionImpl implements XPathExpression {
                 SequenceIterator iter = expression.iterate(context);
 
                 Item first = iter.next();
+                if (first == null) {
+                    return "";
+                }
                 return first.getStringValue();
 
             } else if (qName.equals(XPathConstants.NUMBER)) {
@@ -308,7 +311,7 @@ public class XPathExpressionImpl implements XPathExpression {
      * over the dynamic context for evaluating the expression.
      * @return the underlying Saxon expression object.
      */
-    
+
     public Expression getInternalExpression() {
         return expression;
     }

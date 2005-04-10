@@ -3,6 +3,7 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.type.ItemType;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -30,7 +31,7 @@ public class XSLWhen extends StyleElement {
         return getCommonChildItemType();
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
         String testAtt=null;
 
 		AttributeCollection atts = getAttributeList();
@@ -61,9 +62,9 @@ public class XSLWhen extends StyleElement {
         return true;
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         if (!(getParent() instanceof XSLChoose)) {
-            compileError("xsl:when must be immediately within xsl:choose", "XT0010");
+            compileError("xsl:when must be immediately within xsl:choose", "XTSE0010");
         }
         test = typeCheck("test", test);
     }
@@ -79,7 +80,7 @@ public class XSLWhen extends StyleElement {
         }
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         return null;
         // compilation is handled from the xsl:choose element
     }

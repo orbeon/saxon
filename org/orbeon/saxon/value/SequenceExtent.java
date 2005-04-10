@@ -1,7 +1,5 @@
 package net.sf.saxon.value;
-import net.sf.saxon.expr.StaticProperty;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.ExpressionTool;
+import net.sf.saxon.expr.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.NodeKindTest;
 import net.sf.saxon.trans.XPathException;
@@ -23,6 +21,8 @@ public final class SequenceExtent extends Value {
     private int end;        // the 0-based index of the first item that is NOT included
     private ItemType itemType = null;   // memoized
 
+//    private static int instances = 0;
+
     /**
      * Construct an sequence from an array of items. Note, the array of items is used as is,
      * which means the caller must not subsequently change its contents.
@@ -33,6 +33,12 @@ public final class SequenceExtent extends Value {
     public SequenceExtent(Item[] items) {
         this.value = items;
         end = items.length;
+
+//        instances++;
+//        if (instances % 100 == 0) {
+//            System.err.println("COUNT OF SEQUENCE_EXTENT = " + instances);
+//            System.exit(1);
+//        }
     }
 
     /**
@@ -76,7 +82,7 @@ public final class SequenceExtent extends Value {
 
     public SequenceExtent(SequenceIterator iter) throws XPathException {
         int size = 20;
-                // Although the enumeration may be able to
+                // Although the iterator may be able to
                 // say how many nodes it contains, it may be an expensive operation,
                 // so we behave as if we don't know.
         value = new Item[size];
@@ -105,6 +111,7 @@ public final class SequenceExtent extends Value {
         if (iter instanceof GroundedIterator) {
             return ((GroundedIterator)iter).materialize();
         }
+        //iter = new MappingIterator(iter, new UserFunctionCall.Flattener(), null);
         return new SequenceExtent(iter);
     }
 
@@ -130,6 +137,17 @@ public final class SequenceExtent extends Value {
         } else {
             return this;
         }
+    }
+
+    /**
+     * Reduce a value to its simplest form. If the value is a closure or some other form of deferred value
+     * such as a FunctionCallPackage, then it is reduced to a SequenceExtent. If it is a SequenceExtent containing
+     * a single item, then it is reduced to that item. One consequence that is exploited by class FilterExpression
+     * is that if the value is a singleton numeric value, then the result will be an instance of NumericValue
+     */
+
+    public Value reduce() {
+        return simplify();
     }
 
     /**

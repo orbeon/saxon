@@ -25,14 +25,14 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
             return new DoubleValue(Double.parseDouble(in));
         } else if (in.indexOf('.') >= 0) {
             AtomicValue v = DecimalValue.makeDecimalValue(in, true);
-            if (v instanceof ErrorValue) {
+            if (v instanceof ValidationErrorValue) {
                 return DoubleValue.NaN;
             } else {
                 return (NumericValue)v;
             }
         } else {
             AtomicValue v = IntegerValue.stringToInteger(in);
-            if (v instanceof ErrorValue) {
+            if (v instanceof ValidationErrorValue) {
                 return DoubleValue.NaN;
             } else {
                 return (NumericValue)v;
@@ -47,7 +47,7 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
      */
     public double getDoubleValue() {
         try {
-            return ((DoubleValue)convert(Type.DOUBLE)).getDoubleValue();
+            return ((DoubleValue)convert(Type.DOUBLE, null)).getDoubleValue();
         } catch (XPathException err) {
             return Double.NaN;
         }
@@ -84,7 +84,7 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
      *     towards zero.
      */
     public long longValue() throws XPathException {
-        return ((IntegerValue)convert(Type.INTEGER)).longValue();
+        return ((IntegerValue)convert(Type.INTEGER, null)).longValue();
     }
 
     /**
@@ -138,7 +138,7 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
     /**
      * Determine whether the value is negative, zero, or positive
      * @return -1 if negative, 0 if zero (including negative zero), +1 if positive, NaN if NaN
-     */ 
+     */
 
     public abstract double signum();
 

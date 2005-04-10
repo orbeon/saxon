@@ -5,6 +5,7 @@ import net.sf.saxon.om.NamespaceConstant;
 import net.sf.saxon.om.Navigator;
 import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.trans.SaxonErrorCode;
 import net.sf.saxon.type.SchemaException;
 import org.xml.sax.ContentHandler;
 import org.xml.sax.Locator;
@@ -342,7 +343,10 @@ public class ContentHandlerProxy extends Emitter implements Locator {
      */
 
     protected void notifyNotWellFormed() throws XPathException {
-        throw new DynamicError("The result tree cannot be supplied to the ContentHandler because it is not well-formed XML");
+        DynamicError err = new DynamicError(
+                "The result tree cannot be supplied to the ContentHandler because it is not well-formed XML");
+        err.setErrorCode(SaxonErrorCode.SXCH0002);
+        throw err;
     }
 
 

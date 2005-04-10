@@ -4,7 +4,6 @@ import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.NameTest;
 import net.sf.saxon.type.Type;
 import org.w3c.dom.*;
-import com.saxonica.schema.TypeInfoImpl;
 
 /**
  * This class is an implementation of the DOM Element class that wraps a Saxon NodeInfo

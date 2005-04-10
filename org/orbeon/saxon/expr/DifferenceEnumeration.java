@@ -63,6 +63,8 @@ public class DifferenceEnumeration implements SequenceIterator {
         while (true) {
 
             if (nextNode1 == null) {
+                current = null;
+                position = -1;
                 return null;
             }
 

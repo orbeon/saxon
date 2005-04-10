@@ -2,7 +2,7 @@ package net.sf.saxon.om;
 
 /**
  * This is a marker interface used to identify nodes that contain a namepool fingerprint. Although all nodes
- * are capable of returning a fingerprint, some (notable DOM and JDOM nodes) need to calculate it on demand.
+ * are capable of returning a fingerprint, some (notably DOM, XOM, and JDOM nodes) need to calculate it on demand.
  * A node that implements this interface indicates that obtaining the fingerprint for use in name comparisons
  * is more efficient than using the URI and local name.
  */

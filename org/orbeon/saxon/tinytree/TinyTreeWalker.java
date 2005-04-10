@@ -5,6 +5,7 @@ import net.sf.saxon.om.*;
 import net.sf.saxon.pull.PullProvider;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
+import net.sf.saxon.value.AtomicValue;
 
 import javax.xml.transform.SourceLocator;
 
@@ -25,24 +26,34 @@ public class TinyTreeWalker implements PullProvider, SourceLocator {
     private int currentEvent;
     private TinyTree tree;
     private PipelineConfiguration pipe;
+    private NamespaceDeclarationsImpl nsDeclarations;
+    private int[] nsBuffer = new int[10];
+
+    /**
+     * Create a TinyTreeWalker to return events associated with a tree or subtree
+     * @param startNode the root of the tree or subtree. Must be a document, element, text,
+     * comment, or processing-instruction node.
+     * @throws IllegalArgumentException if the start node is an attribute or namespace node.
+     */
 
     public TinyTreeWalker(TinyNodeImpl startNode) {
+        int kind = startNode.getNodeKind();
+        if (kind == Type.ATTRIBUTE || kind == Type.NAMESPACE) {
+            throw new IllegalArgumentException("TinyTreeWalker cannot start at an attribute or namespace node");
+        }
         this.startNode = startNode.nodeNr;
         this.tree = startNode.tree;
+        this.nsDeclarations = new NamespaceDeclarationsImpl();
+        nsDeclarations.setNamePool(startNode.getNamePool());
     }
 
     /**
      * Set configuration information. This must only be called before any events
-     * have been read. The returned value is a new PullProvider, which must be used
-     * in place of the original provider to read all subsequent events: the effect
-     * of calling the original provider is not defined. This mechanism allows
-     * the provider to implement this method by inserting a filter between itself and
-     * the client.
+     * have been read.
      */
 
-    public PullProvider setPipelineConfiguration(PipelineConfiguration pipe) {
+    public void setPipelineConfiguration(PipelineConfiguration pipe) {
         this.pipe = pipe;
-        return this;
     }
 
     /**
@@ -80,21 +91,15 @@ public class TinyTreeWalker implements PullProvider, SourceLocator {
                     case Type.PROCESSING_INSTRUCTION:
                         currentEvent = PROCESSING_INSTRUCTION;
                         break;
-//                    case Type.ATTRIBUTE:
-//                        currentEvent = ATTRIBUTE;
-//                        break;
-//                    case Type.NAMESPACE:
-//                        currentEvent = NAMESPACE;
-//                        break;
                 }
                 return currentEvent;
 
             case START_DOCUMENT:
             case START_ELEMENT:
 
-                currentNode+=1;
-                if (tree.depth[currentNode] > tree.depth[startNode]) {
-                    switch (tree.nodeKind[currentNode]) {
+                if (tree.depth[currentNode+1] > tree.depth[currentNode]) {
+                    // the current element or document has children: move to the first child
+                    switch (tree.nodeKind[++currentNode]) {
                         case Type.ELEMENT:
                             currentEvent = START_ELEMENT;
                             break;
@@ -121,7 +126,12 @@ public class TinyTreeWalker implements PullProvider, SourceLocator {
             case TEXT:
             case COMMENT:
             case PROCESSING_INSTRUCTION:
-                if (tree.next[currentNode] > currentNode) {
+                if (currentNode == startNode) {
+                    currentEvent = END_OF_INPUT;
+                    return currentEvent;
+                }
+                int next = tree.next[currentNode];
+                if (next > currentNode) {
                     // this node has a following sibling
                     currentNode = tree.next[currentNode];
                     switch (tree.nodeKind[currentNode]) {
@@ -141,7 +151,12 @@ public class TinyTreeWalker implements PullProvider, SourceLocator {
                     return currentEvent;
                 } else {
                     // return to the parent element or document
-                    currentNode = tree.next[currentNode];
+                    currentNode = next;
+                    if (currentNode == -1) {
+                        // indicates we were at the END_ELEMENT of a parentless element node
+                        currentEvent = END_OF_INPUT;
+                        return currentEvent;
+                    }
                     switch (tree.nodeKind[currentNode]) {
                         case Type.ELEMENT:
                             currentEvent = END_ELEMENT;
@@ -228,21 +243,19 @@ public class TinyTreeWalker implements PullProvider, SourceLocator {
 
     public NamespaceDeclarations getNamespaceDeclarations() throws XPathException {
         if (tree.nodeKind[currentNode] == Type.ELEMENT) {
+            int[] decl;
             if (currentNode == startNode) {
                 // get all inscope namespaces for a top-level element in the sequence.
-                // TODO: provide an in-situ implementation - this one is costly when scanning a sequence of many element nodes
-                int[] codes = new NamespaceIterator(tree.getNode(currentNode), null).getInScopeNamespaceCodes();
-                return new NamespaceDeclarationsImpl(getNamePool(), codes);
+                decl = TinyElementImpl.getInScopeNamespaces(tree, currentNode, nsBuffer);
             } else {
                 // only namespace declarations (and undeclarations) on this element are required
-                int[] decl = TinyElementImpl.getDeclaredNamespaces(tree, currentNode, nsBuffer);
-                return new NamespaceDeclarationsImpl(getNamePool(), decl);
+                decl = TinyElementImpl.getDeclaredNamespaces(tree, currentNode, nsBuffer);
             }
+            nsDeclarations.setNamespaceCodes(decl);
+            return nsDeclarations;
         }
-        throw new IllegalStateException("getNamespaceDeclarations() called when current event is not ELEMENT_START");
+        throw new IllegalStateException("getNamespaceDeclarations() called when current event is not START_ELEMENT");
     }
-
-    private int[] nsBuffer = new int[10];
 
     /**
      * Skip the current subtree. This method may be called only immediately after
@@ -292,23 +305,32 @@ public class TinyTreeWalker implements PullProvider, SourceLocator {
 
     /**
      * Get the nameCode identifying the name of the current node. This method
-     * can be used after START_ELEMENT, START_CONTENT, ATTRIBUTE, PROCESSING_INSTRUCTION.
-     * If called at other times, the result is undefined
-     *
-     * @return the nameCode. The nameCode can
-     *         be used to obtain the prefix, local name, and namespace URI from the
-     *         name pool.
+     * can be used after the {@link #START_ELEMENT}, {@link #PROCESSING_INSTRUCTION},
+     * {@link #ATTRIBUTE}, or {@link #NAMESPACE} events. With some PullProvider implementations,
+     * including this one, it can also be used after {@link #END_ELEMENT}.
+     * If called at other times, the result is undefined and may result in an IllegalStateException.
+     * If called when the current node is an unnamed namespace node (a node representing the default namespace)
+     * the returned value is -1.
+     * @return the nameCode. The nameCode can be used to obtain the prefix, local name,
+     * and namespace URI from the name pool.
      */
 
     public int getNameCode() {
-        return tree.nameCode[currentNode];
+        switch (currentEvent) {
+            case START_ELEMENT:
+            case PROCESSING_INSTRUCTION:
+            case END_ELEMENT:
+                return tree.nameCode[currentNode];
+            default:
+                throw new IllegalStateException("getNameCode() called when its value is undefined");
+        }
     }
 
     /**
      * Get the fingerprint of the name of the element. This is similar to the nameCode, except that
      * it does not contain any information about the prefix: so two elements with the same fingerprint
      * have the same name, excluding prefix. This method
-     * can be used after the {@link #START_ELEMENT}, {@link #PROCESSING_INSTRUCTION},
+     * can be used after the {@link #START_ELEMENT}, {@link #END_ELEMENT}, {@link #PROCESSING_INSTRUCTION},
      * {@link #ATTRIBUTE}, or {@link #NAMESPACE} events.
      * If called at other times, the result is undefined and may result in an IllegalStateException.
      * If called when the current node is an unnamed namespace node (a node representing the default namespace)
@@ -351,6 +373,16 @@ public class TinyTreeWalker implements PullProvider, SourceLocator {
     }
 
     /**
+     * Get an atomic value. This call may be used only when the last event reported was
+     * ATOMIC_VALUE. This indicates that the PullProvider is reading a sequence that contains
+     * a free-standing atomic value; it is never used when reading the content of a node.
+     */
+
+    public AtomicValue getAtomicValue() {
+        throw new IllegalStateException();
+    }
+
+    /**
      * Get the type annotation of the current attribute or element node, or atomic value.
      * The result of this method is undefined unless the most recent event was START_ELEMENT,
      * START_CONTENT, ATTRIBUTE, or ATOMIC_VALUE.
@@ -361,7 +393,7 @@ public class TinyTreeWalker implements PullProvider, SourceLocator {
 
     public int getTypeAnnotation() {
         if (tree.nodeKind[currentNode] != Type.ELEMENT) {
-            throw new IllegalStateException("getTypeAnnotation() called when current event is not ELEMENT_START");
+            throw new IllegalStateException("getTypeAnnotation() called when current event is not ELEMENT_START or ");
         }
         if (tree.typeCodeArray == null) {
             return -1;

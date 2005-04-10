@@ -10,6 +10,7 @@ import net.sf.saxon.type.ValidationException;
 import org.xml.sax.*;
 import org.xml.sax.ext.LexicalHandler;
 
+import javax.xml.transform.TransformerException;
 import java.net.URI;
 import java.net.URISyntaxException;
 
@@ -225,6 +226,13 @@ public class ReceivingContentHandler
             receiver.endElement();
         } catch (ValidationException err) {
             err.setLocator(locator);
+            if (!err.hasBeenReported()) {
+                try {
+                    pipe.getErrorListener().fatalError(err);
+                } catch (TransformerException e) {
+                    //
+                }
+            }
             throw new SAXException(err);
         } catch (XPathException err) {
             throw new SAXException(err);

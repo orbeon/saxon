@@ -5,12 +5,12 @@ import net.sf.saxon.event.StartTagBuffer;
 import net.sf.saxon.style.StyleNodeFactory;
 import net.sf.saxon.style.StylesheetStripper;
 import net.sf.saxon.style.UseWhenFilter;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.tree.DocumentImpl;
 import net.sf.saxon.tree.TreeBuilder;
 import org.xml.sax.Locator;
 
 import javax.xml.transform.Templates;
-import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.sax.TemplatesHandler;
 
 
@@ -39,7 +39,7 @@ public class TemplatesHandlerImpl extends ReceivingContentHandler implements Tem
 
         setPipelineConfiguration(config.makePipelineConfiguration());
 
-        nodeFactory = new StyleNodeFactory(config.getNamePool(), config.isAllowExternalFunctions());
+        nodeFactory = new StyleNodeFactory(config);
 
         builder = new TreeBuilder();
         builder.setPipelineConfiguration(getPipelineConfiguration());
@@ -82,7 +82,7 @@ public class TemplatesHandlerImpl extends ReceivingContentHandler implements Tem
             try {
                 sheet.setStylesheetDocument(doc, nodeFactory);
                 templates = sheet;
-            } catch (TransformerConfigurationException tce) {
+            } catch (XPathException tce) {
                 // don't know why we aren't allowed to just throw it!
                 throw new UnsupportedOperationException(tce.getMessage());
             }

@@ -73,6 +73,8 @@ final class AttributeEnumeration extends AxisIteratorImpl implements LookaheadIt
 
     public Item next() {
         if (next == null) {
+            current = null;
+            position = -1;
             return null;
         } else {
             current = next;

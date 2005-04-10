@@ -8,6 +8,7 @@ import net.sf.saxon.style.XSLTStaticContext;
 import net.sf.saxon.trans.StaticError;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.*;
+import net.sf.saxon.Configuration;
 
 /**
 * This class supports the XSLT element-available and function-available functions.
@@ -90,7 +91,7 @@ public class Available extends SystemFunction implements XSLTFunction {
         try {
             parts = Name.getQNameParts(name);
         } catch (QNameException e) {
-            String code = (operation == FUNCTION_AVAILABLE ? "XT1400" : "XT1440");
+            String code = (operation == FUNCTION_AVAILABLE ? "XTDE1400" : "XTDE1440");
             dynamicError(e.getMessage(), code, context);
         }
         String prefix = parts[0];
@@ -168,11 +169,11 @@ public class Available extends SystemFunction implements XSLTFunction {
 
         try {
             if (styleNodeFactory==null) {
-                NamePool instructionNamePool = new NamePool();
+                Configuration config = context.getController().getConfiguration();
+                //NamePool instructionNamePool = new NamePool();
                 styleNodeFactory =
                     new StyleNodeFactory (
-                            instructionNamePool,
-                            context.getController().getConfiguration().isAllowExternalFunctions());
+                            config);
             }
             return styleNodeFactory.isElementAvailable(uri, localname);
         } catch (Exception err) {

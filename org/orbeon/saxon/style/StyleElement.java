@@ -2,6 +2,7 @@ package net.sf.saxon.style;
 
 import net.sf.saxon.Err;
 import net.sf.saxon.PreparedStylesheet;
+import net.sf.saxon.event.LocationProvider;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.*;
@@ -12,6 +13,7 @@ import net.sf.saxon.trace.Location;
 import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.StaticError;
 import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.trans.SaxonErrorCode;
 import net.sf.saxon.tree.ElementWithAttributes;
 import net.sf.saxon.type.*;
 import net.sf.saxon.value.*;
@@ -66,6 +68,14 @@ public abstract class StyleElement extends ElementWithAttributes
 
     public Executable getExecutable() {
         return getPrincipalStylesheet().getExecutable();
+    }
+
+    /**
+     * Get the LocationProvider allowing location identifiers to be resolved.
+     */
+
+    public LocationProvider getLocationProvider() {
+        return getExecutable().getLocationMap();
     }
 
     /**
@@ -271,7 +281,9 @@ public abstract class StyleElement extends ElementWithAttributes
         try {
             parts = Name.getQNameParts(qname);
         } catch (QNameException err) {
-            throw new StaticError(err.getMessage());
+            StaticError e2 = new StaticError(err.getMessage());
+            e2.setErrorCode("XTSE0020");
+            throw e2;
         }
         String prefix = parts[0];
         if ("".equals(prefix)) {
@@ -285,7 +297,7 @@ public abstract class StyleElement extends ElementWithAttributes
             }
             if (NamespaceConstant.isReserved(uri)) {
                 StaticError err = new StaticError("Namespace prefix " + prefix + " refers to a reserved namespace");
-                err.setErrorCode("XT0080");
+                err.setErrorCode("XTSE0080");
                 throw err;
             }
             return namePool.allocate(prefix, uri, parts[1]);
@@ -306,7 +318,7 @@ public abstract class StyleElement extends ElementWithAttributes
      * Process the attributes of this element and all its children
      */
 
-    public void processAllAttributes() throws TransformerConfigurationException {
+    public void processAllAttributes() throws XPathException {
         staticContext = new ExpressionContext(this);
         processAttributes();
         AxisIterator kids = iterateAxis(Axis.CHILD);
@@ -336,10 +348,10 @@ public abstract class StyleElement extends ElementWithAttributes
      * prepareAttributes (provided in the subclass) and traps any exceptions
      */
 
-    public final void processAttributes() throws TransformerConfigurationException {
+    public final void processAttributes() throws XPathException {
         try {
             prepareAttributes();
-        } catch (TransformerConfigurationException err) {
+        } catch (XPathException err) {
             if (forwardsCompatibleModeIsEnabled()) {
                 setValidationError(err, REPORT_IF_INSTANTIATED);
             } else {
@@ -354,7 +366,7 @@ public abstract class StyleElement extends ElementWithAttributes
      * @param nc The name code of the attribute name
      */
 
-    protected void checkUnknownAttribute(int nc) throws TransformerConfigurationException {
+    protected void checkUnknownAttribute(int nc) throws XPathException {
 
         String attributeURI = getNamePool().getURI(nc);
         String elementURI = getURI();
@@ -397,7 +409,7 @@ public abstract class StyleElement extends ElementWithAttributes
 
         if ("".equals(attributeURI) || NamespaceConstant.XSLT.equals(attributeURI)) {
             compileError("Attribute " + Err.wrap(getNamePool().getDisplayName(nc), Err.ATTRIBUTE) +
-                    " is not allowed on element " + Err.wrap(getDisplayName(), Err.ELEMENT), "XT0010");
+                    " is not allowed on element " + Err.wrap(getDisplayName(), Err.ELEMENT), "XTSE0010");
         }
     }
 
@@ -408,7 +420,7 @@ public abstract class StyleElement extends ElementWithAttributes
      * Must be supplied in a subclass
      */
 
-    public abstract void prepareAttributes() throws TransformerConfigurationException;
+    public abstract void prepareAttributes() throws XPathException;
 
     /**
      * Find the last child instruction of this instruction. Returns null if
@@ -436,7 +448,7 @@ public abstract class StyleElement extends ElementWithAttributes
      */
 
     public Expression makeExpression(String expression)
-            throws TransformerConfigurationException {
+            throws XPathException {
         try {
             Expression exp = ExpressionTool.make(expression,
                     staticContext,
@@ -462,7 +474,7 @@ public abstract class StyleElement extends ElementWithAttributes
      */
 
     public Pattern makePattern(String pattern)
-            throws TransformerConfigurationException {
+            throws XPathException {
         try {
             return Pattern.make(pattern, staticContext, getPrincipalStylesheet().getExecutable());
         } catch (XPathException err) {
@@ -476,7 +488,7 @@ public abstract class StyleElement extends ElementWithAttributes
      */
 
     public Expression makeAttributeValueTemplate(String expression)
-            throws TransformerConfigurationException {
+            throws XPathException {
         try {
             return AttributeValueTemplate.make(expression, getLineNumber(), staticContext);
         } catch (XPathException err) {
@@ -490,7 +502,7 @@ public abstract class StyleElement extends ElementWithAttributes
      */
 
     public SequenceType makeSequenceType(String sequenceType)
-            throws TransformerConfigurationException {
+            throws XPathException {
         getStaticContext();
         try {
             ExpressionParser parser = new ExpressionParser();
@@ -509,7 +521,7 @@ public abstract class StyleElement extends ElementWithAttributes
      */
 
     protected void processExtensionElementAttribute(String nc)
-            throws TransformerConfigurationException {
+            throws XPathException {
         String ext = getAttributeValue(nc);
         if (ext != null) {
             // go round twice, once to count the values and next to add them to the array
@@ -545,7 +557,7 @@ public abstract class StyleElement extends ElementWithAttributes
      */
 
     protected void processExcludedNamespaces(String nc)
-            throws TransformerConfigurationException {
+            throws XPathException {
         String ext = getAttributeValue(nc);
         if (ext != null) {
             if ("#all".equals(ext.trim())) {
@@ -570,14 +582,14 @@ public abstract class StyleElement extends ElementWithAttributes
                     if ("#default".equals(s)) {
                         s = "";
                     } else if ("#all".equals(s)) {
-                        compileError("In exclude-result-prefixes, cannot mix #all with other values", "XT0020");
+                        compileError("In exclude-result-prefixes, cannot mix #all with other values", "XTSE0020");
                     }
                     try {
                         short uriCode = getURICodeForPrefix(s);
                         excludedNamespaces[count++] = uriCode;
                     } catch (NamespaceException err) {
                         excludedNamespaces = null;
-                        compileError(err.getMessage(), "XT0280");
+                        compileError(err.getMessage(), "XTSE0280");
                     }
                 }
             }
@@ -590,12 +602,12 @@ public abstract class StyleElement extends ElementWithAttributes
      * @param nc the Clark name of the attribute required
      */
 
-    protected void processVersionAttribute(String nc) throws TransformerConfigurationException {
+    protected void processVersionAttribute(String nc) throws XPathException {
         String v = getAttributeValue(nc);
         if (v != null) {
             AtomicValue val = DecimalValue.makeDecimalValue(v, true);
-            if (val instanceof ErrorValue) {
-                throw new TransformerConfigurationException("The version attribute must be a decimal literal");
+            if (val instanceof ValidationErrorValue) {
+                compileError("The version attribute must be a decimal literal");
             }
             version = ((DecimalValue)val).getValue();
         }
@@ -640,7 +652,7 @@ public abstract class StyleElement extends ElementWithAttributes
      * @param nc the Clark name of the attribute required
      */
 
-    protected void processDefaultCollationAttribute(String nc) throws TransformerConfigurationException {
+    protected void processDefaultCollationAttribute(String nc) throws XPathException {
         String v = getAttributeValue(nc);
         if (v != null) {
             StringTokenizer st = new StringTokenizer(v);
@@ -658,7 +670,7 @@ public abstract class StyleElement extends ElementWithAttributes
                 }
                 // if not recognized, try the next URI in order
             }
-            compileError("No recognized collation URI found in default-collation attribute", "XT0125");
+            compileError("No recognized collation URI found in default-collation attribute", "XTSE0125");
         }
     }
 
@@ -798,12 +810,12 @@ public abstract class StyleElement extends ElementWithAttributes
      * Get the Schema type definition for a type named in the stylesheet (in a
      * "type" attribute).
      *
-     * @throws TransformerConfigurationException
+     * @throws XPathException
      *          if the type is not declared in an
      *          imported schema, or is not a built-in type
      */
 
-    public SchemaType getSchemaType(String typeAtt) throws TransformerConfigurationException {
+    public SchemaType getSchemaType(String typeAtt) throws XPathException {
         try {
             String[] parts = Name.getQNameParts(typeAtt);
             String lname = parts[1];
@@ -816,7 +828,7 @@ public abstract class StyleElement extends ElementWithAttributes
             } else {
                 uri = getURIForPrefix(parts[0], false);
                 if (uri == null) {
-                    compileError("Namespace prefix for type annotation is undeclared", "XT0280");
+                    compileError("Namespace prefix for type annotation is undeclared", "XTSE0280");
                     return null;
                 }
             }
@@ -828,8 +840,8 @@ public abstract class StyleElement extends ElementWithAttributes
                     return null;
                 }
                 return t;
-            } else if (uri.equals(NamespaceConstant.XDT)) {
-                ItemType t = Type.getBuiltInItemType(uri, lname);
+            } else if (NamespaceConstant.isXDTNamespace(uri)) {
+                ItemType t = Type.getBuiltInItemType(NamespaceConstant.XDT, lname);
                 if (t == null) {
                     if ("untyped".equals(lname)) {
                         compileError("Cannot validate a node as 'untyped'");
@@ -877,7 +889,7 @@ public abstract class StyleElement extends ElementWithAttributes
      * in subclasses.
      */
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
     }
 
     /**
@@ -885,7 +897,7 @@ public abstract class StyleElement extends ElementWithAttributes
      * children have been validated.
      */
 
-    public void postValidate() throws TransformerConfigurationException {
+    public void postValidate() throws XPathException {
     }
 
     /**
@@ -900,15 +912,18 @@ public abstract class StyleElement extends ElementWithAttributes
     // the static context (e.g. namespaces) changes from one XPath expression to another. It really needs to
     // be split into two phases.
 
-    public Expression typeCheck(String name, Expression exp) throws TransformerConfigurationException {
+    public Expression typeCheck(String name, Expression exp) throws XPathException {
+
+        if (exp == null) {
+            return null;
+        }
+        
         ExpressionTool.makeParentReferences(exp);
         if (exp instanceof ComputedExpression) {
             ((ComputedExpression)exp).setParentExpression(this);
             // temporary, until the instruction is compiled
         }
-        if (exp == null) {
-            return null;
-        }
+
         try {
             exp = exp.analyze(staticContext, Type.ITEM_TYPE);
             if (explaining) {
@@ -981,7 +996,7 @@ public abstract class StyleElement extends ElementWithAttributes
      * to perform any necessary run-time type checking and/or conversion.
      */
 
-    public Pattern typeCheck(String name, Pattern pat) throws TransformerConfigurationException {
+    public Pattern typeCheck(String name, Pattern pat) throws XPathException {
         if (pat == null) {
             return null;
         }
@@ -995,7 +1010,10 @@ public abstract class StyleElement extends ElementWithAttributes
             errpat.addFilter(new ErrorExpression(err));
             return errpat;
         } catch (XPathException err) {
-            throw new TransformerConfigurationException("Error in " + name + " pattern", err);
+            StaticError e2 = new StaticError("Error in " + name + " pattern", err);
+            e2.setLocator(err.getLocator());
+            e2.setErrorCode(err.getErrorCodeLocalPart());
+            throw e2;
         }
     }
 
@@ -1004,7 +1022,7 @@ public abstract class StyleElement extends ElementWithAttributes
      * and variable declarations
      */
 
-    public void fixupReferences() throws TransformerConfigurationException {
+    public void fixupReferences() throws XPathException {
         AxisIterator kids = iterateAxis(Axis.CHILD);
         while (true) {
             NodeInfo child = (NodeInfo)kids.next();
@@ -1044,7 +1062,7 @@ public abstract class StyleElement extends ElementWithAttributes
      * Recursive walk through the stylesheet to validate all nodes
      */
 
-    public void validateSubtree() throws TransformerConfigurationException {
+    public void validateSubtree() throws XPathException {
         if (validationError != null) {
             if (reportingCircumstances == REPORT_ALWAYS) {
                 compileError(validationError);
@@ -1055,7 +1073,7 @@ public abstract class StyleElement extends ElementWithAttributes
         }
         try {
             validate();
-        } catch (TransformerConfigurationException err) {
+        } catch (XPathException err) {
             if (forwardsCompatibleModeIsEnabled()) {
                 setValidationError(err, REPORT_IF_INSTANTIATED);
             } else {
@@ -1072,7 +1090,7 @@ public abstract class StyleElement extends ElementWithAttributes
      * data elements.
      */
 
-    protected void validateChildren() throws TransformerConfigurationException {
+    protected void validateChildren() throws XPathException {
         boolean containsInstructions = mayContainSequenceConstructor();
         AxisIterator kids = iterateAxis(Axis.CHILD);
         StyleElement lastChild = null;
@@ -1086,7 +1104,7 @@ public abstract class StyleElement extends ElementWithAttributes
                         && !isPermittedChild((StyleElement)child)) {
                     ((StyleElement)child).compileError(
                             "An " + getDisplayName() + " element must not contain an " +
-                            child.getDisplayName() + " element", "XT0010");
+                            child.getDisplayName() + " element", "XTSE0010");
                 }
                 ((StyleElement)child).validateSubtree();
                 lastChild = (StyleElement)child;
@@ -1094,7 +1112,9 @@ public abstract class StyleElement extends ElementWithAttributes
         }
         if (lastChild instanceof XSLVariable &&
                 !(this instanceof XSLStylesheet)) {
-            lastChild.compileWarning("A variable with no following sibling instructions has no effect");
+            lastChild.compileWarning(
+                    "A variable with no following sibling instructions has no effect",
+                    SaxonErrorCode.SXWN9001);
         }
     }
 
@@ -1135,11 +1155,11 @@ public abstract class StyleElement extends ElementWithAttributes
     /**
      * Check that the stylesheet element is within a sequence constructor
      *
-     * @throws TransformerConfigurationException
+     * @throws XPathException
      *          if not within a sequence constructor
      */
 
-    public void checkWithinTemplate() throws TransformerConfigurationException {
+    public void checkWithinTemplate() throws XPathException {
 //        Parent elements now check their children, not the other way around
 //        StyleElement parent = (StyleElement)getParent();
 //        if (!parent.mayContainSequenceConstructor()) {
@@ -1151,11 +1171,11 @@ public abstract class StyleElement extends ElementWithAttributes
      * Check that among the children of this element, any xsl:sort elements precede any other elements
      *
      * @param sortRequired true if there must be at least one xsl:sort element
-     * @throws TransformerConfigurationException
+     * @throws XPathException
      *          if invalid
      */
 
-    protected void checkSortComesFirst(boolean sortRequired) throws TransformerConfigurationException {
+    protected void checkSortComesFirst(boolean sortRequired) throws XPathException {
         AxisIterator kids = iterateAxis(Axis.CHILD);
         boolean sortFound = false;
         boolean nonSortFound = false;
@@ -1167,7 +1187,7 @@ public abstract class StyleElement extends ElementWithAttributes
             if (child instanceof XSLSort) {
                 if (nonSortFound) {
                     ((XSLSort)child).compileError("Within " + getDisplayName() +
-                            ", xsl:sort elements must come before other instructions", "XT0010");
+                            ", xsl:sort elements must come before other instructions", "XTSE0010");
                 }
                 sortFound = true;
             } else if (child.getNodeKind() == Type.TEXT) {
@@ -1180,20 +1200,20 @@ public abstract class StyleElement extends ElementWithAttributes
             }
         }
         if (sortRequired && !sortFound) {
-            compileError(getDisplayName() + " must have at least one xsl:sort child", "XT0010");
+            compileError(getDisplayName() + " must have at least one xsl:sort child", "XTSE0010");
         }
     }
 
     /**
      * Convenience method to check that the stylesheet element is at the top level
      *
-     * @throws TransformerConfigurationException
+     * @throws XPathException
      *          if not at top level
      */
 
-    public void checkTopLevel(String errorCode) throws TransformerConfigurationException {
+    public void checkTopLevel(String errorCode) throws XPathException {
         if (errorCode == null) {
-            errorCode = "XT0010";
+            errorCode = "XTSE0010";
         }
         if (!(getParent() instanceof XSLStylesheet)) {
             compileError("Element must be used only at top level of stylesheet", errorCode);
@@ -1203,26 +1223,26 @@ public abstract class StyleElement extends ElementWithAttributes
     /**
      * Convenience method to check that the stylesheet element is empty
      *
-     * @throws TransformerConfigurationException
+     * @throws XPathException
      *          if it is not empty
      */
 
-    public void checkEmpty() throws TransformerConfigurationException {
+    public void checkEmpty() throws XPathException {
         if (hasChildNodes()) {
-            compileError("Element must be empty", "XT0260");
+            compileError("Element must be empty", "XTSE0260");
         }
     }
 
     /**
      * Convenience method to report the absence of a mandatory attribute
      *
-     * @throws TransformerConfigurationException
+     * @throws XPathException
      *          if the attribute is missing
      */
 
     public void reportAbsence(String attribute)
-            throws TransformerConfigurationException {
-        compileError("Element must have a \"" + attribute + "\" attribute", "XT0010");
+            throws XPathException {
+        compileError("Element must have a \"" + attribute + "\" attribute", "XTSE0010");
     }
 
 
@@ -1235,7 +1255,7 @@ public abstract class StyleElement extends ElementWithAttributes
      *         into something other than an instruction.
      */
 
-    public abstract Expression compile(Executable exec) throws TransformerConfigurationException;
+    public abstract Expression compile(Executable exec) throws XPathException;
 
     /**
      * Compile the children of this instruction on the stylesheet tree, adding the
@@ -1245,7 +1265,7 @@ public abstract class StyleElement extends ElementWithAttributes
      */
 
     public Expression compileSequenceConstructor(Executable exec, AxisIterator iter, boolean includeParams)
-            throws TransformerConfigurationException {
+            throws XPathException {
 
         int lineNumber = getLineNumber();
         NodeInfo node = (NodeInfo)iter.next();
@@ -1289,7 +1309,7 @@ public abstract class StyleElement extends ElementWithAttributes
                     rvar.setReferenceList(((XSLVariable)node).getReferenceList());
                     let.setVariableDeclaration(rvar);
                     let.setSequence(lv.getSelectExpression());
-                    let.setSlotNumber(lv.getSlotNumber());
+                    //let.setSlotNumber(lv.getSlotNumber());
                     let.setAction(tail);
                     ((XSLVariable)node).fixupBinding(let);
                     let.setLocationId(allocateLocationId(node.getSystemId(), node.getLineNumber()));
@@ -1364,7 +1384,7 @@ public abstract class StyleElement extends ElementWithAttributes
      */
 
     protected Expression fallbackProcessing(Executable exec, StyleElement instruction)
-            throws TransformerConfigurationException {
+            throws XPathException {
         // process any xsl:fallback children; if there are none,
         // generate code to report the original failure reason
         Expression fallback = null;
@@ -1462,7 +1482,7 @@ public abstract class StyleElement extends ElementWithAttributes
      */
 
     protected AttributeSet[] getAttributeSets(String use, List list)
-            throws TransformerConfigurationException {
+            throws XPathException {
 
         if (list == null) {
             list = new ArrayList(4);
@@ -1478,10 +1498,10 @@ public abstract class StyleElement extends ElementWithAttributes
             try {
                 fprint = makeNameCode(asetname) & 0xfffff;
             } catch (NamespaceException err) {
-                compileError(err.getMessage(), "XT0710");
+                compileError(err.getMessage(), "XTSE0710");
                 fprint = -1;
             } catch (XPathException err) {
-                compileError(err.getMessage(), "XT0710");
+                compileError(err.getMessage(), "XTSE0710");
                 fprint = -1;
             }
             boolean found = false;
@@ -1500,7 +1520,7 @@ public abstract class StyleElement extends ElementWithAttributes
             }
 
             if (!found) {
-                compileError("No attribute-set exists named " + asetname, "XT0710");
+                compileError("No attribute-set exists named " + asetname, "XTSE0710");
             }
         }
 
@@ -1519,10 +1539,11 @@ public abstract class StyleElement extends ElementWithAttributes
      * the tunnel parameters, or the non-tunnel parameters.
      *
      * @param tunnel true if the tunnel="yes" parameters are wanted, false to get
-     *               the non-tunnel parameters
+     * @param caller
      */
 
-    protected WithParam[] getWithParamInstructions(Executable exec, boolean tunnel) throws TransformerConfigurationException {
+    protected WithParam[] getWithParamInstructions(Executable exec, boolean tunnel, Instruction caller)
+    throws XPathException {
         int count = 0;
         AxisIterator kids = iterateAxis(Axis.CHILD);
         while (true) {
@@ -1548,7 +1569,9 @@ public abstract class StyleElement extends ElementWithAttributes
             if (child instanceof XSLWithParam) {
                 XSLWithParam wp = (XSLWithParam)child;
                 if (wp.isTunnelParam() == tunnel) {
-                    array[count++] = (WithParam)wp.compile(exec);
+                    WithParam p = (WithParam)wp.compile(exec);
+                    p.setParentExpression(caller);
+                    array[count++] = p;
                 }
 
             }
@@ -1560,7 +1583,7 @@ public abstract class StyleElement extends ElementWithAttributes
      */
 
     protected void compileError(TransformerException error)
-            throws TransformerConfigurationException {
+            throws XPathException {
 
         // Set the location of the error if there is not current location information,
         // or if the current location information is local to the XPath expression
@@ -1576,20 +1599,15 @@ public abstract class StyleElement extends ElementWithAttributes
                 pss.reportError(error);
             }
         } catch (TransformerException err2) {
-            if (err2 instanceof TransformerConfigurationException) {
-                throw (TransformerConfigurationException)err2;
+            if (err2.getLocator() == null) {
+                err2.setLocator(this);
             }
-            if (err2.getException() instanceof TransformerConfigurationException) {
-                throw (TransformerConfigurationException)err2.getException();
-            }
-            TransformerConfigurationException tce = new TransformerConfigurationException(error);
-            tce.setLocator(this);
-            throw tce;
+            throw StaticError.makeStaticError(err2);
         }
     }
 
     protected void compileError(String message)
-            throws TransformerConfigurationException {
+            throws XPathException {
         StaticError tce = new StaticError(message);
         tce.setLocator(this);
         compileError(tce);
@@ -1600,28 +1618,28 @@ public abstract class StyleElement extends ElementWithAttributes
      *
      * @param message   the error message
      * @param errorCode the error code. May be null if not known or not defined
-     * @throws TransformerConfigurationException
+     * @throws XPathException
      *
      */
 
-    protected void compileError(String message, String errorCode) throws TransformerConfigurationException {
+    protected void compileError(String message, String errorCode) throws XPathException {
         StaticError tce = new StaticError(message);
         tce.setErrorCode(errorCode);
         tce.setLocator(this);
         compileError(tce);
     }
 
-    protected void undeclaredNamespaceError(String prefix, String errorCode) throws TransformerConfigurationException {
+    protected void undeclaredNamespaceError(String prefix, String errorCode) throws XPathException {
         if (errorCode==null) {
-            errorCode = "XT0280";
+            errorCode = "XTSE0280";
         }
         compileError("Undeclared namespace prefix " + Err.wrap(prefix), errorCode);
     }
 
-    protected void compileWarning(String message)
-            throws TransformerConfigurationException {
-        TransformerConfigurationException tce =
-                new TransformerConfigurationException(message);
+    protected void compileWarning(String message, String errorCode)
+            throws XPathException {
+        StaticError tce = new StaticError(message);
+        tce.setErrorCode(errorCode);
         tce.setLocator(this);
         PreparedStylesheet pss = getPreparedStylesheet();
         if (pss != null) {
@@ -1677,7 +1695,7 @@ public abstract class StyleElement extends ElementWithAttributes
         if (binding == null) {
             StaticError err = new StaticError("Variable " + getTargetNamePool().getDisplayName(fingerprint) +
                     " has not been declared");
-            err.setErrorCode("XP0008");
+            err.setErrorCode("XPST0008");
             throw err;
         }
         return binding;

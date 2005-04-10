@@ -2,6 +2,7 @@ package net.sf.saxon.type;
 
 import net.sf.saxon.om.NamespaceResolver;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.ConversionContext;
 
 /**
  * This interface represents a simple type, which may be a built-in simple type, or
@@ -39,11 +40,12 @@ public interface SimpleType extends SchemaType {
      * @param resolver a namespace resolver used to resolve any namespace prefixes appearing
      * in the content of values. Can supply null, in which case any namespace-sensitive content
      * will be rejected.
+     * @param conversion
      * @return an iterator over the atomic sequence comprising the typed value. The objects
      * returned by this SequenceIterator will all be of type {@link net.sf.saxon.value.AtomicValue}
      */
 
-    public SequenceIterator getTypedValue(CharSequence value, NamespaceResolver resolver)
+    public SequenceIterator getTypedValue(CharSequence value, NamespaceResolver resolver, ConversionContext conversion)
             throws ValidationException;
 
     /**
@@ -52,13 +54,14 @@ public interface SimpleType extends SchemaType {
      * @param nsResolver a namespace resolver used to resolve namespace prefixes if the type
      * is namespace sensitive. The value supplied may be null; in this case any namespace-sensitive
      * content will throw an UnsupportedOperationException.
+     * @param conversion
      * @return null if validation succeeds; return a ValidationException describing the validation failure
      * if validation fails. Note that the exception is returned rather than being thrown.
      * @throws UnsupportedOperationException if the type is namespace-sensitive and no namespace
      * resolver is supplied
      */
 
-    ValidationException validateContent(CharSequence value, NamespaceResolver nsResolver);
+    ValidationException validateContent(CharSequence value, NamespaceResolver nsResolver, ConversionContext conversion);
 
     /**
      * Test whether this type is namespace sensitive, that is, if a namespace context is needed

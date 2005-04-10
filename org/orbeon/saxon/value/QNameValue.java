@@ -1,17 +1,19 @@
 package net.sf.saxon.value;
 
-import net.sf.saxon.Loader;
+import net.sf.saxon.Configuration;
+import net.sf.saxon.ConversionContext;
 import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.functions.Component;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.XMLChar;
+import net.sf.saxon.om.Name;
+import net.sf.saxon.om.QNameException;
 import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.XPathException;
-import net.sf.saxon.type.BuiltInAtomicType;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.type.ValidationException;
+import net.sf.saxon.trans.StaticError;
+import net.sf.saxon.type.*;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -65,15 +67,53 @@ public class QNameValue extends AtomicValue {
     }
 
     /**
-     * Construct a QNameValue from a JAXP QName. This does no validation of the components of
-     * the supplied QName.
+     * Create a QName value (possibly a DerivedAtomicValue derived from QName) from
+     * a string literal, given a namespace context
+     * @param operand the input string
+     * @param targetType the type required: QName, or a type derived from QName or NOTATION
+     * @param env the static context, including the namespace context
+     * @return the value after conversion
+     * @throws XPathException if the name is lexically invalid or uses an undeclared prefix
      */
 
-//    public QNameValue(QName qname) {
-//        this.prefix = qname.getPrefix();
-//        this.uri = qname.getNamespaceURI();
-//        this.localPart = qname.getLocalPart();
-//    }
+    public static AtomicValue castToQName(StringValue operand, AtomicType targetType, StaticContext env)
+            throws XPathException {
+        try {
+            CharSequence arg = operand.getStringValueCS();
+            String parts[] = Name.getQNameParts(arg);
+            String uri;
+            if ("".equals(parts[0])) {
+                uri = "";
+            } else {
+                uri = env.getURIForPrefix(parts[0]);
+                if (uri==null) {
+                    StaticError e = new StaticError("Prefix '" + parts[0] + "' has not been declared");
+                    throw e;
+                }
+            }
+            if (targetType.getFingerprint() == StandardNames.XS_QNAME) {
+                return new QNameValue(parts[0], uri, parts[1]);
+            } else if (Type.isSubType(targetType, Type.QNAME_TYPE)) {
+                QNameValue q = new QNameValue(parts[0], uri, parts[1]);
+                AtomicValue av = targetType.makeDerivedValue(q, arg, true);
+                if (av instanceof ValidationErrorValue) {
+                    throw ((ValidationErrorValue)av).getException();
+                }
+                return av;
+            } else {
+                NotationValue n = new NotationValue(parts[0], uri, parts[1]);
+                AtomicValue av =  targetType.makeDerivedValue(n, arg, true);
+                if (av instanceof ValidationErrorValue) {
+                    throw ((ValidationErrorValue)av).getException();
+                }
+                return av;
+            }
+        } catch (QNameException err) {
+            StaticError e = new StaticError(err);
+            throw e;
+        }
+    }
+
 
     /**
      * Get the string value as a String. Returns the QName as a lexical QName, retaining the original
@@ -157,10 +197,11 @@ public class QNameValue extends AtomicValue {
     /**
      * Convert to target data type
      * @param requiredType an integer identifying the required atomic type
+     * @param conversion
      * @return an AtomicValue, a value of the required type; or an ErrorValue
      */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, ConversionContext conversion) {
         switch (requiredType.getPrimitiveType()) {
             case Type.ATOMIC:
             case Type.ITEM:
@@ -175,7 +216,7 @@ public class QNameValue extends AtomicValue {
                         requiredType.getDisplayName());
                 //err.setXPathContext(context);
                 err.setErrorCode("FORG0001");
-                return new ErrorValue(err);
+                return new ValidationErrorValue(err);
         }
     }
 
@@ -215,7 +256,7 @@ public class QNameValue extends AtomicValue {
             return this;
         } else if (target.getClass().getName().equals("javax.xml.namespace.QName")) {
             // TODO: rewrite this under JDK 1.5
-            return makeQName();
+            return makeQName(context.getController().getConfiguration());
         } else {
             Object o = super.convertToJava(target, context);
             if (o == null) {
@@ -240,9 +281,9 @@ public class QNameValue extends AtomicValue {
      * by name
      */
 
-    public Object makeQName() {
+    public Object makeQName(Configuration config) {
         try {
-            Class qnameClass = Loader.getClass("javax.xml.namespace.QName", false);
+            Class qnameClass = config.getClass("javax.xml.namespace.QName", false, null);
             Class[] argTypes = {String.class, String.class, String.class};
             Constructor  constructor = qnameClass.getConstructor(argTypes);
             String[] argValues = {uri, localPart, prefix};

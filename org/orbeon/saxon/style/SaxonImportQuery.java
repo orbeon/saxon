@@ -8,7 +8,6 @@ import net.sf.saxon.query.StaticQueryContext;
 import net.sf.saxon.query.XQueryFunction;
 import net.sf.saxon.trans.XPathException;
 
-import javax.xml.transform.TransformerConfigurationException;
 import java.util.Iterator;
 
 
@@ -28,15 +27,15 @@ public class SaxonImportQuery extends StyleElement {
      * The importModule() method is called very early, before preparing the attributes,
      * to make sure that all functions in the imported modules are available in the static
      * context.
-     * @throws TransformerConfigurationException
+     * @throws XPathException
      */
 
-    public void importModule() throws TransformerConfigurationException {
+    public void importModule() throws XPathException {
         prepareAttributes();
         loadLibraryModule();
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
         // Avoid reporting errors twice
         if (href!=null || moduleURI!=null) {
@@ -64,12 +63,12 @@ public class SaxonImportQuery extends StyleElement {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkEmpty();
         checkTopLevel(null);
     }
 
-    private void loadLibraryModule() throws TransformerConfigurationException {
+    private void loadLibraryModule() throws XPathException {
 
         if (href==null && moduleURI==null) {
             // error already reported
@@ -178,7 +177,7 @@ public class SaxonImportQuery extends StyleElement {
 //        }
 //    }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         return null;
         // no action. The node will never be compiled, because it replaces itself
         // by the contents of the included file.

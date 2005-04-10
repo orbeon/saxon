@@ -104,7 +104,7 @@ public class CopyOf extends Instruction implements MappingFunction {
                             "Operand of validate expression must be a document or element node"
                     );
                     e.setXPathContext(context);
-                    e.setErrorCode("XQ0030");
+                    e.setErrorCode("XQTY0030");
                     throw e;
                 }
                 switch (kind) {
@@ -127,7 +127,7 @@ public class CopyOf extends Instruction implements MappingFunction {
                             e.setLocator(this);
                             e.setXPathContext(context);
                             e.setErrorCode(err.getErrorCodeLocalPart());
-                            context.getController().recoverableError(e);
+                            throw dynamicError(this, e, context);
                         }
                         break;
                     case Type.TEXT:
@@ -149,7 +149,8 @@ public class CopyOf extends Instruction implements MappingFunction {
                             DynamicError e = new DynamicError(err.getMessage());
                             e.setXPathContext(context);
                             e.setErrorCode(err.getErrorCodeLocalPart());
-                            context.getController().recoverableError(e);
+                            //context.getController().recoverableError(e);
+                            throw dynamicError(this, e, context);
                         }
                         break;
 
@@ -190,7 +191,7 @@ public class CopyOf extends Instruction implements MappingFunction {
             if (schemaType.isSimpleType()) {
                 try {
                     XPathException err = ((SimpleType) schemaType).validateContent(
-                            value, DummyNamespaceResolver.getInstance());
+                            value, DummyNamespaceResolver.getInstance(), context);
                     if (err != null) {
                         throw new ValidationException("Attribute being copied does not match the required type. " +
                             err.getMessage());
@@ -206,7 +207,7 @@ public class CopyOf extends Instruction implements MappingFunction {
             } else {
                 DynamicError e = new DynamicError("Cannot validate an attribute against a complex type");
                 e.setXPathContext(context);
-                e.setErrorCode("XT1530");
+                e.setErrorCode("XTSE1530");
                 throw e;
             }
         } else if (validation == Validation.STRICT ||
@@ -311,7 +312,7 @@ public class CopyOf extends Instruction implements MappingFunction {
     public SequenceIterator iterate(XPathContext context) throws XPathException {
         if (validation==Validation.PRESERVE && schemaType==null && copyNamespaces) {
             // create a virtual copy of the underlying nodes
-            return new MappingIterator(select.iterate(context), this, null, context);
+            return new MappingIterator(select.iterate(context), this, context);
         }
         Controller controller = context.getController();
         XPathContext c2 = context.newMinorContext();
@@ -345,19 +346,17 @@ public class CopyOf extends Instruction implements MappingFunction {
      *                If context is supplied, this must be the same as context.currentItem().
      * @param context The processing context. This is supplied only for mapping constructs that
      *                set the context node, position, and size. Otherwise it is null.
-     * @param info    Arbitrary information supplied by the creator of the MappingIterator. It must be
-     *                read-only and immutable for the duration of the iteration.
      * @return either (a) a SequenceIterator over the sequence of items that the supplied input
      *         item maps to, or (b) an Item if it maps to a single item, or (c) null if it maps to an empty
      *         sequence.
      */
 
-    public Object map(Item item, XPathContext context, Object info) throws XPathException {
+    public Object map(Item item, XPathContext context) throws XPathException {
         if (item instanceof AtomicValue) {
             return item;
         }
         VirtualCopy vc = VirtualCopy.makeVirtualCopy((NodeInfo)item, (NodeInfo)item);
-        int documentNumber = ((XPathContext)info).getController().getNamePool().allocateDocumentNumber(vc);
+        int documentNumber = context.getController().getNamePool().allocateDocumentNumber(vc);
         vc.setDocumentNumber(documentNumber);
         return vc;
     }

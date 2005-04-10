@@ -1,6 +1,7 @@
 package net.sf.saxon.instruct;
 
-import net.sf.saxon.Loader;
+import net.sf.saxon.Configuration;
+import net.sf.saxon.Controller;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.functions.NumberFn;
 import net.sf.saxon.number.NumberFormatter;
@@ -175,7 +176,7 @@ public class NumberInstruction extends ComputedExpression {
                 if (contextItemType instanceof AtomicType) {
                     StaticError err = new StaticError("xsl:number requires the context item to be a node, but it is an atomic value");
                     err.setIsTypeError(true);
-                    err.setErrorCode("XT0990");
+                    err.setErrorCode("XTTE0990");
                 }
             }
         }
@@ -355,7 +356,7 @@ public class NumberInstruction extends ComputedExpression {
                     }
                     num = num.round();
                     if (num.compareTo(IntegerValue.MAX_LONG) > 0) {
-                        vec.add(((BigIntegerValue)num.convert(Type.INTEGER)).getBigInteger());
+                        vec.add(((BigIntegerValue)num.convert(Type.INTEGER, context)).getBigInteger());
 //                        DynamicError e = new DynamicError("A number is too large to be formatted");
 //                        e.setXPathContext(context);
 //                        e.setErrorCode("SAXON:0000");
@@ -367,7 +368,7 @@ public class NumberInstruction extends ComputedExpression {
 //                            e.setErrorCode("XT0980");
                             throw e;
                         }
-                        long i = ((NumericValue) num.convert(Type.INTEGER)).longValue();
+                        long i = ((NumericValue) num.convert(Type.INTEGER, context)).longValue();
     //                    if (i < 0) {
     //                        DynamicError e = new DynamicError("The numbers to be formatted must not be negative");
     //                        e.setXPathContext(context);
@@ -382,9 +383,9 @@ public class NumberInstruction extends ComputedExpression {
                     } else {
                         vec.add(val.getStringValue());
                         DynamicError e = new DynamicError("Cannot convert supplied value to an integer. " + err.getMessage());
-                        err.setErrorCode("XT0980");
+                        e.setErrorCode("XTDE0980");
                         e.setXPathContext(context);
-                        recoverableError(e, context);
+                        throw e;
                     }
                 }
             }
@@ -399,11 +400,12 @@ public class NumberInstruction extends ComputedExpression {
                 Item item = context.getContextItem();
                 if (!(item instanceof NodeInfo)) {
                     DynamicError err = new DynamicError("context item for xsl:number must be a node");
-                    err.setErrorCode("XT0990");
+                    err.setErrorCode("XTTE0990");
                     err.setIsTypeError(true);
                     err.setXPathContext(context);
-                    recoverableError(err, context);
-                    return null;     // error recovery action is to output nothing
+                    throw err;
+                    //recoverableError(err, context);
+                    //return null;     // error recovery action is to output nothing
                 }
                 source = (NodeInfo) item;
             }
@@ -437,7 +439,7 @@ public class NumberInstruction extends ComputedExpression {
             } catch (NumberFormatException err) {
                 DynamicError e = new DynamicError("grouping-size must be numeric");
                 e.setXPathContext(context);
-                e.setErrorCode("XT0030");
+                e.setErrorCode("XTDE0030");
                 throw e;
             }
         }
@@ -467,7 +469,7 @@ public class NumberInstruction extends ComputedExpression {
             }
             numb = (Numberer)nationalNumberers.get(language);
             if (numb == null) {
-                numb = makeNumberer(language);
+                numb = makeNumberer(language, context);
                 nationalNumberers.put(language, numb);
             }
         }
@@ -479,7 +481,7 @@ public class NumberInstruction extends ComputedExpression {
             if (!("alphabetic".equals(letterVal) || "traditional".equals(letterVal))) {
                 DynamicError e = new DynamicError("letter-value must be \"traditional\" or \"alphabetic\"");
                 e.setXPathContext(context);
-                e.setErrorCode("XT0030");
+                e.setErrorCode("XTDE0030");
                 throw e;
             }
         }
@@ -513,7 +515,8 @@ public class NumberInstruction extends ComputedExpression {
      * for the language, the default (English) numberer is used.
      */
 
-    public static Numberer makeNumberer(String language) {
+    public static Numberer makeNumberer(String language, XPathContext context) {
+
         Numberer numberer;
         if ("en".equals(language)) {
             numberer = defaultNumberer;
@@ -525,7 +528,9 @@ public class NumberInstruction extends ComputedExpression {
                 }
             }
             try {
-                numberer = (Numberer) (Loader.getInstance(langClassName));
+                Controller controller = context.getController();
+                Configuration config = controller.getConfiguration();
+                numberer = (Numberer) (config.getInstance(langClassName, controller.getClassLoader()));
             } catch (XPathException err) {
                 numberer = defaultNumberer;
             }

@@ -170,15 +170,15 @@ public abstract class GeneralVariable extends Instruction implements Binding {
     private void checkAgainstRequiredType(StaticContext env)
     throws XPathException {
         // Note, in some cases we are doing this twice.
-        RoleLocator role =
-                new RoleLocator(RoleLocator.VARIABLE, variableName, 0, null);
+        RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, variableName, 0, null);
+        role.setSourceLocator(this);
         SequenceType r = requiredType;
         if (r != null && select != null) {
             // check that the expression is consistent with the required type
             select = TypeChecker.staticTypeCheck(select, requiredType, false, role, env);
         }
     }
-    
+
     /**
      * Evaluate an expression as a single item. This always returns either a single Item or
      * null (denoting the empty sequence). No conversion is done. This method should not be

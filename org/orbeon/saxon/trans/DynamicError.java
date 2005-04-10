@@ -45,6 +45,11 @@ public class DynamicError extends XPathException {
     public static DynamicError makeDynamicError(TransformerException err) {
         if (err instanceof DynamicError) {
             return (DynamicError)err;
+        } else if (err instanceof XPathException) {
+            DynamicError de = new DynamicError(err);
+            de.setErrorCode(((XPathException)err).getErrorCodeLocalPart());
+            de.setLocator(err.getLocator());
+            return de;
         } else {
             return new DynamicError(err);
         }

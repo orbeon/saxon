@@ -35,7 +35,7 @@ public class StandardErrorListener implements ErrorListener {
      * standard error listener is stateful (it remembers how many errors there have been)
      */
 
-    public StandardErrorListener makeAnother() {
+    public StandardErrorListener makeAnother(int hostLanguage) {
         return new StandardErrorListener();
     }
 
@@ -66,6 +66,14 @@ public class StandardErrorListener implements ErrorListener {
 
     public void setRecoveryPolicy(int policy) {
         recoveryPolicy = policy;
+    }
+
+    /**
+     * Get the recovery policy
+     */
+
+    public int getRecoveryPolicy() {
+        return recoveryPolicy;
     }
 
     /**
@@ -117,7 +125,7 @@ public class StandardErrorListener implements ErrorListener {
                 recoveryPolicy = Configuration.RECOVER_SILENTLY;
                 warningCount = 0;
             }
-        } 
+        }
     }
 
     /**
@@ -148,7 +156,7 @@ public class StandardErrorListener implements ErrorListener {
         if (errorOutput == null) {
             // can happen after deserialization
             errorOutput = System.err;
-        }        
+        }
         String message = getLocationMessage(exception) +
                          "\n  " +
                          wordWrap(getExpandedMessage(exception));
@@ -273,13 +281,16 @@ public class StandardErrorListener implements ErrorListener {
     */
 
     public static String getExpandedMessage(TransformerException err) {
-        String message = "";
 
+        String code = null;
         if (err instanceof XPathException) {
-            String code = ((XPathException)err).getErrorCodeLocalPart();
-            if (code != null) {
-                message = code;
-            }
+            code = ((XPathException)err).getErrorCodeLocalPart();
+        } else if (err.getException() instanceof XPathException) {
+            code = ((XPathException)err.getException()).getErrorCodeLocalPart();
+        }
+        String message = "";
+        if (code != null) {
+            message = code;
         }
 
         Throwable e = err;
@@ -293,7 +304,7 @@ public class StandardErrorListener implements ErrorListener {
                 next = next.substring(next.indexOf(": ") + 2);
             }
             if (!("TRaX Transform Exception".equals(next) || message.endsWith(next))) {
-                if (!"".equals(message)) {
+                if (!"".equals(message) && !message.trim().endsWith(":")) {
                     message += ": ";
                 }
                 message += next;
@@ -327,7 +338,7 @@ public class StandardErrorListener implements ErrorListener {
                     construct != StandardNames.XSL_FUNCTION &&
                     construct != StandardNames.XSL_TEMPLATE) {
                 // it's a standard name
-                if (context.getController().getConfiguration().getHostLanguage() == Configuration.XSLT) {
+                if (context.getController().getExecutable().getHostLanguage() == Configuration.XSLT) {
                     return StandardNames.getDisplayName(construct);
                 } else {
                     String s = StandardNames.getDisplayName(construct);

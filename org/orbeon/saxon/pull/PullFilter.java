@@ -3,7 +3,9 @@ package net.sf.saxon.pull;
 import net.sf.saxon.event.PipelineConfiguration;
 import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.NamespaceDeclarations;
+import net.sf.saxon.om.NamePool;
 import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.value.AtomicValue;
 
 import javax.xml.transform.SourceLocator;
 
@@ -31,17 +33,12 @@ public class PullFilter implements PullProvider {
 
     /**
      * Set configuration information. This must only be called before any events
-     * have been read. The returned value is a new PullProvider, which must be used
-     * in place of the original provider to read all subsequent events: the effect
-     * of calling the original provider is not defined. This mechanism allows
-     * the provider to implement this method by inserting a filter between itself and
-     * the client.
+     * have been read.
      */
 
-    public PullProvider setPipelineConfiguration(PipelineConfiguration pipe) {
+    public void setPipelineConfiguration(PipelineConfiguration pipe) {
         this.pipe = pipe;
-        base = base.setPipelineConfiguration(pipe);
-        return this;
+        base.setPipelineConfiguration(pipe);
     }
 
     /**
@@ -50,6 +47,14 @@ public class PullFilter implements PullProvider {
 
     public PipelineConfiguration getPipelineConfiguration() {
         return pipe;
+    }
+
+    /**
+     * Helper method to get the current namePool
+     */
+
+    public final NamePool getNamePool() {
+        return getPipelineConfiguration().getConfiguration().getNamePool();
     }
 
     /**
@@ -156,7 +161,10 @@ public class PullFilter implements PullProvider {
     /**
      * Get the nameCode identifying the name of the current node. This method
      * can be used after the {@link #START_ELEMENT}, {@link #PROCESSING_INSTRUCTION},
-     * {@link #ATTRIBUTE}, or {@link #NAMESPACE} events.
+     * {@link #ATTRIBUTE}, or {@link #NAMESPACE} events. With some PullProvider implementations,
+     * it can also be used after {@link #END_ELEMENT}, but this is not guaranteed: a client who
+     * requires the information at that point (for example, to do serialization) should insert an
+     * {@link ElementNameTracker} into the pipeline.
      * If called at other times, the result is undefined and may result in an IllegalStateException.
      * If called when the current node is an unnamed namespace node (a node representing the default namespace)
      * the returned value is -1.
@@ -173,7 +181,7 @@ public class PullFilter implements PullProvider {
      * Get the fingerprint of the name of the element. This is similar to the nameCode, except that
      * it does not contain any information about the prefix: so two elements with the same fingerprint
      * have the same name, excluding prefix. This method
-     * can be used after the {@link #START_ELEMENT}, {@link #PROCESSING_INSTRUCTION},
+     * can be used after the {@link #START_ELEMENT}, {@link #END_ELEMENT}, {@link #PROCESSING_INSTRUCTION},
      * {@link #ATTRIBUTE}, or {@link #NAMESPACE} events.
      * If called at other times, the result is undefined and may result in an IllegalStateException.
      * If called when the current node is an unnamed namespace node (a node representing the default namespace)
@@ -202,6 +210,16 @@ public class PullFilter implements PullProvider {
 
     public CharSequence getStringValue() throws XPathException {
         return base.getStringValue();
+    }
+
+    /**
+     * Get an atomic value. This call may be used only when the last event reported was
+     * ATOMIC_VALUE. This indicates that the PullProvider is reading a sequence that contains
+     * a free-standing atomic value; it is never used when reading the content of a node.
+     */
+
+    public AtomicValue getAtomicValue() {
+        return base.getAtomicValue();
     }
 
     /**

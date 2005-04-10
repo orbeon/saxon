@@ -6,11 +6,10 @@ import net.sf.saxon.instruct.Attribute;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.instruct.FixedAttribute;
 import net.sf.saxon.om.*;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.type.SimpleType;
 import net.sf.saxon.value.StringValue;
-
-import javax.xml.transform.TransformerConfigurationException;
 
 /**
 * xsl:attribute element in stylesheet. <br>
@@ -24,7 +23,7 @@ public final class XSLAttribute extends XSLStringConstructor {
     private int validationAction = Validation.PRESERVE;
     private SimpleType schemaType;
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 
@@ -62,7 +61,7 @@ public final class XSLAttribute extends XSLStringConstructor {
         attributeName = makeAttributeValueTemplate(nameAtt);
         if (attributeName instanceof StringValue) {
             if (!Name.isQName(((StringValue)attributeName).getStringValue())) {
-                compileError("Attribute name is not a valid QName", "XT0850");
+                compileError("Attribute name is not a valid QName", "XTDE0850");
                 // prevent a duplicate error message...
                 attributeName = new StringValue("saxon-error-attribute");
             }
@@ -89,35 +88,35 @@ public final class XSLAttribute extends XSLStringConstructor {
 
         if (validationAtt!=null) {
             if (validationAction != Validation.STRIP && !getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("To perform validation, a schema-aware XSLT processor is needed", "XT1660");
+                compileError("To perform validation, a schema-aware XSLT processor is needed", "XTSE1660");
             }
             validationAction = Validation.getCode(validationAtt);
             if (validationAction == Validation.INVALID) {
-                compileError("Invalid value of validation attribute", "XT0020");
+                compileError("Invalid value of validation attribute", "XTSE0020");
             }
         }
 
         if (typeAtt!=null) {
             if (!getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("The type attribute is available only with a schema-aware XSLT processor", "XT1660");
+                compileError("The @type attribute is available only with a schema-aware XSLT processor", "XTSE1660");
             }
             SchemaType type = getSchemaType(typeAtt);
             if (type == null) {
-                compileError("Unknown attribute type " + typeAtt, "XT1520");
+                compileError("Unknown attribute type " + typeAtt, "XTSE1520");
             } else {
                 if (!type.isSimpleType()) {
-                    compileError("Type annotation for attributes must be a simple type", "XT1530");
+                    compileError("Type annotation for attributes must be a simple type", "XTSE1530");
                 }
                 schemaType = (SimpleType)type;
             }
         }
 
         if (typeAtt != null && validationAtt != null) {
-            compileError("The validation and type attributes are mutually exclusive", "XT1505");
+            compileError("The validation and type attributes are mutually exclusive", "XTSE1505");
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         if (!(getParent() instanceof XSLAttributeSet)) {
             checkWithinTemplate();
         }
@@ -128,7 +127,7 @@ public final class XSLAttribute extends XSLStringConstructor {
         super.validate();
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         NamespaceResolver nsContext = null;
 
         int annotation = getTypeAnnotation(schemaType);
@@ -142,19 +141,19 @@ public final class XSLAttribute extends XSLStringConstructor {
                 parts = Name.getQNameParts(qName);
             } catch (QNameException e) {
                 // This can't happen, because of previous checks, but we'll behave as if it can
-                compileError("Invalid attribute name: " + qName, "XT0850");
+                compileError("Invalid attribute name: " + qName, "XTDE0850");
                 return null;
             }
 
             if (qName.equals("xmlns")) {
                 if (namespace==null) {
-                    compileError("Invalid attribute name: " + qName, "XT0855");
+                    compileError("Invalid attribute name: " + qName, "XTDE0855");
                     return null;
                 }
             }
             if (parts[0].equals("xmlns")) {
                 if (namespace==null) {
-                    compileError("Invalid attribute name: " + qName);
+                    compileError("Invalid attribute name: " + qName, "XTDE0855");
                     return null;
                 } else {
                     // ignore the prefix "xmlns"
@@ -166,7 +165,7 @@ public final class XSLAttribute extends XSLStringConstructor {
                 if (!parts[0].equals("")) {
                     nsuri = getURIForPrefix(parts[0], false);
                     if (nsuri == null) {
-                        undeclaredNamespaceError(parts[0], "XT0280");
+                        undeclaredNamespaceError(parts[0], "XTSE0280");
                         return null;
                     }
                 }
@@ -235,7 +234,8 @@ public final class XSLAttribute extends XSLStringConstructor {
                                         nsContext,
                                         validationAction,
                                         schemaType,
-                                        annotation);
+                                        annotation,
+                                        false);
         compileContent(exec, inst, separator);
         return inst;
     }

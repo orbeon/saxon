@@ -12,7 +12,6 @@ import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.ObjectValue;
 
-import javax.xml.transform.TransformerConfigurationException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -27,7 +26,7 @@ public class SQLInsert extends ExtensionInstruction {
     Expression connection;
     String table;
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		table = getAttributeList().getValue("", "table");
 		if (table==null) {
@@ -41,12 +40,12 @@ public class SQLInsert extends ExtensionInstruction {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         super.validate();
         connection = typeCheck("connection", connection);
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
 
         // Collect names of columns to be added
 
@@ -83,7 +82,7 @@ public class SQLInsert extends ExtensionInstruction {
         return new InsertInstruction(connection, statement.toString(), getColumnInstructions(exec));
     }
 
-    public List getColumnInstructions(Executable exec) throws TransformerConfigurationException {
+    public List getColumnInstructions(Executable exec) throws XPathException {
         List list = new ArrayList(10);
 
         AxisIterator kids = iterateAxis(Axis.CHILD);

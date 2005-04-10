@@ -41,6 +41,8 @@ public final class ReverseArrayIterator implements AxisIterator,
             current = items[index--];
             return current;
         } else {
+            current = null;
+            // TODO: adjust so that position returns -1 after the last next() call
             return null;
         }
     }

@@ -42,19 +42,25 @@ public abstract class StaticProperty {
     */
 
     public static final int DEPENDS_ON_CURRENT_GROUP = 1<<5;
-    
+
     /**
-    * Bit setting: Expression depends on regex-group() 
+    * Bit setting: Expression depends on regex-group()
     */
 
     public static final int DEPENDS_ON_REGEX_GROUP = 1<<6;
-    
-    
+
+
     /**
      * Bit setting: Expression depends on local variables
-     */ 
-    
+     */
+
     public static final int DEPENDS_ON_LOCAL_VARIABLES = 1<<7;
+
+    /**
+     * Bit setting: Expression depends on user-defined functions
+     */
+
+    public static final int DEPENDS_ON_USER_FUNCTIONS = 1<<8;
 
     /**
     * Combination of bits representing dependencies on the XSLT context
@@ -96,25 +102,26 @@ public abstract class StaticProperty {
             DEPENDS_ON_REGEX_GROUP |
             DEPENDS_ON_CURRENT_ITEM |
             DEPENDS_ON_FOCUS |
-            DEPENDS_ON_LOCAL_VARIABLES;
+            DEPENDS_ON_LOCAL_VARIABLES |
+            DEPENDS_ON_USER_FUNCTIONS;
 
     /*
     * Bit set if an empty sequence is allowed
     */
 
-    public static final int ALLOWS_ZERO = 1<<8;
+    public static final int ALLOWS_ZERO = 1<<13;
 
     /**
     * Bit set if a single value is allowed
     */
 
-    public static final int ALLOWS_ONE = 1<<9;
+    public static final int ALLOWS_ONE = 1<<14;
 
     /**
     * Bit set if multiple values are allowed
     */
 
-    public static final int ALLOWS_MANY = 1<<10;
+    public static final int ALLOWS_MANY = 1<<15;
 
     /**
      * Mask for all cardinality bits
@@ -161,7 +168,7 @@ public abstract class StaticProperty {
      */
 
     public static final int getCardinalityCode(int cardinality) {
-        return (cardinality & CARDINALITY_MASK) >> 8;
+        return (cardinality & CARDINALITY_MASK) >> 13;
     }
 
     /**

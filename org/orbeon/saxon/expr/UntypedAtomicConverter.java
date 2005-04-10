@@ -40,7 +40,8 @@ public final class UntypedAtomicConverter extends UnaryExpression implements Map
     */
 
 	public ItemType getItemType() {
-	    return requiredItemType;
+        return Type.getCommonSuperType(requiredItemType, operand.getItemType());
+	    //return requiredItemType;
 	}
 
     /**
@@ -81,7 +82,7 @@ public final class UntypedAtomicConverter extends UnaryExpression implements Map
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
         SequenceIterator base = operand.iterate(context);
-        return new MappingIterator(base, this, null, context);
+        return new MappingIterator(base, this, context);
     }
 
     /**
@@ -94,8 +95,8 @@ public final class UntypedAtomicConverter extends UnaryExpression implements Map
         if (item instanceof UntypedAtomicValue) {
             try {
                 AtomicValue val = ((UntypedAtomicValue)item).convert(requiredItemType, context, true);
-                if (val instanceof ErrorValue) {
-                    throw ((ErrorValue)val).getException();
+                if (val instanceof ValidationErrorValue) {
+                    throw ((ValidationErrorValue)val).getException();
                 }
                 return val;
             } catch (XPathException e) {
@@ -114,11 +115,11 @@ public final class UntypedAtomicConverter extends UnaryExpression implements Map
     * Implement the mapping function
     */
 
-    public Object map(Item item, XPathContext context, Object info) throws XPathException {
+    public Object map(Item item, XPathContext context) throws XPathException {
         if (item instanceof UntypedAtomicValue) {
-            Value val = ((UntypedAtomicValue)item).convert(requiredItemType, (XPathContext)info, true);
-            if (val instanceof ErrorValue) {
-                throw ((ErrorValue)val).getException();
+            Value val = ((UntypedAtomicValue)item).convert(requiredItemType, context, true);
+            if (val instanceof ValidationErrorValue) {
+                throw ((ValidationErrorValue)val).getException();
             }
             return val;
         } else {

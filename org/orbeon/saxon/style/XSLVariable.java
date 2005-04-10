@@ -8,10 +8,9 @@ import net.sf.saxon.instruct.GeneralVariable;
 import net.sf.saxon.instruct.GlobalVariable;
 import net.sf.saxon.instruct.LocalVariable;
 import net.sf.saxon.pattern.NodeKindTest;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.SequenceType;
-
-import javax.xml.transform.TransformerConfigurationException;
 
 /**
 * Handler for xsl:variable elements in stylesheet. <br>
@@ -25,10 +24,10 @@ public class XSLVariable extends XSLVariableDeclaration {
             // 1 = during prepareAttributes()
             // 2 = after prepareAttributes()
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
         if (state==2) return;
         if (state==1) {
-            compileError("Circular reference to variable", "XT0640");
+            compileError("Circular reference to variable", "XTDE0640");
         }
         state = 1;
         //System.err.println("Prepare attributes of $" + getVariableName());
@@ -84,7 +83,10 @@ public class XSLVariable extends XSLVariableDeclaration {
     * this global variable
     */
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
+
+        // TODO: there is some nasty redundancy between the compile() and newCompile() methods
+        // that needs to be sorted out. Currently it appears that both are called, and both are necessary.
 
         if (references.size()==0 && !assignable) {
             redundant = true;
@@ -107,6 +109,9 @@ public class XSLVariable extends XSLVariableDeclaration {
                 return inst;
             } else {
                 inst = new LocalVariable();
+                if (select instanceof ComputedExpression) {
+                    ((ComputedExpression)select).setParentExpression(inst);
+                }
                 initializeInstruction(exec, inst);
                 inst.setVariableName(getVariableName());
                 inst.setSlotNumber(getSlotNumber());
@@ -120,7 +125,7 @@ public class XSLVariable extends XSLVariableDeclaration {
         return null;
     }
 
-public Expression newCompile(Executable exec) throws TransformerConfigurationException {
+    public Expression newCompile(Executable exec) throws XPathException {
 
         if (references.size()==0 && !assignable) {
             redundant = true;
@@ -143,12 +148,13 @@ public Expression newCompile(Executable exec) throws TransformerConfigurationExc
                 return inst;
             } else {
                 inst = new LocalVariable();
+                if (select instanceof ComputedExpression) {
+                    ((ComputedExpression)select).setParentExpression(inst);
+                }
                 initializeInstruction(exec, inst);
                 inst.setVariableName(getVariableName());
-                inst.setSlotNumber(getSlotNumber());
                 inst.setRequiredType(getRequiredType());
                 ExpressionTool.makeParentReferences(inst);
-                //fixupBinding(inst);
                 return inst;
             }
         }

@@ -1,6 +1,8 @@
 package net.sf.saxon.style;
 import net.sf.saxon.Configuration;
 import net.sf.saxon.Err;
+import net.sf.saxon.type.AtomicType;
+import net.sf.saxon.type.BuiltInAtomicType;
 import net.sf.saxon.expr.VariableDeclaration;
 import net.sf.saxon.functions.FunctionLibrary;
 import net.sf.saxon.instruct.LocationMap;
@@ -178,7 +180,7 @@ public class ExpressionContext implements XSLTStaticContext {
                                 getStyleNodeFactory().isElementAvailable(uri, parts[1]);
         } catch (QNameException e) {
             StaticError err = new StaticError("Invalid element name. " + e.getMessage());
-            err.setErrorCode("XT1440");
+            err.setErrorCode("XTDE1440");
             throw err;
         }
     }
@@ -234,6 +236,25 @@ public class ExpressionContext implements XSLTStaticContext {
 
     public boolean isImportedSchema(String namespace) {
         return getXSLStylesheet().isImportedSchema(namespace);
+    }
+
+    /**
+     * Determine whether a built-in type is available in this context. This method caters for differences
+     * between host languages as to which set of types are built in.
+     *
+     * @param type the supposedly built-in type. This will always be a type in the
+     *                    XS or XDT namespace.
+     * @return true if this type can be used in this static context
+     */
+
+    public boolean isAllowedBuiltInType(AtomicType type) {
+        if (getConfiguration().isSchemaAware(Configuration.XSLT)) {
+            return true;
+        } else if (type instanceof BuiltInAtomicType) {
+            return ((BuiltInAtomicType)type).isAllowedInBasicXSLT();
+        } else {
+            return false;
+        }
     }
 
     /**

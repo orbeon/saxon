@@ -3,11 +3,11 @@ import net.sf.saxon.expr.Binding;
 import net.sf.saxon.expr.BindingReference;
 import net.sf.saxon.expr.VariableDeclaration;
 import net.sf.saxon.instruct.SlotManager;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.value.Value;
 
-import javax.xml.transform.TransformerConfigurationException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -21,7 +21,11 @@ public abstract class XSLVariableDeclaration
         extends XSLGeneralVariable
         implements VariableDeclaration, StylesheetProcedure {
 
-    private int slotNumber;
+    // The slot number for the variable is allocated at this level (a) for global variables, and
+    // (b) for local parameters. For local variables, slot numbers are allocated only after an entire
+    // template or function has been compiled.
+
+    private int slotNumber = -9876;  // initial value designed solely to show up when debugging
 
     // List of VariableReference objects that reference this XSLVariableDeclaration
     List references = new ArrayList(10);
@@ -39,6 +43,10 @@ public abstract class XSLVariableDeclaration
 
     public int getSlotNumber() {
         return slotNumber;
+    }
+
+    public void setSlotNumber(int slot) {
+        slotNumber = slot;
     }
 
     /**
@@ -86,7 +94,7 @@ public abstract class XSLVariableDeclaration
     * Notify all references to this variable of the data type
     */
 
-    public void fixupReferences() throws TransformerConfigurationException {
+    public void fixupReferences() throws XPathException {
         SequenceType type = getRequiredType();
         Iterator iter = references.iterator();
         while (iter.hasNext()) {
@@ -115,7 +123,7 @@ public abstract class XSLVariableDeclaration
     * Check that the variable is not already declared, and allocate a slot number
     */
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         super.validate();
         if (global) {
             if (!redundant) {
@@ -123,12 +131,12 @@ public abstract class XSLVariableDeclaration
             }
         } else {
             checkWithinTemplate();
-            SlotManager p = getContainingSlotManager();
-            if (p==null) {
-                compileError("Local variable must be declared within a template or function", "XT0010");
-            } else {
-                slotNumber = p.allocateSlotNumber(getVariableFingerprint());
-            }
+//            SlotManager p = getContainingSlotManager();
+//            if (p==null) {
+//                compileError("Local variable must be declared within a template or function", "XT0010");
+//            } else {
+//                slotNumber = p.allocateSlotNumber(getVariableFingerprint());
+//            }
         }
         // Check for duplication
             // Global variables are checked at the XSLStylesheet level

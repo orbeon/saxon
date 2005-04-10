@@ -47,12 +47,14 @@ public class StringTokenIterator implements SequenceIterator {
             position++;
             return new StringValue(current);
         } else {
+            current = null;
+            position = -1;
             return null;
         }
     }
 
     public Item current() {
-        return new StringValue(current);
+        return (current == null ? null : new StringValue(current));
     }
 
     public int position() {

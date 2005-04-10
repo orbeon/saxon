@@ -14,16 +14,15 @@ public interface MappingFunction {
     * Map one item to a sequence.
     * @param item The item to be mapped.
     * If context is supplied, this must be the same as context.currentItem().
-    * @param context The processing context. This is supplied only for mapping constructs that
-    * set the context node, position, and size. Otherwise it is null.
-    * @param info Arbitrary information supplied by the creator of the MappingIterator. It must be
-    * read-only and immutable for the duration of the iteration.
+    * @param context The processing context. Some mapping functions use this because they require
+    * context information. Some mapping functions modify the context by maintaining the context item
+    * and position. In other cases, the context may be null.
     * @return either (a) a SequenceIterator over the sequence of items that the supplied input
     * item maps to, or (b) an Item if it maps to a single item, or (c) null if it maps to an empty
     * sequence.
     */
 
-    public Object map(Item item, XPathContext context, Object info) throws XPathException;
+    public Object map(Item item, XPathContext context) throws XPathException;
 
 }
 

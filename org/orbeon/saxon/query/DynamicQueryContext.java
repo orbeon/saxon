@@ -38,7 +38,7 @@ public class DynamicQueryContext {
      * the context node will be undefined. The context node is available as the value of
      * the expression ".".
      * To obtain a NodeInfo by parsing a source document, see the method
-     * {@link net.sf.saxon.query.QueryProcessor#buildDocument buildDocument}
+     * {@link net.sf.saxon.query.StaticQueryContext#buildDocument buildDocument}
      * in class QueryProcessor.
      * 
      * @param node      The node that is to be the context node for the query
@@ -56,7 +56,7 @@ public class DynamicQueryContext {
      * the context node will be undefined. The context item is available as the value of
      * the expression ".",.
      * To obtain a node by parsing a source document, see the method
-     * {@link net.sf.saxon.query.QueryProcessor#buildDocument buildDocument}
+     * {@link net.sf.saxon.query.StaticQueryContext#buildDocument buildDocument}
      * in class QueryProcessor.
      * @param item The item that is to be the context item for the query
      */

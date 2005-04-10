@@ -1,7 +1,9 @@
 package net.sf.saxon.expr;
 import net.sf.saxon.Err;
-import net.sf.saxon.Loader;
+import net.sf.saxon.event.LocationProvider;
 import net.sf.saxon.instruct.Block;
+import net.sf.saxon.instruct.Executable;
+import net.sf.saxon.instruct.LocationMap;
 import net.sf.saxon.instruct.TraceExpression;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.*;
@@ -36,11 +38,16 @@ public class ExpressionParser {
         // of the variable.
 
     protected boolean scanOnly = false;
-
         // scanOnly is set to true while attributes in direct element constructors
         // are being processed. We need to parse enclosed expressions in the attribute
         // in order to find the end of the attribute value, but we don't yet know the
         // full namespace context at this stage.
+
+    protected int language = XPATH;     // know which language we are parsing, for diagnostics
+    protected static final int XPATH = 0;
+    protected static final int XSLT_PATTERN = 1;
+    protected static final int SEQUENCE_TYPE = 2;
+    protected static final int XQUERY = 3;
 
     public ExpressionParser(){}
 
@@ -61,7 +68,8 @@ public class ExpressionParser {
     }
 
     /**
-     * Expect a given token, fail if the current token is different
+     * Expect a given token; fail if the current token is different. Note that this method
+     * does not read any tokens.
      *
      * @param token the expected token
      * @throws net.sf.saxon.trans.StaticError if the current token is not the expected
@@ -82,7 +90,7 @@ public class ExpressionParser {
      */
 
     protected void grumble(String message) throws StaticError {
-        grumble(message, "XP0003");
+        grumble(message, (language == XSLT_PATTERN ? "XTSE0340" : "XPST0003"));
     }
 
     /**
@@ -95,6 +103,9 @@ public class ExpressionParser {
      */
 
     protected void grumble(String message, String errorCode) throws StaticError {
+        if (errorCode == null) {
+            errorCode = "XPST0003";
+        }
         String s = t.recentText();
         int line = t.getLineNumber();
         int column = t.getColumnNumber();
@@ -127,7 +138,18 @@ public class ExpressionParser {
      */
 
     protected String getLanguage() {
-        return "XPath";
+        switch (language) {
+            case XPATH:
+                return "XPath";
+            case XSLT_PATTERN:
+                return "XSLT Pattern";
+            case SEQUENCE_TYPE:
+                return "SequenceType";
+            case XQUERY:
+                return "XQuery";
+            default:
+                return "XPath";
+        }
     }
 
     /**
@@ -169,7 +191,7 @@ public class ExpressionParser {
         Expression exp = parseExpression();
         if (t.currentToken != terminator) {
             if (t.currentToken == Token.EOF && terminator == Token.RCURLY) {
-                grumble("Missing curly brace after expression in attribute value template", "XT0350");
+                grumble("Missing curly brace after expression in attribute value template", "XTSE0350");
             } else {
                 grumble("Unexpected token " + currentTokenDisplay() + " beyond end of expression");
             }
@@ -189,6 +211,7 @@ public class ExpressionParser {
     public Pattern parsePattern(String pattern, StaticContext env) throws StaticError {
         //System.err.println("Parse pattern: " + pattern);
 	    this.env = env;
+        language = XSLT_PATTERN;
         t = new Tokenizer();
         try {
 	        t.tokenize(pattern, 0, -1, 1);
@@ -215,6 +238,7 @@ public class ExpressionParser {
 
     public SequenceType parseSequenceType(String input, StaticContext env) throws StaticError {
         this.env = env;
+        language = SEQUENCE_TYPE;
         t = new Tokenizer();
         try {
             t.tokenize(input, 0, -1, 1);
@@ -435,9 +459,7 @@ public class ExpressionParser {
             nextToken();
             clause.sequence = parseExprSingle();
             declareRangeVariable(clause.rangeVariable);
-            if (clause.positionVariable != null) {
-                declareRangeVariable(clause.positionVariable);
-            }
+
         } while (t.currentToken==Token.COMMA);
 
         // process the "return/satisfies" expression (called the "action")
@@ -488,11 +510,11 @@ public class ExpressionParser {
 
         for (int i = clauseList.size()-1; i>=0; i--) {
             Object clause = clauseList.get(i);
-            if ((clause instanceof ForClause) &&
-                    ((ForClause)clause).positionVariable != null) {
-                    // undeclare the "at" variable if it was declared
-                undeclareRangeVariable();
-            }
+//            if ((clause instanceof ForClause) &&
+//                    ((ForClause)clause).positionVariable != null) {
+//                    // undeclare the "at" variable if it was declared
+//                undeclareRangeVariable();
+//            }
                 // undeclare the primary variable
             undeclareRangeVariable();
         }
@@ -611,6 +633,14 @@ public class ExpressionParser {
                 nextToken();
             }
             exp = new CastExpression(exp, at, allowEmpty);
+            // A QName or NOTATION constructor function must be evaluated now, while we know the namespace context
+            if (((AtomicType)exp.getItemType()).isNamespaceSensitive()) {
+                try {
+                    return ((CastExpression)exp).doQNameCast(env);
+                } catch (XPathException e) {
+                    grumble(e.getMessage());
+                }
+            }
             setLocation(exp);
         }
         return exp;
@@ -642,12 +672,23 @@ public class ExpressionParser {
                     uri = "";
                 }
             }
-            if (uri.equals(NamespaceConstant.SCHEMA) || uri.equals(NamespaceConstant.XDT)) {
+
+            boolean builtInNamespace = uri.equals(NamespaceConstant.SCHEMA);
+            if (!builtInNamespace && NamespaceConstant.isXDTNamespace(uri)) {
+                uri = NamespaceConstant.XDT;
+                builtInNamespace = true;
+            }
+
+            if (builtInNamespace) {
                 ItemType t = Type.getBuiltInItemType(uri, parts[1]);
                 if (t == null) {
-                    grumble("Unknown atomic type " + qname, "XP0051");
+                    grumble("Unknown atomic type " + qname, "XPST0051");
                 }
-                if (t instanceof AtomicType) {
+                if (t instanceof BuiltInAtomicType) {
+                    if (!env.isAllowedBuiltInType((BuiltInAtomicType)t)) {
+                        warning("The type " + qname + " is not recognized by a Basic XSLT Processor. " +
+                                "Saxon permits it for the time being.");
+                    }
                     return (AtomicType)t;
                 } else {
                     grumble("The type " + qname + " is not atomic");
@@ -656,7 +697,7 @@ public class ExpressionParser {
                 Class theClass = null;
                 try {
                     String className = parts[1].replace('-', '$');
-                    theClass = Loader.getClass(className, false);
+                    theClass = env.getConfiguration().getClass(className, false, null);
                 } catch (XPathException err) {
                     grumble("Unknown Java class " + parts[1]);
                 }
@@ -786,11 +827,17 @@ public class ExpressionParser {
                 expect(Token.RPAR);
                 nextToken();
                 primaryType = AnyItemType.getInstance();
+            } else if (t.currentTokenValue == "void") {
+                nextToken();
+                expect(Token.RPAR);
+                nextToken();
+                return SequenceType.makeSequenceType(NoNodeTest.getInstance(), StaticProperty.EMPTY);
             } else {
                 primaryType = parseKindTest();
             }
         } else if (t.currentToken == Token.FUNCTION && "empty".equals(t.currentTokenValue)) {
             // have to special-case this because "empty" is also used as a core function
+            // TODO: can drop this now and use void()
             nextToken();
             expect(Token.RPAR);
             nextToken();
@@ -993,7 +1040,8 @@ public class ExpressionParser {
             final RootExpression start = new RootExpression();
             setLocation(start);
             if (atStartOfRelativePath()) {
-                final Expression path = new PathExpression(start, parseRelativePath());
+                //final Expression path = new PathExpression(start, parseRelativePath(null));
+                final Expression path = parseRemainingPath(start);
                 setLocation(path);
                 return path;
             } else {
@@ -1001,15 +1049,26 @@ public class ExpressionParser {
             }
 
         case Token.SLSL:
+            // The logic for absolute path expressions changed in 8.4 so that //A/B/C parses to
+            // (((root()/descendant-or-self::node())/A)/B)/C rather than
+            // (root()/descendant-or-self::node())/(((A)/B)/C) as previously. This is to allow
+            // the subsequent //A optimization to kick in.
             nextToken();
             // add in the implicit descendant-or-self::node() step
+//            final RootExpression start2 = new RootExpression();
+//            setLocation(start2);
+//            final AxisExpression axisExp = new AxisExpression(Axis.DESCENDANT_OR_SELF, null);
+//            setLocation(axisExp);
+//            final PathExpression pathExp = new PathExpression(axisExp, parseRelativePath(null));
+//            setLocation(pathExp);
+//            final Expression exp = new PathExpression(start2, pathExp);
+//            setLocation(exp);
+//            return exp;
             final RootExpression start2 = new RootExpression();
             setLocation(start2);
             final AxisExpression axisExp = new AxisExpression(Axis.DESCENDANT_OR_SELF, null);
             setLocation(axisExp);
-            final PathExpression pathExp = new PathExpression(axisExp, parseRelativePath());
-            setLocation(pathExp);
-            final Expression exp = new PathExpression(start2, pathExp);
+            final Expression exp = parseRemainingPath(new PathExpression(start2, axisExp));
             setLocation(exp);
             return exp;
         default:
@@ -1022,7 +1081,6 @@ public class ExpressionParser {
     /**
      * Parse a relative path (a sequence of steps). Called when the current token immediately
      * follows a separator (/ or //), or an implicit separator (XYZ is equivalent to ./XYZ)
-     *
      * @throws net.sf.saxon.trans.StaticError if any error is encountered
      * @return the resulting subexpression
      */
@@ -1046,6 +1104,39 @@ public class ExpressionParser {
         }
         return exp;
     }
+
+    /**
+     * Parse the remaining steps of an absolute path expression (one starting in "/" or "//"). Note that the
+     * token immediately after the "/" or "//" has already been read, and in the case of "/", it has been confirmed
+     * that we have a path expression starting with "/" rather than a standalone "/" expression.
+     * @param start the initial implicit expression: root() in the case of "/", root()/descendant-or-self::node in
+     * the case of "//"
+     * @return the completed path expression
+     * @throws StaticError
+     */
+    protected Expression parseRemainingPath(Expression start) throws StaticError {
+            Expression exp = start;
+            int op = Token.SLASH;
+            while (true) {
+                Expression next = parseStepExpression();
+                if (op == Token.SLASH) {
+                    exp = new PathExpression(exp, next);
+                } else {
+                    // add implicit descendant-or-self::node() step
+                    exp = new PathExpression(exp,
+                            new PathExpression(new AxisExpression(Axis.DESCENDANT_OR_SELF, null),
+                                next));
+                }
+                setLocation(exp);
+                op = t.currentToken;
+                if (op != Token.SLASH && op != Token.SLSL) {
+                    break;
+                }
+                nextToken();
+            }
+            return exp;
+        }
+
 
     /**
      * Parse a step (including an optional sequence of predicates)
@@ -1186,7 +1277,16 @@ public class ExpressionParser {
             break;
 
         case Token.AXIS:
-            byte axis = Axis.getAxisNumber(t.currentTokenValue);
+                byte axis;
+                try {
+                    axis = Axis.getAxisNumber(t.currentTokenValue);
+                } catch (StaticError err) {
+                    grumble(err.getMessage());
+                    axis = Axis.CHILD; // error recovery
+                }
+                if (axis == Axis.NAMESPACE && language == XQUERY) {
+                grumble("The namespace axis is not available in XQuery");
+            }
             short principalNodeType = Axis.principalNodeType[axis];
             nextToken();
             switch (t.currentToken) {
@@ -1487,7 +1587,7 @@ public class ExpressionParser {
                         String uri = env.getNamePool().getURI(contentType);
                         String lname = env.getNamePool().getLocalName(contentType);
                         if (uri.equals(NamespaceConstant.SCHEMA) ||
-                                uri.equals(NamespaceConstant.XDT)) {
+                                NamespaceConstant.isXDTNamespace(uri)) {
                             schemaType = env.getConfiguration().getSchemaType(contentType);
                         } else {
                             if (!env.isImportedSchema(uri)) {
@@ -1631,6 +1731,9 @@ public class ExpressionParser {
         try {
             fcall = env.getFunctionLibrary().bind(nameCode, uri, parts[1], arguments);
         } catch (XPathException err) {
+            if (err.getErrorCodeLocalPart() == null) {
+                err.setErrorCode("XPST0017");
+            }
             grumble(err.getMessage(), err.getErrorCodeLocalPart());
             return null;
         }
@@ -1645,6 +1748,14 @@ public class ExpressionParser {
                 return exp;
             }
             grumble(msg);
+        }
+        // A QName or NOTATION constructor function must be evaluated now, while we know the namespace context
+        if (fcall instanceof CastExpression && ((AtomicType)fcall.getItemType()).isNamespaceSensitive()) {
+            try {
+                return ((CastExpression)fcall).doQNameCast(env);
+            } catch (XPathException e) {
+                grumble(e.getMessage());
+            }
         }
         setLocation(fcall, offset);
         for (int a=0; a<arguments.length; a++) {
@@ -2088,7 +2199,13 @@ public class ExpressionParser {
         int line = t.getLineNumber(offset);
         if (exp instanceof ComputedExpression && ((ComputedExpression)exp).getLocationId()==-1) {
             int loc = env.getLocationMap().allocateLocationId(env.getSystemId(), line);
-            ((ComputedExpression)exp).setLocationId(loc);
+            ComputedExpression cexp = (ComputedExpression)exp;
+            cexp.setLocationId(loc);
+            // add a temporary container to provide location information
+            if (cexp.getParentExpression() == null) {
+                TemporaryContainer container = new TemporaryContainer(env.getLocationMap(), loc);
+                cexp.setParentExpression(container);
+            }
         }
     }
 
@@ -2133,6 +2250,48 @@ public class ExpressionParser {
         public Expression sequence;
         public SequenceType requiredType;
         public int offset;
+    }
+
+    private static class TemporaryContainer implements Container, LocationProvider {
+        private LocationMap map;
+        private int locationId;
+
+        public TemporaryContainer(LocationMap map, int locationId) {
+            this.map = map;
+            this.locationId = locationId;
+        }
+
+        public Executable getExecutable() {
+            return null;
+        }
+
+        public LocationProvider getLocationProvider() {
+            return map;
+        }
+
+        public String getPublicId() {
+            return null;
+        }
+
+        public String getSystemId() {
+            return map.getSystemId(locationId);
+        }
+
+        public int getLineNumber() {
+            return map.getLineNumber(locationId);
+        }
+
+        public int getColumnNumber() {
+            return -1;
+        }
+
+        public String getSystemId(int locationId) {
+            return getSystemId();
+        }
+
+        public int getLineNumber(int locationId) {
+            return getLineNumber();
+        }
     }
 
 }

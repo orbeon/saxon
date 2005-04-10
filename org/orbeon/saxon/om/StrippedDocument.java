@@ -38,9 +38,9 @@ public class StrippedDocument extends StrippedNode implements DocumentInfo {
 	* Set the name pool used for all names in this document
 	*/
 
-	public void setConfiguration(Configuration config) {
-        ((DocumentInfo)node).setConfiguration(config);
-	}
+//	public void setConfiguration(Configuration config) {
+//        ((DocumentInfo)node).setConfiguration(config);
+//	}
 
     /**
      * Get the configuration previously set using setConfiguration

@@ -1,7 +1,10 @@
 package net.sf.saxon.style;
-import net.sf.saxon.Loader;
+import net.sf.saxon.Configuration;
 import net.sf.saxon.event.LocationProvider;
-import net.sf.saxon.om.*;
+import net.sf.saxon.om.AttributeCollectionImpl;
+import net.sf.saxon.om.NamePool;
+import net.sf.saxon.om.NamespaceConstant;
+import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.trans.StaticError;
 import net.sf.saxon.tree.ElementImpl;
 import net.sf.saxon.tree.NodeFactory;
@@ -21,14 +24,16 @@ import java.util.HashMap;
 public class StyleNodeFactory implements NodeFactory {
 
     HashMap userStyles = new HashMap(4);
+    Configuration config;
     NamePool namePool;
     boolean allowExtensions;
 
 
-    public StyleNodeFactory(NamePool pool, boolean allowExtensions) {
+    public StyleNodeFactory(Configuration config) {
 
-		namePool = pool;
-		this.allowExtensions = allowExtensions;
+		this.config = config;
+        namePool = config.getNamePool();
+		this.allowExtensions = config.isAllowExternalFunctions();
     }
 
     /**
@@ -154,6 +159,7 @@ public class StyleNodeFactory implements NodeFactory {
 
 	        if (uriCode == NamespaceConstant.XSLT_CODE) {
                 reason = new StaticError("Unknown XSLT element: " + localname);
+                ((StaticError)reason).setErrorCode("XTSE0010");
                 actualClass = AbsentExtensionElement.class;
                 temp.setValidationError(reason, StyleElement.REPORT_UNLESS_FORWARDS_COMPATIBLE);
 	        } else if (uriCode == NamespaceConstant.SAXON_CODE) {
@@ -197,7 +203,9 @@ public class StyleNodeFactory implements NodeFactory {
                         // save the reason for failure just in case there is no xsl:fallback
 
                         actualClass = AbsentExtensionElement.class;
-                        reason = new StaticError("Unknown extension element", temp);
+                        StaticError se = new StaticError("Unknown extension element", temp);
+                        se.setErrorCode("XTDE1450");
+                        reason = se;
                         temp.setValidationError(reason, StyleElement.REPORT_IF_INSTANTIATED);
                     }
                 }
@@ -373,7 +381,7 @@ public class StyleNodeFactory implements NodeFactory {
         ExtensionElementFactory factory;
 
         try {
-            factory = (ExtensionElementFactory)Loader.getInstance(factoryClass);
+            factory = (ExtensionElementFactory)config.getInstance(factoryClass, null);
         } catch (Exception err) {
             return null;
         }

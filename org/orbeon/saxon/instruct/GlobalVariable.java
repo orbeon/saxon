@@ -1,6 +1,7 @@
 package net.sf.saxon.instruct;
 import net.sf.saxon.Controller;
 import net.sf.saxon.expr.*;
+import net.sf.saxon.om.AxisIterator;
 import net.sf.saxon.om.SingletonIterator;
 import net.sf.saxon.om.ValueRepresentation;
 import net.sf.saxon.style.StandardNames;
@@ -56,7 +57,9 @@ public class GlobalVariable extends GeneralVariable implements Container {
         } else {
             XPathContextMajor c2 = context.newCleanContext();
             c2.setOrigin(this);
-            c2.setCurrentIterator(SingletonIterator.makeIterator(c2.getController().getPrincipalSourceDocument()));
+            AxisIterator initialNode = SingletonIterator.makeIterator(c2.getController().getPrincipalSourceDocument());
+            initialNode.next();
+            c2.setCurrentIterator(initialNode);
             if (stackFrameMap != null) {
                 c2.openStackFrame(stackFrameMap);
             }
@@ -94,7 +97,7 @@ public class GlobalVariable extends GeneralVariable implements Container {
                 if (err instanceof XPathException.Circularity) {
                     DynamicError e = new DynamicError("Circular definition of variable " + getVariableName());
                     e.setXPathContext(context);
-                    e.setErrorCode("XT0640");
+                    e.setErrorCode("XTDE0640");
                     // Detect it more quickly the next time (in a pattern, the error is recoverable)
                     select = new ErrorExpression(e);
                     throw e;

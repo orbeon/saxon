@@ -10,7 +10,7 @@ public class PrependIterator implements AxisIterator {
 
     NodeInfo start;
     AxisIterator base;
-    boolean doneFirst = false;
+    int position = 0;
 
     public PrependIterator(NodeInfo start, AxisIterator base) {
         this.start = start;
@@ -24,11 +24,17 @@ public class PrependIterator implements AxisIterator {
      */
 
     public Item next() {
-        if (!doneFirst) {
-            doneFirst = true;
+        if (position == 0) {
+            position = 1;
             return start;
         }
-        return base.next();
+        Item n = base.next();
+        if (n == null) {
+            position = -1;
+        } else {
+            position++;
+        }
+        return n;
     }
 
     /**
@@ -41,6 +47,8 @@ public class PrependIterator implements AxisIterator {
     public Item current() {
         if (position() == 1) {
             return start;
+        } else if (position < 1) {
+            return null;
         } else {
             return base.current();
         }
@@ -54,11 +62,7 @@ public class PrependIterator implements AxisIterator {
      */
 
     public int position() {
-        if (doneFirst) {
-            return base.position() + 1;
-        } else {
-            return 1;
-        }
+       return position;
     }
 
     /**

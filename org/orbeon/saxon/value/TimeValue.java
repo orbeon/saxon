@@ -9,6 +9,7 @@ import net.sf.saxon.type.BuiltInAtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.type.ValidationException;
+import net.sf.saxon.ConversionContext;
 
 import java.util.*;
 
@@ -16,7 +17,7 @@ import java.util.*;
  * A value of type xs:time
  */
 
-public final class TimeValue extends CalendarValue implements Comparable {
+public final class TimeValue extends CalendarValue {
 
 
     /**
@@ -46,7 +47,7 @@ public final class TimeValue extends CalendarValue implements Comparable {
 
             int hour = Integer.parseInt(part);
             if (part.length() != 2) badTime("hour must be two digits");
-            if (hour > 23) badTime("hour is out of range");
+            if (hour > 24) badTime("hour is out of range");
             if (!tok.hasMoreElements()) badTime("too short");
             if (!":".equals(tok.nextElement())) badTime("wrong delimiter after hour");
 
@@ -55,6 +56,7 @@ public final class TimeValue extends CalendarValue implements Comparable {
             int minute = Integer.parseInt(part);
             if (part.length() != 2) badTime("minute must be two digits");
             if (minute > 59) badTime("minute is out of range");
+            if (hour == 24 && minute != 0) badTime("If hour is 24, minute must be 00");
             if (!tok.hasMoreElements()) badTime("too short");
             if (!":".equals(tok.nextElement())) badTime("wrong delimiter after minute");
 
@@ -62,7 +64,8 @@ public final class TimeValue extends CalendarValue implements Comparable {
             part = (String) tok.nextElement();
             int second = Integer.parseInt(part);
             if (part.length() != 2) badTime("second must be two digits");
-            if (hour > 61) badTime("second is out of range");
+            if (second > 61) badTime("second is out of range");
+            if (hour == 24 && second != 0) badTime("If hour is 24, second must be 00");
 
             int millisecond = 0;
             int tz = 0;
@@ -80,6 +83,9 @@ public final class TimeValue extends CalendarValue implements Comparable {
                     part = (String) tok.nextElement();
                     double fractionalSeconds = Double.parseDouble('.' + part);
                     millisecond = (int) (Math.round(fractionalSeconds * 1000));
+                    if (hour == 24 && millisecond != 0) {
+                        badTime("If hour is 24, milliseconds must be 0");
+                    }
                     state = 1;
                 } else if ("Z".equals(delim)) {
                     if (state > 1) {
@@ -125,7 +131,12 @@ public final class TimeValue extends CalendarValue implements Comparable {
             TimeZone zone = new SimpleTimeZone(tz * 60000, "LLL");
             calendar = new GregorianCalendar(zone);
             calendar.setLenient(false);
-            calendar.set(2000, 0, 1, hour, minute, second);
+            int day = 1;
+            if (hour == 24) {
+                day = 2;
+                hour = 0;
+            }
+            calendar.set(2000, 0, day, hour, minute, second);
             calendar.set(Calendar.MILLISECOND, millisecond);
             calendar.set(Calendar.ZONE_OFFSET, tz * 60000);
             calendar.set(Calendar.DST_OFFSET, 0);
@@ -149,10 +160,11 @@ public final class TimeValue extends CalendarValue implements Comparable {
     /**
      * Convert to target data type
      * @param requiredType an integer identifying the required atomic type
+     * @param conversion
      * @return an AtomicValue, a value of the required type; or an ErrorValue
      */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, ConversionContext conversion) {
         switch (requiredType.getPrimitiveType()) {
             case Type.TIME:
             case Type.ATOMIC:
@@ -169,7 +181,7 @@ public final class TimeValue extends CalendarValue implements Comparable {
                         requiredType.getDisplayName());
                 //err.setXPathContext(context);
                 err.setErrorCode("FORG0001");
-                return new ErrorValue(err);
+                return new ValidationErrorValue(err);
         }
     }
 
@@ -224,7 +236,7 @@ public final class TimeValue extends CalendarValue implements Comparable {
         return (CalendarValue)
                 new DateTimeValue(calendar, zoneSpecified)
                 .removeTimezone()
-                .convert(Type.TIME);
+                .convert(Type.TIME, null);
     }
 
     /**
@@ -238,7 +250,7 @@ public final class TimeValue extends CalendarValue implements Comparable {
         return (CalendarValue)
                 new DateTimeValue(calendar, zoneSpecified)
                 .setTimezone(tz)
-                .convert(Type.TIME);
+                .convert(Type.TIME, null);
     }
 
     /**
@@ -315,6 +327,33 @@ public final class TimeValue extends CalendarValue implements Comparable {
         }
     }
 
+    /**
+     * Compare the value to another dateTime value
+     * @param other The other dateTime value
+     * @return negative value if this one is the earler, 0 if they are chronologically equal,
+     * positive value if this one is the later. For this purpose, dateTime values with an unknown
+     * timezone are considered to be UTC values (the Comparable interface requires
+     * a total ordering).
+     * @throws ClassCastException if the other value is not a DateTimeValue (the parameter
+     * is declared as Object to satisfy the Comparable interface)
+     */
+
+    public int compareTo(CalendarValue other, ConversionContext conversion) {
+        if (!(other instanceof TimeValue)) {
+            throw new ClassCastException("Time values are not comparable to " + other.getClass());
+        }
+        TimeValue otherTime = (TimeValue)other;
+        if (zoneSpecified == otherTime.zoneSpecified) {
+            GregorianCalendar cal2 = otherTime.calendar;
+            return calendar.getTime().compareTo(cal2.getTime());
+        } else {
+            return new DateTimeValue(calendar, zoneSpecified).compareTo(
+                    new DateTimeValue(otherTime.calendar, otherTime.zoneSpecified),
+                    conversion);
+        }
+    }
+
+
     public boolean equals(Object other) {
         return compareTo(other) == 0;
     }
@@ -354,13 +393,14 @@ public final class TimeValue extends CalendarValue implements Comparable {
      * @throws XPathException for example if one value is a date and the other is a time
      */
 
-    public SecondsDurationValue subtract(CalendarValue other, XPathContext context) throws XPathException {
+    public SecondsDurationValue subtract(CalendarValue other, ConversionContext context) throws XPathException {
         if (!(other instanceof TimeValue)) {
             DynamicError err = new DynamicError(
                     "First operand of '-' is a time, but the second is not");
             err.setIsTypeError(true);
             throw err;
         }
+        // TODO: the rules are changing (Feb 2005) to use a reference date/time
         return super.subtract(other, context);
     }
 

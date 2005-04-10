@@ -5,6 +5,7 @@ import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
 import net.sf.saxon.trace.Location;
 import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.trans.DynamicError;
 
 import java.util.Comparator;
 
@@ -63,17 +64,24 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
     */
 
     public Item next() throws XPathException {
+        if (index < 0) {
+            return null;
+        }
         if (count<0) {
             doSort();
         }
         if (index < count) {
             return (Item)nodeKeys[(index++)*recordSize];
         } else {
+            index = -1;
             return null;
         }
     }
 
     public Item current() {
+        if (index < 1) {
+            return null;
+        }
         return (Item)nodeKeys[(index-1)*recordSize];
     }
 
@@ -120,10 +128,6 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
         count = 0;
 
         XPathContext c2 = context;
-//        XPathContext c2 = context.newMinorContext();
-//        c2.setOriginatingConstructType(Location.SORT_KEY);
-//        c2.setCurrentIterator(base);
-        //c2.setReceiver(new SequenceOutputter());
 
         // initialise the array with data
 
@@ -149,16 +153,7 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
             nodeKeys[k+sortkeys.length+1] = new Integer(count);
             count++;
         }
-        //forest.close();
     }
-
-//    private void diag() {
-//        System.err.println("Diagnostic print of keys");
-//        for (int i=0; i<(count*recordSize); i++) {
-//            System.err.println(i + " : " + nodeKeys[i]);
-//        }
-//    }
-
 
     private void doSort() throws XPathException {
         buildArray();
@@ -167,7 +162,13 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
         // sort the array
 
         //QuickSort.sort(this, 0, count-1);
-        GenericSorter.quickSort(0, count, this);
+        try {
+            GenericSorter.quickSort(0, count, this);
+        } catch (ClassCastException e) {
+            DynamicError err = new DynamicError("Non-comparable types found while sorting: " + e.getMessage());
+            err.setErrorCode("XPTY0004");
+            throw err;
+        }
         //GenericSorter.mergeSort(0, count, this);
     }
 

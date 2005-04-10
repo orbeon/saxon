@@ -4,9 +4,8 @@ import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.instruct.NextMatch;
 import net.sf.saxon.om.*;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
-
-import javax.xml.transform.TransformerConfigurationException;
 
 /**
 * An xsl:next-match element in the stylesheet
@@ -33,7 +32,7 @@ public class XSLNextMatch extends StyleElement {
         return true;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 
@@ -43,7 +42,7 @@ public class XSLNextMatch extends StyleElement {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
         AxisIterator kids = iterateAxis(Axis.CHILD);
         while (true) {
@@ -56,20 +55,20 @@ public class XSLNextMatch extends StyleElement {
             } else if (child.getNodeKind() == Type.TEXT) {
                     // with xml:space=preserve, white space nodes may still be there
                 if (!Navigator.isWhite(child.getStringValueCS())) {
-                    compileError("No character data is allowed within xsl:next-match", "XT0010");
+                    compileError("No character data is allowed within xsl:next-match", "XTSE0010");
                 }
             } else {
                 compileError("Child element " + child.getDisplayName() +
-                        " is not allowed within xsl:next-match", "XT0010");
+                        " is not allowed within xsl:next-match", "XTSE0010");
             }
         }
 
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         NextMatch inst = new NextMatch(backwardsCompatibleModeIsEnabled());
-        inst.setActualParameters(getWithParamInstructions(exec, false),
-                                 getWithParamInstructions(exec, true));
+        inst.setActualParameters(getWithParamInstructions(exec, false, inst),
+                                 getWithParamInstructions(exec, true, inst));
         ExpressionTool.makeParentReferences(inst);
         return inst;
     }

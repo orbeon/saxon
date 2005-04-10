@@ -1,8 +1,5 @@
 package net.sf.saxon.style;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.RoleLocator;
-import net.sf.saxon.expr.TypeChecker;
+import net.sf.saxon.expr.*;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.instruct.ForEachGroup;
 import net.sf.saxon.om.AttributeCollection;
@@ -45,7 +42,7 @@ public final class XSLForEachGroup extends StyleElement {
 
     protected boolean isPermittedChild(StyleElement child) {
         return (child instanceof XSLSort);
-    }    
+    }
 
     /**
     * Determine whether this type of element is allowed to contain a template-body
@@ -56,7 +53,7 @@ public final class XSLForEachGroup extends StyleElement {
         return true;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 
@@ -98,7 +95,7 @@ public final class XSLForEachGroup extends StyleElement {
                 (endingAtt==null ? 0 : 1);;
         if (c!=1) {
             compileError("Exactly one of the attributes group-by, group-adjacent, group-starting-with, " +
-                    "and group-ending-with must be specified", "XT1080");
+                    "and group-ending-with must be specified", "XTSE1080");
         }
 
         if (groupByAtt != null) {
@@ -118,20 +115,22 @@ public final class XSLForEachGroup extends StyleElement {
         }
 
         if (collationName!=null && groupBy==null && groupAdjacent==null) {
-            compileError("A collation may be specified only if group-by or group-adjacent is specified", "XT1090");
+            compileError("A collation may be specified only if group-by or group-adjacent is specified", "XTSE1090");
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
         checkSortComesFirst(false);
         select = typeCheck("select", select);
 
+        ExpressionLocation locator = new ExpressionLocation(this);
         if (groupBy != null) {
             groupBy = typeCheck("group-by", groupBy);
             try {
                 RoleLocator role =
                     new RoleLocator(RoleLocator.INSTRUCTION, "xsl:for-each-group/group-by", 0, null);
+                role.setSourceLocator(locator);
                 groupBy = TypeChecker.staticTypeCheck(groupBy,
                         SequenceType.ATOMIC_SEQUENCE,
                         false, role, getStaticContext());
@@ -143,7 +142,8 @@ public final class XSLForEachGroup extends StyleElement {
             try {
                 RoleLocator role =
                     new RoleLocator(RoleLocator.INSTRUCTION, "xsl:for-each-group/group-adjacent", 0, null);
-                role.setErrorCode("XT1100");
+                role.setSourceLocator(locator);
+                role.setErrorCode("XTTE1100");
                 groupAdjacent = TypeChecker.staticTypeCheck(groupAdjacent,
                         SequenceType.SINGLE_ATOMIC,
                         false, role, getStaticContext());
@@ -159,7 +159,8 @@ public final class XSLForEachGroup extends StyleElement {
             try {
                 RoleLocator role =
                     new RoleLocator(RoleLocator.INSTRUCTION, "xsl:for-each-group/select", 0, null);
-                role.setErrorCode("XT1120");
+                role.setSourceLocator(locator);
+                role.setErrorCode("XTTE1120");
                 select = TypeChecker.staticTypeCheck(select,
                                             SequenceType.NODE_SEQUENCE,
                                             false, role, getStaticContext());
@@ -169,13 +170,13 @@ public final class XSLForEachGroup extends StyleElement {
         }
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
 
         Comparator collator = null;
         if (collationName != null) {
             collator = getPrincipalStylesheet().findCollation(collationName);
             if (collator==null) {
-                compileError("The collation name '" + collationName + "' has not been defined", "XT1110");
+                compileError("The collation name '" + collationName + "' has not been defined", "XTDE1110");
             }
         }
 

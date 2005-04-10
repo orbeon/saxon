@@ -1,13 +1,10 @@
 package net.sf.saxon.style;
 import net.sf.saxon.Configuration;
-import net.sf.saxon.Loader;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.AttributeCollection;
-import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.XPathException;
 
-import javax.xml.transform.TransformerConfigurationException;
 import java.text.Collator;
 import java.text.ParseException;
 import java.text.RuleBasedCollator;
@@ -28,7 +25,7 @@ public class SaxonCollation extends StyleElement {
                                       // but we can cope with any java.util.Comparator
     private boolean isDefault = false;
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 
@@ -71,11 +68,11 @@ public class SaxonCollation extends StyleElement {
                 compileError("The class attribute cannot be combined with rules, lang, strength, or decomposition");
             }
             try {
-                collator = makeCollator(classAtt);
+                collator = getConfiguration().makeCollator(classAtt);
                 return;
             } catch (XPathException err) {
                 collator = Collator.getInstance();  // so that error paths work
-                throw new TransformerConfigurationException(err);
+                throw err;
             }
         }
 
@@ -139,12 +136,12 @@ public class SaxonCollation extends StyleElement {
         getPrincipalStylesheet().setCollation(collationName, collator, isDefault);
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkTopLevel(null);
         checkEmpty();
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         getPrincipalStylesheet().setCollation(collationName, collator, isDefault);
         return null;
     }
@@ -159,23 +156,6 @@ public class SaxonCollation extends StyleElement {
 
     public Comparator getCollator() {
         return collator;
-    }
-
-    /**
-    * Load a named collator class and check it is OK.
-    */
-
-    public static Comparator makeCollator (String className) throws XPathException
-    {
-        Object handler = Loader.getInstance(className);
-
-        if (handler instanceof Comparator ) {
-            return (Comparator )handler;
-        } else {
-            throw new DynamicError("Failed to load collation class " + className +
-                        ": it is not an instance of java.util.Comparator");
-        }
-
     }
 
     /**

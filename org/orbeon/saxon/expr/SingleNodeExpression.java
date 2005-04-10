@@ -24,12 +24,14 @@ public abstract class SingleNodeExpression extends ComputedExpression {
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
         if (contextItemType == null) {
             StaticError err = new StaticError("Cannot select a node here: the context item is undefined");
+            err.setErrorCode("XPDY0002");
             err.setIsTypeError(true);
             err.setLocator(this);
             throw err;
         }
         if (contextItemType instanceof AtomicType) {
             StaticError err = new StaticError("Cannot select a node here: the context item is an atomic value");
+            err.setErrorCode("XPTY0020");
             err.setIsTypeError(true);
             err.setLocator(this);
             throw err;

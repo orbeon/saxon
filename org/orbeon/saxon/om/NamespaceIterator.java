@@ -30,8 +30,7 @@ public class NamespaceIterator implements AxisIterator {
     private int count;
 
 
-    private static final int xmlnscode =
-            (NamespaceConstant.XML_CODE << 16) | (NamespaceConstant.XML_CODE);
+    private static final Integer xmlnscode = new Integer(NamespaceConstant.XML_NAMESPACE_CODE);
 
     public NamespaceIterator(NodeInfo element, NodeTest test) {
         this.element = element;
@@ -45,7 +44,7 @@ public class NamespaceIterator implements AxisIterator {
         Set declared = new HashSet(10);
         int[] buffer = new int[10];
         NodeInfo node = element;
-        declared.add(new Integer(xmlnscode));
+        declared.add(xmlnscode);
         while (node != null && node.getNodeKind() == Type.ELEMENT) {
 
             int[] nslist = node.getDeclaredNamespaces(buffer);
@@ -101,6 +100,10 @@ public class NamespaceIterator implements AxisIterator {
             index = 0;
         }
         current = next;
+        if (current == null) {
+            position = -1;
+            return null;
+        }
         advance();
         position++;
         return current;

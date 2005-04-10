@@ -79,7 +79,7 @@ public final class LocalParam extends GeneralVariable {
             if (isRequiredParam()) {
                 DynamicError e = new DynamicError("No value supplied for required parameter");
                 e.setXPathContext(context);
-                e.setErrorCode("XT0700");
+                e.setErrorCode("XTDE0700");
                 throw e;
             }
             context.setLocalVariable(getSlotNumber(), getSelectValue(context));

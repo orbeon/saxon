@@ -4,13 +4,12 @@ import net.sf.saxon.expr.SimpleExpression;
 import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.style.ExtensionInstruction;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.style.ExtensionInstruction;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.ObjectValue;
 import net.sf.saxon.value.StringValue;
 
-import javax.xml.transform.TransformerConfigurationException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 
@@ -29,7 +28,7 @@ public class SQLConnect extends ExtensionInstruction {
         return false;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
         // Get mandatory database attribute
 
@@ -72,7 +71,7 @@ public class SQLConnect extends ExtensionInstruction {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         super.validate();
         database = typeCheck("database", database);
         driver = typeCheck("driver", driver);
@@ -80,7 +79,7 @@ public class SQLConnect extends ExtensionInstruction {
         password = typeCheck("password", password);
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         return new ConnectInstruction(database, driver, user, password);
     }
 

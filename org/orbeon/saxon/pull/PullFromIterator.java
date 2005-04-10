@@ -31,16 +31,11 @@ public class PullFromIterator implements PullProvider {
 
     /**
      * Set configuration information. This must only be called before any events
-     * have been read. The returned value is a new PullProvider, which must be used
-     * in place of the original provider to read all subsequent events: the effect
-     * of calling the original provider is not defined. This mechanism allows
-     * the provider to implement this method by inserting a filter between itself and
-     * the client.
+     * have been read.
      */
 
-    public PullProvider setPipelineConfiguration(PipelineConfiguration pipe) {
+    public void setPipelineConfiguration(PipelineConfiguration pipe) {
         this.pipe = pipe;
-        return this;
     }
 
     /**
@@ -63,6 +58,12 @@ public class PullFromIterator implements PullProvider {
             Item item = base.next();
             if (item == null) {
                 currentEvent = END_OF_INPUT;
+                return currentEvent;
+            } else if (item instanceof UnconstructedParent) {
+                // this represents a lazily-evaluated element or document node constructor
+                treeWalker = ((UnconstructedParent)item).getPuller();
+                treeWalker.setPipelineConfiguration(pipe);
+                currentEvent = treeWalker.next();
                 return currentEvent;
             } else if (item instanceof AtomicValue) {
                 currentEvent = ATOMIC_VALUE;
@@ -92,6 +93,7 @@ public class PullFromIterator implements PullProvider {
                     case Type.ELEMENT:
                     case Type.DOCUMENT:
                         treeWalker = TreeWalker.makeTreeWalker((NodeInfo)item);
+                        treeWalker.setPipelineConfiguration(pipe);
                         currentEvent = treeWalker.next();
                         return currentEvent;
 
@@ -210,7 +212,8 @@ public class PullFromIterator implements PullProvider {
     /**
      * Get the nameCode identifying the name of the current node. This method
      * can be used after the {@link #START_ELEMENT}, {@link #PROCESSING_INSTRUCTION},
-     * {@link #ATTRIBUTE}, or {@link #NAMESPACE} events.
+     * {@link #ATTRIBUTE}, or {@link #NAMESPACE} events. With some PullProvider implementations,
+     * including this one, it can also be used after {@link #END_ELEMENT}.
      * If called at other times, the result is undefined and may result in an IllegalStateException.
      * If called when the current node is an unnamed namespace node (a node representing the default namespace)
      * the returned value is -1.
@@ -236,7 +239,7 @@ public class PullFromIterator implements PullProvider {
      * Get the fingerprint of the name of the element. This is similar to the nameCode, except that
      * it does not contain any information about the prefix: so two elements with the same fingerprint
      * have the same name, excluding prefix. This method
-     * can be used after the {@link #START_ELEMENT}, {@link #PROCESSING_INSTRUCTION},
+     * can be used after the {@link #START_ELEMENT}, {@link #END_ELEMENT}, {@link #PROCESSING_INSTRUCTION},
      * {@link #ATTRIBUTE}, or {@link #NAMESPACE} events.
      * If called at other times, the result is undefined and may result in an IllegalStateException.
      * If called when the current node is an unnamed namespace node (a node representing the default namespace)
@@ -276,6 +279,20 @@ public class PullFromIterator implements PullProvider {
         } else {
             Item item = base.current();
             return item.getStringValueCS();
+        }
+    }
+
+    /**
+     * Get an atomic value. This call may be used only when the last event reported was
+     * ATOMIC_VALUE. This indicates that the PullProvider is reading a sequence that contains
+     * a free-standing atomic value; it is never used when reading the content of a node.
+     */
+
+    public AtomicValue getAtomicValue() {
+        if (currentEvent == ATOMIC_VALUE) {
+            return (AtomicValue)base.current();
+        } else {
+            throw new IllegalStateException();
         }
     }
 

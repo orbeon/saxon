@@ -1,7 +1,6 @@
 package net.sf.saxon.instruct;
 import net.sf.saxon.Controller;
 import net.sf.saxon.Err;
-import net.sf.saxon.event.NoOpenStartTagException;
 import net.sf.saxon.event.ReceiverOptions;
 import net.sf.saxon.event.SequenceReceiver;
 import net.sf.saxon.expr.*;
@@ -33,24 +32,26 @@ public final class Attribute extends SimpleNodeConstructor {
     private SimpleType schemaType;
     private int annotation;
     private int validationAction;
+    private boolean allowNameAsQName;
     private int options;
 
     /**
     * Construct an Attribute instruction
     * @param attributeName An expression to calculate the attribute name
-    * @param namespace An expression to calculate the attribute namespace
-    * @param nsContext a NamespaceContext object containing the static namespace context of the
+     * @param namespace An expression to calculate the attribute namespace
+     * @param nsContext a NamespaceContext object containing the static namespace context of the
     * stylesheet instruction
-    * @param annotation Integer code identifying the type named in the <code>type</code> attribute
-    * of the instruction - zero if the attribute was not present
-    */
+     * @param annotation Integer code identifying the type named in the <code>type</code> attribute
+     * @param allowNameAsQName
+     */
 
-    public Attribute (  Expression attributeName,
-                        Expression namespace,
-                        NamespaceResolver nsContext,
-                        int validationAction,
-                        SimpleType schemaType,
-                        int annotation ) {
+    public Attribute (Expression attributeName,
+                      Expression namespace,
+                      NamespaceResolver nsContext,
+                      int validationAction,
+                      SimpleType schemaType,
+                      int annotation,
+                      boolean allowNameAsQName) {
         this.attributeName = attributeName;
         this.namespace = namespace;
         this.nsContext = nsContext;
@@ -58,6 +59,7 @@ public final class Attribute extends SimpleNodeConstructor {
         this.annotation = annotation;
         this.validationAction = validationAction;
         this.options = 0;
+        this.allowNameAsQName = allowNameAsQName;
     }
 
     /**
@@ -97,7 +99,7 @@ public final class Attribute extends SimpleNodeConstructor {
         return super.computeSpecialProperties() |
                 StaticProperty.SINGLE_DOCUMENT_NODESET;
     }
-    
+
 
      public Expression simplify(StaticContext env) throws XPathException {
         attributeName = attributeName.simplify(env);
@@ -110,13 +112,13 @@ public final class Attribute extends SimpleNodeConstructor {
     public void typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
         attributeName = attributeName.analyze(env, contextItemType);
 
-        RoleLocator role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "attribute/name", 0, null);
+        RoleLocator role = new RoleLocator(RoleLocator.INSTRUCTION, "attribute/name", 0, null);
+        role.setSourceLocator(this);
 
-        if (attributeName.getItemType() == Type.QNAME_TYPE) {
+        if (allowNameAsQName) {
             // Can only happen in XQuery
             attributeName = TypeChecker.staticTypeCheck(attributeName,
-                    SequenceType.SINGLE_ITEM, false, role, env);
+                    SequenceType.SINGLE_ATOMIC, false, role, env);
         } else {
             attributeName = TypeChecker.staticTypeCheck(attributeName,
                     SequenceType.SINGLE_STRING, false, role, env);
@@ -126,6 +128,7 @@ public final class Attribute extends SimpleNodeConstructor {
             namespace.analyze(env, contextItemType);
 
             role = new RoleLocator(RoleLocator.INSTRUCTION, "attribute/namespace", 0, null);
+            role.setSourceLocator(this);
             namespace = TypeChecker.staticTypeCheck(
                     namespace, SequenceType.SINGLE_STRING, false, role, env);
         }
@@ -213,7 +216,7 @@ public final class Attribute extends SimpleNodeConstructor {
         if (schemaType != null) {
             // test whether the value actually conforms to the given type
             try {
-                XPathException err = schemaType.validateContent(value, DummyNamespaceResolver.getInstance());
+                XPathException err = schemaType.validateContent(value, DummyNamespaceResolver.getInstance(), context);
                 if (err != null) {
                     throw new ValidationException("Attribute value " + Err.wrap(value, Err.VALUE) +
                                                " does not match the required type " +
@@ -236,11 +239,6 @@ public final class Attribute extends SimpleNodeConstructor {
         }
         try {
             out.attribute(nameCode, ann, value, locationId, opt);
-        } catch (NoOpenStartTagException err) {
-            //DynamicError e = new DynamicError("Cannot write an attribute node when no element start tag is open");
-            err.setXPathContext(context);
-            //e.setErrorCode("XT0410");
-            context.getController().recoverableError(err);
         } catch (XPathException err) {
             throw dynamicError(this, err, context);
         }
@@ -266,37 +264,37 @@ public final class Attribute extends SimpleNodeConstructor {
                 localName = parts[1];
             } catch (QNameException err) {
                 DynamicError err1 = new DynamicError("Invalid attribute name: " + rawName, this);
-                err1.setErrorCode("XT0850");
+                err1.setErrorCode("XTDE0850");
                 err1.setXPathContext(context);
-                context.getController().recoverableError(err1);
-                return -1;
+                throw dynamicError(this, err1, context);
             }
             if (rawName.equals("xmlns")) {
                 if (namespace==null) {
                     DynamicError err = new DynamicError("Invalid attribute name: " + rawName, this);
-                    err.setErrorCode("XT0855");
+                    err.setErrorCode("XTDE0855");
                     err.setXPathContext(context);
-                    context.getController().recoverableError(err);
-                    return -1;
+                    throw dynamicError(this, err, context);
                 }
             }
             if (prefix.equals("xmlns")) {
                 if (namespace==null) {
                     DynamicError err = new DynamicError("Invalid attribute name: " + rawName, this);
-                    err.setErrorCode("XT0860");
+                    err.setErrorCode("XTDE0860");
                     err.setXPathContext(context);
-                    context.getController().recoverableError(err);
-                    return -1;
+                    throw dynamicError(this, err, context);
                 } else {
                     // ignore the prefix "xmlns"
                     prefix = "";
                 }
             }
 
-        } else if (attributeName instanceof QNameValue) {
+        } else if (nameValue instanceof QNameValue) {
             // this is allowed in XQuery
             localName = ((QNameValue)nameValue).getLocalName();
             String namespaceURI = ((QNameValue)nameValue).getNamespaceURI();
+            if (namespaceURI == null) {
+                namespaceURI = "";
+            }
             namespace = new StringValue(namespaceURI);
             if (namespaceURI.equals("")) {
                 prefix = "";
@@ -320,10 +318,9 @@ public final class Attribute extends SimpleNodeConstructor {
                 uri = nsContext.getURIForPrefix(prefix, false);
                 if (uri==null) {
                     DynamicError err = new DynamicError("Undeclared prefix in attribute name: " + prefix, this);
-                    err.setErrorCode("XT0860");
+                    err.setErrorCode("XTDE0860");
                     err.setXPathContext(context);
-                    context.getController().recoverableError(err);
-                    return -1;
+                    throw dynamicError(this, err, context);
       		    }
         	}
 

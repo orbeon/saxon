@@ -13,7 +13,7 @@ import net.sf.saxon.type.Type;
 * it returns the supplied sequence, checking that all its items are of the correct type
 */
 
-public final class ItemChecker extends UnaryExpression implements MappingFunction {
+public final class ItemChecker extends UnaryExpression {
 
     // TODO: implement item checking within the push pipeline by providing a process() method
     // (currently an xsl:template that declares a result type materializes its results as a sequence)
@@ -81,17 +81,21 @@ public final class ItemChecker extends UnaryExpression implements MappingFunctio
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
         SequenceIterator base = operand.iterate(context);
-        return new MappingIterator(base, this, null, context);
+        ItemCheckMappingFunction map = new ItemCheckMappingFunction();
+        map.externalContext = context;
+        return new MappingIterator(base, map, null);
     }
 
     /**
     * Mapping function: this is used only if the expression does not allow a sequence of more than
     * one item.
     */
-
-    public Object map(Item item, XPathContext nullcontext, Object info) throws XPathException {
-        testConformance(item, (XPathContext)info);
-        return item;
+    private class ItemCheckMappingFunction implements MappingFunction {
+        public XPathContext externalContext;
+        public Object map(Item item, XPathContext nullcontext) throws XPathException {
+            testConformance(item, externalContext);
+            return item;
+        }
     }
 
     /**
@@ -112,7 +116,7 @@ public final class ItemChecker extends UnaryExpression implements MappingFunctio
                                              " is " + requiredItemType.toString(pool) +
                                              "; supplied value has type " + Type.displayTypeName(item);
             String errorCode = role.getErrorCode();
-            if ("XP0050".equals(errorCode)) {
+            if ("XPDY0050".equals(errorCode)) {
                 // error in "treat as" assertion
                 dynamicError(message, errorCode, context);
             } else {

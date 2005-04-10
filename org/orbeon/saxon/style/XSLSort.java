@@ -10,7 +10,6 @@ import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.value.StringValue;
 
-import javax.xml.transform.TransformerConfigurationException;
 import java.text.Collator;
 import java.util.Comparator;
 import java.util.Locale;
@@ -38,7 +37,7 @@ public class XSLSort extends StyleElement {
         return true;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 
@@ -105,7 +104,7 @@ public class XSLSort extends StyleElement {
 
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         if (select != null && hasChildNodes()) {
             compileError("An xsl:sort element with a select attribute must be empty");
         }
@@ -136,6 +135,7 @@ public class XSLSort extends StyleElement {
             try {
                 RoleLocator role =
                     new RoleLocator(RoleLocator.INSTRUCTION, "xsl:sort/select", 0, null);
+                role.setSourceLocator(new ExpressionLocation(this));
                 select = TypeChecker.staticTypeCheck(select,
                                 SequenceType.ATOMIC_SEQUENCE,
                                 false, role, getStaticContext());
@@ -170,7 +170,7 @@ public class XSLSort extends StyleElement {
         return null;
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         if (select == null) {
             Expression b = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
             if (b == null) {
@@ -184,13 +184,9 @@ public class XSLSort extends StyleElement {
                 compileError(e);
             }
         }
-        try {
-            // Simplify the sort key definition - this is especially important in the case where
-            // all aspects of the sort key are known statically.
-            sortKeyDefinition = sortKeyDefinition.simplify(exec);
-        } catch (XPathException err) {
-            throw new TransformerConfigurationException(err);
-        }
+        // Simplify the sort key definition - this is especially important in the case where
+        // all aspects of the sort key are known statically.
+        sortKeyDefinition = sortKeyDefinition.simplify(exec);
         // not an executable instruction
         return null;
     }

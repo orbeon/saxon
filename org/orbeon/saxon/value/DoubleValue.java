@@ -1,15 +1,15 @@
 package net.sf.saxon.value;
 import net.sf.saxon.Err;
-import net.sf.saxon.om.FastStringBuffer;
+import net.sf.saxon.ConversionContext;
 import net.sf.saxon.expr.Token;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.style.StandardNames;
+import net.sf.saxon.om.FastStringBuffer;
 import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.type.BuiltInAtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.type.ValidationException;
-import net.sf.saxon.type.BuiltInAtomicType;
 
 import java.math.BigDecimal;
 import java.util.regex.Matcher;
@@ -90,10 +90,11 @@ public final class DoubleValue extends NumericValue {
     /**
     * Convert to target data type
     * @param requiredType an integer identifying the required atomic type
-    * @return an AtomicValue, a value of the required type
+    * @param conversion
+     * @return an AtomicValue, a value of the required type
     */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, ConversionContext conversion) {
         switch(requiredType.getPrimitiveType()) {
         case Type.BOOLEAN:
             return BooleanValue.get(effectiveBooleanValue(null));
@@ -107,13 +108,13 @@ public final class DoubleValue extends NumericValue {
                 ValidationException err = new ValidationException("Cannot convert double NaN to an integer");
                 //err.setXPathContext(context);
                 err.setErrorCode("FORG0001");
-                return new ErrorValue(err);
+                return new ValidationErrorValue(err);
             }
             if (Double.isInfinite(value)) {
                 ValidationException err = new ValidationException("Cannot convert double infinity to an integer");
                 //err.setXPathContext(context);
                 err.setErrorCode("FORG0001");
-                return new ErrorValue(err);
+                return new ValidationErrorValue(err);
             }
             if (value > Long.MAX_VALUE || value < Long.MIN_VALUE) {
                 return new BigIntegerValue(new BigDecimal(value).toBigInteger());
@@ -123,7 +124,7 @@ public final class DoubleValue extends NumericValue {
                 try {
                     return new DecimalValue(value);
                 } catch (ValidationException e) {
-                    return new ErrorValue(e);
+                    return new ValidationErrorValue(e);
                 }
             case Type.FLOAT:
             return new FloatValue((float)value);
@@ -136,7 +137,7 @@ public final class DoubleValue extends NumericValue {
                                      requiredType.getDisplayName());
             //err.setXPathContext(context);
             err.setErrorCode("FORG0001");
-            return new ErrorValue(err);
+            return new ValidationErrorValue(err);
         }
     }
 
@@ -149,6 +150,19 @@ public final class DoubleValue extends NumericValue {
      * @return the string value
      */
     public String getStringValue() {
+        return doubleToString(value, Double.toString(value));
+    }
+
+    /**
+     * Internal method used for conversion of a double or a float to a string
+     * @param value the actual value, converted if necessary to a double
+     * @param javaString the result of converting the float or double to a string using the Java conventions.
+     * This value is adjusted as necessary to cater for the differences between the Java and XPath rules. The
+     * number of digits in the string will reflect whether the number started life as a double or as a float.
+     * @return the value converted to a string, according to the XPath casting rules.
+     */
+
+    static String doubleToString(double value, String javaString) {
         if (value==0.0) {
             return "0";
         }
@@ -159,7 +173,7 @@ public final class DoubleValue extends NumericValue {
             return "NaN";
         }
         double absval = Math.abs(value);
-        String s = Double.toString(value);
+        String s = javaString;
         if (absval < 1.0e-6 || absval >= 1.0e+6) {
             if (s.indexOf('E')<0) {
                 // need to use scientific notation, but Java isn't using it
@@ -198,7 +212,6 @@ public final class DoubleValue extends NumericValue {
         }
         int e = s.indexOf('E');
         if (e < 0) {
-            //return s;
             // For some reason, Double.toString() in Java can return strings such as "0.0040"
             // so we remove any trailing zeros
             while (s.charAt(len - 1) == '0' && s.charAt(len - 2) != '.') {
@@ -212,9 +225,9 @@ public final class DoubleValue extends NumericValue {
             sign = "-";
             s = s.substring(1);
             --e;
-        }
-        else
+        } else {
             sign = "";
+        }
         int nDigits = e - 2;
         if (exp >= nDigits) {
             return sign + s.substring(0, 1) + s.substring(2, e) + zeros(exp - nDigits);
@@ -338,7 +351,7 @@ public final class DoubleValue extends NumericValue {
     /**
      * Determine whether the value is negative, zero, or positive
      * @return -1 if negative, 0 if zero (including negative zero), +1 if positive, NaN if NaN
-     */ 
+     */
 
     public double signum() {
         if (Double.isNaN(value)) {
@@ -374,14 +387,20 @@ public final class DoubleValue extends NumericValue {
                 case Token.DIV:
                     return new DoubleValue(value / ((DoubleValue)other).value);
                 case Token.IDIV:
-                    return (NumericValue)(new DoubleValue(value / ((DoubleValue)other).value).convert(Type.INTEGER));
+                    if (((DoubleValue)other).value == 0.0) {
+                        DynamicError e = new DynamicError("Integer division by zero");
+                        e.setErrorCode("FOAR0001");
+                        e.setXPathContext(context);
+                        throw e;
+                    }
+                    return (NumericValue)(new DoubleValue(value / ((DoubleValue)other).value).convert(Type.INTEGER, context));
                 case Token.MOD:
                     return new DoubleValue(value % ((DoubleValue)other).value);
                 default:
                     throw new UnsupportedOperationException("Unknown operator");
             }
         } else {
-            return arithmetic(operator, (DoubleValue)other.convert(Type.DOUBLE), context);
+            return arithmetic(operator, (DoubleValue)other.convert(Type.DOUBLE, context), context);
         }
     }
 

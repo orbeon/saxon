@@ -1,17 +1,15 @@
 package net.sf.saxon.style;
 import net.sf.saxon.Configuration;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.instruct.AttributeSet;
-import net.sf.saxon.instruct.Copy;
-import net.sf.saxon.instruct.Executable;
+import net.sf.saxon.expr.*;
+import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.Axis;
 import net.sf.saxon.om.Validation;
+import net.sf.saxon.pattern.NodeKindTest;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.value.EmptySequence;
-
-import javax.xml.transform.TransformerConfigurationException;
+import net.sf.saxon.value.SequenceType;
 
 /**
 * Handler for xsl:copy elements in stylesheet. <br>
@@ -44,7 +42,7 @@ public class XSLCopy extends StyleElement {
         return true;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 		String copyNamespacesAtt = null;
@@ -78,24 +76,24 @@ public class XSLCopy extends StyleElement {
             } else if (copyNamespacesAtt.equals("no")) {
                 copyNamespaces = false;
             } else {
-                compileError("Value of copy-namespaces must be 'yes' or 'no'", "XT0020");
+                compileError("Value of copy-namespaces must be 'yes' or 'no'", "XTSE0020");
             }
         }
 
         if (typeAtt != null && validationAtt != null) {
-            compileError("The type and validation attributes must not both be specified", "XT1505");
+            compileError("The type and validation attributes must not both be specified", "XTSE1505");
         }
 
         if (validationAtt != null) {
             validationAction = Validation.getCode(validationAtt);
             if (validationAction != Validation.STRIP && !getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("To perform validation, a schema-aware XSLT processor is needed", "XT1660");
+                compileError("To perform validation, a schema-aware XSLT processor is needed", "XTSE1660");
             }
         }
         if (typeAtt != null) {
             schemaType = getSchemaType(typeAtt);
             if (!getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("The type attribute is available only with a schema-aware XSLT processor", "XT1660");
+                compileError("The @type attribute is available only with a schema-aware XSLT processor", "XTSE1660");
             }
         }
         if (inheritAtt != null) {
@@ -104,29 +102,44 @@ public class XSLCopy extends StyleElement {
             } else if (inheritAtt.equals("no")) {
                 inheritNamespaces = false;
             } else {
-                compileError("The inherit-namespaces attribute has permitted values (yes, no)", "XT0020");
+                compileError("The @inherit-namespaces attribute has permitted values (yes, no)", "XTSE0020");
             }
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
         if (use!=null) {
             attributeSets = getAttributeSets(use, null);         // find any referenced attribute sets
         }
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
-        Copy inst = new Copy(attributeSets,
-                             copyNamespaces,
+    public Expression compile(Executable exec) throws XPathException {
+        Copy inst = new Copy(copyNamespaces,
                              inheritNamespaces,
                              schemaType,
                              validationAction);
-        Expression b = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
-        if (b == null) {
-            b = EmptySequence.getInstance();
+        Expression content = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+
+        if (attributeSets != null) {
+            UseAttributeSets use = new UseAttributeSets(attributeSets);
+            // The use-attribute-sets is ignored unless the context item is an element node. So we
+            // wrap the UseAttributeSets instruction in a conditional to perform a run-time test
+            Expression condition = new InstanceOfExpression(
+                    new ContextItemExpression(),
+                    SequenceType.makeSequenceType(NodeKindTest.ELEMENT, StaticProperty.EXACTLY_ONE));
+            Expression choice = new IfExpression(condition, use, EmptySequence.getInstance());
+            if (content == null) {
+                content = choice;
+            } else {
+                content = Block.makeBlock(choice, content);
+            }
         }
-        inst.setContent(b);
+
+        if (content == null) {
+            content = EmptySequence.getInstance();
+        }
+        inst.setContentExpression(content);
         ExpressionTool.makeParentReferences(inst);
         return inst;
     }

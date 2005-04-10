@@ -165,7 +165,7 @@ public class DocumentOverNodeInfo extends NodeOverNodeInfo implements Document {
 
      protected static NodeList getElementsByTagName(NodeInfo node, String tagname) {
          AxisIterator allElements = node.iterateAxis(Axis.DESCENDANT);
-         ArrayList nodes = new ArrayList(500);
+         ArrayList nodes = new ArrayList(100);
          while(true) {
              NodeInfo next = (NodeInfo)allElements.next();
              if (next == null) {
@@ -173,7 +173,7 @@ public class DocumentOverNodeInfo extends NodeOverNodeInfo implements Document {
              }
              if (next.getNodeKind()==Type.ELEMENT) {
                  if (tagname.equals("*") || tagname.equals(next.getDisplayName())) {
-                     nodes.add(next);
+                     nodes.add(NodeOverNodeInfo.wrap(node));
                  }
              }
          }
@@ -250,7 +250,7 @@ public class DocumentOverNodeInfo extends NodeOverNodeInfo implements Document {
 
      public static NodeList getElementsByTagNameNS(NodeInfo node, String namespaceURI, String localName) {
          AxisIterator allElements = node.iterateAxis(Axis.DESCENDANT);
-         ArrayList nodes = new ArrayList(500);
+         ArrayList nodes = new ArrayList(100);
          while(true) {
              NodeInfo next = (NodeInfo)allElements.next();
              if (next == null) {
@@ -259,7 +259,7 @@ public class DocumentOverNodeInfo extends NodeOverNodeInfo implements Document {
              if (next.getNodeKind()==Type.ELEMENT) {
                  if ((namespaceURI.equals("*") || namespaceURI.equals(next.getURI())) &&
                      (localName.equals("*") || localName.equals(next.getLocalPart()))) {
-                     nodes.add(next);
+                     nodes.add(NodeOverNodeInfo.wrap(node));
                  }
              }
          }

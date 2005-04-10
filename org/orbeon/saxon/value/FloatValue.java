@@ -1,5 +1,6 @@
 package net.sf.saxon.value;
 import net.sf.saxon.Err;
+import net.sf.saxon.ConversionContext;
 import net.sf.saxon.expr.Token;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.trans.DynamicError;
@@ -84,10 +85,11 @@ public final class FloatValue extends NumericValue {
     /**
     * Convert to target data type
     * @param requiredType an integer identifying the required atomic type
-    * @return an AtomicValue, a value of the required type; or an ErrorValue
+    * @param conversion
+     * @return an AtomicValue, a value of the required type; or an ErrorValue
     */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, ConversionContext conversion) {
         switch(requiredType.getPrimitiveType()) {
         case Type.BOOLEAN:
             return BooleanValue.get(value!=0.0 && !Float.isNaN(value));
@@ -101,13 +103,13 @@ public final class FloatValue extends NumericValue {
                 ValidationException err = new ValidationException("Cannot convert float NaN to an integer");
                 err.setErrorCode("FORG0001");
                 //err.setXPathContext(context);
-                return new ErrorValue(err);
+                return new ValidationErrorValue(err);
             }
             if (Float.isInfinite(value)) {
                 ValidationException err = new ValidationException("Cannot convert float infinity to an integer");
                 err.setErrorCode("FORG0001");
                 //err.setXPathContext(context);
-                return new ErrorValue(err);
+                return new ValidationErrorValue(err);
             }
             if (value > Long.MAX_VALUE || value < Long.MIN_VALUE) {
                 return new BigIntegerValue(new BigDecimal(value).toBigInteger());
@@ -117,7 +119,7 @@ public final class FloatValue extends NumericValue {
                 try {
                     return new DecimalValue(value);
                 } catch (ValidationException e) {
-                    return new ErrorValue(e);
+                    return new ValidationErrorValue(e);
                 }
             case Type.DOUBLE:
             return new DoubleValue((double)value);
@@ -130,7 +132,7 @@ public final class FloatValue extends NumericValue {
                                      requiredType.getDisplayName());
             //err.setXPathContext(context);
             err.setErrorCode("FORG0001");
-            return new ErrorValue(err);
+            return new ValidationErrorValue(err);
         }
     }
 
@@ -141,7 +143,7 @@ public final class FloatValue extends NumericValue {
     */
 
     public String getStringValue() {
-        return new DoubleValue((double)value).getStringValue();
+        return DoubleValue.doubleToString((double)value, Float.toString(value));
     }
 
     /**
@@ -203,7 +205,7 @@ public final class FloatValue extends NumericValue {
 
     public NumericValue roundToHalfEven(int scale) {
         try {
-            return (FloatValue)new DoubleValue((double)value).roundToHalfEven(scale).convert(Type.FLOAT);
+            return (FloatValue)new DoubleValue((double)value).roundToHalfEven(scale).convert(Type.FLOAT, null);
         } catch (XPathException err) {
             throw new AssertionError(err);
         }
@@ -248,16 +250,22 @@ public final class FloatValue extends NumericValue {
                 case Token.DIV:
                     return new FloatValue(value / ((FloatValue)other).value);
                 case Token.IDIV:
-                    return (NumericValue)(new FloatValue(value / ((FloatValue)other).value).convert(Type.INTEGER));
+                    if (((FloatValue)other).value == 0.0) {
+                        DynamicError e = new DynamicError("Integer division by zero");
+                        e.setErrorCode("FOAR0001");
+                        e.setXPathContext(context);
+                        throw e;
+                    }
+                    return (NumericValue)(new FloatValue(value / ((FloatValue)other).value).convert(Type.INTEGER, context));
                 case Token.MOD:
                     return new FloatValue(value % ((FloatValue)other).value);
                 default:
                     throw new UnsupportedOperationException("Unknown operator");
             }
         } else if (other instanceof DoubleValue) {
-            return ((DoubleValue)convert(Type.DOUBLE)).arithmetic(operator, other, context);
+            return ((DoubleValue)convert(Type.DOUBLE, context)).arithmetic(operator, other, context);
         } else {
-            return arithmetic(operator, (FloatValue)other.convert(Type.FLOAT), context);
+            return arithmetic(operator, (FloatValue)other.convert(Type.FLOAT, context), context);
         }
     }
 

@@ -2,9 +2,8 @@ package net.sf.saxon.om;
 
 import net.sf.saxon.expr.LastPositionFinder;
 import net.sf.saxon.expr.ReversibleIterator;
-import net.sf.saxon.value.SequenceExtent;
-import net.sf.saxon.value.Value;
 import net.sf.saxon.value.SingletonNode;
+import net.sf.saxon.value.Value;
 
 
 /**
@@ -15,7 +14,7 @@ public class SingletonIterator implements AxisIterator,
         ReversibleIterator, LastPositionFinder, GroundedIterator {
 
     private Item value;
-    private boolean gone;
+    private int position = 0;
 
     /**
      * Private constructor: external classes should use the factory method
@@ -24,7 +23,6 @@ public class SingletonIterator implements AxisIterator,
 
     private SingletonIterator(Item value) {
         this.value = value;
-        gone = (value==null);
     }
 
    /**
@@ -43,19 +41,32 @@ public class SingletonIterator implements AxisIterator,
    }
 
     public Item next() {
-        if (gone) {
+        if (position == 0) {
+            position = 1;
+            return value;
+        } else if (position == 1) {
+            position = -1;
+            return null;
+        } else {
             return null;
         }
-        gone = true;
-        return value;
     }
 
     public Item current() {
-        return value;
+        if (position == 1) {
+            return value;
+        } else {
+            return null;
+        }
     }
 
+    /**
+     * Return the current position in the sequence.
+     * @return 0 before the first call on next(); 1 before the second call on next(); -1 after the second
+     * call on next().
+     */
     public int position() {
-        return 1;
+       return position;
     }
 
     public int getLastPosition() {

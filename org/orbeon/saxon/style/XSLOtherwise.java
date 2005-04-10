@@ -3,6 +3,7 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.type.ItemType;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -24,7 +25,7 @@ public class XSLOtherwise extends StyleElement {
         return getCommonChildItemType();
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 		AttributeCollection atts = getAttributeList();
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
@@ -41,9 +42,9 @@ public class XSLOtherwise extends StyleElement {
         return true;
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         if (!(getParent() instanceof XSLChoose)) {
-            compileError("xsl:otherwise must be immediately within xsl:choose", "XT0010");
+            compileError("xsl:otherwise must be immediately within xsl:choose", "XTSE0010");
         }
     }
 
@@ -58,7 +59,7 @@ public class XSLOtherwise extends StyleElement {
         }
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         throw new UnsupportedOperationException("XSLOtherwise#compile() should not be called");
     }
 

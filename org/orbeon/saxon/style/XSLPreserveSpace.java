@@ -4,6 +4,7 @@ import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.*;
 import net.sf.saxon.trans.Mode;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
 
 import javax.xml.transform.TransformerConfigurationException;
@@ -17,7 +18,7 @@ public class XSLPreserveSpace extends StyleElement {
 
     private String elements;
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 
@@ -36,11 +37,11 @@ public class XSLPreserveSpace extends StyleElement {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkTopLevel(null);
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException
+    public Expression compile(Executable exec) throws XPathException
     {
         Boolean preserve = Boolean.valueOf(getFingerprint() == StandardNames.XSL_PRESERVE_SPACE);
         Mode stripperRules = getPrincipalStylesheet().getStripperRules();
@@ -105,12 +106,12 @@ public class XSLPreserveSpace extends StyleElement {
                     prefix = parts[0];
                     uri = getURIForPrefix(prefix, false);
                     if (uri == null) {
-                        undeclaredNamespaceError(prefix, "XT0280");
+                        undeclaredNamespaceError(prefix, "XTSE0280");
                         return null;
                     }
                     localName = parts[1];
                 } catch (QNameException err) {
-                    compileError("Element name " + s + " is not a valid QName");
+                    compileError("Element name " + s + " is not a valid QName", "XTSE0280");
                     return null;
                 }
                 NamePool target = getTargetNamePool();

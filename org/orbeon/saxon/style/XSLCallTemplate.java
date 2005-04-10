@@ -1,4 +1,5 @@
 package net.sf.saxon.style;
+import net.sf.saxon.Err;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.instruct.CallTemplate;
@@ -10,9 +11,7 @@ import net.sf.saxon.type.AnyItemType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.Err;
 
-import javax.xml.transform.TransformerConfigurationException;
 import java.util.List;
 
 /**
@@ -58,7 +57,7 @@ public class XSLCallTemplate extends StyleElement {
         }
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 
@@ -87,14 +86,14 @@ public class XSLCallTemplate extends StyleElement {
                 calledTemplateFingerprint =
             	    makeNameCode(nameAttribute.trim()) & 0xfffff;
             } catch (NamespaceException err) {
-                compileError(err.getMessage(), "XT0280");
+                compileError(err.getMessage(), "XTSE0280");
             } catch (XPathException err) {
-                compileError(err.getMessage());
+                compileError(err.getMessage(), "XTSE0280");
             }
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
 
         AxisIterator kids = iterateAxis(Axis.CHILD);
@@ -110,13 +109,13 @@ public class XSLCallTemplate extends StyleElement {
             } else if (child.getNodeKind() == Type.TEXT) {
                     // with xml:space=preserve, white space nodes may still be there
                 if (!Navigator.isWhite(child.getStringValueCS())) {
-                    compileError("No character data is allowed within xsl:call-template", "XT0010");
+                    compileError("No character data is allowed within xsl:call-template", "XTSE0010");
                 }
             } else {
                 compileError("Child element " + Err.wrap(child.getDisplayName(), Err.ELEMENT) +
-                        " is not allowed within xsl:call-template", "XT0010");
+                        " is not allowed within xsl:call-template", "XTSE0010");
             }
-        }        
+        }
         if (calledTemplateExpression==null) {
             template = findTemplate(calledTemplateFingerprint);
             if (template==null) {
@@ -126,7 +125,7 @@ public class XSLCallTemplate extends StyleElement {
         calledTemplateExpression = typeCheck("name", calledTemplateExpression);
     }
 
-    public void postValidate() throws TransformerConfigurationException {
+    public void postValidate() throws XPathException {
         // check that a parameter is supplied for each required parameter
         // of the called template
 
@@ -155,7 +154,7 @@ public class XSLCallTemplate extends StyleElement {
                     }
                     if (!ok) {
                         compileError("No value supplied for required parameter " +
-                                Err.wrap(((XSLParam)param).getVariableName(), Err.VARIABLE), "XT0690");
+                                Err.wrap(((XSLParam)param).getVariableName(), Err.VARIABLE), "XTSE0690");
                     }
                 }
             }
@@ -192,7 +191,7 @@ public class XSLCallTemplate extends StyleElement {
                         if (!backwardsCompatibleModeIsEnabled()) {
                             compileError("Parameter " +
                                     withParam.getVariableName() +
-                                    " is not declared in the called template", "XT0680");
+                                    " is not declared in the called template", "XTSE0680");
                         }
                     }
                 }
@@ -201,7 +200,7 @@ public class XSLCallTemplate extends StyleElement {
     }
 
     private XSLTemplate findTemplate(int fingerprint)
-    throws TransformerConfigurationException {
+    throws XPathException {
 
         XSLStylesheet stylesheet = getPrincipalStylesheet();
         List toplevel = stylesheet.getTopLevel();
@@ -217,7 +216,7 @@ public class XSLCallTemplate extends StyleElement {
                 }
             }
         }
-        compileError("No template exists named " + calledTemplateName, "XT0650");
+        compileError("No template exists named " + calledTemplateName, "XTSE0650");
         return null;
     }
 
@@ -231,7 +230,7 @@ public class XSLCallTemplate extends StyleElement {
     }
 
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         Template target = null;
         NamespaceResolver nsContext = null;
 
@@ -247,11 +246,11 @@ public class XSLCallTemplate extends StyleElement {
 
         CallTemplate call = new CallTemplate (
                                     target,
-                                    getWithParamInstructions(exec, false),
-                                    getWithParamInstructions(exec, true),
                                     useTailRecursion,
                                     calledTemplateExpression,
                                     nsContext );
+        call.setActualParameters(getWithParamInstructions(exec, false, call),
+                                 getWithParamInstructions(exec, true, call));
         ExpressionTool.makeParentReferences(call);
         return call;
     }

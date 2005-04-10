@@ -35,6 +35,8 @@ public class StaticError extends XPathException {
     public static StaticError makeStaticError(TransformerException err) {
         if (err instanceof XPathException) {
             return ((XPathException)err).makeStatic();
+        } else if (err.getException() instanceof XPathException) {
+            return ((XPathException)err.getException()).makeStatic();
         } else {
             return new StaticError(err);
         }

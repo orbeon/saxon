@@ -7,6 +7,7 @@ import net.sf.saxon.type.Type;
 import net.sf.saxon.value.BooleanValue;
 import net.sf.saxon.value.NumericValue;
 import net.sf.saxon.value.Value;
+import net.sf.saxon.value.AtomicValue;
 
 
 /**
@@ -125,8 +126,9 @@ public class MinimaxComparison extends BinaryExpression {
     private static NumericValue[] getRange(SequenceIterator iter) throws XPathException {
         NumericValue[] range = null;
         while (true) {
-            NumericValue val = (NumericValue)iter.next();
-            if (val == null) break;
+            AtomicValue av = (AtomicValue)iter.next();
+            if (av == null) break;
+            NumericValue val = (NumericValue)av.getPrimitiveValue();
 
             if (val.isNaN()) continue;
 

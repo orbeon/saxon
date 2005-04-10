@@ -22,6 +22,9 @@ import java.util.ArrayList;
 
 public final class TinyTree {
 
+    private static final int[] EMPTY_INT_ARRAY = new int[0];
+    private static final String[] EMPTY_STRING_ARRAY = new String[0];
+
     private Configuration config;
 
     // List of top-level document nodes.
@@ -102,6 +105,11 @@ public final class TinyTree {
     // code, the bottom half the URI code
     protected int[] namespaceCode;
 
+    // an array holding the offsets of all the level-0 (root) nodes, so that the root of a given
+    // node can be found efficiently
+    private int[] rootIndex = new int[5];
+    private int rootIndexUsed = 0;
+
     private LineNumberMap lineNumberMap;
     private SystemIdMap systemIdMap = null;
 
@@ -112,6 +120,7 @@ public final class TinyTree {
     }
 
     public TinyTree(int nodes, int attributes, int namespaces, int characters) {
+        //System.err.println("TinyTree.new() " + this);
         nodeKind = new byte[nodes];
         depth = new short[nodes];
         next = new int[nodes];
@@ -138,9 +147,7 @@ public final class TinyTree {
 
     public void setConfiguration(Configuration config) {
         this.config = config;
-        NamePool pool = config.getNamePool();
-		addNamespace(0, pool.getNamespaceCode("xml", NamespaceConstant.XML));
-        //IDtype = pool.allocate("xs", NamespaceConstant.SCHEMA, "ID") & 0xfffff;
+		addNamespace(0, NamespaceConstant.XML_NAMESPACE_CODE);
     }
 
     /**
@@ -159,10 +166,10 @@ public final class TinyTree {
 		return config.getNamePool();
 	}
 
-    void ensureNodeCapacity() {
+    private void ensureNodeCapacity(short kind) {
         if (nodeKind.length < numberOfNodes+1) {
             //System.err.println("Number of nodes = " + numberOfNodes);
-            int k = numberOfNodes*2;
+            int k = (kind == Type.STOPPER ? numberOfNodes+1 : numberOfNodes*2);
 
             byte[] nodeKind2 = new byte[k];
             int[] next2 = new int[k];
@@ -248,21 +255,22 @@ public final class TinyTree {
 
     /**
      * Add a node to the tree
-     * @param kind          The kind of the node
-     * @param depth0        The depth in the tree
-     * @param alpha0        Pointer to attributes or text
-     * @param beta0         Pointer to namespaces or text
-     * @param nameCode0     The name of the node
+     * @param kind          The kind of the node. This must be a document, element, text, comment,
+     *                      or processing-instruction node (not an attribute or namespace)
+     * @param depth         The depth in the tree
+     * @param alpha         Pointer to attributes or text
+     * @param beta          Pointer to namespaces or text
+     * @param nameCode      The name of the node
      * @return the node number of the node that was added
      */
-    int addNode(short kind, int depth0, int alpha0, int beta0, int nameCode0) {
-        ensureNodeCapacity();
-        nodeKind[numberOfNodes] = (byte)kind;
-        depth[numberOfNodes] = (short)depth0;
-        alpha[numberOfNodes] = alpha0;
-        beta[numberOfNodes] = beta0;
-        nameCode[numberOfNodes] = nameCode0;
-        next[numberOfNodes] = -1;      // safety precaution
+    int addNode(short kind, int depth, int alpha, int beta, int nameCode) {
+        ensureNodeCapacity(kind);
+        this.nodeKind[numberOfNodes] = (byte)kind;
+        this.depth[numberOfNodes] = (short)depth;
+        this.alpha[numberOfNodes] = alpha;
+        this.beta[numberOfNodes] = beta;
+        this.nameCode[numberOfNodes] = nameCode;
+        this.next[numberOfNodes] = -1;      // safety precaution
 
         if (typeCodeArray != null) {
             typeCodeArray[numberOfNodes] = -1;
@@ -271,6 +279,15 @@ public final class TinyTree {
         if (numberOfNodes == 0) {
             NodeInfo node = getNode(0);
             documentNumber = getNamePool().allocateDocumentNumber(node);
+        }
+
+        if (depth == 0) {
+            if (rootIndexUsed == rootIndex.length) {
+                int[] r2 = new int[rootIndexUsed * 2];
+                System.arraycopy(rootIndex, 0, r2, 0, rootIndexUsed);
+                rootIndex = r2;
+            }
+            rootIndex[rootIndexUsed++] = numberOfNodes;
         }
         return numberOfNodes++;
     }
@@ -283,6 +300,8 @@ public final class TinyTree {
         }
         if (chars instanceof CharSlice) {
             ((CharSlice)chars).copyTo(charBuffer, charBufferLength);
+        } else if (chars instanceof FastStringBuffer) {
+            ((FastStringBuffer)chars).getChars(0, chars.length(), charBuffer, charBufferLength);
         } else {
             char[] newchars = chars.toString().toCharArray();
             System.arraycopy(newchars, 0, charBuffer, charBufferLength, chars.length());
@@ -298,11 +317,19 @@ public final class TinyTree {
     * only done when the constructed tree is very small compared with the space allocated.
     */
 
-    public void condense() {
+    protected void condense() {
+        //System.err.println("TinyTree.condense() " + this + " roots " + rootIndexUsed + " nodes " + numberOfNodes + " capacity " + nodeKind.length);
+
+        // If there are already two trees in this forest, the chances are that more will be added. In this
+        // case we don't want to condense the arrays because we will only have to expand them again, which gets
+        // increasingly expensive as they grow larger.
+        if (rootIndexUsed > 1) {
+            return;
+        }
         if (numberOfNodes * 3 < nodeKind.length ||
-                (nodeKind.length - numberOfNodes > 20000) ||
-                numberOfNodes == nodeKind.length) {
-                            // the last condition actually expands the arrays to make room for the stopper
+                (nodeKind.length - numberOfNodes > 20000)) {
+
+            //System.err.println("-- copying node arrays");
             int k = numberOfNodes + 1;
 
             byte[] nodeKind2 = new byte[k];
@@ -331,12 +358,19 @@ public final class TinyTree {
             beta = beta2;
             nameCode = nameCode2;
         }
-        nodeKind[numberOfNodes] = Type.STOPPER;
-        depth[numberOfNodes] = 0;
 
         if ((numberOfAttributes * 3 < attParent.length) ||
                 (attParent.length - numberOfAttributes > 1000)) {
             int k = numberOfAttributes;
+
+            //System.err.println("-- copying attribute arrays");
+
+            if (k==0) {
+                attParent = EMPTY_INT_ARRAY;
+                attCode = EMPTY_INT_ARRAY;
+                attValue = EMPTY_STRING_ARRAY;
+                attTypeCode = null;
+            }
 
             int[] attParent2 = new int[k];
             int[] attCode2 = new int[k];
@@ -361,6 +395,8 @@ public final class TinyTree {
             int k = numberOfNamespaces;
             int[] namespaceParent2 = new int[k];
             int[] namespaceCode2 = new int[k];
+
+            //System.err.println("-- copying namespace arrays");
 
             System.arraycopy(namespaceParent, 0, namespaceParent2, 0, numberOfNamespaces);
             System.arraycopy(namespaceCode, 0, namespaceCode2, 0, numberOfNamespaces);
@@ -420,7 +456,7 @@ public final class TinyTree {
         }
         for (int i=0; i<numberOfNodes; i++) {
             int nextNode = next[i];
-            if (nextNode > i) {       
+            if (nextNode > i) {
                 prior[nextNode] = i;
             }
         }
@@ -622,6 +658,18 @@ public final class TinyTree {
         return systemIdMap.getSystemId(seq);
     }
 
+    /**
+     * Get the root node for a given node
+     */
+
+    int getRootNode(int nodeNr) {
+        for (int i=rootIndexUsed-1; i>=0; i--) {
+            if (rootIndex[i] <= nodeNr) {
+                return rootIndex[i];
+            }
+        }
+        return 0;
+    }
 
     /**
     * Set line numbering on
@@ -715,7 +763,7 @@ public final class TinyTree {
 // WITHOUT WARRANTY OF ANY KIND, either express or implied.
 // See the License for the specific language governing rights and limitations under the License.
 //
-// The Original Code is: all this file 
+// The Original Code is: all this file
 //
 // The Initial Developer of the Original Code is Michael H. Kay.
 //

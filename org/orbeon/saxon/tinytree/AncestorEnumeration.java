@@ -35,7 +35,11 @@ final class AncestorEnumeration extends AxisIteratorImpl {
                 node = node.getParent();
             }
             current = node;
-            position++;
+            if (node == null) {
+                position = -1;
+            } else {
+                position++;
+            }
             return current;
         }
     }

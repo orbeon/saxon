@@ -52,9 +52,11 @@ public final class ValueComparison extends BinaryExpression {
         final SequenceType optionalAtomic = SequenceType.OPTIONAL_ATOMIC;
 
         RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0, null);
+        role0.setSourceLocator(this);
         operand0 = TypeChecker.staticTypeCheck(operand0, optionalAtomic, false, role0, env);
 
         RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1, null);
+        role1.setSourceLocator(this);
         operand1 = TypeChecker.staticTypeCheck(operand1, optionalAtomic, false, role1, env);
 
         AtomicType t1 = operand0.getItemType().getAtomizedItemType();
@@ -90,7 +92,7 @@ public final class ValueComparison extends BinaryExpression {
                     new StaticError("Cannot compare " + t1.toString(env.getNamePool()) +
                                               " to " + t2.toString(env.getNamePool()));
                 err.setIsTypeError(true);
-                err.setErrorCode("XP0006");
+                err.setErrorCode("XPTY0004");
                 throw err;
             }
         }
@@ -98,14 +100,14 @@ public final class ValueComparison extends BinaryExpression {
             if (!Type.isOrdered(p1)) {
                 StaticError err = new StaticError(
                         "Type " + t1.toString(env.getNamePool()) + " is not an ordered type");
-                err.setErrorCode("XP0004");
+                err.setErrorCode("XPTY0004");
                 err.setIsTypeError(true);
                 throw err;
             }
             if (!Type.isOrdered(p2)) {
                 StaticError err = new StaticError(
                         "Type " + t2.toString(env.getNamePool()) + " is not an ordered type");
-                err.setErrorCode("XP0004");
+                err.setErrorCode("XPTY0004");
                 err.setIsTypeError(true);
                 throw err;
             }
@@ -113,7 +115,7 @@ public final class ValueComparison extends BinaryExpression {
 
         Comparator comp = env.getCollation(env.getDefaultCollationName());
         if (comp==null) comp = CodepointCollator.getInstance();
-        comparer = new AtomicComparer(comp);
+        comparer = new AtomicComparer(comp, env.getConfiguration());
 
         // optimise count(x) eq 0 (or gt 0, ne 0, eq 0, etc)
 
@@ -312,7 +314,7 @@ public final class ValueComparison extends BinaryExpression {
                 return ((BigIntegerValue)exp).compareTo(BigIntegerValue.ZERO) == 0;
             }
 
-            Value val = ((AtomicValue)exp).convert(Type.INTEGER);
+            Value val = ((AtomicValue)exp).convert(Type.INTEGER, null);
             return isZero(val);
         } catch (XPathException err) {
             return false;
@@ -327,15 +329,15 @@ public final class ValueComparison extends BinaryExpression {
 
     public boolean effectiveBooleanValue(XPathContext context) throws XPathException {
         try {
-            AtomicValue v1 = (AtomicValue)operand0.evaluateItem(context);
+            AtomicValue v1 = ((AtomicValue)operand0.evaluateItem(context));
             if (v1==null) return false;
             if (v1 instanceof UntypedAtomicValue) {
-                v1 = v1.convert(Type.STRING);
+                v1 = v1.convert(Type.STRING, context);
             }
-            AtomicValue v2 = (AtomicValue)operand1.evaluateItem(context);
+            AtomicValue v2 = ((AtomicValue)operand1.evaluateItem(context));
             if (v2==null) return false;
             if (v2 instanceof UntypedAtomicValue) {
-                v2 = v2.convert(Type.STRING);
+                v2 = v2.convert(Type.STRING, context);
             }
             return compare(v1, operator, v2, comparer);
         } catch (DynamicError e) {
@@ -389,7 +391,7 @@ public final class ValueComparison extends BinaryExpression {
         } catch (ClassCastException err) {
             DynamicError e2 = new DynamicError (
                 "Cannot compare " + v1.getItemType() + " to " + v2.getItemType());
-            e2.setErrorCode("XP0006");
+            e2.setErrorCode("XPTY0004");
             e2.setIsTypeError(true);
             throw e2;
         }
@@ -407,12 +409,12 @@ public final class ValueComparison extends BinaryExpression {
             AtomicValue v1 = (AtomicValue)operand0.evaluateItem(context);
             if (v1==null) return null;
             if (v1 instanceof UntypedAtomicValue) {
-                v1 = v1.convert(Type.STRING);
+                v1 = v1.convert(Type.STRING, context);
             }
             AtomicValue v2 = (AtomicValue)operand1.evaluateItem(context);
             if (v2==null) return null;
             if (v2 instanceof UntypedAtomicValue) {
-                v2 = v2.convert(Type.STRING);
+                v2 = v2.convert(Type.STRING, context);
             }
             return BooleanValue.get(compare(v1, operator, v2, comparer));
         } catch (DynamicError e) {

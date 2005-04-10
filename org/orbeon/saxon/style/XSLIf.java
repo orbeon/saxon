@@ -50,7 +50,7 @@ public class XSLIf extends StyleElement {
         return true;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
         String testAtt=null;
 
@@ -73,7 +73,7 @@ public class XSLIf extends StyleElement {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
         test = typeCheck("test", test);
     }
@@ -89,7 +89,7 @@ public class XSLIf extends StyleElement {
         }
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         if (test instanceof Value) {
             // condition known statically, so we only need compile the code if true.
             // This can happen with expressions such as test="function-available('abc')".

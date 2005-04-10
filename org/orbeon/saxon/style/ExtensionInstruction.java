@@ -1,5 +1,6 @@
 package net.sf.saxon.style;
 import net.sf.saxon.style.StyleElement;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -27,7 +28,7 @@ public abstract class ExtensionInstruction extends StyleElement {
         return true;
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
     }
 

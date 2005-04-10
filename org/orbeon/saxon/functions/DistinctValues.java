@@ -31,7 +31,8 @@ public class DistinctValues extends CollatingFunction {
     */
 
     protected AtomicSortComparer getAtomicSortComparer(int arg, XPathContext context) throws XPathException {
-        return new AtomicSortComparer(getCollator(arg, context, true));
+        AtomicSortComparer asc = new AtomicSortComparer(getCollator(arg, context, true), context);
+        return asc;
     }
 
     /**
@@ -72,6 +73,7 @@ public class DistinctValues extends CollatingFunction {
                 AtomicValue nextBase = (AtomicValue)base.next();
                 if (nextBase==null) {
                     current = null;
+                    position = -1;
                     return null;
                 }
                 AtomicSortComparer.ComparisonKey key = comparer.getComparisonKey(nextBase);

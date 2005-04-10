@@ -36,7 +36,7 @@ public class XPathContextMinor implements XPathContext {
     XPathContext caller = null;
     Object origin = null;
 
-   /**
+    /**
     * Private Constructor
     */
 
@@ -200,7 +200,7 @@ public class XPathContextMinor implements XPathContext {
         if (currentIterator==null) {
             DynamicError e = new DynamicError("The context position is currently undefined");
             e.setXPathContext(this);
-            e.setErrorCode("XP0002");
+            e.setErrorCode("XPDY0002");
             throw e;
         }
         return currentIterator.position();
@@ -229,7 +229,7 @@ public class XPathContextMinor implements XPathContext {
         if (currentIterator==null) {
             DynamicError e = new DynamicError("The context size is currently undefined");
             e.setXPathContext(this);
-            e.setErrorCode("XP0002");
+            e.setErrorCode("XPDY0002");
             throw e;
         }
         if (currentIterator instanceof LastPositionFinder) {
@@ -271,7 +271,7 @@ public class XPathContextMinor implements XPathContext {
             collation = controller.getExecutable().getNamedCollation(name);
         }
         if (collation == null) {
-            collation = CollationFactory.makeCollationFromURI(name);
+            collation = CollationFactory.makeCollationFromURI(name, getController().getConfiguration());
             if (collation==null) {
                 DynamicError e = new DynamicError("Unknown collation " + name);
                 e.setXPathContext(this);
@@ -344,7 +344,7 @@ public class XPathContextMinor implements XPathContext {
     throws XPathException {
         if (isFinal && isTemporaryDestination) {
             DynamicError err = new DynamicError("Cannot switch to a final result destination while writing a temporary tree");
-            err.setErrorCode("XT1480");
+            err.setErrorCode("XTDE1480");
             throw err;
         }
         if (isFinal) {
@@ -421,8 +421,6 @@ public class XPathContextMinor implements XPathContext {
         return currentReceiver;
     }
 
-
-
     /**
     * Use local parameter. This is called when a local xsl:param element is processed.
     * If a parameter of the relevant name was supplied, it is bound to the xsl:param element.
@@ -478,6 +476,14 @@ public class XPathContextMinor implements XPathContext {
         return getCaller().getCurrentRegexIterator();
     }
 
+    /**
+     * Get the implicit timezone, as a positive or negative offset from UTC in minutes.
+     * The range is -14hours to +14hours
+     */
+
+    public int getImplicitTimezone() {
+        return getController().getConfiguration().getImplicitTimezone();
+    }
 }
 
 //

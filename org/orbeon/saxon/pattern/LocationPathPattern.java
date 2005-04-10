@@ -1,9 +1,6 @@
 package net.sf.saxon.pattern;
 import net.sf.saxon.expr.*;
-import net.sf.saxon.om.Axis;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.om.SequenceIterator;
-import net.sf.saxon.om.SingletonIterator;
+import net.sf.saxon.om.*;
 import net.sf.saxon.style.ExpressionContext;
 import net.sf.saxon.trace.Location;
 import net.sf.saxon.trans.DynamicError;
@@ -98,10 +95,10 @@ public final class LocationPathPattern extends Pattern {
 	                usesCurrent = true;
 	            }
                 if ((dep & StaticProperty.DEPENDS_ON_CURRENT_GROUP) != 0) {
-                    String errorCode = "XT1060";
+                    String errorCode = "XTSE1060";
                     String function = "current-group()";
                     if (toString().indexOf("current-grouping-key") >= 0) {
-                        errorCode = "XT1070";
+                        errorCode = "XTSE1070";
                         function = "current-grouping-key()";
                     }
                     StaticError err = new StaticError("The " + function + " function cannot be used in a pattern");
@@ -338,7 +335,9 @@ public final class LocationPathPattern extends Pattern {
                 // System.err.println("Testing positional pattern against node " + node.generateId());
                 XPathContext c2 = context.newMinorContext();
                 c2.setOriginatingConstructType(Location.PATTERN);
-                c2.setCurrentIterator(SingletonIterator.makeIterator(node));
+                AxisIterator single = SingletonIterator.makeIterator(node);
+                single.next();
+                c2.setCurrentIterator(single);
                 try {
                     SequenceIterator nsv = equivalentExpr.iterate(c2);
                     while (true) {
@@ -364,7 +363,9 @@ public final class LocationPathPattern extends Pattern {
         if (filters!=null) {
             XPathContext c2 = context.newMinorContext();
             c2.setOriginatingConstructType(Location.PATTERN);
-            c2.setCurrentIterator(SingletonIterator.makeIterator(node));
+            AxisIterator iter = SingletonIterator.makeIterator(node);
+            iter.next();
+            c2.setCurrentIterator(iter);
                 // it's a non-positional filter, so we can handle each node separately
 
             for (int i=0; i<numberOfFilters; i++) {

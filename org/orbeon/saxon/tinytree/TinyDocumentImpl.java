@@ -54,14 +54,6 @@ public final class TinyDocumentImpl extends TinyParentNodeImpl
         return tree.getConfiguration();
     }
 
- 	/**
-	* Get the unique document number
-	*/
-
-	public int getDocumentNumber() {
-	    return tree.getDocumentNumber();
-	}
-
     /**
     * Set the system id of this node
     */
@@ -279,7 +271,7 @@ public final class TinyDocumentImpl extends TinyParentNodeImpl
 // WITHOUT WARRANTY OF ANY KIND, either express or implied.
 // See the License for the specific language governing rights and limitations under the License.
 //
-// The Original Code is: all this file 
+// The Original Code is: all this file
 //
 // The Initial Developer of the Original Code is Michael H. Kay.
 //

@@ -33,7 +33,6 @@ public class IndexOf extends CollatingFunction {
         AtomicComparer comparer;
         int index = 0;
         int position = 0;
-        //Item nextItem = null;
         Item current = null;
 
         public IndexIterator(SequenceIterator base, AtomicValue value, AtomicComparer comparer)
@@ -54,6 +53,8 @@ public class IndexOf extends CollatingFunction {
                     return current;
                 }
             }
+            current = null;
+            position = -1;
             return null;
         }
 

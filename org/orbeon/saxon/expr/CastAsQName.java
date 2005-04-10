@@ -49,15 +49,15 @@ public class CastAsQName extends ComputedExpression {
                 } else if (Type.isSubType(targetType, Type.QNAME_TYPE)) {
                     QNameValue q = new QNameValue(parts[0], uri, parts[1]);
                     AtomicValue av = targetType.makeDerivedValue(q, arg, true);
-                    if (av instanceof ErrorValue) {
-                        throw ((ErrorValue)av).getException();
+                    if (av instanceof ValidationErrorValue) {
+                        throw ((ValidationErrorValue)av).getException();
                     }
                     return av;
                 } else {
                     NotationValue n = new NotationValue(parts[0], uri, parts[1]);
                     AtomicValue av =  targetType.makeDerivedValue(n, arg, true);
-                    if (av instanceof ErrorValue) {
-                        throw ((ErrorValue)av).getException();
+                    if (av instanceof ValidationErrorValue) {
+                        throw ((ValidationErrorValue)av).getException();
                     }
                     return av;
                 }

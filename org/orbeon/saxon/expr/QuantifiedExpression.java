@@ -60,6 +60,7 @@ class QuantifiedExpression extends Assignation {
         SequenceType sequenceType = SequenceType.makeSequenceType(decl.getPrimaryType(),
                                              StaticProperty.ALLOWS_ZERO_OR_MORE);
         RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, new Integer(nameCode), 0, env.getNamePool());
+        role.setSourceLocator(this);
         sequence = TypeChecker.strictTypeCheck(
                                 sequence, sequenceType, role, env);
         ItemType actualItemType = sequence.getItemType();

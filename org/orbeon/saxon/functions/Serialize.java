@@ -13,7 +13,6 @@ import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.StringValue;
 
 import javax.xml.transform.OutputKeys;
-import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.stream.StreamResult;
 import java.io.StringWriter;
 import java.util.Properties;
@@ -57,11 +56,8 @@ public class Serialize extends SystemFunction implements XSLTFunction {
                 if (fingerprint==-1) {
                     throw new StaticError("Output format '" + format + "' has not been defined");
                 }
-            } try {
-                outputProperties = ((ExpressionContext)env).getXSLStylesheet().gatherOutputProperties(fingerprint);
-            } catch (TransformerConfigurationException err) {
-                throw new StaticError(err);
             }
+            outputProperties = ((ExpressionContext)env).getXSLStylesheet().gatherOutputProperties(fingerprint);
         } else {
             // we're not in XSLT: treat the second argument as the method property, default the rest
             outputProperties = new Properties();

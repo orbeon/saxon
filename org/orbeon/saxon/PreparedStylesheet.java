@@ -8,13 +8,12 @@ import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.Validation;
 import net.sf.saxon.style.*;
+import net.sf.saxon.trans.StaticError;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.tree.DocumentImpl;
 import net.sf.saxon.tree.TreeBuilder;
-import org.xml.sax.SAXParseException;
 
 import javax.xml.transform.*;
-import javax.xml.transform.dom.DOMSource;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -54,7 +53,7 @@ public class PreparedStylesheet implements Templates, Serializable {
      */
 
     public Transformer newTransformer() {
-        Controller c = new Controller(config);
+        Controller c = new Controller(config, executable);
         c.setPreparedStylesheet(this);
         return c;
     }
@@ -110,9 +109,16 @@ public class PreparedStylesheet implements Templates, Serializable {
      */
 
     protected void prepare(Source styleSource) throws TransformerConfigurationException {
-        nodeFactory = new StyleNodeFactory(config.getNamePool(), config.isAllowExternalFunctions());
-        DocumentImpl doc = loadStylesheetModule(styleSource, config, config.getNamePool(), nodeFactory);
-        setStylesheetDocument(doc, nodeFactory);
+        nodeFactory = new StyleNodeFactory(config);
+        DocumentImpl doc;
+        try {
+            doc = loadStylesheetModule(styleSource, config, config.getNamePool(), nodeFactory);
+            setStylesheetDocument(doc, nodeFactory);
+        } catch (XPathException e) {
+            if (errorCount==0) {
+                errorCount++;
+            }
+        }
 
         if (errorCount > 0) {
             throw new TransformerConfigurationException(
@@ -131,7 +137,7 @@ public class PreparedStylesheet implements Templates, Serializable {
      * @param localNamePool the namepool used during compilation
      * @param nodeFactory the StyleNodeFactory used for creating
      *     element nodes in the tree
-     * @exception TransformerConfigurationException if XML parsing or tree
+     * @exception XPathException if XML parsing or tree
      *     construction fails
      * @return the root Document node of the tree containing the stylesheet
      *     module
@@ -141,7 +147,7 @@ public class PreparedStylesheet implements Templates, Serializable {
                                     Configuration config,
                                     NamePool localNamePool,
                                     StyleNodeFactory nodeFactory)
-    throws TransformerConfigurationException {
+    throws XPathException {
 
         TreeBuilder styleBuilder = new TreeBuilder();
         PipelineConfiguration pipe = config.makePipelineConfiguration();
@@ -167,7 +173,7 @@ public class PreparedStylesheet implements Templates, Serializable {
         // build the stylesheet document
 
         DocumentImpl doc;
-        try {
+        //try {
             Sender sender = new Sender(pipe);
             AugmentedSource aug = AugmentedSource.makeAugmentedSource(styleSource);
             aug.setSchemaValidationMode(Validation.STRIP);
@@ -176,44 +182,44 @@ public class PreparedStylesheet implements Templates, Serializable {
             }
             sender.send(aug, commentStripper);
             doc = (DocumentImpl)styleBuilder.getCurrentRoot();
-        } catch (XPathException err) {
-            Throwable cause = err.getException();
-            if (cause != null) {
-                if (cause instanceof SAXParseException) {
-                    // This normally means there was an XML parsing error, in which
-                    // case it has already been reported. But in the case of Crimson,
-                    // the SAXParseException might wrap an exception that happened
-                    // within callback code in Saxon.
-                    SAXParseException spe = (SAXParseException)cause;
-                    cause = spe.getException();
-                    if (cause != null)  {
-                        if (cause instanceof TransformerConfigurationException) {
-                            throw (TransformerConfigurationException)cause;
-                        } else {
-                            if (cause instanceof RuntimeException) {
-                                // A RunTimeException during stylesheet compilation is bad news...
-                                cause.printStackTrace();
-                            }
-                            throw new TransformerConfigurationException(cause);
-                        }
-                    }
-                    // details already reported, don't repeat them
-                    throw new TransformerConfigurationException("Failed to parse stylesheet");
-                } else if (cause instanceof TransformerConfigurationException) {
-                    throw (TransformerConfigurationException)cause;
-                } else {
-                    throw new TransformerConfigurationException(cause);
-                }
-            }
-            if (err.hasBeenReported()) {
-                throw new TransformerConfigurationException("One or more errors were found in the stylesheet");
-            }
-            throw new TransformerConfigurationException(err);
-        }
-
-        if (doc.getDocumentElement()==null) {
-            throw new TransformerConfigurationException("Stylesheet is empty or absent");
-        }
+//        } catch (XPathException err) {
+//            Throwable cause = err.getException();
+//            if (cause != null) {
+//                if (cause instanceof SAXParseException) {
+//                    // This normally means there was an XML parsing error, in which
+//                    // case it has already been reported. But in the case of Crimson,
+//                    // the SAXParseException might wrap an exception that happened
+//                    // within callback code in Saxon.
+//                    SAXParseException spe = (SAXParseException)cause;
+//                    cause = spe.getException();
+//                    if (cause != null)  {
+//                        if (cause instanceof TransformerConfigurationException) {
+//                            throw (TransformerConfigurationException)cause;
+//                        } else {
+//                            if (cause instanceof RuntimeException) {
+//                                // A RunTimeException during stylesheet compilation is bad news...
+//                                cause.printStackTrace();
+//                            }
+//                            throw new TransformerConfigurationException(cause);
+//                        }
+//                    }
+//                    // details already reported, don't repeat them
+//                    throw new TransformerConfigurationException("Failed to parse stylesheet");
+//                } else if (cause instanceof TransformerConfigurationException) {
+//                    throw (TransformerConfigurationException)cause;
+//                } else {
+//                    throw new TransformerConfigurationException(cause);
+//                }
+//            }
+//            if (err.hasBeenReported()) {
+//                throw new TransformerConfigurationException("One or more errors were found in the stylesheet");
+//            }
+//            throw new TransformerConfigurationException(err);
+//        }
+//
+//        if (doc.getDocumentElement()==null) {
+//            throw new TransformerConfigurationException("Stylesheet is empty or absent");
+//        }
 
         return doc;
 
@@ -249,19 +255,15 @@ public class PreparedStylesheet implements Templates, Serializable {
      *
      * @param doc the document containing the stylesheet module
      * @param snFactory the StyleNodeFactory used to build the tree
-     * @exception TransformerConfigurationException if the document supplied
+     * @exception XPathException if the document supplied
      *     is not a stylesheet
      */
 
     protected void setStylesheetDocument(DocumentImpl doc, StyleNodeFactory snFactory)
-    throws TransformerConfigurationException {
+    throws XPathException {
 
         DocumentImpl styleDoc = doc;
 		nodeFactory = snFactory;
-
-//        if (targetNamePool==null) {
-//        	targetNamePool = NamePool.getDefaultNamePool();
-//        }
 
         // If top-level node is a literal result element, stitch it into a skeleton stylesheet
 
@@ -271,7 +273,7 @@ public class PreparedStylesheet implements Templates, Serializable {
         }
 
         if (!(styleDoc.getDocumentElement() instanceof XSLStylesheet)) {
-            throw new TransformerConfigurationException(
+            throw new StaticError(
                         "Outermost element of stylesheet is not xsl:stylesheet or xsl:transform or literal result element");
         }
 
@@ -282,14 +284,27 @@ public class PreparedStylesheet implements Templates, Serializable {
                         new TransformerException("Running an XSLT 1.0 stylesheet with an XSLT 2.0 processor")
                 );
             } catch (TransformerException e) {
-                throw new TransformerConfigurationException(e);
+                throw StaticError.makeStaticError(e);
             }
         }
 
         // Preprocess the stylesheet, performing validation and preparing template definitions
 
         top.setPreparedStylesheet(this);
-        top.preprocess();
+        try {
+            top.preprocess();
+        } catch (XPathException e) {
+            Throwable e2 = e.getException();
+            if (e2 instanceof XPathException && !((XPathException)e2).hasBeenReported()) {
+                // this happens with some fundamental errors e.g. an xsl:stylesheet element in the wrong place
+                try {
+                    config.getErrorListener().fatalError((XPathException)e2);
+                } catch (TransformerException e1) {
+                    //
+                }
+            }
+            throw e;
+        }
 
         // Compile the stylesheet, retaining the resulting executable
 

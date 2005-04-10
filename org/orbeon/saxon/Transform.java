@@ -1,11 +1,11 @@
 package net.sf.saxon;
 import net.sf.saxon.event.Builder;
 import net.sf.saxon.instruct.TerminationException;
+import net.sf.saxon.om.Validation;
 import net.sf.saxon.trace.TraceListener;
 import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.UntypedAtomicValue;
-import net.sf.saxon.om.Validation;
 import org.xml.sax.InputSource;
 
 import javax.xml.transform.*;
@@ -255,7 +255,7 @@ public class Transform {
                         i++;
                         if (args.length < i+2) badUsage(name, "No URIResolver class");
                         String r = args[i++];
-                        factory.setURIResolver(makeURIResolver(r));
+                        factory.setURIResolver(config.makeURIResolver(r));
                     }
 
                     else if (args[i].equals("-T")) {
@@ -290,7 +290,7 @@ public class Transform {
                     else if (args[i].equals("-TL")) {
                         i++;
                         if (args.length < i+2) badUsage(name, "No TraceListener class");
-                        TraceListener traceListener = makeTraceListener(args[i++]);
+                        TraceListener traceListener = config.makeTraceListener(args[i++]);
                         factory.setAttribute(
                                 FeatureKeys.TRACE_LISTENER,
                                 traceListener);
@@ -365,7 +365,9 @@ public class Transform {
             for (int p=i; p<args.length; p++) {
                 String arg = args[p];
                 int eq = arg.indexOf("=");
-                if (eq<1 || eq>=arg.length()-1) badUsage(name, "Bad param=value pair on command line");
+                if (eq<1 || eq>=arg.length()-1) {
+                    badUsage(name, "Bad param=value pair on command line: " + arg);
+                }
                 parameterList.add(arg);
             }
 
@@ -374,9 +376,16 @@ public class Transform {
             List sources = null;
             if (initialTemplate==null) {
                 boolean useSAXSource = sourceParserName != null || dtdValidation;
-                sources = loadDocuments(sourceFileName, useURLs, config, useSAXSource);
+                Object loaded = loadDocuments(sourceFileName, useURLs, config, useSAXSource);
+                if (loaded instanceof List) {
+                    wholeDirectory = true;
+                    sources = (List)loaded;
+                } else {
+                    wholeDirectory = false;
+                    sources = new ArrayList(1);
+                    sources.add(loaded);
+                }
                 sources = preprocess(sources);
-                wholeDirectory = sources.size() > 1;
                 if (wholeDirectory) {
                     if (outputFileName==null) {
                         quit("To process a directory, -o must be specified", 2);
@@ -519,18 +528,21 @@ public class Transform {
 
     /**
      * Load a document, or all the documents in a directory, given a filename or URL
+     * @return if sourceFileName represents a single source document, return a Source object representing
+     * that document. If sourceFileName represents a directoru, return a List containing multiple Source
+     * objects, one for each file in the directory.
      */
 
-    public static List loadDocuments(String sourceFileName, boolean useURLs, Configuration config, boolean useSAXSource)
+    public static Object loadDocuments(String sourceFileName, boolean useURLs, Configuration config, boolean useSAXSource)
     throws TransformerException {
-        List result = new ArrayList(20);
+
         Source sourceInput;
         if (useURLs || sourceFileName.startsWith("http:") || sourceFileName.startsWith("file:")) {
             sourceInput = config.getURIResolver().resolve(sourceFileName, null);
             if (sourceInput==null) {
                 sourceInput = new StandardURIResolver().resolve(sourceFileName, null);
             }
-            result.add(sourceInput);
+            return sourceInput;
         } else if (sourceFileName.equals("-")) {
             // take input from stdin
             if (useSAXSource) {
@@ -538,13 +550,14 @@ public class Transform {
             } else {
                 sourceInput = new StreamSource(System.in);
             }
-            result.add(sourceInput);
+            return sourceInput;
         } else {
             File sourceFile = new File(sourceFileName);
             if (!sourceFile.exists()) {
                 quit("Source file " + sourceFile + " does not exist", 2);
             }
             if (sourceFile.isDirectory()) {
+                List result = new ArrayList(20);
                 String[] files = sourceFile.list();
                 for (int f=0; f<files.length; f++) {
                     File file = new File(sourceFile, files[f]);
@@ -558,6 +571,7 @@ public class Transform {
                         result.add(sourceInput);
                     }
                 }
+                return result;
             } else {
                 if (useSAXSource) {
                     InputSource eis = new InputSource(sourceFile.toURI().toString());
@@ -565,10 +579,9 @@ public class Transform {
                 } else {
                     sourceInput = new StreamSource(sourceFile.toURI().toString());
                 }
-                result.add(sourceInput);
+                return sourceInput;
             }
         }
-        return result;
     }
 
     /**
@@ -796,6 +809,12 @@ public class Transform {
             if (showTime) {
                 long endTime = (new Date()).getTime();
                 System.err.println("Execution time: " + (endTime-startTime) + " milliseconds");
+                System.err.println("Memory used: " + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()));
+                config.getNamePool().statistics();
+                if (repeat>1) {
+                    System.err.println("-------------------------------");
+                    Runtime.getRuntime().gc();
+                }
             }
         }
     }
@@ -866,7 +885,7 @@ public class Transform {
 			    t.setOutputProperty(argname.substring(1), arg.substring(eq+1));
             } else if (argname.startsWith("+")) {
                 // parameters starting with "+" are taken as input documents
-                List sources = loadDocuments(arg.substring(eq+1), useURLs, config, true);
+                Object sources = loadDocuments(arg.substring(eq+1), useURLs, config, true);
                 t.setParameter(argname.substring(1), sources);
 			} else {
 			    t.setParameter(argname, new UntypedAtomicValue(arg.substring(eq+1)));
@@ -897,7 +916,7 @@ public class Transform {
         System.err.println("  -l              Retain line numbers in source document tree");
         System.err.println("  -o filename     Send output to named file or directory");
         System.err.println("  -m classname    Use specified Emitter class for xsl:message output");
-        System.err.println("  -novw           Suppress warning when running with an XSLT 1.0 stylesheet");        
+        System.err.println("  -novw           Suppress warning when running with an XSLT 1.0 stylesheet");
         System.err.println("  -r classname    Use specified URIResolver class");
         System.err.println("  -t              Display version and timing information");
         System.err.println("  -T              Set standard TraceListener");
@@ -924,41 +943,6 @@ public class Transform {
         } else {
             System.exit(2);
         }
-    }
-
-    /** Create an instance of a URIResolver with a specified class name
-     *
-     * @exception net.sf.saxon.trans.XPathException if the requested class does not
-     *     implement the javax.xml.transform.URIResolver interface
-     * @param className The fully-qualified name of the URIResolver class
-     * @return The newly created URIResolver
-     */
-    public static URIResolver makeURIResolver (String className)
-    throws XPathException
-    {
-        Object obj = Loader.getInstance(className);
-        if (obj instanceof URIResolver) {
-            return (URIResolver)obj;
-        }
-        throw new DynamicError("Class " + className + " is not a URIResolver");
-    }
-
-    /** Create an instance of a TraceListener with a specified class name
-     *
-     * @exception net.sf.saxon.trans.XPathException if the requested class does not
-     *     implement the net.sf.saxon.trace.TraceListener interface
-     * @param className The fully qualified class name of the TraceListener to
-     *      be constructed
-     * @return the newly constructed TraceListener
-     */
-    public static TraceListener makeTraceListener (String className)
-    throws XPathException
-    {
-        Object obj = Loader.getInstance(className);
-        if (obj instanceof TraceListener) {
-            return (TraceListener)obj;
-        }
-        throw new DynamicError("Class " + className + " is not a TraceListener");
     }
 
 }

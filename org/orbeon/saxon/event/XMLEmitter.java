@@ -88,7 +88,11 @@ public class XMLEmitter extends Emitter
      * Notify the end of a document node
      */
 
-    public void endDocument() throws XPathException {}
+    public void endDocument() throws XPathException {
+        if (!elementStack.isEmpty()) {
+            throw new IllegalStateException("Attempt to end document in serializer when elements are unclosed");
+        }
+    }
 
     /**
      * Do the real work of starting the document. This happens when the first
@@ -216,7 +220,7 @@ public class XMLEmitter extends Emitter
     */
 
     public void startElement (int nameCode, int typeCode, int locationId, int properties) throws XPathException
-    {   
+    {
         if (empty) {
             openDocument();
         }
@@ -456,7 +460,7 @@ public class XMLEmitter extends Emitter
                     // that are not available in the target encoding
                     if (!warningIssued) {
                         try {
-                            getConfiguration().getErrorListener().warning(
+                            getPipelineConfiguration().getErrorListener().warning(
                                 new TransformerException("disable-output-escaping is ignored for characters " +
                                                          "not available in the chosen encoding"));
                         } catch (TransformerException e) {

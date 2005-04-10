@@ -130,7 +130,7 @@ public class Choose extends Instruction {
      */
 
     public final boolean createsNewNodes() {
-        for (int i=1; i<actions.length; i++) {
+        for (int i=0; i<actions.length; i++) {
             int props = actions[i].getSpecialProperties();
             if ((props & StaticProperty.NON_CREATIVE) == 0) {
                 return true;
@@ -163,11 +163,20 @@ public class Choose extends Instruction {
      */
 
     protected void promoteInst(PromotionOffer offer) throws XPathException {
-        for (int i=0; i<conditions.length; i++) {
-            conditions[i] = conditions[i].promote(offer);
-        }
-        for (int i=0; i<actions.length; i++) {
-            actions[i] = actions[i].promote(offer);
+        // xsl:when acts as a guard: expressions inside the when mustn't be evaluated if the when is false,
+        // and conditions after the first mustn't be evaluated if a previous condition is true. So we
+        // don't pass all promotion offers on
+        if (offer.action == PromotionOffer.UNORDERED ||
+                    offer.action == PromotionOffer.INLINE_VARIABLE_REFERENCES) {
+            for (int i=0; i<conditions.length; i++) {
+                conditions[i] = conditions[i].promote(offer);
+            }
+            for (int i=0; i<actions.length; i++) {
+                actions[i] = actions[i].promote(offer);
+            }
+        } else {
+            // in other cases, only the first xsl:when condition is promoted
+            conditions[0]  = conditions[0].promote(offer);
         }
     }
 
@@ -182,7 +191,7 @@ public class Choose extends Instruction {
     public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException {
         for (int i=0; i<actions.length; i++) {
             actions[i].checkPermittedContents(parentType, env, whole);
-        }        
+        }
     }
 
     /**
@@ -216,6 +225,7 @@ public class Choose extends Instruction {
         for (int i=0; i<conditions.length; i++) {
             if (conditions[i].effectiveBooleanValue(context)) {
                 if (actions[i] instanceof Instruction) {
+                    // TODO: a LetExpression is not an instruction, so we're not getting tail recursion in this case
                     return ((Instruction)actions[i]).processLeavingTail(context);
                 } else {
                     actions[i].process(context);

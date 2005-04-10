@@ -144,6 +144,7 @@ public class StandardURIResolver implements URIResolver {
             }
         } catch (IllegalArgumentException err0) {
             // can be thrown by resolve() when given a bad URI
+            // TODO: allow unescaped "wannabe URIs" such as "file:///c:/My Documents/temp.xml"
             throw new DynamicError("Invalid URI " + Err.wrap(relativeURI) + " - base " + Err.wrap(base));
         }
         return url;

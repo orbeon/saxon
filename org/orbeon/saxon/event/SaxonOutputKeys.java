@@ -106,6 +106,17 @@ public class SaxonOutputKeys {
     public static final String REQUIRE_WELL_FORMED = "{http://saxon.sf.net/}require-well-formed";
 
     /**
+     * wrap="yes"|"no".
+     * <p>
+     * This property is only available in the XQuery API. The value "yes" indicates that the result
+     * sequence produced by the query is to be wrapped, that is, each item in the result is represented
+     * as a separate element. This format allows any sequence to be represented as an XML document,
+     * including for example sequences consisting of parentless attribute nodes.
+     */
+
+    public static final String WRAP = "{http://saxon.sf.net/}require-well-formed";
+
+    /**
      * Check that a supplied output property is valid.
      * @param key the name of the property
      * @param value the value of the property. This may be set to null, in which case
@@ -175,6 +186,10 @@ public class SaxonOutputKeys {
                     checkYesOrNo(key, value);
                 }
             } else if (key.equals(BYTE_ORDER_MARK)) {
+                if (value != null) {
+                    checkYesOrNo(key, value);
+                }
+            } else if (key.equals(WRAP)) {
                 if (value != null) {
                     checkYesOrNo(key, value);
                 }

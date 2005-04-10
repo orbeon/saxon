@@ -87,6 +87,8 @@ final class SiblingEnumeration extends AxisIteratorImpl {
             if (nextNodeNr < thisNode) {    // indicates we've found an owner pointer
                 nextNodeNr = -1;
                 needToAdvance = false;
+                current = null;
+                position = -1;
                 return null;
             }
         }

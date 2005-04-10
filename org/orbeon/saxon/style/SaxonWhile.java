@@ -6,6 +6,7 @@ import net.sf.saxon.instruct.While;
 import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.Axis;
 import net.sf.saxon.value.EmptySequence;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -38,7 +39,7 @@ public class SaxonWhile extends StyleElement {
         return true;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
         String testAtt=null;
 
@@ -61,12 +62,12 @@ public class SaxonWhile extends StyleElement {
         test = makeExpression(testAtt);
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
         test = typeCheck("test", test);
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         Expression action = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
         if (action == null) {
             action = EmptySequence.getInstance();

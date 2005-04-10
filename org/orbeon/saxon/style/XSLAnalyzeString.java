@@ -1,8 +1,5 @@
 package net.sf.saxon.style;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.RoleLocator;
-import net.sf.saxon.expr.TypeChecker;
+import net.sf.saxon.expr.*;
 import net.sf.saxon.functions.Matches;
 import net.sf.saxon.instruct.AnalyzeString;
 import net.sf.saxon.instruct.Executable;
@@ -58,7 +55,7 @@ public class XSLAnalyzeString extends StyleElement {
         return getCommonChildItemType();
     }
 
-     public void prepareAttributes() throws TransformerConfigurationException {
+     public void prepareAttributes() throws XPathException {
 		String selectAtt = null;
 		String regexAtt = null;
 		String flagsAtt = null;
@@ -101,25 +98,25 @@ public class XSLAnalyzeString extends StyleElement {
             try {
                 jflags = Matches.setFlags(((StringValue)flags).getStringValueCS());
             } catch (XPathException err) {
-                compileError("Invalid value of flags attribute: " + err, "XT1145");
+                compileError("Invalid value of flags attribute: " + err, "XTDE1145");
             }
             try {
                 String javaRegex = RegexTranslator.translate(
                         ((StringValue)regex).getStringValueCS(), true);
                 pattern = Pattern.compile(javaRegex, jflags);
                 if (pattern.matcher("").matches()) {
-                    compileError("The regular expression must not be one that matches a zero-length string", "XT1150");
+                    compileError("The regular expression must not be one that matches a zero-length string", "XTDE1150");
                 }
             } catch (RegexTranslator.RegexSyntaxException err) {
-                compileError("Error in regular expression: " + err, "XT1140");
+                compileError("Error in regular expression: " + err, "XTDE1140");
             } catch (PatternSyntaxException err) {
-                compileError("Error in regular expression: " + err, "XT1140");
+                compileError("Error in regular expression: " + err, "XTDE1140");
             }
         }
 
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
 
         AxisIterator kids = iterateAxis(Axis.CHILD);
@@ -134,23 +131,23 @@ public class XSLAnalyzeString extends StyleElement {
                 boolean b = curr.getLocalPart().equals("matching-substring");
                 if (b) {
                     if (matching!=null) {
-                        compileError("xsl:matching-substring element must only appear once", "XT0010");
+                        compileError("xsl:matching-substring element must only appear once", "XTSE0010");
                     }
                     matching = (StyleElement)curr;
                 } else {
                     if (nonMatching!=null) {
-                        compileError("xsl:non-matching-substring element must only appear once", "XT0010");
+                        compileError("xsl:non-matching-substring element must only appear once", "XTSE0010");
                     }
                     nonMatching = (StyleElement)curr;
                 }
             } else {
-                compileError("Only xsl:matching-substring and xsl:non-matching-substring are allowed here", "XT0010");
+                compileError("Only xsl:matching-substring and xsl:non-matching-substring are allowed here", "XTSE0010");
             }
         }
 
         if (matching==null && nonMatching==null) {
             compileError("At least one xsl:matching-substring or xsl:non-matching-substring element must be present",
-                    "XT1130");
+                    "XTSE1130");
         }
 
         select = typeCheck("select", select);
@@ -160,14 +157,18 @@ public class XSLAnalyzeString extends StyleElement {
         try {
             RoleLocator role =
                 new RoleLocator(RoleLocator.INSTRUCTION, "xsl:analyze-string/select", 0, null);
+            ExpressionLocation locator = new ExpressionLocation(this);
+            role.setSourceLocator(locator);
             select = TypeChecker.staticTypeCheck(select, SequenceType.SINGLE_STRING, false, role, getStaticContext());
 
             role =
                 new RoleLocator(RoleLocator.INSTRUCTION, "xsl:analyze-string/regex", 0, null);
+            role.setSourceLocator(locator);
             regex = TypeChecker.staticTypeCheck(regex, SequenceType.SINGLE_STRING, false, role, getStaticContext());
 
             role =
                 new RoleLocator(RoleLocator.INSTRUCTION, "xsl:analyze-string/flags", 0, null);
+            role.setSourceLocator(locator);
             flags = TypeChecker.staticTypeCheck(flags, SequenceType.SINGLE_STRING, false, role, getStaticContext());
         } catch (XPathException err) {
             compileError(err);
@@ -175,7 +176,7 @@ public class XSLAnalyzeString extends StyleElement {
 
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         Expression matchingBlock = null;
         if (matching != null) {
             matchingBlock = matching.compileSequenceConstructor(exec, matching.iterateAxis(Axis.CHILD), false);
@@ -191,8 +192,8 @@ public class XSLAnalyzeString extends StyleElement {
                                      select,
                                      regex,
                                      flags,
-                                     (matching==null ? null : matchingBlock.simplify(matching.getStaticContext())),
-                                     (nonMatching==null ? null : nonMatchingBlock.simplify(nonMatching.getStaticContext())),
+                                     (matchingBlock==null ? null : matchingBlock.simplify(matching.getStaticContext())),
+                                     (nonMatchingBlock==null ? null : nonMatchingBlock.simplify(nonMatching.getStaticContext())),
                                      pattern );
             ExpressionTool.makeParentReferences(anal);
             return anal;

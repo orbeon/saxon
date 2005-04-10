@@ -2,6 +2,8 @@ package net.sf.saxon.sort;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.StringValue;
 import net.sf.saxon.value.UntypedAtomicValue;
+import net.sf.saxon.value.CalendarValue;
+import net.sf.saxon.ConversionContext;
 
 import java.text.Collator;
 import java.util.Comparator;
@@ -18,13 +20,17 @@ import java.util.Comparator;
 
 public class AtomicComparer implements Comparator, java.io.Serializable {
 
-    private Comparator collator;
+    // TODO: create specialized AtomicComparers (and/or AtomicSortComparers) for particular data types
 
-    public AtomicComparer(Comparator collator) {
+    private Comparator collator;
+    private ConversionContext conversion;
+
+    public AtomicComparer(Comparator collator, ConversionContext conversion) {
         this.collator = collator;
         if (collator == null) {
             this.collator = CodepointCollator.getInstance();
         }
+        this.conversion = conversion;
     }
 
     /**
@@ -53,9 +59,11 @@ public class AtomicComparer implements Comparator, java.io.Serializable {
         }
 
         if (a instanceof UntypedAtomicValue) {
-            return ((UntypedAtomicValue)a).compareTo(b, collator);
+            return ((UntypedAtomicValue)a).compareTo(b, collator, conversion);
         } else if (b instanceof UntypedAtomicValue) {
-            return -((UntypedAtomicValue)b).compareTo(a, collator);
+            return -((UntypedAtomicValue)b).compareTo(a, collator, conversion);
+        } else if (a instanceof CalendarValue && b instanceof CalendarValue) {
+            return ((CalendarValue)a).compareTo((CalendarValue)b, conversion);
         } else if (a instanceof Comparable) {
             return ((Comparable)a).compareTo(b);
         } else if (a instanceof StringValue) {
@@ -88,9 +96,9 @@ public class AtomicComparer implements Comparator, java.io.Serializable {
         }
 
         if (a instanceof UntypedAtomicValue) {
-            return ((UntypedAtomicValue)a).compareTo(b, collator) == 0;
+            return ((UntypedAtomicValue)a).compareTo(b, collator, conversion) == 0;
         } else if (b instanceof UntypedAtomicValue) {
-            return ((UntypedAtomicValue)b).compareTo(a, collator) == 0;
+            return ((UntypedAtomicValue)b).compareTo(a, collator, conversion) == 0;
         } else if (a instanceof StringValue) {
             return collator.compare(((StringValue)a).getStringValue(), ((StringValue)b).getStringValue()) == 0;
         } else if (a instanceof String) {

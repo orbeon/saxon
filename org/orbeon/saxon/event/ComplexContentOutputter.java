@@ -5,7 +5,6 @@ import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.QNameValue;
 
 /**
  * This class is used for generating complex content, that is, the content of an
@@ -77,7 +76,11 @@ public class ComplexContentOutputter extends SequenceReceiver {
     */
 
     public void startDocument(int properties) throws XPathException {
-        receiver.startDocument(properties);
+        if (pendingStartTag == -1) {
+            receiver.startDocument(properties);
+        } else {
+            startContent();
+        }
         previousAtomic = false;
     }
 
@@ -173,12 +176,8 @@ public class ComplexContentOutputter extends SequenceReceiver {
             }
         	if ((nscode>>16) == (pendingNSList[i]>>16)) {
         	    if (rejectDuplicates) {
-                    // In XSLT this error is recoverable. However, the recovery action is to take the
-                    // last of the namespaces rather than the first. This recovery action gives us problems
-                    // because we have already assumed that the first one will be generated, for example
-                    // when checking any attributes in the sequence. So we make it a hard error.
         	        DynamicError err = new DynamicError("Cannot create two namespace nodes with the same name");
-                    err.setErrorCode("XT0430");
+                    err.setErrorCode("XTDE0430");
                     throw err;
         	    } else {
         		    // same prefix, do a quick exit
@@ -198,7 +197,7 @@ public class ComplexContentOutputter extends SequenceReceiver {
             if (elementIsInNullNamespace.booleanValue()) {
                 DynamicError err = new DynamicError(
                         "Cannot output a namespace node for the default namespace when the element is in no namespace");
-                err.setErrorCode("XT0440");
+                err.setErrorCode("XTDE0440");
                 throw err;
             }
         }
@@ -254,7 +253,7 @@ public class ComplexContentOutputter extends SequenceReceiver {
                 } else {
                     DynamicError err = new DynamicError("Duplicate attribute: " +
                             getNamePool().getDisplayName(nameCode));
-                    err.setErrorCode("XQ0025");
+                    err.setErrorCode("XQDY0025");
                     throw err;
                 }
             }
@@ -394,11 +393,6 @@ public class ComplexContentOutputter extends SequenceReceiver {
         } else if (item instanceof AtomicValue) {
             if (previousAtomic) {
                 characters(" ", locationId, 0);
-            }
-            if (item instanceof QNameValue) {
-                DynamicError err = new DynamicError("Cannot add a QName value to the content of an element");
-                err.setErrorCode("XT0380");
-                throw err;
             }
             characters(item.getStringValueCS(), locationId, 0);
             previousAtomic = true;

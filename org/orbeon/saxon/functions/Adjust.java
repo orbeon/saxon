@@ -1,7 +1,7 @@
 package net.sf.saxon.functions;
+import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.AtomicValue;
@@ -16,21 +16,23 @@ import net.sf.saxon.value.SecondsDurationValue;
 
 public class Adjust extends SystemFunction {
 
+    int implicitTimezone;
+
     /**
-    * preEvaluate: this method suppresses compile-time evaluation by doing nothing
-    * (because the implicit timezone is not known statically)
+    * Simplify and validate.
     */
 
-    public Expression preEvaluate(StaticContext env) {
-        return this;
+    public Expression simplify(StaticContext env) throws XPathException {
+        implicitTimezone = env.getConfiguration().getImplicitTimezone();
+        return super.simplify(env);
     }
 
     /**
     * Evaluate in a general context
     */
 
-    public Item evaluateItem(XPathContext c) throws XPathException {
-        AtomicValue av1 = (AtomicValue)argument[0].evaluateItem(c);
+    public Item evaluateItem(XPathContext context) throws XPathException {
+        AtomicValue av1 = (AtomicValue)argument[0].evaluateItem(context);
         if (av1==null) {
             return null;
         }
@@ -40,10 +42,10 @@ public class Adjust extends SystemFunction {
         SecondsDurationValue tz;
         if (nargs==1) {
             // use the implicit timezone
-            tz = CurrentDateTime.getImplicitTimezone(c);
+            tz = SecondsDurationValue.fromMilliseconds(implicitTimezone * 60000);
             return in.setTimezone(tz);
         } else {
-            AtomicValue av2 = (AtomicValue)argument[1].evaluateItem(c);
+            AtomicValue av2 = (AtomicValue)argument[1].evaluateItem(context);
             if (av2==null) {
                 return in.removeTimezone();
             }

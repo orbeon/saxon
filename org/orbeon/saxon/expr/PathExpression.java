@@ -287,7 +287,6 @@ public final class PathExpression extends ComputedExpression implements MappingF
         };
         state = 2;
 
-        start = start.analyze(env, contextItemType);
         Expression start2 = start.analyze(env, contextItemType);
         if (start2 != start) {
             adoptChildExpression(start2);
@@ -301,9 +300,9 @@ public final class PathExpression extends ComputedExpression implements MappingF
 
         // The first operand must be of type node()*
 
-        RoleLocator role0 =
-                new RoleLocator(RoleLocator.BINARY_EXPR, "/", 0, null);
-        role0.setErrorCode("XP0019");
+        RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, "/", 0, null);
+        role0.setSourceLocator(this);
+        role0.setErrorCode("XPTY0019");
         start2 = TypeChecker.staticTypeCheck(start,
                 SequenceType.NODE_SEQUENCE,
                 false, role0, env);
@@ -321,7 +320,7 @@ public final class PathExpression extends ComputedExpression implements MappingF
         offer.action = PromotionOffer.FOCUS_INDEPENDENT;
         offer.promoteDocumentDependent = (start.getSpecialProperties() & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0;
         offer.containingExpression = this;
-        
+
         //if ((step.getSpecialProperties() & StaticProperty.NON_CREATIVE) != 0) {
             step2 = step.promote(offer);
             if (step2 != step) {
@@ -374,6 +373,7 @@ public final class PathExpression extends ComputedExpression implements MappingF
             // Try to simplify expressions such as a//b
                 PathExpression p = simplifyDescendantPath(env);
                 if (p != null) {
+                    p.setParentExpression(getParentExpression());
                     return p.simplify(env).analyze(env, contextItemType);
                 }
             }
@@ -450,7 +450,9 @@ public final class PathExpression extends ComputedExpression implements MappingF
                 // not all dependencies in the step matter, because the context node, etc,
                 // are not those of the outer expression
                 (step.getDependencies() &
-                (StaticProperty.DEPENDS_ON_XSLT_CONTEXT));
+                (StaticProperty.DEPENDS_ON_XSLT_CONTEXT |
+                    StaticProperty.DEPENDS_ON_LOCAL_VARIABLES |
+                    StaticProperty.DEPENDS_ON_USER_FUNCTIONS));
     }
 
     /**
@@ -524,9 +526,9 @@ public final class PathExpression extends ComputedExpression implements MappingF
                 return false;
             }
         } else {
-            if ((stepProperties & StaticProperty.ORDERED_NODESET) != 0) {
+            //if ((stepProperties & StaticProperty.ORDERED_NODESET) != 0) {
                 return true;
-            }
+            //}
         }
 
         // We know now that both the start and the step are sorted. But this does
@@ -664,7 +666,7 @@ public final class PathExpression extends ComputedExpression implements MappingF
         context2.setCurrentIterator(master);
         context2.setOriginatingConstructType(Location.PATH_EXPRESSION);
 
-        master = new MappingIterator(master, this, context2, null);
+        master = new MappingIterator(master, this, context2);
         return master;
 
     }
@@ -674,7 +676,7 @@ public final class PathExpression extends ComputedExpression implements MappingF
      * returned by the child.
      */
 
-    public Object map(Item item, XPathContext context, Object info) throws XPathException {
+    public Object map(Item item, XPathContext context) throws XPathException {
         return step.iterate(context);
     }
 

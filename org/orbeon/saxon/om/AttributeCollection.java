@@ -1,6 +1,6 @@
 package net.sf.saxon.om;
 
-import net.sf.saxon.event.LocationProvider;
+
 
 /**
  * AttributeCollection represents the collection of attributes available on a particular element
@@ -22,8 +22,7 @@ public interface AttributeCollection {
      * Get the namecode of an attribute (by position).
      *
      * @param index The position of the attribute in the list.
-     * @return The display name of the attribute as a string, or null if there
-     *         is no attribute at that position.
+     * @return The name code of the attribute, or -1 if there is no attribute at that position.
      */
 
     int getNameCode(int index);
@@ -86,6 +85,17 @@ public interface AttributeCollection {
      */
 
     int getProperties(int index);
+
+    /**
+     * Get the prefix of the name of an attribute (by position).
+     *
+     * @param index The position of the attribute in the list.
+     * @return The prefix of the attribute name as a string, or null if there
+     *         is no attribute at that position. Returns "" for an attribute that
+     *         has no prefix.
+     */
+
+    String getPrefix(int index);
 
     /**
      * Get the lexical QName of an attribute (by position).

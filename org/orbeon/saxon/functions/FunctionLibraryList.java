@@ -13,11 +13,12 @@ import java.util.List;
  */
 public class FunctionLibraryList implements FunctionLibrary {
 
-    public List libraryList = new ArrayList();
+    public List libraryList = new ArrayList(8);
 
     /**
      * Add a new FunctionLibrary to the list of FunctionLibraries in this FunctionLibraryList. Note
      * that libraries are searched in the order they are added to the list.
+     * @param lib A function library to be added to the list of function libraries to be searched.
      */
 
     public void addFunctionLibrary(FunctionLibrary lib) {
@@ -51,9 +52,11 @@ public class FunctionLibraryList implements FunctionLibrary {
      * time.
      * @param uri  The URI of the function name
      * @param local  The local part of the function name
-     * @param staticArgs  The expressions supplied statically in the function call. The intention is
+     * @param staticArgs  The expressions supplied statically in arguments to the function call.
+     * The length of this array represents the arity of the function. The intention is
      * that the static type of the arguments (obtainable via getItemType() and getCardinality() may
-     * be used as part of the binding algorithm.
+     * be used as part of the binding algorithm. In some cases it may be possible for the function
+     * to be pre-evaluated at compile time, for example if these expressions are all constant values.
      * @return An object representing the extension function to be called, if one is found;
      * null if no extension function was found matching the required name and arity.
      * @throws net.sf.saxon.trans.XPathException if a function is found with the required name and arity, but
@@ -71,6 +74,36 @@ public class FunctionLibraryList implements FunctionLibrary {
             }
         }
         return null;
+    }
+
+    /**
+     * Get the list of contained FunctionLibraries. This method allows the caller to modify
+     * the library list, for example by adding a new FunctionLibrary at a chosen position,
+     * by removing a library from the list, or by changing the order of libraries in the list.
+     * Note that such changes may violate rules in the
+     * language specifications, or assumptions made within the product.
+     * @return a list whose members are of class FunctionLibrary
+     */
+
+    public List getLibraryList() {
+        return libraryList;
+    }
+
+    /**
+     * This method creates a copy of a FunctionLibrary: if the original FunctionLibrary allows
+     * new functions to be added, then additions to this copy will not affect the original, or
+     * vice versa.
+     *
+     * @return a copy of this function library. This must be an instance of the original class.
+     */
+
+    public FunctionLibrary copy() {
+        FunctionLibraryList fll = new FunctionLibraryList();
+        fll.libraryList = new ArrayList(libraryList.size());
+        for (int i=0; i<libraryList.size(); i++) {
+            fll.libraryList.add(((FunctionLibrary)libraryList.get(i)).copy());
+        }
+        return fll;
     }
 }
 //

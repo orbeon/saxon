@@ -6,6 +6,7 @@ import net.sf.saxon.instruct.ProcessingInstruction;
 import net.sf.saxon.om.AttributeCollectionImpl;
 import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.value.StringValue;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -17,7 +18,7 @@ public class XSLProcessingInstruction extends XSLStringConstructor {
 
     Expression name;
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
         String nameAtt = null;
         String selectAtt = null;
@@ -47,14 +48,14 @@ public class XSLProcessingInstruction extends XSLStringConstructor {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
         name = typeCheck("name", name);
         select = typeCheck("select", select);
         super.validate();
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         ProcessingInstruction inst = new ProcessingInstruction(name);
         compileContent(exec, inst, StringValue.SINGLE_SPACE);
         //inst.setSeparator(new StringValue(select==null ? "" : " "));

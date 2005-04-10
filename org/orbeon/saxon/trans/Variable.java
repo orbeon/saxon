@@ -69,7 +69,8 @@ public final class Variable implements VariableDeclaration, Binding {
     /**
      * Assign a value to the variable. This value may be changed between successive evaluations of
      * a compiled XPath expression that references the variable.
-     * @param value     the value of the variable
+     * @param value     the value of the variable, as a Java object. This is converted to the "best fit"
+     * XPath data type.
      * @throws net.sf.saxon.trans.XPathException if the Java value cannot be converted to an XPath type
      */
 

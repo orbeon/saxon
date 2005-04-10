@@ -416,39 +416,15 @@ public final class Tokenizer {
 	            if (inputOffset < inputLength && input.charAt(inputOffset) == ':') {
                     // XPath comment syntax is (: .... :)
                     // Comments may be nested
-                    // Pragmas are recognized as anything starting with "(::", in which case the terminator
-                    // must be "::)"
                     inputOffset++;
-//                    int pragmaStart = -1;
-//                    if (recognizePragmas && inputOffset < inputLength && input.charAt(inputOffset) == ':') {
-//                        inputOffset++;
-//                        pragmaStart = inputOffset;
-//                    }
                     int nestingDepth = 1;
                     while (nestingDepth > 0 && inputOffset < (inputLength-1)) {
                         if (input.charAt(inputOffset) == '\n') {
                             incrementLineNumber();
                         } else if (input.charAt(inputOffset) == ':' &&
-                               input.charAt(inputOffset+1) == ')') {
-//                            if (pragmaStart >=0 && nestingDepth==1) {
-//                                if (input.charAt(inputOffset-1) == ':') {
-//                                    lastPragma = input.substring(pragmaStart, inputOffset-1).trim();
-//                                    if (lastPragma.startsWith("extension")) {
-//                                        inputOffset+=2;
-//                                        throw new StaticError("Unrecognized must-understand extension");
-//                                    } else if (lastPragma.startsWith("pragma")) {
-//                                        lastPragma = lastPragma.substring(6).trim();
-//                                    } else {
-//                                        inputOffset+=2;
-//                                        throw new StaticError("'(::' must be followed by 'pragma' or 'extension'");
-//                                    }
-//                                    nestingDepth--;
-//                                    inputOffset++;
-//                                }
-//                            } else {
-                                nestingDepth--;
-                                inputOffset++;
-//                            }
+                            input.charAt(inputOffset+1) == ')') {
+                            nestingDepth--;
+                            inputOffset++;
                         } else if (input.charAt(inputOffset) == '(' &&
                                input.charAt(inputOffset+1) == ':') {
                             nestingDepth++;
@@ -457,11 +433,7 @@ public final class Tokenizer {
                         inputOffset++;
                     }
                     if (nestingDepth > 0) {
-//                        if (pragmaStart >= 0) {
-//                            throw new StaticError("Unclosed XQuery pragma");
-//                        } else {
-                            throw new StaticError("Unclosed XPath comment");
-//                        }
+                        throw new StaticError("Unclosed XPath comment");
                     }
                     lookAhead();
                 } else {
@@ -577,6 +549,9 @@ public final class Tokenizer {
                 // for example "23e" or "1.0e+". However, this will only happen if the XPath
                 // expression as a whole is syntactically incorrect.
                 // These errors will be caught by the numeric constructor.
+                    // TODO: the current specification (Feb 2005) disallows "10div 3", though this
+                    // was allowed in XPath 1.0. We are currently allowing this. But we don't allow
+                    // "if (x) then 10else 3".
                 boolean allowE = true;
                 boolean allowSign = false;
                 boolean allowDot = true;
@@ -788,7 +763,7 @@ public final class Tokenizer {
                 if (s=="node") return Token.NODEKIND;
                 if (s=="item") return Token.NODEKIND;
                 if (s=="text") return Token.NODEKIND;
-                if (s=="type") return Token.TYPETEST;
+                if (s=="void") return Token.NODEKIND;
                 break;
             case 7:
                 if (s=="element") return Token.NODEKIND;

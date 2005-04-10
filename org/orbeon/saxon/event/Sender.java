@@ -16,7 +16,7 @@ import net.sf.saxon.type.Type;
 import org.xml.sax.*;
 
 import javax.xml.transform.Source;
-import javax.xml.transform.TransformerException;
+import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.sax.SAXSource;
 import javax.xml.transform.stream.StreamSource;
 import java.util.List;
@@ -82,12 +82,6 @@ public class Sender {
             int val = validation & Validation.VALIDATION_MODE_MASK;
             if (val != Validation.PRESERVE) {
                 receiver = config.getDocumentValidator(receiver, source.getSystemId(), config.getNamePool(), val);
-//                try {
-//                    pipe.getErrorListener().warning(
-//                            new TransformerException("Validation request ignored for a NodeInfo source"));
-//                } catch (TransformerException e) {
-//                    throw DynamicError.makeDynamicError(e);
-//                }
             }
             NodeInfo ns = (NodeInfo)source;
             int kind = ns.getNodeKind();
@@ -138,7 +132,11 @@ public class Sender {
             }
 
         }
-        throw new IllegalArgumentException("Unknown type of source " + source.getClass());
+        if (source instanceof DOMSource) {
+            throw new DynamicError("DOMSource cannot be processed: check that saxon8-dom.jar is on the classpath");
+        }
+        throw new DynamicError("A source of type " + source.getClass().getName() +
+                " is not supported in this environment");
     }
 
 

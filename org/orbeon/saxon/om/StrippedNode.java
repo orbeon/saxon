@@ -476,7 +476,7 @@ public class StrippedNode implements NodeInfo, VirtualNode {
         }
 
         public SequenceIterator getAnother() {
-            return new WrappingIterator(base, parent);
+            return new WrappingIterator((AxisIterator)base.getAnother(), parent);
         }
 
         /**

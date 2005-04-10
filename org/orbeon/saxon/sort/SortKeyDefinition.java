@@ -174,7 +174,7 @@ public class SortKeyDefinition implements Serializable {
             fskd.setLanguage(language);
             fskd.setEmptyFirst(emptyFirst);
             fskd.collation = collation;
-            fskd.bindComparer();
+            fskd.bindComparer(exec.getConfiguration());
             return fskd;
         } else {
             return this;
@@ -211,7 +211,7 @@ public class SortKeyDefinition implements Serializable {
             sknew.setCollation(collation);
         }
         sknew.setEmptyFirst(emptyFirst);
-        sknew.bindComparer();
+        sknew.bindComparer(context);
         return sknew;
     }
 

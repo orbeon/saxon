@@ -78,7 +78,7 @@ public class GroupByIterator implements GroupIterator, LastPositionFinder {
         this.keyExpression = keyExpression;
         this.keyContext = keyContext;
         this.collator = collator;
-        this.comparer = new AtomicSortComparer(collator);
+        this.comparer = new AtomicSortComparer(collator, keyContext);
         buildIndexedGroups();
     }
 
@@ -164,11 +164,15 @@ public class GroupByIterator implements GroupIterator, LastPositionFinder {
             position++;
             return current();
         } else {
+            position = -1;
             return null;
         }
     }
 
     public Item current() {
+        if (position < 1) {
+            return null;
+        }
         // return the initial item of the current group
         return (Item)((ArrayList)groups.get(position-1)).get(0);
     }

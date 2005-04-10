@@ -11,7 +11,9 @@ import net.sf.saxon.trans.XPathException;
 public interface LastPositionFinder extends SequenceIterator {
 
     /**
-    * Get the last position (that is, the number of items in the sequence)
+    * Get the last position (that is, the number of items in the sequence). This method is
+    * non-destructive: it does not change the state of the iterator.
+    * The result is undefined if the next() method of the iterator has already returned null.
     */
 
     public int getLastPosition() throws XPathException;

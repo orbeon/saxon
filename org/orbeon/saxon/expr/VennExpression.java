@@ -147,12 +147,10 @@ public class VennExpression extends BinaryExpression {
 
         switch (operator) {
             case Token.UNION:
-                //return Type.isNodeType(getItemType()) && isSingleton();
-                // this is a sufficient condition, but other expressions override this method
-                if (operand0 instanceof EmptySequence && (operand1.getSpecialProperties() & StaticProperty.ORDERED_NODESET) != 0) return operand1;
-                //return Type.isNodeType(getItemType()) && isSingleton();
-                // this is a sufficient condition, but other expressions override this method
-                if (operand1 instanceof EmptySequence && (operand0.getSpecialProperties() & StaticProperty.ORDERED_NODESET) != 0) return operand0;
+                if (operand0 instanceof EmptySequence &&
+                        (operand1.getSpecialProperties() & StaticProperty.ORDERED_NODESET) != 0) return operand1;
+                if (operand1 instanceof EmptySequence &&
+                        (operand0.getSpecialProperties() & StaticProperty.ORDERED_NODESET) != 0) return operand0;
                 break;
             case Token.INTERSECT:
                 if (operand0 instanceof EmptySequence) return operand0;
@@ -160,9 +158,8 @@ public class VennExpression extends BinaryExpression {
                 break;
             case Token.EXCEPT:
                 if (operand0 instanceof EmptySequence) return operand0;
-                //return Type.isNodeType(getItemType()) && isSingleton();
-                // this is a sufficient condition, but other expressions override this method
-                if (operand1 instanceof EmptySequence && (operand0.getSpecialProperties() & StaticProperty.ORDERED_NODESET) != 0) return operand0;
+                if (operand1 instanceof EmptySequence &&
+                        (operand0.getSpecialProperties() & StaticProperty.ORDERED_NODESET) != 0) return operand0;
                 break;
         }
 
@@ -186,7 +183,12 @@ public class VennExpression extends BinaryExpression {
         // i.e. rewrite (/X | /Y) as /(X|Y). This applies recursively, so that
         // /A/B/C | /A/B/D becomes /A/B/child::(C|D)
 
-        if (operand0 instanceof PathExpression && operand1 instanceof PathExpression) {
+        // TODO: this optimization was previously done for all three operators. However, it's not safe for "except":
+        // A//B except A//C//B cannot be rewritten as A/descendant-or-self::node()/(B except C//B). As a quick
+        // fix, the optimization has been retained for "union" but dropped for "intersect" and "except". Need to
+        // do a more rigorous analysis of the conditions under which it is safe.
+
+        if (operand0 instanceof PathExpression && operand1 instanceof PathExpression && operator==Token.UNION) {
             final PathExpression path1 = (PathExpression)operand0;
             final PathExpression path2 = (PathExpression)operand1;
 
@@ -257,9 +259,11 @@ public class VennExpression extends BinaryExpression {
         operand1 = operand1.analyze(env, contextItemType);
 
         final RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0, null);
+        role0.setSourceLocator(this);
         operand0 = TypeChecker.staticTypeCheck(operand0, SequenceType.NODE_SEQUENCE, false, role0, env);
 
         final RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1, null);
+        role1.setSourceLocator(this);
         operand1 = TypeChecker.staticTypeCheck(operand1, SequenceType.NODE_SEQUENCE, false, role1, env);
         return this;
     }

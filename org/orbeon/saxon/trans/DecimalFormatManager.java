@@ -60,7 +60,7 @@ public class DecimalFormatManager implements Serializable {
             if (!dfs.equals(defaultDFS)) {
                 StaticError err = new StaticError(
                     "There are two conflicting definitions of the default decimal format");
-                err.setErrorCode("XT1290");
+                err.setErrorCode("XTSE1290");
                 throw err;
             }
         }
@@ -118,7 +118,7 @@ public class DecimalFormatManager implements Serializable {
                 }
                 if (precedence==oldPrecedence && !dfs.equals(old)) {
                     StaticError err = new StaticError("There are two conflicting definitions of the named decimal-format");
-                    err.setErrorCode("XT1290");
+                    err.setErrorCode("XTSE1290");
                     throw err;
                 }
             }

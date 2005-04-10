@@ -41,8 +41,14 @@ public final class InstanceOfExpression extends UnaryExpression {
         // See if we can get the answer by static analysis.
 
         if (Cardinality.subsumes(targetCardinality, operand.getCardinality())) {
-            if (Type.isSubType(operand.getItemType(), targetType)) {
-                return BooleanValue.get(true);
+            int relation = Type.relationship(operand.getItemType(), targetType);
+            if (relation == Type.SAME_TYPE || relation == Type.SUBSUMED_BY) {
+                return BooleanValue.TRUE;
+            } else if (relation == Type.DISJOINT) {
+                // if the item types are disjoint, the result might still be true if both sequences are empty
+                if (!Cardinality.allowsZero(targetCardinality) || !Cardinality.allowsZero(operand.getCardinality())) {
+                    return BooleanValue.FALSE;
+                }
             }
         }
         return this;

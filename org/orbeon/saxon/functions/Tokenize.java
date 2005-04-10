@@ -4,6 +4,7 @@ import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
+import net.sf.saxon.om.EmptyIterator;
 import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.StaticError;
 import net.sf.saxon.trans.XPathException;
@@ -57,9 +58,12 @@ public class Tokenize extends SystemFunction  {
     public SequenceIterator iterate(XPathContext c) throws XPathException {
         AtomicValue sv = (AtomicValue)argument[0].evaluateItem(c);
         if (sv==null) {
-            sv = StringValue.EMPTY_STRING;
+            return EmptyIterator.getInstance();
         };
         CharSequence input = sv.getStringValueCS();
+        if (input.length() == 0) {
+            return EmptyIterator.getInstance();
+        }
 
         Pattern re = regexp;
         if (re == null) {
@@ -122,6 +126,8 @@ public class Tokenize extends SystemFunction  {
 
         public Item next() {
             if (prevEnd < 0) {
+                current = null;
+                position = -1;
                 return null;
             }
 
@@ -137,7 +143,7 @@ public class Tokenize extends SystemFunction  {
         }
 
         public Item current() {
-            return new StringValue(current);
+            return (current==null ? null : new StringValue(current));
         }
 
         public int position() {

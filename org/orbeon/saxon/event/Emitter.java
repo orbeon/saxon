@@ -1,6 +1,6 @@
 package net.sf.saxon.event;
 import net.sf.saxon.Configuration;
-import net.sf.saxon.Loader;
+import net.sf.saxon.Controller;
 import net.sf.saxon.charcode.CharacterSet;
 import net.sf.saxon.charcode.CharacterSetFactory;
 import net.sf.saxon.charcode.PluggableCharacterSet;
@@ -12,6 +12,7 @@ import org.xml.sax.ContentHandler;
 
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Result;
+import javax.xml.transform.TransformerException;
 import javax.xml.transform.stream.StreamResult;
 import java.io.*;
 import java.net.URI;
@@ -92,7 +93,7 @@ public abstract class Emitter implements Result, Receiver
 
     public void setOutputProperties(Properties details) throws XPathException {
         if (characterSet==null) {
-            characterSet = CharacterSetFactory.getCharacterSet(details);
+            characterSet = CharacterSetFactory.getCharacterSet(details, getPipelineConfiguration().getController());
         }
         outputProperties = details;
     }
@@ -220,7 +221,13 @@ public abstract class Emitter implements Result, Receiver
                     if (encoding.equalsIgnoreCase("UTF8")) {
                         throw new DynamicError("Failed to create a UTF8 output writer");
                     }
-                    System.err.println("Encoding " + encoding + " is not supported: using UTF8");
+                    DynamicError de = new DynamicError("Encoding " + encoding + " is not supported: using UTF8");
+                    de.setErrorCode("SE0007");
+                    try {
+                        getPipelineConfiguration().getErrorListener().error(de);
+                    } catch (TransformerException e) {
+                        throw DynamicError.makeDynamicError(e);
+                    }
                     encoding = "UTF8";
                     characterSet = UnicodeCharacterSet.getInstance();
                     outputProperties.put(OutputKeys.ENCODING, "UTF-8");
@@ -249,11 +256,11 @@ public abstract class Emitter implements Result, Receiver
     * Load a named output emitter or SAX2 ContentHandler and check it is OK.
     */
 
-    public static Receiver makeEmitter (String className) throws XPathException
+    public static Receiver makeEmitter (String className, Controller controller) throws XPathException
     {
         Object handler;
         try {
-            handler = Loader.getInstance(className);
+            handler = controller.getConfiguration().getInstance(className, controller.getClassLoader());
         } catch (XPathException e) {
             throw new DynamicError("Cannot load user-supplied output method " + className);
         }

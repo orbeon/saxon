@@ -6,6 +6,7 @@ import net.sf.saxon.type.BuiltInAtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.type.ValidationException;
+import net.sf.saxon.ConversionContext;
 
 
 /**
@@ -29,23 +30,24 @@ public final class NotationValue extends QNameValue {
     /**
      * Convert to target data type
      * @param requiredType an integer identifying the required atomic type
+     * @param conversion
      * @return an AtomicValue, a value of the required type; or an ErrorValue
      */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, ConversionContext conversion) {
         switch (requiredType.getPrimitiveType()) {
             case Type.ATOMIC:
             case Type.ITEM:
             case Type.QNAME:
             case Type.STRING:
             case Type.UNTYPED_ATOMIC:
-                return super.convertPrimitive(requiredType, validate);
+                return super.convertPrimitive(requiredType, validate, conversion);
             default:
                 ValidationException err = new ValidationException("Cannot convert NOTATION to " +
                         requiredType.getDisplayName());
                 //err.setXPathContext(context);
                 err.setErrorCode("FORG0001");
-                return new ErrorValue(err);
+                return new ValidationErrorValue(err);
         }
     }
 

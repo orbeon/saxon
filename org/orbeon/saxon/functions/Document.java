@@ -1,9 +1,8 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.Controller;
 import net.sf.saxon.event.Builder;
-import net.sf.saxon.event.Sender;
-import net.sf.saxon.event.Stripper;
 import net.sf.saxon.event.Receiver;
+import net.sf.saxon.event.Sender;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.sort.DocumentOrderIterator;
@@ -15,6 +14,7 @@ import net.sf.saxon.value.Cardinality;
 import javax.xml.transform.Source;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.URIResolver;
+import javax.xml.transform.SourceLocator;
 import javax.xml.transform.dom.DOMSource;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -24,7 +24,7 @@ import java.net.URISyntaxException;
  * Implements the XSLT document() function
  */
 
-public class Document extends SystemFunction implements MappingFunction, XSLTFunction {
+public class Document extends SystemFunction implements XSLTFunction {
 
     private String expressionBaseURI = null;
 
@@ -76,14 +76,6 @@ public class Document extends SystemFunction implements MappingFunction, XSLTFun
         return this;
     }
 
-    /**
-    * Information passed through the mapping iterator
-    */
-
-    private static class DocumentMappingInfo {
-        public String baseURI;
-        public String stylesheetURI;
-    }
 
     /**
     * iterate() handles evaluation of the function:
@@ -101,43 +93,44 @@ public class Document extends SystemFunction implements MappingFunction, XSLTFun
             baseURI = base.getBaseURI();
         }
 
-        DocumentMappingInfo info = new DocumentMappingInfo();
-        info.baseURI = baseURI;
-        info.stylesheetURI = expressionBaseURI;
+        DocumentMappingFunction map = new DocumentMappingFunction();
+        map.baseURI = baseURI;
+        map.stylesheetURI = expressionBaseURI;
+        map.locator = this;
 
-        MappingIterator map = new MappingIterator(
-                                    hrefSequence,
-                                    this,
-                                    context,
-                                    info);
+        MappingIterator iter = new MappingIterator(hrefSequence, map, context);
 
         Expression expression = argument[0];
         if (Cardinality.allowsMany(expression.getCardinality())) {
-            return new DocumentOrderIterator(map, GlobalOrderComparer.getInstance());
+            return new DocumentOrderIterator(iter, GlobalOrderComparer.getInstance());
             // this is to make sure we eliminate duplicates: two href's might be the same
         } else {
-            return map;
+            return iter;
         }
     }
 
-    /**
-    * Implement the MappingFunction interface: called from the MappingIterator
-    */
+    private static class DocumentMappingFunction implements MappingFunction {
 
-    public Object map(Item item, XPathContext context, Object dinfo) throws XPathException {
+        public String baseURI;
+        public String stylesheetURI;
+        public SourceLocator locator;
 
-        DocumentMappingInfo info = (DocumentMappingInfo)dinfo;
-        String baseURI = info.baseURI;
+         /**
+        * Implement the MappingFunction interface: called from the MappingIterator
+        */
 
-        if (baseURI==null) {
-            if (item instanceof NodeInfo) {
-                baseURI = ((NodeInfo)item).getBaseURI();
-            } else {
-                baseURI = info.stylesheetURI;
+        public Object map(Item item, XPathContext context) throws XPathException {
+
+            if (baseURI==null) {
+                if (item instanceof NodeInfo) {
+                    baseURI = ((NodeInfo)item).getBaseURI();
+                } else {
+                    baseURI = stylesheetURI;
+                }
             }
+            NodeInfo doc = makeDoc(item.getStringValue(), baseURI, context, locator);
+            return doc;
         }
-        NodeInfo doc = makeDoc(item.getStringValue(), baseURI, context);
-        return doc;
     }
 
 
@@ -145,7 +138,7 @@ public class Document extends SystemFunction implements MappingFunction, XSLTFun
     * Supporting routine to load one external document given a URI (href) and a baseURI
     */
 
-    public static NodeInfo makeDoc(String href, String baseURL, XPathContext c) throws XPathException {
+    public static NodeInfo makeDoc(String href, String baseURL, XPathContext c, SourceLocator locator) throws XPathException {
 
         // If the href contains a fragment identifier, strip it out now
 
@@ -172,9 +165,12 @@ public class Document extends SystemFunction implements MappingFunction, XSLTFun
                 documentKey = (new URI(href)).toString();
             } catch (URISyntaxException err) {
                 // it isn't; but the URI resolver might know how to cope
-                documentKey = baseURL + '/' + href;
+                documentKey = '/' + href;
                 baseURL = "";
             }
+        } else if (href.equals("")) {
+            // common case in XSLT, which java.net.URI#resolve() does not handle correctly
+            documentKey = baseURL;
         } else {
             try {
                 URI url = new URI(baseURL).resolve(href);
@@ -227,6 +223,8 @@ public class Document extends SystemFunction implements MappingFunction, XSLTFun
 
         } catch (TransformerException err) {
             DynamicError xerr = DynamicError.makeDynamicError(err);
+            xerr.setLocator(locator);
+            xerr.setErrorCode("FODC0005");
             try {
                 controller.recoverableError(xerr);
             } catch (XPathException err2) {
@@ -244,7 +242,7 @@ public class Document extends SystemFunction implements MappingFunction, XSLTFun
     * given id value; or null if no such element is found.
     */
 
-    private static NodeInfo getFragment(DocumentInfo doc, String fragmentId, XPathContext context) 
+    private static NodeInfo getFragment(DocumentInfo doc, String fragmentId, XPathContext context)
     throws XPathException {
         // TODO: we only support one kind of fragment identifier. The rules say
         // that the interpretation of the fragment identifier depends on media type,
@@ -255,7 +253,7 @@ public class Document extends SystemFunction implements MappingFunction, XSLTFun
         if (!XMLChar.isValidNCName(fragmentId)) {
             DynamicError err = new DynamicError("Invalid fragment identifier in URI");
             err.setXPathContext(context);
-            err.setErrorCode("XT1160");
+            err.setErrorCode("XTRE1160");
             try {
                 context.getController().recoverableError(err);
             } catch (DynamicError dynamicError) {

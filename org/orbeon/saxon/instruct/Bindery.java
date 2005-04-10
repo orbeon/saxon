@@ -8,7 +8,7 @@ import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.EmptySequence;
-import net.sf.saxon.value.ErrorValue;
+import net.sf.saxon.value.ValidationErrorValue;
 import net.sf.saxon.value.Value;
 
 
@@ -85,9 +85,9 @@ public final class Bindery  {
             // If the parameter is an atomic value, typically a string supplied on
             // the command line, we attempt to convert it to the required type. This
             // will not always succeed.
-            val = ((AtomicValue)val).convert((AtomicType)reqItemType, null, true);
-            if (val instanceof ErrorValue) {
-                throw ((ErrorValue)val).getException();
+            val = ((AtomicValue)val).convert((AtomicType)reqItemType, context, true);
+            if (val instanceof ValidationErrorValue) {
+                throw ((ValidationErrorValue)val).getException();
             }
         } else {
             // For any other parameter value, we verify that if conforms to the

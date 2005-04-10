@@ -315,8 +315,7 @@ public class VirtualCopy implements NodeInfo {
         VirtualCopy newParent = null;
         if (axisNumber == Axis.CHILD || axisNumber == Axis.ATTRIBUTE || axisNumber == Axis.NAMESPACE) {
             newParent = this;
-        }
-        if (axisNumber == Axis.SELF || axisNumber == Axis.PRECEDING_SIBLING || axisNumber == Axis.FOLLOWING_SIBLING) {
+        } else if (axisNumber == Axis.SELF || axisNumber == Axis.PRECEDING_SIBLING || axisNumber == Axis.FOLLOWING_SIBLING) {
             newParent = parent;
         }
         NodeInfo root;
@@ -485,6 +484,14 @@ public class VirtualCopy implements NodeInfo {
     public SequenceIterator getTypedValue() throws XPathException {
         return original.getTypedValue();
     }
+
+    /**
+     * VirtualCopier implements the XPath axes as applied to a VirtualCopy node. It works by
+     * applying the requested axis to the node of which this is a copy. There are two
+     * complications: firstly, all nodes encountered must themselves be (virtually) copied
+     * to give them a new identity. Secondly, axes that stray outside the subtree rooted at
+     * the original copied node must be truncated.
+     */
 
     private class VirtualCopier implements AxisIterator, AtomizableIterator {
 

@@ -71,17 +71,30 @@ public class NamespaceConstant {
 
     /**
      * Namespace for additional XPath-defined data types:
-     * "http://www.w3.org/2003/05/xpath-datatypes"
+     * "http://www.w3.org/2005/04/xpath-datatypes"
      */
-    public static final String XDT = "http://www.w3.org/2005/02/xpath-datatypes";
+    public static final String XDT = "http://www.w3.org/2005/04/xpath-datatypes";
+
+    /**
+     * Older versions of XDT namespace
+     */
+
+    public static final String XDT200502 = "http://www.w3.org/2005/02/xpath-datatypes";
+    public static final String XDT200410 = "http://www.w3.org/2004/10/xpath-datatypes";
+    public static final String XDT200407 = "http://www.w3.org/2004/07/xpath-datatypes";
+
+    /**
+     * Test whether a namespace is the XDT namespace
+     */
+
+    public static final boolean isXDTNamespace(String uri) {
+        return uri.equals(XDT) || uri.equals(XDT200502) || uri.equals(XDT200410) || uri.equals(XDT200407);
+    }
+
     /**
      * Numeric code representing the schema namespace
      */
     public static final short XDT_CODE = 5;
-    /**
-     * Namespace name for XML Schema Datatypes: "http://www.w3.org/2001/XMLSchema-datatypes"
-     */
-    public static final String SCHEMA_DATATYPES = "http://www.w3.org/2001/XMLSchema-datatypes";
 
     /**
      * XML-schema-defined namespace for use in instance documents ("xsi")
@@ -118,12 +131,12 @@ public class NamespaceConstant {
     /**
      * The standard namespace for functions and operators
      */
-    public static final String FN = "http://www.w3.org/2005/02/xpath-functions";
+    public static final String FN = "http://www.w3.org/2005/04/xpath-functions";
 
     /**
      * The standard namespace for system error codes
      */
-    public static final String ERR = "http://www.w3.org/2005/02/xqt-errors";
+    public static final String ERR = "http://www.w3.org/2004/07/xqt-errors";
 
 
     /**
@@ -178,12 +191,12 @@ public class NamespaceConstant {
      * URI identifying the Unicode codepoint collation
      */
 
-    public static final String CodepointCollationURI = "http://www.w3.org/2005/02/xpath-functions/collation/codepoint";
+    public static final String CodepointCollationURI = "http://www.w3.org/2005/04/xpath-functions/collation/codepoint";
 
     /**
      * Private constructor: class is never instantiated
      */
-    
+
     private NamespaceConstant() {
     }
 
@@ -196,7 +209,6 @@ public class NamespaceConstant {
                 uri.equals(FN) ||
                 uri.equals(XML) ||
                 uri.equals(SCHEMA)||
-                uri.equals(SCHEMA_DATATYPES) ||
                 uri.equals(XDT) ||
                 uri.equals(SCHEMA_INSTANCE);
     }

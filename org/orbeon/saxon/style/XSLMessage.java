@@ -7,6 +7,7 @@ import net.sf.saxon.instruct.Message;
 import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.Axis;
 import net.sf.saxon.value.StringValue;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -38,7 +39,7 @@ public final class XSLMessage extends StyleElement {
         return true;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
         String terminateAtt = null;
         String selectAtt = null;
@@ -69,12 +70,12 @@ public final class XSLMessage extends StyleElement {
         if (terminate instanceof StringValue) {
             String t = ((StringValue)terminate).getStringValue();
             if (!(t.equals("yes") || t.equals("no"))) {
-                compileError("terminate must be 'yes' or 'no'", "XT0020");
+                compileError("terminate must be 'yes' or 'no'", "XTSE0020");
             }
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         if (!(getParent() instanceof XSLFunction)) {
             checkWithinTemplate();
         }
@@ -82,7 +83,7 @@ public final class XSLMessage extends StyleElement {
         terminate = typeCheck("terminate", terminate);
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {        
+    public Expression compile(Executable exec) throws XPathException {
         Expression b = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
         if (b != null) {
             if (select == null) {

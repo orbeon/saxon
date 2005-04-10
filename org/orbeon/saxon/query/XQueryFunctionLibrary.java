@@ -75,7 +75,7 @@ public class XQueryFunctionLibrary implements FunctionLibrary {
         if (functions.get(keyObj) != null) {
             StaticError err = new StaticError("Duplicate definition of function " +
                     getNamePool().getDisplayName(fp));
-            err.setErrorCode("XQ0034");
+            err.setErrorCode("XQST0034");
             throw err;
         }
         functions.put(keyObj, function);
@@ -138,29 +138,6 @@ public class XQueryFunctionLibrary implements FunctionLibrary {
      * later when bindUnboundFunctionCalls() is called.
     */
 
-//    public Expression bind(int nameCode, String uri, String local, Expression[] arguments) throws XPathException {
-//        if (allowForwardsReferences) {
-//            UserFunctionCall ufc = new UserFunctionCall();
-//            ufc.setFunctionNameCode(nameCode);
-//            ufc.setArguments(arguments);
-//            unboundFunctionCalls.add(ufc);
-//            return ufc;
-//        } else {
-//            int fp = getNamePool().allocate("", uri, local);
-//            Long keyObj = new Long(((long)arguments.length)<<32 + (long)fp);
-//            XQueryFunction f = (XQueryFunction)functions.get(keyObj);
-//            if (f != null) {
-//                UserFunctionCall ufc = new UserFunctionCall();
-//                ufc.setFunctionNameCode(nameCode);
-//                ufc.setArguments(arguments);
-//                unboundFunctionCalls.add(ufc);
-//                return ufc;
-//            } else {
-//                return null;
-//            }
-//        }
-//    }
-
     public Expression bind(int nameCode, String uri, String local, Expression[] arguments) throws XPathException {
         int fp = getNamePool().allocate("", uri, local) & 0xfffff;
         XQueryFunction fd = (XQueryFunction)functions.get(functionKey(fp, arguments.length));
@@ -211,10 +188,12 @@ public class XQueryFunctionLibrary implements FunctionLibrary {
                 ufc.setStaticType(fd.getResultType());
                 fd.registerReference(ufc);
             } else {
-                throw new StaticError("Function " +
+                StaticError err = new StaticError("Function " +
                         getNamePool().getDisplayName(ufc.getFunctionNameCode()) +
                         " has not been declared",
                         ExpressionTool.getLocator(ufc));
+                err.setErrorCode("XPST0017");
+                throw err;
             }
         }
     }
@@ -283,6 +262,20 @@ public class XQueryFunctionLibrary implements FunctionLibrary {
         return function.getUserFunction();
     }
 
+    /**
+     * This method creates a copy of a FunctionLibrary: if the original FunctionLibrary allows
+     * new functions to be added, then additions to this copy will not affect the original, or
+     * vice versa.
+     *
+     * @return a copy of this function library. This must be an instance of the original class.
+     */
+
+    public FunctionLibrary copy() {
+        XQueryFunctionLibrary qfl = new XQueryFunctionLibrary(config, allowForwardsReferences);
+        qfl.functions = new HashMap(functions);
+        qfl.unboundFunctionCalls = new ArrayList(unboundFunctionCalls);
+        return qfl;
+    }
 
 }
 

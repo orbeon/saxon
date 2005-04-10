@@ -619,7 +619,7 @@ public abstract class NodeOverNodeInfo implements Node {
         return DeepEqual.deepEquals(
                 SingletonIterator.makeIterator(node),
                 SingletonIterator.makeIterator(((NodeOverNodeInfo)arg).node),
-                new AtomicComparer(CodepointCollator.getInstance()),
+                new AtomicComparer(CodepointCollator.getInstance(), node.getConfiguration()),
                 node.getConfiguration());
     }
 

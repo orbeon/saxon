@@ -413,34 +413,38 @@ public abstract class TinyNodeImpl implements NodeInfo, FingerprintedNode, Sourc
      */
 
     public NodeInfo getParent()  {
-
-        if (tree.depth[nodeNr] == 0) {
-            parent = null;
-            return null;
-        }
-
         if (parent != null) {
             return parent;
         }
+        int p = getParentNodeNr(tree, nodeNr);
+        if (p == -1) {
+            parent = null;
+        } else {
+            parent = tree.getNode(p);
+        }
+        return parent;
+    }
 
-        /*
-        * Following code to create/use owner pointers works, but doesn't
-        * appear to give a performance improvement
-            // if parent is unknown, use the parent index
-            if (document.parentIndex == null) {
-                document.makeParentIndex();
-            }
-            parent = document.getNode(document.parentIndex[nodeNr]);
-            return parent;
-        */
+    /**
+     * Static method to get the parent of a given node, without instantiating the node as an object.
+     * The starting node is any node other than an attribute or namespace node.
+     * @param tree the tree containing the starting node
+     * @param nodeNr the node number of the starting node within the tree
+     * @return the node number of the parent node, or -1 if there is no parent.
+     */
 
-        // if parent is unknown, follow the next-sibling pointers until we reach a backwards pointer
+    static final int getParentNodeNr(TinyTree tree, int nodeNr) {
+
+        if (tree.depth[nodeNr] == 0) {
+            return -1;
+        }
+
+        // follow the next-sibling pointers until we reach a backwards pointer
         int p = tree.next[nodeNr];
         while (p > nodeNr) {
             p = tree.next[p];
         }
-        parent = tree.getNode(p);
-        return parent;
+        return p;
     }
 
     /**
@@ -471,7 +475,13 @@ public abstract class TinyNodeImpl implements NodeInfo, FingerprintedNode, Sourc
     */
 
     public NodeInfo getRoot() {
-        return tree.getNode(0);
+        if (tree.depth[nodeNr] == 0) {
+            return this;
+        }
+        if (parent != null) {
+            return parent.getRoot();
+        }
+        return tree.getNode(tree.getRootNode(nodeNr));
     }
 
     /**
@@ -552,7 +562,7 @@ public abstract class TinyNodeImpl implements NodeInfo, FingerprintedNode, Sourc
      * (Needed when the document isn't a real node, for sorting free-standing elements)
      */
 
-    public int getDocumentNumber() {
+    public final int getDocumentNumber() {
         return tree.getDocumentNumber();
     }
 

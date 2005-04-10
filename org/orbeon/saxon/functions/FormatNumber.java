@@ -93,7 +93,7 @@ public class FormatNumber extends SystemFunction implements XSLTFunction {
                 if (!Name.isQName(qname)) {
                     DynamicError e = new DynamicError("Decimal format name '" + qname + "' is not a valid QName");
                     e.setXPathContext(context);
-                    e.setErrorCode("XT1280");
+                    e.setErrorCode("XTDE1280");
                     throw e;
                 }
                 try {
@@ -103,11 +103,11 @@ public class FormatNumber extends SystemFunction implements XSLTFunction {
                     if (uri==null) {
                         DynamicError e = new DynamicError("Namespace prefix '" + parts[0] + "' has not been defined");
                         e.setXPathContext(context);
-                        e.setErrorCode("XT1280");
+                        e.setErrorCode("XTDE1280");
                         throw e;
                     }
                 } catch (QNameException e) {
-                    dynamicError("Invalid decimal format name. " + e.getMessage(), "XT1280", context);
+                    dynamicError("Invalid decimal format name. " + e.getMessage(), "XTDE1280", context);
                 }
             }
             dfs = dfm.getNamedDecimalFormat(uri, localName);
@@ -115,7 +115,7 @@ public class FormatNumber extends SystemFunction implements XSLTFunction {
                 DynamicError e = new DynamicError(
                     "format-number function: decimal-format '" + localName + "' is not defined");
                 e.setXPathContext(context);
-                e.setErrorCode("XT1280");
+                e.setErrorCode("XTDE1280");
                 throw e;
             }
         }
@@ -153,7 +153,7 @@ public class FormatNumber extends SystemFunction implements XSLTFunction {
         } catch (Exception err) {
             DynamicError e = new DynamicError("Unable to interpret format pattern " + format + "(" + err + ")");
             e.setXPathContext(context);
-            e.setErrorCode("XT1310");
+            e.setErrorCode("XTDE1310");
             throw e;
         }
     }

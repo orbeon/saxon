@@ -2,6 +2,7 @@ package net.sf.saxon.expr;
 
 import net.sf.saxon.om.NamePool;
 
+import javax.xml.transform.SourceLocator;
 import java.io.Serializable;
 
 /**
@@ -16,7 +17,8 @@ public class RoleLocator implements Serializable {
     private Object container;
     private int operand;
     private NamePool namePool;
-    private String errorCode = "XP0006";  // default error code for type errors
+    private String errorCode = "XPTY0004";  // default error code for type errors
+    private SourceLocator sourceLocator;
 
     public static final int FUNCTION = 0;
     public static final int BINARY_EXPR = 1;
@@ -62,6 +64,27 @@ public class RoleLocator implements Serializable {
 
     public String getErrorCode() {
         return errorCode;
+    }
+
+    /**
+     * Set the source location
+     */
+
+    public void setSourceLocator(SourceLocator locator) {
+        // this is currently used only when type-checking literals,
+        // which don't have any location information of their own
+        // TODO: the value isn't saved because the locator is often an expression that
+        // contains links back to the containing stylesheet, which causes the stylesheet
+        // to remain in memory at run-time (and prevents stylesheet compilation)
+        //this.sourceLocator = locator;
+    }
+
+    /**
+     * Get the source location (if known - return null if not known)
+     */
+
+    public SourceLocator getSourceLocator() {
+        return sourceLocator;
     }
 
     /**

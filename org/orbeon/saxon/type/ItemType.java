@@ -30,6 +30,11 @@ public interface ItemType {
      * is the supertype in the XPath type heirarchy, as distinct from the Schema
      * base type: this means that the supertype of xs:boolean is xdt:anyAtomicType,
      * whose supertype is item() (rather than xs:anySimpleType).
+     * <p>
+     * In fact the concept of "supertype" is not really well-defined, because the types
+     * form a lattice rather than a hierarchy. The only real requirement on this function
+     * is that it returns a type that strictly subsumes this type, ideally as narrowly
+     * as possible.
      * @return the supertype, or null if this type is item()
      */
 

@@ -119,6 +119,9 @@ public class Block extends Instruction {
         int c1 = children[0].getCardinality();
         for (int i=1; i<children.length; i++) {
             c1 = Cardinality.add(c1, children[i].getCardinality());
+            if (c1 == StaticProperty.ALLOWS_ZERO_OR_MORE) {
+                break;
+            }
         }
         return c1;
     }
@@ -153,11 +156,17 @@ public class Block extends Instruction {
 
     public Expression simplify(StaticContext env) throws XPathException {
         boolean allAtomic = true;
+        boolean nested = false;
         if (children != null) {
             for (int c=0; c<children.length; c++) {
                 children[c] = children[c].simplify(env);
                 if (!(children[c] instanceof Item)) {
                     allAtomic = false;
+                }
+                if (children[c] instanceof Block) {
+                    nested = true;
+                } else if (children[c] instanceof EmptySequence) {
+                    nested = true;
                 }
             }
             if (children.length == 1) {
@@ -165,6 +174,15 @@ public class Block extends Instruction {
             }
             if (children.length == 0) {
                 return EmptySequence.getInstance();
+            }
+            if (nested) {
+                List list = new ArrayList(children.length*2);
+                flatten(list);
+                children = new Expression[list.size()];
+                for (int i=0; i<children.length; i++) {
+                    children[i] = (Expression)list.get(i);
+                    adoptChildExpression(children[i]);
+                }
             }
             if (allAtomic) {
                 Item[] values = new Item[children.length];
@@ -178,6 +196,18 @@ public class Block extends Instruction {
         }
 
         return this;
+    }
+
+    private void flatten(List list) {
+        for (int i=0; i<children.length; i++) {
+            if (children[i] instanceof Block) {
+                ((Block)children[i]).flatten(list);
+            } else if (children[i] instanceof EmptySequence) {
+                // no-op
+            } else {
+                list.add(children[i]);
+            }
+        }
     }
     /**
      * Perform static analysis of an expression and its subexpressions.
@@ -200,12 +230,33 @@ public class Block extends Instruction {
      */
 
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
+        boolean nested = false;
         if (children != null) {
             for (int c=0; c<children.length; c++) {
                 children[c] = children[c].analyze(env, contextItemType);
+                if (children[c] instanceof Block) {
+                    nested = true;
+                } else if (children[c] instanceof EmptySequence) {
+                    nested = true;
+                }
             }
         }
-        return this;
+        if (nested) {
+            List list = new ArrayList(children.length*2);
+            flatten(list);
+            children = new Expression[list.size()];
+            for (int i=0; i<children.length; i++) {
+                children[i] = (Expression)list.get(i);
+                adoptChildExpression(children[i]);
+            }
+        }
+        if (children.length == 0) {
+            return EmptySequence.getInstance();
+        } else if (children.length == 1) {
+            return children[0];
+        } else {
+            return this;
+        }
     }
 
 
@@ -344,6 +395,9 @@ public class Block extends Instruction {
          */
 
         public Item next() throws XPathException {
+            if (position < 0) {
+                return null;
+            }
             while (true) {
                 if (child == null) {
                     child = children[i++].iterate(context);
@@ -355,6 +409,8 @@ public class Block extends Instruction {
                 }
                 child = null;
                 if (i >= children.length) {
+                    current = null;
+                    position = -1;
                     return null;
                 }
             }

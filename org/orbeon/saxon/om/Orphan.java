@@ -15,7 +15,7 @@ import net.sf.saxon.value.UntypedAtomicValue;
   * @author Michael H. Kay
   */
 
-public final class Orphan implements NodeInfo {
+public final class Orphan implements NodeInfo, FingerprintedNode {
 
     private short kind;
     private int nameCode = -1;
@@ -83,7 +83,7 @@ public final class Orphan implements NodeInfo {
 
     public Configuration getConfiguration() {
         return config;
-    }    
+    }
 
     /**
      * Get the name pool
@@ -370,9 +370,8 @@ public final class Orphan implements NodeInfo {
     }
 
     /**
-    * Determine whether the node has any children. <br />
-    * Note: the result is equivalent to <br />
-    * getEnumeration(Axis.CHILD, AnyNodeTest.getInstance()).hasNext()
+    * Determine whether the node has any children.
+    * @return false - an orphan node never has any children
     */
 
     public boolean hasChildNodes() {

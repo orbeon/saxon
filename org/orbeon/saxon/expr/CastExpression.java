@@ -2,13 +2,12 @@ package net.sf.saxon.expr;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.StaticError;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
-import net.sf.saxon.value.AtomicValue;
-import net.sf.saxon.value.ErrorValue;
-import net.sf.saxon.value.SequenceType;
+import net.sf.saxon.value.*;
 
 /**
 * Cast Expression: implements "cast as data-type ( expression )". It also allows an internal
@@ -23,14 +22,28 @@ public final class CastExpression extends UnaryExpression  {
     private boolean allowEmpty = false;
     private boolean derived = false;
 
+
+
     public CastExpression(Expression source, AtomicType target, boolean allowEmpty) {
         super(source);
         this.allowEmpty = allowEmpty;
-        targetType = target;        
+        targetType = target;
         targetPrimitiveType = (AtomicType)target.getPrimitiveItemType();
         derived = (targetType.getFingerprint() != targetPrimitiveType.getFingerprint());
         adoptChildExpression(source);
     }
+
+    /**
+     * Handle a cast to QName or NOTATION. The argument must be a string literal.
+     */
+
+    public AtomicValue doQNameCast(StaticContext env) throws XPathException {
+        if (!(operand instanceof StringValue)) {
+            throw new StaticError("The argument of a QName or NOTATION constructor must be a string literal");
+        }
+        return QNameValue.castToQName((StringValue)operand, targetType, env);
+    }
+
 
     /**
     * Simplify the expression
@@ -54,6 +67,7 @@ public final class CastExpression extends UnaryExpression  {
         SequenceType atomicType = SequenceType.makeSequenceType(Type.ANY_ATOMIC_TYPE, getCardinality());
 
         RoleLocator role = new RoleLocator(RoleLocator.TYPE_OP, "cast as", 0, null);
+        role.setSourceLocator(this);
         operand = TypeChecker.staticTypeCheck(operand, atomicType, false, role, env);
 
         if (Type.isSubType(operand.getItemType(), targetType)) {
@@ -113,15 +127,15 @@ public final class CastExpression extends UnaryExpression  {
             }
         }
         AtomicValue result = value.convert(targetPrimitiveType, context, true);
-        if (result instanceof ErrorValue) {
-            XPathException err = ((ErrorValue)result).getException();
+        if (result instanceof ValidationErrorValue) {
+            XPathException err = ((ValidationErrorValue)result).getException();
             String code = err.getErrorCodeLocalPart();
             dynamicError(err.getMessage(), code, context);
         }
         if (derived) {
             result = result.convert(targetType, context, true);
-            if (result instanceof ErrorValue) {
-                XPathException err = ((ErrorValue)result).getException();
+            if (result instanceof ValidationErrorValue) {
+                XPathException err = ((ValidationErrorValue)result).getException();
                 String code = err.getErrorCodeLocalPart();
                 dynamicError(err.getMessage(), code, context);
             }

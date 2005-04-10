@@ -6,6 +6,7 @@ import net.sf.saxon.trans.DynamicError;
 import java.io.Serializable;
 import java.util.StringTokenizer;
 import java.util.WeakHashMap;
+import java.util.Iterator;
 
 /**
  * An object representing a collection of XML names, each containing a Namespace URI,
@@ -69,11 +70,8 @@ public class NamePool implements Serializable {
     private static NamePool defaultNamePool = new NamePool();
 
     // The documentNumberMap associates a unique number with each loaded document. It is defined
-    // as a WeakHashMap so that it does not lock the documents in memory. Until Saxon 7.1, this
-    // information was held in the DocumentPool. It has been moved into the NamePool to allow
-    // multiple documents to be handled in a free-standing XPath environment, that is, in the
-    // absence of a Controller. Because a Document has a link to its NamePool, functions such
-    // as generate-id() can now operate in the absence of a Controller.
+    // as a WeakHashMap so that it does not lock the documents in memory. The key of the hashmap
+    // is the root node of the tree; the value is the document number.
 
     private transient WeakHashMap documentNumberMap = new WeakHashMap(10);
     private int numberOfDocuments = 0;
@@ -174,6 +172,27 @@ public class NamePool implements Serializable {
             documentNumberMap.put(doc, new Integer(next));
             return next;
         }
+    }
+
+    /**
+     * For a document node in a third-party object model, get the DocumentInfo object that
+     * wraps this document node, if there is one.
+     * @param wrappedNode the root of a tree in a third-party object model (e.g. DOM, JDOM, XOM)
+     * that has been wrapped by a VirtualNode
+     * @return the VirtualNode that wraps this object, if there is one; otherwise null.
+     */
+
+    public VirtualNode getDocumentWrapper(Object wrappedNode) {
+        Iterator docs = documentNumberMap.keySet().iterator();
+        while (docs.hasNext()) {
+            NodeInfo root = (NodeInfo)docs.next();
+            if (root instanceof VirtualNode) {
+                if (((VirtualNode)root).getUnderlyingNode() == wrappedNode) {
+                    return (VirtualNode)root;
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -880,6 +899,26 @@ public class NamePool implements Serializable {
             System.err.println("URI " + u + " = " + uris[u]);
             System.err.println("Prefixes for URI " + u + " = " + prefixesForUri[u]);
         }
+    }
+
+    /**
+     * Statistics summarizing the namepool contents.
+     * This method outputs summary statistical information to System.err
+     */
+
+    public synchronized void statistics() {
+        int slots = 0;
+        int entries = 0;
+        for (int i = 0; i < 1024; i++) {
+            NameEntry entry = hashslots[i];
+            if (entry != null) slots++;
+            while (entry != null) {
+                entry = entry.nextEntry;
+                entries++;
+            }
+        }
+        System.err.println("NamePool contents: " + entries + " entries in " + slots + " chains. " +
+                 + prefixesUsed + " prefixes, " + urisUsed + " URIs");
     }
 
 

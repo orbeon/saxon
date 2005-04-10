@@ -15,12 +15,7 @@ import net.sf.saxon.value.Cardinality;
 import net.sf.saxon.value.StringValue;
 
 
-public class Idref extends SystemFunction implements MappingFunction {
-
-    private class KeyContextInfo {
-        public DocumentInfo document;
-        public XPathContext context;
-    }
+public class Idref extends SystemFunction {
 
     /**
     * Simplify: add a second implicit argument, the context document
@@ -85,7 +80,15 @@ public class Idref extends SystemFunction implements MappingFunction {
         // in the sequence.
 
         Expression expression = argument[0];
-        if (!Cardinality.allowsMany(expression.getCardinality())) {
+        if (Cardinality.allowsMany(expression.getCardinality())) {
+            IdrefMappingFunction map = new IdrefMappingFunction();
+            map.document = doc;
+            map.keyContext = context;
+
+            SequenceIterator keys = argument[0].iterate(context);
+            SequenceIterator allValues = new MappingIterator(keys, map, null);
+            return new DocumentOrderIterator(allValues, LocalOrderComparer.getInstance());
+        } else {
             AtomicValue keyValue = (AtomicValue)argument[0].evaluateItem(context);
             if (keyValue == null) {
                 return EmptyIterator.getInstance();
@@ -93,42 +96,32 @@ public class Idref extends SystemFunction implements MappingFunction {
             KeyManager keyManager = controller.getKeyManager();
             return keyManager.selectByKey(fprint, doc, keyValue, context);
 
-        } else {
-            KeyContextInfo info = new KeyContextInfo();
-            info.document = doc;
-            info.context = context;
-
-            SequenceIterator keys = argument[0].iterate(context);
-            SequenceIterator allValues = new MappingIterator(keys, this, null, info);
-            return new DocumentOrderIterator(allValues, LocalOrderComparer.getInstance());
         }
     }
 
+    private static class IdrefMappingFunction implements MappingFunction {
+        public DocumentInfo document;
+        public XPathContext keyContext;
 
+        /**
+        * Implement the MappingFunction interface
+        */
 
-    /**
-    * Implement the MappingFunction interface
-    */
+        public Object map(Item item, XPathContext context) throws XPathException {
+            KeyManager keyManager = keyContext.getController().getKeyManager();
+            AtomicValue keyValue;
+            if (item instanceof AtomicValue) {
+                keyValue = (AtomicValue)item;
+            } else {
+                keyValue = new StringValue(item.getStringValue());
+            }
+            return keyManager.selectByKey(
+                    StandardNames.XS_IDREFS, document, keyValue, keyContext);
 
-    public Object map(Item item, XPathContext context, Object info) throws XPathException {
-        KeyContextInfo k = (KeyContextInfo)info;
-        KeyManager keyManager = k.context.getController().getKeyManager();
-        AtomicValue keyValue;
-        if (item instanceof AtomicValue) {
-            keyValue = (AtomicValue)item;
-        } else {
-            keyValue = new StringValue(item.getStringValue());
         }
-        return keyManager.selectByKey(
-                StandardNames.XS_IDREFS, k.document, keyValue, k.context);
-
     }
 
 }
-
-
-
-
 
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");

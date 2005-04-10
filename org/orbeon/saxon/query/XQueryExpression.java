@@ -2,13 +2,18 @@ package net.sf.saxon.query;
 
 import net.sf.saxon.Configuration;
 import net.sf.saxon.Controller;
-import net.sf.saxon.event.SaxonOutputKeys;
+import net.sf.saxon.event.*;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.*;
+import net.sf.saxon.pull.PullFromIterator;
+import net.sf.saxon.pull.PullNamespaceReducer;
+import net.sf.saxon.pull.PullProvider;
+import net.sf.saxon.pull.PullPushCopier;
 import net.sf.saxon.trace.TraceListener;
 import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.trans.UncheckedXPathException;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.Value;
 
@@ -32,6 +37,7 @@ public class XQueryExpression implements Container {
     private Expression expression;
     private SlotManager stackFrameMap;
     private Executable executable;
+    private StaticQueryContext staticContext;
 
     // The documentInstruction is a document{...} wrapper around the expression as written by the user
     private DocumentInstr documentInstruction;
@@ -66,6 +72,7 @@ public class XQueryExpression implements Container {
         executable.setConfiguration(config);
         executable.setDefaultCollationName(staticEnv.getDefaultCollationName());
         executable.setCollationTable(staticEnv.getAllCollations());
+        staticContext = staticEnv;
 
     }
 
@@ -76,6 +83,16 @@ public class XQueryExpression implements Container {
 
     public Expression getExpression() {
         return expression;
+    }
+
+    /**
+     * Get the static context in which this expression was compiled. Note, this will be an internal
+     * copy of the original user-created StaticQueryContext object. The user-created object is not modified
+     * by Saxon, whereas the copy includes additional information found in the query prolog.
+     * @return the internal copy of the StaticQueryContext
+     */
+    public StaticQueryContext getStaticContext() {
+        return staticContext;
     }
 
     protected void setDocumentInstruction(DocumentInstr doc) {
@@ -154,11 +171,12 @@ public class XQueryExpression implements Container {
 
         try {
             NodeInfo node = env.getContextNode();
- 
+
             Bindery bindery = controller.getBindery();
             //bindery.openStackFrame();
             controller.defineGlobalParameters(bindery);
             XPathContextMajor context = controller.newXPathContext();
+            //context.setLazyConstructionMode(true);
 
             // In tracing/debugging mode, evaluate all the global variables first
             if (controller.getConfiguration().getTraceListener() != null) {
@@ -167,9 +185,11 @@ public class XQueryExpression implements Container {
 
             context.openStackFrame(stackFrameMap);
             if (node != null) {
-                context.setCurrentIterator(SingletonIterator.makeIterator(node));
+                AxisIterator single = SingletonIterator.makeIterator(node);
+                single.next();
+                context.setCurrentIterator(single);
                 controller.setPrincipalSourceDocument(node.getDocumentRoot());
-            }            
+            }
             SequenceIterator iterator = expression.iterate(context);
             return new ErrorReportingIterator(iterator, controller.getErrorListener());
         } catch (XPathException err) {
@@ -249,7 +269,7 @@ public class XQueryExpression implements Container {
 
         Bindery bindery = controller.getBindery();
         controller.defineGlobalParameters(bindery);
-        
+
         XPathContextMajor context = controller.newXPathContext();
 
         // In tracing/debugging mode, evaluate all the global variables first
@@ -261,10 +281,12 @@ public class XQueryExpression implements Container {
 
         context.openStackFrame(stackFrameMap);
         if (node != null) {
-            context.setCurrentIterator(SingletonIterator.makeIterator(node));
+            AxisIterator single = SingletonIterator.makeIterator(node);
+            context.setCurrentIterator(single);
+            single.next();
             controller.setPrincipalSourceDocument(node.getDocumentRoot());
-        }        
-        
+        }
+
         boolean mustClose = (result instanceof StreamResult &&
             ((StreamResult)result).getOutputStream() == null);
         context.changeOutputDestination(baseProperties, result, true, Validation.PRESERVE, null);
@@ -305,6 +327,37 @@ public class XQueryExpression implements Container {
     }
 
     /**
+     * Run the query in pull mode.
+     * <p>
+     * For maximum effect this method should be used when lazyConstructionMode has been set in the Configuration.
+     * @see Configuration#setLazyConstructionMode(boolean)
+     */
+
+    public void pull(DynamicQueryContext dynamicEnv, Result destination, Properties outputProperties) throws XPathException {
+        try {
+            SequenceIterator iter = iterator(dynamicEnv);
+            PullProvider pull = new PullFromIterator(iter);
+            pull = new PullNamespaceReducer(pull);
+            pull.setPipelineConfiguration(executable.getConfiguration().makePipelineConfiguration());
+
+            Receiver receiver =
+                    ResultWrapper.getReceiver(destination,
+                                              pull.getPipelineConfiguration(),
+                                              outputProperties);
+            //pull = new PullTracer(pull);
+            if ("yes".equals(outputProperties.getProperty(SaxonOutputKeys.WRAP))) {
+                NamespaceReducer reducer = new NamespaceReducer();
+                reducer.setPipelineConfiguration(pull.getPipelineConfiguration());
+                reducer.setUnderlyingReceiver(receiver);
+                receiver = new SequenceWrapper(reducer);
+            }
+            new PullPushCopier(pull, receiver).copy();
+        } catch (UncheckedXPathException e) {
+            throw e.getXPathException();
+        }
+    }
+
+    /**
      * Get a controller that can be used to execute functions in this compiled query.
      * Functions in the query module can be found using {@link StaticQueryContext#getUserDefinedFunction}.
      * They can then be called directly from the Java application using {@link net.sf.saxon.instruct.UserFunction#call}
@@ -312,8 +365,7 @@ public class XQueryExpression implements Container {
      */
 
     public Controller getController() {
-        Controller controller = new Controller(executable.getConfiguration());
-        controller.setExecutable(executable);
+        Controller controller = new Controller(executable.getConfiguration(), executable);
         executable.initialiseBindery(controller.getBindery());
         return controller;
     }
@@ -335,6 +387,14 @@ public class XQueryExpression implements Container {
 
     public Executable getExecutable() {
         return executable;
+    }
+
+    /**
+     * Get the LocationProvider allowing location identifiers to be resolved.
+     */
+
+    public LocationProvider getLocationProvider() {
+        return executable.getLocationMap();
     }
 
     /**
@@ -413,7 +473,7 @@ public class XQueryExpression implements Container {
      * any exceptions that are raised to the ErrorListener
      */
 
-    private static class ErrorReportingIterator implements SequenceIterator {
+    private class ErrorReportingIterator implements SequenceIterator {
         private SequenceIterator base;
         private ErrorListener listener;
 
@@ -426,6 +486,9 @@ public class XQueryExpression implements Container {
             try {
                 return base.next();
             } catch (XPathException e1) {
+                if (e1.getLocator() == null) {
+                    e1.setLocator(ExpressionTool.getLocator(expression));
+                }
                 try {
                     listener.fatalError(e1);
                 } catch (TransformerException e2) {}
@@ -462,6 +525,6 @@ public class XQueryExpression implements Container {
 //
 // The Initial Developer of the Original Code is Michael H. Kay
 //
-// Contributor(s): 
+// Contributor(s):
 //
 

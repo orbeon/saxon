@@ -50,6 +50,7 @@ final class FollowingEnumeration extends AxisIteratorImpl {
                     nodeNr++;
                     if (tree.depth[nodeNr] == 0) {
                         current = null;
+                        position = -1;
                         return null;
                     }
                 } while (tree.depth[nodeNr] > depth);
@@ -61,6 +62,7 @@ final class FollowingEnumeration extends AxisIteratorImpl {
         while (true) {
             if (tree.depth[nodeNr] == 0) {
                 current = null;
+                position = -1;
                 return null;
             }
             if (test.matches(tree.nodeKind[nodeNr], tree.nameCode[nodeNr],

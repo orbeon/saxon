@@ -4,6 +4,7 @@ import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.FastStringBuffer;
 import net.sf.saxon.om.XMLChar;
 import net.sf.saxon.type.*;
+import net.sf.saxon.ConversionContext;
 
 
 /**
@@ -40,7 +41,7 @@ public final class RestrictedStringValue extends StringValue {
                 if (err == null) {
                     return rsv;
                 } else {
-                    return new ErrorValue(err);
+                    return new ValidationErrorValue(err);
                 }
             } else {
                 return rsv;
@@ -122,17 +123,18 @@ public final class RestrictedStringValue extends StringValue {
     /**
      * Convert to target data type
      * @param requiredType an integer identifying the required atomic type
+     * @param conversion
      * @return an AtomicValue, a value of the required type; or an ErrorValue
      */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, ConversionContext conversion) {
         int req = requiredType.getPrimitiveType();
         if (req == Type.STRING) {
             return new StringValue(value);
         } else if (req == Type.UNTYPED_ATOMIC) {
             return new UntypedAtomicValue(value);
         } else {
-            return super.convertPrimitive(requiredType, validate);
+            return super.convertPrimitive(requiredType, validate, conversion);
         }
     }
 

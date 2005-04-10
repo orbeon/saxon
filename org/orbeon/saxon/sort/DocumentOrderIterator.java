@@ -69,6 +69,8 @@ public final class DocumentOrderIterator implements SequenceIterator, Sortable {
         while (true) {
             NodeInfo next = (NodeInfo)iterator.next();
             if (next == null) {
+                current = null;
+                position = -1;
                 return null;
             }
             if (current != null && next.isSameNodeInfo(current)) {

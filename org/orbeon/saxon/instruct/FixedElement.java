@@ -34,20 +34,16 @@ public class FixedElement extends ElementCreator {
      * @param nameCode Represents the name of the element node
      * @param namespaceCodes List of namespaces to be added to the element node.
      *                       May be null if none are required.
-     * @param useAttributeSets Array of attribute sets to be expanded. May be null
-     *                       if none are required.
      * @param inheritNamespaces true if the children of this element are to inherit its namespaces
      * @param schemaType Type annotation for the new element node
      */
-    public FixedElement( int nameCode,
-                         int[] namespaceCodes,
-                         AttributeSet[] useAttributeSets,
-                         boolean inheritNamespaces,
-                         SchemaType schemaType,
-                         int validation) {
+    public FixedElement(int nameCode,
+                        int[] namespaceCodes,
+                        boolean inheritNamespaces,
+                        SchemaType schemaType,
+                        int validation) {
         this.nameCode = nameCode;
         this.namespaceCodes = namespaceCodes;
-        this.useAttributeSets = useAttributeSets;
         this.inheritNamespaces = inheritNamespaces;
         this.schemaType = schemaType;
         this.validation = validation;
@@ -70,6 +66,7 @@ public class FixedElement extends ElementCreator {
      */
 
     public Expression simplify(StaticContext env) throws XPathException {
+        setLazyConstruction(env.getConfiguration().isLazyConstructionMode());
         if (schemaType == null) {
             if (validation == Validation.STRICT) {
                 SchemaDeclaration decl = env.getConfiguration().getElementDeclaration(nameCode & 0xfffff);
@@ -156,7 +153,9 @@ public class FixedElement extends ElementCreator {
                 throw e;
             }
         }
-        return super.analyze(env, contextItemType);
+        Expression res = super.analyze(env, contextItemType);
+        verifyLazyConstruction();
+        return res;
     }
 
     /**
@@ -177,7 +176,7 @@ public class FixedElement extends ElementCreator {
      * @return the name code for the element name
      */
 
-    protected int getNameCode(XPathContext context) {
+    public int getNameCode(XPathContext context) {
         return nameCode;
     }
 
@@ -210,11 +209,21 @@ public class FixedElement extends ElementCreator {
             throw new StaticError(e);
         }
         if (type == null) {
-            StaticError err = new StaticError("Element " + env.getNamePool().getDisplayName(nameCode) +
-                    " is not permitted in the content model of the complex type " + parentType.getDescription());
-            err.setIsTypeError(true);
-            err.setLocator(this);
-            throw err;
+            if (parentType.allowsDerivation(SchemaType.DERIVATION_EXTENSION)) {
+                // TODO: identify other cases where this can be a hard compile-time error
+                env.issueWarning("Element " + env.getNamePool().getDisplayName(nameCode) +
+                        " is not permitted in the content model of the complex type " +
+                        parentType.getDescription() +
+                        ". Validation will fail unless there is an extended type that permits this element", this);
+                return;
+            } else {
+                StaticError err = new StaticError("Element " + env.getNamePool().getDisplayName(nameCode) +
+                    " is not permitted in the content model of the complex type " +
+                    parentType.getDescription());
+                err.setIsTypeError(true);
+                err.setLocator(this);
+                throw err;
+            }
         }
         if (type instanceof AnyType) {
             return;
@@ -243,6 +252,16 @@ public class FixedElement extends ElementCreator {
                 out.namespace(namespaceCodes[i], 0);
             }
         }
+    }
+
+    /**
+     * Callback to get a list of the intrinsic namespaces that need to be generated for the element.
+     * The result is an array of namespace codes, the codes either occupy the whole array or are
+     * terminated by a -1 entry. A result of null is equivalent to a zero-length array.
+     */
+
+    public int[] getActiveNamespaces() throws XPathException {
+        return namespaceCodes;
     }
 
     /**

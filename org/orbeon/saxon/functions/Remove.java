@@ -90,7 +90,9 @@ public class Remove extends SystemFunction {
             if (current != null && base.position() == removePosition) {
                 current = base.next();
             }
-            if (current != null) {
+            if (current == null) {
+                position = -1;
+            } else {
                 position++;
             }
             return current;

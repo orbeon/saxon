@@ -111,7 +111,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
         if (error instanceof TerminationException) return error;
         if (error.getLocator()==null ||
                 (error.getLocator() instanceof ExpressionLocation &&
-                        context.getController().getConfiguration().getHostLanguage() != Configuration.XQUERY) ||
+                        context.getController().getExecutable().getHostLanguage() != Configuration.XQUERY) ||
                 error.getLocator().getLineNumber()==-1) {
             // If the exception has no location information, construct a new
             // exception containing the required information
@@ -153,7 +153,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
      */
 
     protected static ParameterSet assembleParams(XPathContext context,
-                                          WithParam[] actualParams)
+                                                 WithParam[] actualParams)
     throws XPathException {
         if (actualParams == null || actualParams.length == 0) {
             return null;
@@ -172,7 +172,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
      */
 
     protected static ParameterSet assembleTunnelParams(XPathContext context,
-                                          WithParam[] actualParams)
+                                                       WithParam[] actualParams)
     throws XPathException {
         ParameterSet existingParams = context.getTunnelParameters();
         if (existingParams == null) {
@@ -445,7 +445,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
      * @return true for XSLT, false for XQuery
      */
     public boolean isXSLT(XPathContext context) {
-        return context.getController().getConfiguration().getHostLanguage() == Configuration.XSLT;
+        return context.getController().getExecutable().getHostLanguage() == Configuration.XSLT;
     }
 }
 

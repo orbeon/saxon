@@ -9,7 +9,6 @@ import net.sf.saxon.om.Navigator;
 import net.sf.saxon.om.Orphan;
 import net.sf.saxon.pattern.NodeKindTest;
 import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.StaticError;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.*;
@@ -117,7 +116,7 @@ public final class ValueOf extends SimpleNodeConstructor {
              }
              if (whole && stype != null && !stype.isNamespaceSensitive()) {
                         // Can't validate namespace-sensitive content statically
-                 XPathException err = stype.validateContent(((Value)select).getStringValue(), null);
+                 XPathException err = stype.validateContent(((Value)select).getStringValue(), null, env.getConfiguration());
                  if (err != null) {
                      err.setLocator(this);
                      throw err;
@@ -154,7 +153,10 @@ public final class ValueOf extends SimpleNodeConstructor {
             o.setStringValue(val);
             return o;
         } catch (XPathException err) {
-            throw new DynamicError(err);
+            if (err.getLocator() == null) {
+                err.setLocator(this);
+            }
+            throw err;
         }
     }
 

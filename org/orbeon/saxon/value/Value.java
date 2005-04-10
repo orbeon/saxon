@@ -1,7 +1,6 @@
 package net.sf.saxon.value;
 import net.sf.saxon.Configuration;
 import net.sf.saxon.Controller;
-import net.sf.saxon.Loader;
 import net.sf.saxon.event.Builder;
 import net.sf.saxon.event.PipelineConfiguration;
 import net.sf.saxon.event.Sender;
@@ -517,6 +516,17 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
     }
 
     /**
+     * Reduce a value to its simplest form. If the value is a closure or some other form of deferred value
+     * such as a FunctionCallPackage, then it is reduced to a SequenceExtent. If it is a SequenceExtent containing
+     * a single item, then it is reduced to that item. One consequence that is exploited by class FilterExpression
+     * is that if the value is a singleton numeric value, then the result will be an instance of NumericValue
+     */
+
+    public Value reduce() throws XPathException {
+        return this;
+    }
+
+    /**
      * Convert to Java object (for passing to external functions)
      */
 
@@ -829,7 +839,7 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
 //            return new QNameValue((QName)object);
             // TODO: reinstate above lines in JDK 1.5
         } else if (object.getClass().getName().equals("javax.xml.namespace.QName")) {
-            return makeQNameValue(object);
+            return makeQNameValue(object, config);
 
         } else if (object instanceof URI) {
             return new AnyURIValue(object.toString());
@@ -970,12 +980,14 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
     /**
      * Temporary method to make a QNameValue from a JAXP 1.3 QName, without creating a compile-time link
      * to the JDK 1.5 QName class
+     * @param object an instance of javax.xml.namespace.QName
+     * @return a corresponding Saxon QNameValue, or null if any error occurs performing the conversion
      */
 
-    public static QNameValue makeQNameValue(Object object) {
+    public static QNameValue makeQNameValue(Object object, Configuration config) {
         try {
-            Class qnameClass = Loader.getClass("javax.xml.namespace.QName", false);
-            Class[] args = new Class[0];
+            Class qnameClass = config.getClass("javax.xml.namespace.QName", false, null);
+            Class[] args = EMPTY_CLASS_ARRAY;
             Method getPrefix = qnameClass.getMethod("getPrefix", args);
             Method getLocalPart = qnameClass.getMethod("getLocalPart", args);
             Method getNamespaceURI = qnameClass.getMethod("getNamespaceURI", args);
@@ -993,6 +1005,8 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
             return null;
         }
     }
+
+    public static final Class[] EMPTY_CLASS_ARRAY = new Class[0];
 
     /**
      * Convert to a string for diagnostic output

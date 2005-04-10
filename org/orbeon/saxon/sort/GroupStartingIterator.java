@@ -74,6 +74,8 @@ public class GroupStartingIterator implements GroupIterator {
              advance();
              return current;
          } else {
+             current = null;
+             position = -1;
              return null;
          }
      }

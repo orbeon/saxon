@@ -67,12 +67,12 @@ public class ResolveURI extends SystemFunction {
                     "FORG0002", context);
             return null;
         }
-        if (!baseURI.isAbsolute()) {
-            // TODO: this rule has been removed from the spec
-            dynamicError("Base URI " + Err.wrap(base) + " is not an absolute URI",
-                    "FORG0009", context);
-            return null;
-        }
+//        if (!baseURI.isAbsolute()) {
+//            // this rule has been removed from the spec (April 2005)
+//            dynamicError("Base URI " + Err.wrap(base) + " is not an absolute URI",
+//                    "FORG0009", context);
+//            return null;
+//        }
         URI resolvedURI = baseURI.resolve(relativeURI);
         return new AnyURIValue(resolvedURI.toString());
     }

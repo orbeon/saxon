@@ -12,7 +12,7 @@ import net.sf.saxon.value.ObjectValue;
 * it returns the supplied sequence, checking that its cardinality is correct
 */
 
-public final class CardinalityChecker extends UnaryExpression implements MappingFunction {
+public final class CardinalityChecker extends UnaryExpression {
 
     private int requiredCardinality = -1;
     private RoleLocator role;
@@ -38,7 +38,6 @@ public final class CardinalityChecker extends UnaryExpression implements Mapping
         if (requiredCardinality == StaticProperty.ALLOWS_ZERO_OR_MORE) {
             return operand;
         }
-        //int x = operand.getCardinality();
         if (Cardinality.subsumes(requiredCardinality, operand.getCardinality())) {
             return operand;
         }
@@ -70,31 +69,38 @@ public final class CardinalityChecker extends UnaryExpression implements Mapping
             stopper = new ObjectValue(this);
             base = new AppendIterator(base, stopper, context);
         }
-        return new MappingIterator(base, this, null, base);
+        CardinalityCheckingFunction map = new CardinalityCheckingFunction();
+        map.iterator = base;
+        return new MappingIterator(base, map, null);
     }
 
     /**
     * Mapping function
     */
 
-    public Object map(Item item, XPathContext context, Object info) throws XPathException {
-        int pos = ((SequenceIterator)info).position();
-        if (item instanceof ObjectValue && ((ObjectValue)item).getObject() == this) {
-            // we've hit the stopper object
-            if (pos==1) {
-                 typeError("An empty sequence is not allowed as the " +
-                         role.getMessage(), role.getErrorCode(), context);
+    private class CardinalityCheckingFunction implements MappingFunction {
+
+        public SequenceIterator iterator;
+
+        public Object map(Item item, XPathContext context) throws XPathException {
+            int pos = iterator.position();
+            if (item instanceof ObjectValue && ((ObjectValue)item).getObject() == CardinalityChecker.this) {
+                // we've hit the stopper object
+                if (pos==1) {
+                     typeError("An empty sequence is not allowed as the " +
+                             role.getMessage(), role.getErrorCode(), context);
+                }
+                // don't include the stopper in the result
+                return null;
             }
-            // don't include the stopper in the result
-            return null;
+            if (pos==2 && !Cardinality.allowsMany(requiredCardinality)) {
+                typeError(
+                        "A sequence of more than one item is not allowed as the " +
+                        role.getMessage(), role.getErrorCode(), context);
+                return null;
+            }
+            return item;
         }
-        if (pos==2 && !Cardinality.allowsMany(requiredCardinality)) {
-            typeError(
-                    "A sequence of more than one item is not allowed as the " +
-                    role.getMessage(), role.getErrorCode(), context);
-            return null;
-        }
-        return item;
     }
 
     /**

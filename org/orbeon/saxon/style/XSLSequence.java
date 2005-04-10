@@ -6,10 +6,9 @@ import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.Axis;
 import net.sf.saxon.om.AxisIterator;
 import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.EmptySequence;
-
-import javax.xml.transform.TransformerConfigurationException;
 
 
 /**
@@ -60,7 +59,7 @@ public final class XSLSequence extends StyleElement {
         return true;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		String selectAtt = null;
 
@@ -84,14 +83,14 @@ public final class XSLSequence extends StyleElement {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
         AxisIterator kids = iterateAxis(Axis.CHILD);
         while (true) {
             NodeInfo child = (NodeInfo)kids.next();
             if (child == null) break;
             if (!(child instanceof XSLFallback)) {
-                compileError("The only child node allowed for xsl:sequence is an xsl:fallback instruction", "XT0010");
+                compileError("The only child node allowed for xsl:sequence is an xsl:fallback instruction", "XTSE0010");
                 break;
             }
         }

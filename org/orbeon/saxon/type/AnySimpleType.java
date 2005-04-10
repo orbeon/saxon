@@ -6,6 +6,7 @@ import net.sf.saxon.om.*;
 import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.value.UntypedAtomicValue;
 import net.sf.saxon.value.Whitespace;
+import net.sf.saxon.ConversionContext;
 
 /**
  * This class has a singleton instance which represents the XML Schema built-in type xs:anySimpleType
@@ -44,7 +45,7 @@ public final class AnySimpleType implements SimpleType {
      */
     public int getValidationStatus()  {
         return VALIDATED;
-    }    
+    }
 
     /**
      * Get the base type
@@ -189,11 +190,12 @@ public final class AnySimpleType implements SimpleType {
      * @param resolver a namespace resolver used to resolve any namespace prefixes appearing
      *                 in the content of values. Can supply null, in which case any namespace-sensitive content
      *                 will be rejected.
+     * @param conversion
      * @return an iterator over the atomic sequence comprising the typed value. The objects
      *         returned by this SequenceIterator will all be of type {@link net.sf.saxon.value.AtomicValue}
      */
 
-    public SequenceIterator getTypedValue(CharSequence value, NamespaceResolver resolver) {
+    public SequenceIterator getTypedValue(CharSequence value, NamespaceResolver resolver, ConversionContext conversion) {
         return new UntypedAtomicValue(value).iterate(null);
     }
 
@@ -203,11 +205,12 @@ public final class AnySimpleType implements SimpleType {
      * @param nsResolver a namespace resolver used to resolve namespace prefixes if the type
      * is namespace sensitive. The value supplied may be null; in this case any namespace-sensitive
      * content will throw an UnsupportedOperationException.
+     * @param conversion
      * @return null if validation succeeds (which it always does for this implementation)
      * @throws UnsupportedOperationException if the type is namespace-sensitive and no namespace
      * resolver is supplied
      */
-    public ValidationException validateContent(CharSequence value, NamespaceResolver nsResolver) {
+    public ValidationException validateContent(CharSequence value, NamespaceResolver nsResolver, ConversionContext conversion) {
         return null;
     }
 

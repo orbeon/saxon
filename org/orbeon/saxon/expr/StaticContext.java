@@ -1,5 +1,6 @@
 package net.sf.saxon.expr;
 import net.sf.saxon.Configuration;
+import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.functions.FunctionLibrary;
 import net.sf.saxon.instruct.LocationMap;
 import net.sf.saxon.om.NamePool;
@@ -24,7 +25,8 @@ public interface StaticContext {
     public Configuration getConfiguration();
 
     /**
-     * Get the location map
+     * Get the location map. This is a mapping from short location ids held with each expression or
+     * subexpression, to a fully-resolved location in a source stylesheet or query.
      */
 
     public LocationMap getLocationMap();
@@ -131,6 +133,16 @@ public interface StaticContext {
      */
 
     public boolean isImportedSchema(String namespace);
+
+    /**
+     * Determine whether a built-in type is available in this context. This method caters for differences
+     * between host languages as to which set of types are built in.
+     * @param type the supposedly built-in type. This will always be a type in the
+     * XS or XDT namespace.
+     * @return true if this type can be used in this static context
+     */
+
+    public boolean isAllowedBuiltInType(AtomicType type);
 
     /**
      * Get a namespace resolver to resolve the namespaces declared in this static context.

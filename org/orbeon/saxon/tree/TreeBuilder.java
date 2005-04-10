@@ -77,7 +77,8 @@ public class TreeBuilder extends Builder
         } else {
             // document node supplied by user
             if (!(currentRoot instanceof DocumentImpl)) {
-                throw new DynamicError("Document node supplied is of wrong kind");
+                throw new DynamicError("Document node supplied is of wrong kind (" + 
+                        currentRoot.getClass().getName() + ')');
             }
             doc = (DocumentImpl)currentRoot;
             if (doc.getFirstChild()!=null) {
@@ -97,7 +98,7 @@ public class TreeBuilder extends Builder
         if (lineNumbering) {
             doc.setLineNumbering();
         }
-                                                                     
+
         super.open();
     }
 

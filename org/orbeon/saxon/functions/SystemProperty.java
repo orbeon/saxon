@@ -70,7 +70,7 @@ public class SystemProperty extends SystemFunction implements XSLTFunction {
             }
             return new StringValue(getProperty(uri, lname, context.getController().getConfiguration()));
         } catch (QNameException e) {
-            dynamicError("Invalid system property name. " + e.getMessage(), "XT1390", context);
+            dynamicError("Invalid system property name. " + e.getMessage(), "XTDE1390", context);
             return null;
         }
     }

@@ -4,6 +4,7 @@ import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.type.BuiltInAtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
+import net.sf.saxon.ConversionContext;
 
 import java.util.Comparator;
 
@@ -44,7 +45,7 @@ public class UntypedAtomicValue extends StringValue {
     * Convert to target data type
     */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, ConversionContext conversion) {
         int req = requiredType.getFingerprint();
         if (req==Type.STRING) {
             if (value.length() == 0) {
@@ -56,7 +57,7 @@ public class UntypedAtomicValue extends StringValue {
         } else if (req==Type.DOUBLE || req==Type.NUMBER) {
             // for conversion to double (common in 1.0 mode), cache the result
             if (doubleValue==null) {
-                AtomicValue v = super.convertPrimitive(requiredType, validate);
+                AtomicValue v = super.convertPrimitive(requiredType, validate, conversion);
                 if (v instanceof DoubleValue) {
                     // the alternative is that it's an ErrorValue
                     doubleValue = (DoubleValue)v;
@@ -65,7 +66,7 @@ public class UntypedAtomicValue extends StringValue {
             }
             return doubleValue;
         } else {
-            return super.convertPrimitive(requiredType, validate);
+            return super.convertPrimitive(requiredType, validate, conversion);
         }
     }
 
@@ -79,11 +80,11 @@ public class UntypedAtomicValue extends StringValue {
      * value is greater.
     */
 
-    public int compareTo(Object other, Comparator collator) {
+    public int compareTo(Object other, Comparator collator, ConversionContext conversion) {
         if (other instanceof NumericValue) {
             if (doubleValue == null) {
                 try {
-                    doubleValue = (DoubleValue)convert(Type.DOUBLE);
+                    doubleValue = (DoubleValue)convert(Type.DOUBLE, null);
                 } catch (XPathException err) {
                 throw new ClassCastException("Cannot convert untyped value " +
                         '\"' + getStringValueCS() + "\" to a double");
@@ -94,8 +95,8 @@ public class UntypedAtomicValue extends StringValue {
             return collator.compare(getStringValue(), ((StringValue)other).getStringValue());
         } else if (other instanceof AtomicValue) {
             AtomicValue conv =
-                    convert((AtomicType)((Value)other).getItemType(), null, true);
-            if (conv instanceof ErrorValue) {
+                    convert((AtomicType)((Value)other).getItemType(), conversion, true);
+            if (conv instanceof ValidationErrorValue) {
                 throw new ClassCastException("Cannot convert untyped atomic value '" + getStringValue()
                         + "' to type " + ((Value)other).getItemType());
             }

@@ -16,6 +16,8 @@ public class UserFunctionParameter implements Binding, Serializable {
     private SequenceType requiredType;
     private int slotNumber;
     private int referenceCount = 999;
+        // The initial value is deliberately set to indicate "many" so that it will be assumed a parameter
+        // is referenced repeatedly until proved otherwise
 
     /**
      * Indicate whether the binding is local or global. A global binding is one that has a fixed

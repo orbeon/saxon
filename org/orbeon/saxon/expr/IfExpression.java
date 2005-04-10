@@ -115,7 +115,7 @@ public class IfExpression extends ComputedExpression {
             // is false (bzw true).
             condition = condition.promote(offer);
 
-            // allow "unordered" to trickle down to the subexpressions
+            // allow some types of promotion to trickle down to the subexpressions
             if (offer.action == PromotionOffer.UNORDERED ||
                     offer.action == PromotionOffer.INLINE_VARIABLE_REFERENCES) {
                 thenExp = thenExp.promote(offer);

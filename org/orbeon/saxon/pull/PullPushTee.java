@@ -1,9 +1,12 @@
 package net.sf.saxon.pull;
 
 import net.sf.saxon.event.Receiver;
+import net.sf.saxon.event.SequenceReceiver;
 import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.NamespaceDeclarations;
+import net.sf.saxon.om.Orphan;
 import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.type.Type;
 
 /**
  * PullPushTee is a pass-through filter class that links one PullProvider to another PullProvider
@@ -18,6 +21,7 @@ import net.sf.saxon.trans.XPathException;
 public class PullPushTee extends PullFilter {
 
     private Receiver branch;
+    boolean previousAtomic = false;
 
     /**
      * Create a PullPushTee
@@ -25,9 +29,10 @@ public class PullPushTee extends PullFilter {
      * @param branch the Receiver to which all events are to be copied, as "push" events
      */
 
-    public PullPushTee(PullProvider base, Receiver branch) {
+    public PullPushTee(PullProvider base, Receiver branch) throws XPathException {
         super(base);
         this.branch = branch;
+        branch.open();
     }
 
     /**
@@ -105,7 +110,6 @@ public class PullPushTee extends PullFilter {
                 break;
 
             case END_DOCUMENT:
-
                 out.endDocument();
                 break;
 
@@ -113,7 +117,54 @@ public class PullPushTee extends PullFilter {
                 in.close();
                 out.close();
                 break;
+
+            case ATOMIC_VALUE:
+                if (out instanceof SequenceReceiver) {
+                    ((SequenceReceiver)out).append(super.getAtomicValue(), 0, 0);
+                    break;
+                } else {
+                    if (previousAtomic) {
+                        out.characters(" ", 0, 0);
+                    }
+                    CharSequence chars = in.getStringValue();
+                    out.characters(chars, 0, 0);
+                    break;
+                }
+
+            case ATTRIBUTE:
+                if (out instanceof SequenceReceiver) {
+                    Orphan o = new Orphan(in.getPipelineConfiguration().getConfiguration());
+                    o.setNameCode(getNameCode());
+                    o.setNodeKind(Type.ATTRIBUTE);
+                    o.setStringValue(getStringValue());
+                    ((SequenceReceiver)out).append(o, 0, 0);
+                    break;
+                } else {
+                    out.attribute(getNameCode(), getTypeAnnotation(), getStringValue(), 0, 0);
+                    break;
+                    //throw new DynamicError("Cannot serialize a free-standing attribute node");
+                }
+
+            case NAMESPACE:
+                 if (out instanceof SequenceReceiver) {
+                    Orphan o = new Orphan(in.getPipelineConfiguration().getConfiguration());
+                    o.setNameCode(getNameCode());
+                    o.setNodeKind(Type.NAMESPACE);
+                    o.setStringValue(getStringValue());
+                    ((SequenceReceiver)out).append(o, 0, 0);
+                    break;
+                } else {
+                     int nsCode = getNamePool().getNamespaceCode(getNameCode());
+                     out.namespace(nsCode, 0);
+                     break;
+                    //throw new DynamicError("Cannot serialize a free-standing namespace node");
+                }
+
+            default:
+                throw new UnsupportedOperationException("" + event);
+
         }
+        previousAtomic = (event == ATOMIC_VALUE);
     }
 }
 

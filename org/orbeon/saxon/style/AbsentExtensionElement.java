@@ -2,8 +2,7 @@ package net.sf.saxon.style;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.trans.StaticError;
-
-import javax.xml.transform.TransformerConfigurationException;
+import net.sf.saxon.trans.XPathException;
 
 /**
 * This element is a surrogate for an extension element (or indeed an xsl element)
@@ -24,13 +23,13 @@ public class AbsentExtensionElement extends StyleElement {
         return true;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
 
         if (isTopLevel()) {
             return null;

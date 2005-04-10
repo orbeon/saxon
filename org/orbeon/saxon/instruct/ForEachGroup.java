@@ -349,7 +349,7 @@ public class ForEachGroup extends Instruction implements MappingFunction {
         c2.setCurrentIterator(master);
         c2.setCurrentGroupIterator(master);
         c2.setCurrentTemplate(null);
-        return new MappingIterator(master, this, c2, null);
+        return new MappingIterator(master, this, c2);
     }
 
     /**
@@ -359,14 +359,12 @@ public class ForEachGroup extends Instruction implements MappingFunction {
      *                If context is supplied, this must be the same as context.currentItem().
      * @param context The processing context. This is supplied only for mapping constructs that
      *                set the context node, position, and size. Otherwise it is null.
-     * @param info    Arbitrary information supplied by the creator of the MappingIterator. It must be
-     *                read-only and immutable for the duration of the iteration.
      * @return either (a) a SequenceIterator over the sequence of items that the supplied input
      *         item maps to, or (b) an Item if it maps to a single item, or (c) null if it maps to an empty
      *         sequence.
      */
 
-    public Object map(Item item, XPathContext context, Object info) throws XPathException {
+    public Object map(Item item, XPathContext context) throws XPathException {
         return action.iterate(context);
     }
 

@@ -44,7 +44,7 @@ public final class GlobalParam extends GlobalVariable {
                         context.getController().getNamePool().getDisplayName(getVariableFingerprint()));
                 e.setXPathContext(context);
                 e.setLocator(getSourceLocator());
-                e.setErrorCode("XT0050");
+                e.setErrorCode("XTDE0050");
                 throw e;
                 // TODO: we aren't reporting this error if the required parameter is never referenced
             }
@@ -65,7 +65,7 @@ public final class GlobalParam extends GlobalVariable {
                 if (err instanceof XPathException.Circularity) {
                     DynamicError e = new DynamicError("Circular definition of parameter " + getVariableName());
                     e.setXPathContext(context);
-                    e.setErrorCode("XT0640");
+                    e.setErrorCode("XTDE0640");
                     // Detect it more quickly the next time (in a pattern, the error is recoverable)
                     select = new ErrorExpression(e);
                     throw e;

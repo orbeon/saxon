@@ -1,6 +1,7 @@
 package net.sf.saxon.value;
 
 import net.sf.saxon.Err;
+import net.sf.saxon.ConversionContext;
 import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.StaticProperty;
@@ -15,8 +16,17 @@ import java.io.PrintStream;
 
 
 /**
- * A AtomicValue is a value that isn't a sequence and isn't a node.
- * More strictly, it is any sequence of length one whose content is not a node.
+ * The AtomicValue class corresponds to the concept of an atomic value in the
+ * XPath 2.0 data model. Atomic values belong to one of the 19 primitive types
+ * defined in XML Schema; or they are of type xdt:untypedAtomic; or they are
+ * "external objects", representing a Saxon extension to the XPath 2.0 type system.
+ * <p>
+ * The AtomicValue class contains some methods that are suitable for applications
+ * to use, and many others that are designed for internal use by Saxon itself.
+ * These have not been fully classified. At present, therefore, none of the methods on this
+ * class should be considered to be part of the public Saxon API.
+ * <p>
+ * @author Michael H. Kay
  */
 
 public abstract class AtomicValue extends Value implements Item {
@@ -70,6 +80,7 @@ public abstract class AtomicValue extends Value implements Item {
      * type is a built-in type.
      *
      * @param requiredType type code of the required atomic type
+     * @param conversion
      * @return the result of the conversion, if conversion was possible. This
      *         will always be an instance of the class corresponding to the type
      *         of value requested
@@ -77,12 +88,12 @@ public abstract class AtomicValue extends Value implements Item {
      *                        required type, or if the particular value cannot be converted
      */
 
-    public final AtomicValue convert(int requiredType) throws XPathException {
+    public final AtomicValue convert(int requiredType, ConversionContext conversion) throws XPathException {
         SchemaType schemaType = BuiltInSchemaFactory.getSchemaType(requiredType);
         if (schemaType instanceof BuiltInAtomicType) {
-            AtomicValue val = convertPrimitive((BuiltInAtomicType)schemaType, true);
-            if (val instanceof ErrorValue) {
-                throw ((ErrorValue)val).getException();
+            AtomicValue val = convertPrimitive((BuiltInAtomicType)schemaType, true, conversion);
+            if (val instanceof ValidationErrorValue) {
+                throw ((ValidationErrorValue)val).getException();
             }
             return val;
         } else {
@@ -99,11 +110,13 @@ public abstract class AtomicValue extends Value implements Item {
      * @param validate     true if validation is required. If set to false, the caller guarantees that
      *                     the value is valid for the target data type, and that further validation is therefore not required.
      *                     Note that a validation failure may be reported even if validation was not requested.
+     * @param conversion   The conversion context to be used. This is required at present only when converting to
+     *                     a date or time: it provides the implicit timezone.
      * @return the result of the conversion, if successful. If unsuccessful, the value returned
      *         will be an ErrorValue. The caller must check for this condition. No exception is thrown, instead
      *         the exception will be encapsulated within the ErrorValue.
      */
-    public abstract AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate);
+    public abstract AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, ConversionContext conversion);
 
     /**
      * Convert the value to a given type. The result of the conversion will be
@@ -115,17 +128,20 @@ public abstract class AtomicValue extends Value implements Item {
      * @param context    the evaluation context
      * @param validate   true if validation is required, false if the caller already knows that the
      *                   value is valid
-     * @return the value after conversion if successful; or an ErrorValue if conversion failed. The
+     * @return the value after conversion if successful; or a {@link ValidationErrorValue} if conversion failed. The
      *         caller must check for this condition. Validation may fail even if validation was not requested.
      */
 
-    public AtomicValue convert(AtomicType targetType, XPathContext context, boolean validate) {
+    public AtomicValue convert(AtomicType targetType, ConversionContext context, boolean validate) {
         if (targetType instanceof BuiltInAtomicType) {
-            return convertPrimitive((BuiltInAtomicType)targetType, validate);
+            return convertPrimitive((BuiltInAtomicType)targetType, validate, context);
         } else {
             CharSequence lexicalValue = getStringValueCS();
-            AtomicValue v = convertPrimitive((BuiltInAtomicType)targetType.getPrimitiveItemType(), validate);
-            if (v instanceof ErrorValue) {
+            AtomicValue v = convertPrimitive(
+                    (BuiltInAtomicType)targetType.getPrimitiveItemType(),
+                    validate,
+                    context);
+            if (v instanceof ValidationErrorValue) {
                 // conversion has failed
                 return v;
             }
@@ -267,7 +283,7 @@ public abstract class AtomicValue extends Value implements Item {
             }
             if (stype != null && !stype.isNamespaceSensitive()) {
                 // Can't validate namespace-sensitive content statically
-                XPathException err = stype.validateContent(getStringValueCS(), null);
+                XPathException err = stype.validateContent(getStringValueCS(), null, env.getConfiguration());
                 if (err != null) {
                     throw err;
                 }

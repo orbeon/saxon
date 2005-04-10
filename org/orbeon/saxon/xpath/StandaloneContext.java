@@ -1,5 +1,6 @@
 package net.sf.saxon.xpath;
 import net.sf.saxon.Configuration;
+import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.expr.VariableDeclaration;
 import net.sf.saxon.functions.*;
@@ -75,7 +76,7 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
         if (config.isAllowExternalFunctions()) {
             xpathFunctionLibrary = new XPathFunctionLibrary();
             lib.addFunctionLibrary(xpathFunctionLibrary);
-            lib.addFunctionLibrary(new JavaExtensionLibrary(getConfiguration()));
+            lib.addFunctionLibrary(config.getExtensionBinder());
         }
         functionLibrary = lib;
 	}
@@ -253,7 +254,11 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
             uri = getURIForPrefix(prefix);
         }
         Variable var = Variable.make(qname, getConfiguration());
-        var.setValue(initialValue);
+        if (initialValue instanceof ValueRepresentation) {
+            var.setXPathValue((ValueRepresentation)initialValue);
+        } else {
+            var.setValue(initialValue);
+        }
         int fingerprint = namePool.allocate(prefix, uri, localName) & 0xfffff;
         variables.put(new Integer(fingerprint), var);
         stackFrameMap.allocateSlotNumber(fingerprint);
@@ -306,7 +311,7 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
     * output warning conditions. The default implementation writes the message to System.err. To
     * change the destination of messages, create a subclass of StandaloneContext that overrides
     * this method.
-    */                                                         
+    */
 
     public void issueWarning(String s, SourceLocator locator) {
         System.err.println(s);
@@ -380,7 +385,7 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
             return "";
         } else {
     	    String uri = (String)namespaces.get(prefix);
-            if (uri == null) {
+            if (uri == null && namespaceContext != null) {
                 return namespaceContext.getNamespaceURI(prefix);
             } else {
                 return uri;
@@ -456,7 +461,7 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
 
     public Comparator getCollation(String name) {
         try {
-            return CollationFactory.makeCollationFromURI(name);
+            return CollationFactory.makeCollationFromURI(name, getConfiguration());
         } catch (XPathException e) {
             return null;
         }
@@ -542,6 +547,18 @@ public class StandaloneContext implements StaticContext, NamespaceResolver {
         return false;
     }
 
+    /**
+     * Determine whether a built-in type is available in this context. This method caters for differences
+     * between host languages as to which set of types are built in.
+     *
+     * @param type the supposedly built-in type. This will always be a type in the
+     *             XS or XDT namespace.
+     * @return true if this type can be used in this static context
+     */
+
+    public boolean isAllowedBuiltInType(AtomicType type) {
+        return true;
+    }
 }
 
 //

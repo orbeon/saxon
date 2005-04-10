@@ -72,18 +72,16 @@ public class Namespace extends SimpleNodeConstructor {
 
         if (!(prefix.equals("") || XMLChar.isValidNCName(prefix))) {
             DynamicError err = new DynamicError("Namespace prefix is invalid: " + prefix, this);
-            err.setErrorCode("XT0920");
+            err.setErrorCode("XTDE0920");
             err.setXPathContext(context);
-            context.getController().recoverableError(err);
-            return null;
+            throw dynamicError(this, err, context);
         }
 
         if (prefix.equals("xmlns")) {
             DynamicError err = new DynamicError("Namespace prefix 'xmlns' is not allowed", this);
-            err.setErrorCode("XT0920");
+            err.setErrorCode("XTDE0920");
             err.setXPathContext(context);
-            context.getController().recoverableError(err);
-            return null;
+            throw dynamicError(this, err, context);
         }
 
         String uri = expandChildren(context).toString();
@@ -91,18 +89,18 @@ public class Namespace extends SimpleNodeConstructor {
         if (prefix.equals("xml") != uri.equals(NamespaceConstant.XML)) {
             DynamicError err = new DynamicError("Namespace prefix 'xml' and namespace uri " + NamespaceConstant.XML +
                     " must only be used together", this);
-            err.setErrorCode("XT0925");
+            err.setErrorCode("XTDE0925");
             err.setXPathContext(context);
-            context.getController().recoverableError(err);
-            return null;
+            //context.getController().recoverableError(err);
+            throw dynamicError(this, err, context);
         }
 
         if (uri.equals("")) {
             DynamicError err = new DynamicError("Namespace URI is an empty string", this);
-            err.setErrorCode("XT0930");
+            err.setErrorCode("XTDE0930");
             err.setXPathContext(context);
-            context.getController().recoverableError(err);
-            return null;
+            //context.getController().recoverableError(err);
+            throw dynamicError(this, err, context);
         }
 
         int nscode = controller.getNamePool().allocateNamespaceCode(prefix, uri);

@@ -11,7 +11,6 @@ import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.StringValue;
 
-import javax.xml.transform.TransformerConfigurationException;
 import java.util.*;
 
 /**
@@ -87,7 +86,7 @@ public class XSLResultDocument extends StyleElement {
         return null;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 		AttributeCollection atts = getAttributeList();
 
         String formatAttribute = null;
@@ -130,7 +129,7 @@ public class XSLResultDocument extends StyleElement {
             try {
                 format = makeNameCode(formatAttribute.trim()) & 0xfffff;
             } catch (NamespaceException err) {
-                compileError(err.getMessage(), "XT0280");
+                compileError(err.getMessage(), "XTSE0280");
             } catch (XPathException err) {
                 compileError(err.getMessage());
             }
@@ -141,21 +140,21 @@ public class XSLResultDocument extends StyleElement {
         } else {
             validationAction = Validation.getCode(validationAtt);
             if (validationAction != Validation.STRIP && !getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("To perform validation, a schema-aware XSLT processor is needed", "XT1660");
+                compileError("To perform validation, a schema-aware XSLT processor is needed", "XTSE1660");
             }
             if (validationAction == Validation.INVALID) {
-                compileError("Invalid value of validation attribute", "XT0020");
+                compileError("Invalid value of @validation attribute", "XTSE0020");
             }
         }
         if (typeAtt!=null) {
             if (!getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("The type attribute is available only with a schema-aware XSLT processor", "XT1660");
+                compileError("The @type attribute is available only with a schema-aware XSLT processor", "XTSE1660");
             }
             schemaType = getSchemaType(typeAtt);
         }
 
         if (typeAtt != null && validationAtt != null) {
-            compileError("The validation and type attributes are mutually exclusive", "XT1505");
+            compileError("The @validation and @type attributes are mutually exclusive", "XTSE1505");
         }
 
         if (useCharacterMapsAtt != null) {
@@ -166,7 +165,7 @@ public class XSLResultDocument extends StyleElement {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
         if (!getPreparedStylesheet().getConfiguration().isAllowExternalFunctions()) {
             compileError("xsl:result-document is disabled when extension functions are disabled");
@@ -183,12 +182,12 @@ public class XSLResultDocument extends StyleElement {
         }
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         Properties props;
         try {
             props = getPrincipalStylesheet().gatherOutputProperties(format);
-        } catch (TransformerConfigurationException err) {
-            compileError("Named output format has not been defined");
+        } catch (XPathException err) {
+            compileError("Named output format has not been defined", "XTSE1460");
             return null;
         }
 
@@ -204,9 +203,8 @@ public class XSLResultDocument extends StyleElement {
                             getNamePool(), getStaticContext().getNamespaceResolver());
                     fixed.add(fp);
                 } catch (XPathException e) {
-                    if (NamespaceConstant.SAXON.equals(e.getErrorCodeNamespace()) &&
-                            "warning".equals(e.getErrorCodeLocalPart())) {
-                        compileWarning(e.getMessage());
+                    if (NamespaceConstant.SAXON.equals(e.getErrorCodeNamespace())) {
+                        compileWarning(e.getMessage(), e.getErrorCodeLocalPart());
                     } else {
                         compileError(e);
                     }

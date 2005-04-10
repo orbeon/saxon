@@ -145,7 +145,7 @@ public class Message extends Instruction {
         }
 
         TreeReceiver rec = new TreeReceiver(emitter);
-        
+
         XPathContext c2 = context.newMinorContext();
         c2.setOrigin(this);
         Properties props = new Properties();
@@ -174,7 +174,7 @@ public class Message extends Instruction {
             } else {
                 DynamicError e = new DynamicError("The terminate attribute of xsl:message must be 'yes' or 'no'");
                 e.setXPathContext(context);
-                e.setErrorCode("XT0030");
+                e.setErrorCode("XTDE0030");
                 throw e;
             }
         }

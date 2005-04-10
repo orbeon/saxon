@@ -134,14 +134,15 @@ public class AnalyzeString extends Instruction {
         // needed where the instruction is generated from saxon:analyze-string extension function
         RoleLocator role =
                 new RoleLocator(RoleLocator.INSTRUCTION, "analyze-string/select", 0, null);
+        role.setSourceLocator(this);
         select = TypeChecker.staticTypeCheck(select, SequenceType.SINGLE_STRING, false, role, env);
 
-        role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "analyze-string/regex", 0, null);
+        role = new RoleLocator(RoleLocator.INSTRUCTION, "analyze-string/regex", 0, null);
+        role.setSourceLocator(this);
         regex = TypeChecker.staticTypeCheck(regex, SequenceType.SINGLE_STRING, false, role, env);
 
-        role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "analyze-string/flags", 0, null);
+        role = new RoleLocator(RoleLocator.INSTRUCTION, "analyze-string/flags", 0, null);
+        role.setSourceLocator(this);
         flags = TypeChecker.staticTypeCheck(flags, SequenceType.SINGLE_STRING, false, role, env);
 
         return this;

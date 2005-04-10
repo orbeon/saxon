@@ -11,6 +11,10 @@ public class NamespaceDeclarationsImpl implements NamespaceDeclarations {
     private int[] namespaceCodes;
     private int used;
 
+    private static final int[] emptyArray = new int[0];
+
+    public NamespaceDeclarationsImpl() {};
+
     /**
      * Construct a set of namespace declarations
      * @param pool the name pool
@@ -19,10 +23,36 @@ public class NamespaceDeclarationsImpl implements NamespaceDeclarations {
      * a prefix and uri in the name pool. If the array contains the integer
      * -1, this acts as a terminator for the list. This is the format
      * returned by the method {@link NodeInfo#getDeclaredNamespaces(int[])}.
+     * A value of null is equivalent to supplying an empty array.
      */
 
     public NamespaceDeclarationsImpl(NamePool pool, int[] codes) {
         this.namePool = pool;
+        setNamespaceCodes(codes);
+    }
+
+    /**
+     * Set the name pool
+     */
+
+    public void setNamePool(NamePool pool) {
+        this.namePool = pool;
+    }
+
+    /**
+     * Set the namespace codes.
+     * @param codes an integer array holding the namespace codes. These
+     * codes are allocated by the name pool, and can be used to look up
+     * a prefix and uri in the name pool. If the array contains the integer
+     * -1, this acts as a terminator for the list. This is the format
+     * returned by the method {@link NodeInfo#getDeclaredNamespaces(int[])}.
+     * A value of null is equivalent to supplying an empty array.
+     */
+
+    public void setNamespaceCodes(int[] codes) {
+        if (codes == null) {
+            codes = emptyArray;
+        }
         this.namespaceCodes = codes;
         used = codes.length;
         for (int i=0; i<codes.length; i++) {
@@ -31,6 +61,20 @@ public class NamespaceDeclarationsImpl implements NamespaceDeclarations {
                 break;
             }
         }
+    }
+
+    /**
+     * Get all the namespace codes, as an array.
+     *
+     * @param buffer a sacrificial array that the method is free to use to contain the result.
+     *               May be null.
+     * @return an integer array containing namespace codes. The array may be filled completely
+     *         with namespace codes, or it may be incompletely filled, in which case a -1 integer acts
+     *         as a terminator.
+     */
+
+    public int[] getNamespaceCodes(int[] buffer) {
+        return namespaceCodes;
     }
 
     /**

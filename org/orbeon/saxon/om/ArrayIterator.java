@@ -20,7 +20,8 @@ public final class ArrayIterator implements AxisIterator,
                                             GroundedIterator {
 
     private Item[] items;
-    private int index = 0;      // position in array of current item, zero-based
+    private int index;          // position in array of current item, zero-based
+                                // set equal to "end" when all the items required have been read.
     private int start;          // position of first item to be returned, zero-based
     private int end;            // position of first item that is NOT returned, zero-based
     private Item current = null;
@@ -45,8 +46,10 @@ public final class ArrayIterator implements AxisIterator,
      * @param nodes the array (of nodes or simple values) to be processed by
      *     the iterator
      * @param start the position of the first item to be processed
-     *     (numbering from zero)
-     * @param end position of first item that is NOT returned, zero-based
+     *     (numbering from zero). Must be between zero and nodes.length-1; if not,
+     *     undefined exceptions are likely to occur.
+     * @param end position of first item that is NOT returned, zero-based. Must be
+     *     beween 1 and nodes.length; if not, undefined exceptions are likely to occur.
      */
 
     public ArrayIterator(Item[] nodes, int start, int end) {
@@ -103,7 +106,11 @@ public final class ArrayIterator implements AxisIterator,
      * @return the next item in the array
      */
     public Item next() {
-        if (index >= end) return null;
+        if (index >= end) {
+            index = end+1;
+            current = null;
+            return null;
+        }
         current = items[index++];
         return current;
     }
@@ -123,6 +130,9 @@ public final class ArrayIterator implements AxisIterator,
      * @return the current position (starting at 1 for the first item)
      */
     public int position() {
+        if (index > end) {
+            return -1;
+        }
         return index - start;
     }
 

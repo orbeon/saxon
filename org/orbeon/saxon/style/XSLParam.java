@@ -1,17 +1,12 @@
 package net.sf.saxon.style;
 import net.sf.saxon.expr.*;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.instruct.GeneralVariable;
-import net.sf.saxon.instruct.GlobalParam;
-import net.sf.saxon.instruct.LocalParam;
+import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.Axis;
 import net.sf.saxon.om.AxisIterator;
 import net.sf.saxon.om.Navigator;
 import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.SequenceType;
-
-import javax.xml.transform.TransformerConfigurationException;
 
 /**
 * An xsl:param element in the stylesheet. <br>
@@ -37,14 +32,14 @@ public class XSLParam extends XSLVariableDeclaration {
         return true;
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
 
         NodeInfo parent = getParent();
         boolean local = (parent instanceof XSLTemplate || parent instanceof XSLFunction);
         global = (parent instanceof XSLStylesheet);
 
         if (!local && !global) {
-            compileError("xsl:param must be immediately within a template, function or stylesheet", "XT0010");
+            compileError("xsl:param must be immediately within a template, function or stylesheet", "XTSE0010");
         }
 
         if (!global) {
@@ -56,26 +51,34 @@ public class XSLParam extends XSLVariableDeclaration {
                 }
                 if (node instanceof XSLParam) {
                     if (this.getVariableFingerprint() == ((XSLParam)node).getVariableFingerprint()) {
-                        compileError("The name of the parameter is not unique", "XT0580");
+                        compileError("The name of the parameter is not unique", "XTSE0580");
                     }
                 } else if (node instanceof StyleElement) {
-                    compileError("xsl:param must be the first element within a template or function", "XT0010");
+                    compileError("xsl:param must be the first element within a template or function", "XTSE0010");
                 } else {
                     // it must be a text node; allow it if all whitespace
                     if (!Navigator.isWhite(node.getStringValueCS())) {
-                        compileError("xsl:param must not be preceded by text", "XT0010");
+                        compileError("xsl:param must not be preceded by text", "XTSE0010");
                     }
                 }
             }
+
+            SlotManager p = getContainingSlotManager();
+            if (p==null) {
+                compileError("Local variable must be declared within a template or function", "XTSE0010");
+            } else {
+                setSlotNumber(p.allocateSlotNumber(getVariableFingerprint()));
+            }
+
         }
 
         if (requiredParam) {
             if (select != null) {
                 // NB, we do this test before setting the default select attribute
-                compileError("The select attribute should be omitted when required='yes'", "XT0010");
+                compileError("The select attribute should be omitted when required='yes'", "XTSE0010");
             }
             if (hasChildNodes()) {
-                compileError("A parameter specifying required='yes' must have empty content", "XT0010");
+                compileError("A parameter specifying required='yes' must have empty content", "XTSE0010");
             }
         }
 
@@ -87,7 +90,7 @@ public class XSLParam extends XSLVariableDeclaration {
     * this global variable
     */
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
 
         if (getParent() instanceof XSLFunction) {
             // Do nothing. We did everything necessary while compiling the XSLFunction element.
@@ -95,17 +98,19 @@ public class XSLParam extends XSLVariableDeclaration {
         } else {
             int slot = getSlotNumber();
             if (requiredType != null) {
-                try {
+                //try {
                     SuppliedParameterReference pref = new SuppliedParameterReference(slot);
                     pref.setLocationId(staticContext.getLocationMap().allocateLocationId(getSystemId(), getLineNumber()));
+                    RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, getVariableName(), 0, null);
+                    role.setSourceLocator(new ExpressionLocation(this));
                     conversion = TypeChecker.staticTypeCheck(
                             pref,
                             requiredType,
                             false,
-                            new RoleLocator(RoleLocator.VARIABLE, getVariableName(), 0, null), getStaticContext());
-                } catch (XPathException z) {
-                    throw new TransformerConfigurationException(z);
-                }
+                            role, getStaticContext());
+//                } catch (XPathException z) {
+//                    throw new TransformerConfigurationException(z);
+//                }
             }
 
             GeneralVariable inst;

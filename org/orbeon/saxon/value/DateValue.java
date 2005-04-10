@@ -1,5 +1,6 @@
 package net.sf.saxon.value;
 import net.sf.saxon.Err;
+import net.sf.saxon.ConversionContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.functions.Component;
 import net.sf.saxon.om.FastStringBuffer;
@@ -17,7 +18,7 @@ import java.util.*;
 * with dateTime, the timezone is part of the value space.
 */
 
-public class DateValue extends CalendarValue implements Comparable {
+public class DateValue extends CalendarValue {
 
     protected int tzOffset = 0;       // maintained in minutes
 
@@ -51,10 +52,13 @@ public class DateValue extends CalendarValue implements Comparable {
         this.tzOffset = timeZoneOffset;
     }
 
+    /**
+     * Initialize the DateValue using a character string in the format yyyy-mm-dd and an optional time zone.
+     * Input must have format [+|-]yyyy-mm-dd[([+|-]hh:mm | Z)]
+     * @param s the supplied string value
+     * @throws XPathException
+     */
     public void setLexicalValue(CharSequence s) throws XPathException {
-        // Input must have format [+|-]yyyy-mm-dd[([+|-]hh:mm | Z)]
-
-
         zoneSpecified = false;
         StringTokenizer tok = new StringTokenizer(trimWhitespace(s).toString(), "-:+Z", true);
         try {
@@ -164,10 +168,11 @@ public class DateValue extends CalendarValue implements Comparable {
     /**
     * Convert to target data type
     * @param requiredType an integer identifying the required atomic type
-    * @return an AtomicValue, a value of the required type; or an ErrorValue
+    * @param conversion
+     * @return an AtomicValue, a value of the required type; or an ErrorValue
     */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, ConversionContext conversion) {
         switch(requiredType.getPrimitiveType()) {
         case Type.DATE:
         case Type.ATOMIC:
@@ -182,48 +187,59 @@ public class DateValue extends CalendarValue implements Comparable {
         case Type.UNTYPED_ATOMIC:
             return new UntypedAtomicValue(getStringValueCS());
 
-        case Type.G_YEAR:
-            GYearValue gy = new GYearValue();
-            gy.setDateValue(this);
-            return gy;
-
-        case Type.G_YEAR_MONTH:
-            GYearMonthValue gmy = new GYearMonthValue();
-            gmy.setDateValue(this);
-            return gmy;
-
-        case Type.G_MONTH:
-            GMonthValue gm = new GMonthValue();
-            gm.setDateValue(this);
-            return gm;
-
-        case Type.G_MONTH_DAY:
-            GMonthDayValue gmd = new GMonthDayValue();
-            gmd.setDateValue(this);
-            return gmd;
-
-        case Type.G_DAY:
-            GDayValue gd = new GDayValue();
-            gd.setDateValue(this);
-            return gd;
+        case Type.G_YEAR: {
+            GregorianCalendar cal2 = new GregorianCalendar(calendar.getTimeZone());
+            cal2.clear();
+            cal2.set(calendar.get(Calendar.YEAR), 0, 1);
+            cal2.set(Calendar.ZONE_OFFSET, tzOffset*60000);
+            cal2.set(Calendar.DST_OFFSET, 0);
+            calendar.getTime();
+            return new GYearValue(cal2, zoneSpecified, tzOffset);
+        }
+        case Type.G_YEAR_MONTH: {
+            GregorianCalendar cal2 = new GregorianCalendar(calendar.getTimeZone());
+            cal2.clear();
+            cal2.set(calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), 1);
+            cal2.set(Calendar.ZONE_OFFSET, tzOffset*60000);
+            cal2.set(Calendar.DST_OFFSET, 0);
+            calendar.getTime();
+            return new GYearMonthValue(cal2, zoneSpecified, tzOffset);
+        }
+        case Type.G_MONTH: {
+            GregorianCalendar cal2 = new GregorianCalendar(calendar.getTimeZone());
+            cal2.clear();
+            cal2.set(2000, calendar.get(Calendar.MONTH), 1);
+            cal2.set(Calendar.ZONE_OFFSET, tzOffset*60000);
+            cal2.set(Calendar.DST_OFFSET, 0);
+            calendar.getTime();
+            return new GMonthValue(cal2, zoneSpecified, tzOffset);
+        }
+        case Type.G_MONTH_DAY: {
+            GregorianCalendar cal2 = new GregorianCalendar(calendar.getTimeZone());
+            cal2.clear();
+            cal2.set(2000, calendar.get(Calendar.MONTH), calendar.get(Calendar.DATE));
+            cal2.set(Calendar.ZONE_OFFSET, tzOffset*60000);
+            cal2.set(Calendar.DST_OFFSET, 0);
+            calendar.getTime();
+            return new GMonthDayValue(cal2, zoneSpecified, tzOffset);
+        }
+        case Type.G_DAY:{
+            GregorianCalendar cal2 = new GregorianCalendar(calendar.getTimeZone());
+            cal2.clear();
+            cal2.set(2000, 0, calendar.get(Calendar.DATE));
+            cal2.set(Calendar.ZONE_OFFSET, tzOffset*60000);
+            cal2.set(Calendar.DST_OFFSET, 0);
+            calendar.getTime();
+            return new GDayValue(cal2, zoneSpecified, tzOffset);
+        }
 
         default:
             ValidationException err = new ValidationException("Cannot convert date to " +
                                      requiredType.getDisplayName());
             //err.setXPathContext(context);
             err.setErrorCode("FORG0001");
-            return new ErrorValue(err);
+            return new ValidationErrorValue(err);
         }
-    }
-
-    /**
-     * Set the value (used for creating subtypes)
-     */
-
-    public void setDateValue(DateValue d) {
-        calendar = d.calendar;
-        zoneSpecified = d.zoneSpecified;
-        tzOffset = d.tzOffset;
     }
 
     /**
@@ -270,9 +286,9 @@ public class DateValue extends CalendarValue implements Comparable {
 
     public CalendarValue removeTimezone() throws XPathException {
         return (CalendarValue)
-                    ((DateTimeValue)convert(Type.DATE_TIME))
+                    ((DateTimeValue)convert(Type.DATE_TIME, null))
                         .removeTimezone()
-                        .convert(Type.DATE);
+                        .convert(Type.DATE, null);
     }
 
     /**
@@ -284,9 +300,9 @@ public class DateValue extends CalendarValue implements Comparable {
 
     public CalendarValue setTimezone(SecondsDurationValue tz) throws XPathException {
        return (CalendarValue)
-                    ((DateTimeValue)convert(Type.DATE_TIME))
+                    ((DateTimeValue)convert(Type.DATE_TIME, null))
                         .setTimezone(tz)
-                        .convert(Type.DATE);
+                        .convert(Type.DATE, null);
     }
 
     /**
@@ -361,6 +377,16 @@ public class DateValue extends CalendarValue implements Comparable {
 
     }
 
+    /**
+     * Compare this value to another value of the same type, using the supplied ConversionContext
+     * to get the implicit timezone if required.
+     */
+
+    public int compareTo(CalendarValue other, ConversionContext conversion) {
+        // TODO: the role of implicit timezone in date comparisons is unclear
+        return compareTo(other);
+    }
+
     public boolean equals(Object other) {
         return compareTo(other) == 0;
     }
@@ -401,11 +427,11 @@ public class DateValue extends CalendarValue implements Comparable {
      * Determine the difference between two points in time, as a duration
      * @param other the other point in time
      * @param context
-   * @return the duration as an xdt:dayTimeDuration
+     * @return the duration as an xdt:dayTimeDuration
      * @throws XPathException for example if one value is a date and the other is a time
      */
 
-    public SecondsDurationValue subtract(CalendarValue other, XPathContext context) throws XPathException {
+    public SecondsDurationValue subtract(CalendarValue other, ConversionContext context) throws XPathException {
         if (!(other instanceof DateValue)) {
             DynamicError err = new DynamicError(
                     "First operand of '-' is a date, but the second is not");

@@ -5,6 +5,7 @@ import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.instruct.ValueOf;
 import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.value.StringValue;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -29,7 +30,7 @@ public class SaxonEntityRef extends StyleElement {
     }
 
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 
@@ -48,12 +49,12 @@ public class SaxonEntityRef extends StyleElement {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
         checkEmpty();
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         ValueOf text = new ValueOf(new StringValue('&' + nameAttribute + ';'), true);
 //        try {
 //            text.setSelect(new StringValue('&' + nameAttribute + ';'));

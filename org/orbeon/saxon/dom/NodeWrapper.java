@@ -15,7 +15,7 @@ import java.util.ArrayList;
 
 /**
   * A node in the XML parse tree representing an XML element, character content, or attribute.<P>
-  * This is the implementation of the NodeInfo interface used as a wrapper for JDOM nodes.
+  * This is the implementation of the NodeInfo interface used as a wrapper for DOM nodes.
   */
 
 public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
@@ -30,7 +30,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     /**
      * This constructor is protected: nodes should be created using the makeWrapper
      * factory method
-     * @param node    The JDOM node to be wrapped
+     * @param node    The DOM node to be wrapped
      * @param parent  The NodeWrapper that wraps the parent of this node
      * @param index   Position of this node among its siblings
      */
@@ -59,9 +59,9 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     }
 
     /**
-     * Factory method to wrap a JDOM node with a wrapper that implements the Saxon
+     * Factory method to wrap a DOM node with a wrapper that implements the Saxon
      * NodeInfo interface.
-     * @param node        The JDOM node
+     * @param node        The DOM node
      * @param docWrapper  The wrapper for the containing Document node     *
      * @param parent      The wrapper for the parent of the JDOM node
      * @param index       The position of this node relative to its siblings
@@ -953,7 +953,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 //
 // The Original Code is: all this file.
 //
-// The Initial Developer of the Original Code is Michael Kay 
+// The Initial Developer of the Original Code is Michael Kay
 //
 // Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
 //

@@ -12,8 +12,6 @@ import org.w3c.dom.TypeInfo;
 
 import javax.xml.validation.TypeInfoProvider;
 
-import com.saxonica.schema.TypeInfoImpl;
-
 /**
  * This class is an extension of ContentHandlerProxy that provides access to type
  * information, using the DOM Level 3 TypeInfo interfaces.

@@ -80,6 +80,8 @@ public class PositionIterator implements SequenceIterator, LookaheadIterator {
 
     public Item next() throws XPathException {
         if (nextItem == null) {
+            current = null;
+            position = -1;
             return null;
         }
         current = nextItem;

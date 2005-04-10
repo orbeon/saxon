@@ -303,8 +303,11 @@ public final class SequenceOutputter extends SequenceReceiver {
     * Close the output
     */
 
-    public void close() {
+    public void close() throws XPathException {
         previousAtomic = false;
+        if (tree != null) {
+            tree.close();
+        }
     }
 
     /**

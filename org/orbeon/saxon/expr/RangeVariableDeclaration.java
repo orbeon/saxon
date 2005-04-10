@@ -131,15 +131,16 @@ public class RangeVariableDeclaration implements VariableDeclaration {
                 } else  {
                     child = (ComputedExpression)parent;
                     parent = child.getParentExpression();
-                    if (count++ > 100) {
-                        System.err.println("CYCLE!");
+                    if (count++ > 10000) {
+                        throw new IllegalStateException("The expression tree appears to contain a cycle");
                     }
                 }
             } else if (parent instanceof UserFunction) {
                 UserFunctionParameter[] params = ((UserFunction)parent).getParameterDefinitions();
                 for (int p=0; p<params.length; p++) {
                     if (params[p] == binding) {
-                        return 1;
+                        int refs = params[p].getReferenceCount();
+                        return refs;
                     }
                 }
                 return 10;

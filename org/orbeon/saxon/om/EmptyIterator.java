@@ -25,7 +25,7 @@ public class EmptyIterator implements AxisIterator,
 
     /**
      * Get the next item. This method should not be called unless hasNext() returns true.
-     * @return the next item (always null in this implementation)
+     * @return the next item. For the EmptyIterator this is always null.
      */
     public Item next() {
         return null;
@@ -33,7 +33,7 @@ public class EmptyIterator implements AxisIterator,
 
     /**
      * Get the current item, that is, the item returned by the most recent call of next().
-     * @return the current item
+     * @return the current item. For the EmptyIterator this is always null.
      */
     public Item current() {
         return null;
@@ -41,7 +41,8 @@ public class EmptyIterator implements AxisIterator,
 
     /**
      * Get the position of the current item.
-     * @return the position of the current item
+     * @return the position of the current item. For the EmptyIterator this is always zero
+     * (whether or not the next() method has been called).
      */
     public int position() {
         return 0;

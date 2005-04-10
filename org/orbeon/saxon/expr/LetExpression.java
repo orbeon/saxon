@@ -42,6 +42,7 @@ public class LetExpression extends Assignation {
         sequence = sequence.analyze(env, contextItemType);
 
         RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, new Integer(nameCode), 0, env.getNamePool());
+        role.setSourceLocator(this);
         sequence = TypeChecker.strictTypeCheck(
                         sequence, declaration.getRequiredType(), role, env);
         ItemType actualItemType = sequence.getItemType();
@@ -71,6 +72,17 @@ public class LetExpression extends Assignation {
             return p;
         }
 
+        // After all this work, move the action part of the let expression up to the containing expression.
+        // This reduces the stack space needed, and enables tail call optimization to work properly
+        // NO: this causes problems when deciding whether expressions depend on particular variables.
+
+        // TODO: reduce the stack-space requirements for expressions that declare many local variables.
+
+        // TODO: tail call optimization is not working for XSLT templates that declare local variables
+
+//        Block block = Block.makeBlock(this, action);
+//        action = EmptySequence.getInstance();
+//        return block;
         return this;
     }
 
@@ -84,7 +96,7 @@ public class LetExpression extends Assignation {
 
     public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException {
         action.checkPermittedContents(parentType, env, whole);
-    }        
+    }
 
     /**
     * Iterate over the sequence of values
@@ -101,6 +113,7 @@ public class LetExpression extends Assignation {
      */
 
     protected ValueRepresentation eval(XPathContext context) throws XPathException {
+        //System.err.println("Let line " + getLineNumber());
         return ExpressionTool.lazyEvaluate(sequence, context, keepValue);
     }
 
@@ -212,7 +225,8 @@ public class LetExpression extends Assignation {
     */
 
     public void display(int level, NamePool pool, PrintStream out) {
-        out.println(ExpressionTool.indent(level) + "let $" + getVariableName(pool) + " :=");
+        out.println(ExpressionTool.indent(level) + "let $" + getVariableName(pool) +
+                "[keep=" + (keepValue?"yes":"no") + "] :=");
         sequence.display(level+1, pool, out);
         out.println(ExpressionTool.indent(level) + "return");
         action.display(level+1, pool, out);

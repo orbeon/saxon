@@ -1,5 +1,6 @@
 package net.sf.saxon.expr;
 import net.sf.saxon.Controller;
+import net.sf.saxon.ConversionContext;
 import net.sf.saxon.event.SequenceReceiver;
 import net.sf.saxon.instruct.LocalParam;
 import net.sf.saxon.instruct.ParameterSet;
@@ -23,7 +24,7 @@ import java.util.Properties;
 * This class represents a context in which an XPath expression is evaluated.
 */
 
-public interface XPathContext {
+public interface XPathContext extends ConversionContext {
 
 
     /**

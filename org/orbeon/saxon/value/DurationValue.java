@@ -8,6 +8,7 @@ import net.sf.saxon.type.BuiltInAtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.type.ValidationException;
+import net.sf.saxon.ConversionContext;
 
 import java.util.StringTokenizer;
 
@@ -89,12 +90,12 @@ public class DurationValue extends AtomicValue implements Comparable {
                         state = 5;
                         break;
                     case '.':
-                        if (state > 6) badDuration("misplaced decimal point", s);
+                        if (state < 4 || state > 6) badDuration("misplaced decimal point", s);
                         seconds = value;
                         state = 7;
                         break;
                     case 'S':
-                        if (state > 7) badDuration("S is out of sequence", s);
+                        if (state < 4 || state > 7) badDuration("S is out of sequence", s);
                         if (state==7) {
                             while (part.length() < 3) part += "0";
                             if (part.length() > 3) part = part.substring(0, 3);
@@ -124,10 +125,11 @@ public class DurationValue extends AtomicValue implements Comparable {
     /**
     * Convert to target data type
     * @param requiredType an integer identifying the required atomic type
-    * @return an AtomicValue, a value of the required type; or an ErrorValue
+    * @param conversion
+     * @return an AtomicValue, a value of the required type; or an ErrorValue
     */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, ConversionContext conversion) {
         //System.err.println("Convert duration " + getClass() + " to " + Type.getTypeName(requiredType));
         switch(requiredType.getPrimitiveType()) {
         case Type.DURATION:
@@ -144,7 +146,7 @@ public class DurationValue extends AtomicValue implements Comparable {
                         "Cannot convert to yearMonthDuration because some components are non-zero");
                 //err.setXPathContext(context);
                 err.setErrorCode("FORG0001");
-                return new ErrorValue(err);
+                return new ValidationErrorValue(err);
             } else {
                 return MonthDurationValue.fromMonths((years*12 + months) * (negative ? -1 : +1));
             }
@@ -154,7 +156,7 @@ public class DurationValue extends AtomicValue implements Comparable {
                         "Cannot convert to dayTimeDuration because some components are non-zero");
                 //err.setXPathContext(context);
                 err.setErrorCode("FORG0001");
-                return new ErrorValue(err);
+                return new ValidationErrorValue(err);
             } else {
                 return new SecondsDurationValue((negative?-1:+1), days, hours, minutes, seconds, milliseconds);
             }
@@ -163,7 +165,7 @@ public class DurationValue extends AtomicValue implements Comparable {
                                      requiredType.getDisplayName());
             //err.setXPathContext(context);
             err.setErrorCode("FORG0001");
-            return new ErrorValue(err);
+            return new ValidationErrorValue(err);
         }
     }
 

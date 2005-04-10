@@ -1,8 +1,5 @@
 package net.sf.saxon.style;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.RoleLocator;
-import net.sf.saxon.expr.TypeChecker;
+import net.sf.saxon.expr.*;
 import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.Axis;
@@ -16,12 +13,10 @@ import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.Err;
 
-import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
-import java.util.StringTokenizer;
 import java.math.BigDecimal;
+import java.util.StringTokenizer;
 
 /**
 * An xsl:template element in the style sheet.
@@ -103,7 +98,7 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
         return getContainingStylesheet().getMinImportPrecedence();
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 
@@ -130,7 +125,7 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
                 modeNameCodes[0] = -1;
             } else {
                 if (matchAtt==null) {
-                    compileError("The mode attribute must be absent if the match attribute is absent", "XT0500");
+                    compileError("The mode attribute must be absent if the match attribute is absent", "XTSE0500");
                 }
                 // mode is a space-separated list of mode names, or "#default", or "#all"
 
@@ -143,7 +138,7 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
                 }
 
                 if (count==0) {
-                    compileError("The mode attribute must not be empty", "XT0550");
+                    compileError("The mode attribute must not be empty", "XTSE0550");
                 }
 
                 modeNameCodes = new int[count];
@@ -162,13 +157,13 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
                     }
                     for (int e=0; e < count; e++) {
                         if (modeNameCodes[e] == code) {
-                            compileError("In the list of modes, the value " + s + " is duplicated", "XT0550");
+                            compileError("In the list of modes, the value " + s + " is duplicated", "XTSE0550");
                         }
                     }
                     modeNameCodes[count++] = code;
                 }
                 if (allModes && (count>1)) {
-                    compileError("mode='#all' cannot be combined with other modes", "XT0550");
+                    compileError("mode='#all' cannot be combined with other modes", "XTSE0550");
                 }
             }
 
@@ -177,22 +172,22 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
                 diagnosticId = nameAtt;
             }
         } catch (NamespaceException err) {
-            compileError(err.getMessage(), "XT0280");
+            compileError(err.getMessage(), "XTSE0280");
         } catch (XPathException err) {
-            compileError(err.getMessage());
+            compileError(err.getMessage(), "XTSE0280");
         }
 
         prioritySpecified = (priorityAtt != null);
         if (prioritySpecified) {
             if (matchAtt==null) {
-                compileError("The priority attribute must be absent if the match attribute is absent", "XT0500");
+                compileError("The priority attribute must be absent if the match attribute is absent", "XTSE0500");
             }
             try {
                 // it's got to be a valid decimal, but we want it as a double, so parse it twice
                 new BigDecimal(priorityAtt.trim());
                 priority = Double.parseDouble(priorityAtt.trim());
             } catch (NumberFormatException err) {
-                compileError("Invalid numeric value for priority (" + priority + ')', "XT0530");
+                compileError("Invalid numeric value for priority (" + priority + ')', "XTSE0530");
             }
         }
 
@@ -204,7 +199,7 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
         }
 
         if (match==null && nameAtt==null)
-            compileError("xsl:template must have a name or match attribute (or both)", "XT0010");
+            compileError("xsl:template must have a name or match attribute (or both)", "XTSE0010");
 
         if (asAtt != null) {
             requiredType = makeSequenceType(asAtt);
@@ -212,7 +207,7 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
 
 	}
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         stackFrameMap = getConfiguration().makeSlotManager();
         checkTopLevel(null);
 
@@ -250,7 +245,7 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
     * space is available for local variables
     */
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
 
         Expression block = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
         if (block == null) {
@@ -268,11 +263,12 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
         } catch (XPathException e) {
             compileError(e);
         }
-        
+
         try {
             if (requiredType != null) {
                 RoleLocator role =
                         new RoleLocator(RoleLocator.TEMPLATE_RESULT, diagnosticId, 0, null);
+                role.setSourceLocator(new ExpressionLocation(this));
                 exp = TypeChecker.staticTypeCheck(exp, requiredType, false, role, getStaticContext());
             }
         } catch (XPathException err) {

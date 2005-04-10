@@ -197,19 +197,25 @@ public final class FilterExpression extends ComputedExpression {
 
         // If any subexpressions within the filter are not dependent on the focus,
         // promote them: this causes them to be evaluated once, outside the filter
-        // expression
+        // expression. But don't do this if the filter is known to be numeric.
 
-        PromotionOffer offer = new PromotionOffer();
-        offer.action = PromotionOffer.FOCUS_INDEPENDENT;
-        offer.promoteDocumentDependent = (start.getSpecialProperties() & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0;
-        offer.containingExpression = this;
-        filter = filter.promote(offer);
+        ItemType filterType = filter.getItemType();
+        if (!Type.isSubType(filterType, Type.NUMBER_TYPE)) {
 
-        if (offer.containingExpression instanceof LetExpression) {
-            offer.containingExpression = offer.containingExpression.analyze(env, contextItemType);
+            PromotionOffer offer = new PromotionOffer();
+            offer.action = PromotionOffer.FOCUS_INDEPENDENT;
+            offer.promoteDocumentDependent = (start.getSpecialProperties() & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0;
+            offer.containingExpression = this;
+            filter = filter.promote(offer);
+
+            if (offer.containingExpression instanceof LetExpression) {
+                offer.containingExpression = offer.containingExpression.analyze(env, contextItemType);
+            }
+
+            return offer.containingExpression;
+
         }
-
-        return offer.containingExpression;
+        return this;
     }
 
     /**
@@ -387,6 +393,9 @@ public final class FilterExpression extends ComputedExpression {
         // value of the filter expression is the same for all items in the sequence being filtered.
 
         if (filterValue != null) {
+            if (filterValue instanceof Value) {
+                filterValue = ((Value)filterValue).reduce();
+            }
             if (filterValue instanceof NumericValue) {
                 // Filter is a constant number
                 if (((NumericValue)filterValue).isWholeNumber()) {
@@ -417,7 +426,7 @@ public final class FilterExpression extends ComputedExpression {
                 }
             } else if (filterValue instanceof Value) {
                 // Filter is a constant that we can treat as boolean
-                // TODO: is this correct? It could be a SequenceExtent or a Closure, whose actual value might be a number
+
                 if (((Value)filterValue).effectiveBooleanValue(context)) {
                     return start.iterate(context);
                 } else {
@@ -466,7 +475,9 @@ public final class FilterExpression extends ComputedExpression {
         // not all dependencies in the filter expression matter, because the context node,
         // position, and size are not dependent on the outer context.
         return (start.getDependencies() |
-                (filterDependencies & StaticProperty.DEPENDS_ON_XSLT_CONTEXT));
+                (filterDependencies & (StaticProperty.DEPENDS_ON_XSLT_CONTEXT |
+                    StaticProperty.DEPENDS_ON_LOCAL_VARIABLES |
+                    StaticProperty.DEPENDS_ON_USER_FUNCTIONS)));
     }
 
 

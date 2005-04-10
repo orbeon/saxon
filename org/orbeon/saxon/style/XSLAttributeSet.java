@@ -3,8 +3,9 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.type.AnyItemType;
+import net.sf.saxon.value.EmptySequence;
 
-import javax.xml.transform.TransformerConfigurationException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -50,7 +51,7 @@ public class XSLAttributeSet extends StyleElement implements StylesheetProcedure
         referenceCount++;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 		useAtt = null;
 
 		AttributeCollection atts = getAttributeList();
@@ -75,14 +76,14 @@ public class XSLAttributeSet extends StyleElement implements StylesheetProcedure
         try {
             setObjectNameCode(makeNameCode(nameAtt.trim()));
         } catch (NamespaceException err) {
-            compileError(err.getMessage(), "XT0280");
+            compileError(err.getMessage(), "XTSE0280");
         } catch (XPathException err) {
-            compileError(err.getMessage());
+            compileError(err.getMessage(), "XTSE0280");
         }
 
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
 
         if (validated) return;
 
@@ -97,7 +98,7 @@ public class XSLAttributeSet extends StyleElement implements StylesheetProcedure
                 break;
             }
             if (!(child instanceof XSLAttribute)) {
-                compileError("Only xsl:attribute is allowed within xsl:attribute-set", "XT0010");
+                compileError("Only xsl:attribute is allowed within xsl:attribute-set", "XTSE0010");
             }
         }
 
@@ -122,9 +123,9 @@ public class XSLAttributeSet extends StyleElement implements StylesheetProcedure
     * a direct or indirect reference to the one supplied as a parameter
     */
 
-    public void checkCircularity(XSLAttributeSet origin) throws TransformerConfigurationException {
+    public void checkCircularity(XSLAttributeSet origin) throws XPathException {
         if (this==origin) {
-            compileError("The definition of the attribute set is circular", "XT0720");
+            compileError("The definition of the attribute set is circular", "XTSE0720");
         } else {
             if (!validated) {
                 // if this attribute set isn't validated yet, we don't check it.
@@ -151,30 +152,40 @@ public class XSLAttributeSet extends StyleElement implements StylesheetProcedure
      * Compile the attribute set
      * @param exec the Executable
      * @return a Procedure object representing the compiled attribute set
-     * @throws TransformerConfigurationException if a failure is detected
+     * @throws XPathException if a failure is detected
      */
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         if (referenceCount > 0 ) {
             Expression body = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+            if (body == null) {
+                body = EmptySequence.getInstance();
+            }
 
             try {
-                if (body != null) {
-                    body = body.simplify(getStaticContext());
-                    if (getConfiguration().getTraceListener() != null) {
-                        TraceWrapper trace = new TraceInstruction(body, this);
-                        trace.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
-                        trace.setParentExpression(procedure);
-                        body = trace;
-                    }
+
+                body = body.simplify(getStaticContext());
+                if (getConfiguration().getTraceListener() != null) {
+                    TraceWrapper trace = new TraceInstruction(body, this);
+                    trace.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
+                    trace.setParentExpression(procedure);
+                    body = trace;
                 }
 
                 procedure.setUseAttributeSets(useAttributeSets);
                 procedure.setNameCode(getObjectNameCode());
                 procedure.setBody(body);
-                procedure.setStackFrameMap(stackFrameMap);
                 procedure.setSystemId(getSystemId());
                 procedure.setLineNumber(getLineNumber());
                 procedure.setExecutable(exec);
+
+                Expression exp2 = body.analyze(staticContext, AnyItemType.getInstance());
+                if (body != exp2) {
+                    procedure.setBody(exp2);
+                    body = exp2;
+                }
+
+                super.allocateSlots(body);
+                procedure.setStackFrameMap(stackFrameMap);
             } catch (XPathException e) {
                 compileError(e);
             }

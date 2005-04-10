@@ -27,6 +27,21 @@ final class TinyAttributeImpl extends TinyNodeImpl {
     }
 
     /**
+     * Get the root node of the tree (not necessarily a document node)
+     *
+     * @return the NodeInfo representing the root of this tree
+     */
+
+    public NodeInfo getRoot() {
+        NodeInfo parent = getParent();
+        if (parent == null) {
+            return this;    // doesn't happen - parentless attributes are represented by the Orphan class
+        } else {
+            return parent.getRoot();
+        }
+    }
+
+    /**
     * Get the node sequence number (in document order). Sequence numbers are monotonic but not
     * consecutive. In this implementation, elements have a zero
     * least-significant word, while attributes and namespaces use the same value in the top word as

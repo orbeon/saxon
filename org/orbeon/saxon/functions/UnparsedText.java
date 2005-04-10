@@ -76,7 +76,7 @@ public class UnparsedText extends SystemFunction implements XSLTFunction {
             } catch (MalformedURLException err) {
                 // it isn't
                 DynamicError e = new DynamicError("Cannot resolve absolute URI", err);
-                e.setErrorCode("XT1170");
+                e.setErrorCode("XTDE1170");
                 throw e;
             }
         } else {
@@ -84,7 +84,7 @@ public class UnparsedText extends SystemFunction implements XSLTFunction {
                 absoluteURL = new URL(new URL(baseURI), href);
             } catch (MalformedURLException err) {
                 DynamicError e =  new DynamicError("Cannot resolve relative URI", err);
-                e.setErrorCode("XT1170");
+                e.setErrorCode("XTDE1170");
                 throw e;
             }
         }
@@ -104,11 +104,12 @@ public class UnparsedText extends SystemFunction implements XSLTFunction {
             return sb.condense();
         } catch (java.io.UnsupportedEncodingException encErr) {
             DynamicError e =  new DynamicError("Unknown encoding " + Err.wrap(encoding), encErr);
-            e.setErrorCode("XT1190");
+            e.setErrorCode("XTDE1190");
             throw e;
         } catch (java.io.IOException ioErr) {
             DynamicError e =  new DynamicError("Failed to read input file", ioErr);
-            e.setErrorCode("XT1170");
+            e.setErrorCode("XTDE1170");
+            e.setLocator(this);
             throw e;
         }
     }

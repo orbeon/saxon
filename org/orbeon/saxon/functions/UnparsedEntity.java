@@ -44,7 +44,7 @@ public class UnparsedEntity extends SystemFunction implements XSLTFunction {
         String arg0 = argument[0].evaluateItem(context).getStringValue();
         Item doc = argument[1].evaluateItem(context);
         if (!(doc instanceof DocumentInfo)) {
-            String code = (operation==URI ? "XT1370" : "XT1380");
+            String code = (operation==URI ? "XTDE1370" : "XTDE1380");
             dynamicError("In function " + getDisplayName(context.getController().getNamePool()) +
                             ", the context node must be in a tree whose root is a document node", code, context);
         }

@@ -4,6 +4,7 @@ import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.NamespaceException;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -17,7 +18,7 @@ public class XSLNamespaceAlias extends StyleElement {
     private short stylesheetURICode;
     private int resultNamespaceCode;
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 	    String stylesheetPrefix=null;
 	    String resultPrefix=null;
@@ -60,11 +61,11 @@ public class XSLNamespaceAlias extends StyleElement {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkTopLevel(null);
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         return null;
     }
 

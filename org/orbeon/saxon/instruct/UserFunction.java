@@ -31,6 +31,9 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
 
     private int functionNameCode;
     private boolean memoFunction = false;
+    private boolean tailRecursive = false;
+            // this actually means the function contains tail calls,
+            // they are not necessarily recursive calls
     private UserFunctionParameter[] parameterDefinitions;
     private SequenceType resultType;
     private transient InstructionDetails details = null;
@@ -51,6 +54,10 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
 
     public void setResultType(SequenceType resultType) {
         this.resultType = resultType;
+    }
+
+    public void setTailRecursive(boolean tailCalls) {
+        tailRecursive = tailCalls;
     }
 
     /**
@@ -103,7 +110,7 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
      * Get the namepool name code of the function
      * @return a name code representing the function name
      */
-    
+
     public int getFunctionNameCode() {
         return functionNameCode;
     }
@@ -142,9 +149,18 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
         context.setStackFrame(getStackFrameMap(), actualArgs);
         ValueRepresentation result;
         try {
-            result = ExpressionTool.lazyEvaluate(getBody(), context, false);
+            if (tailRecursive) {
+                // if this function contains tail calls, we evaluate it eagerly, because
+                // the caller needs to know whether a tail call was returned or not: if we
+                // return a Closure, the tail call escapes into the wild and can reappear anywhere...
+                result = ExpressionTool.eagerEvaluate(getBody(), context);
+            } else {
+                result = ExpressionTool.lazyEvaluate(getBody(), context, false);
+            }
         } catch (XPathException err) {
-            err.setLocator(this);
+            if (err.getLocator() == null) {
+                err.setLocator(this);
+            }
             throw err;
         }
 
@@ -153,6 +169,20 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
                 result = ((UserFunctionCall.FunctionCallPackage)result).call();
             }
         }
+
+// WAS:
+//        if (evaluateTailCalls) {
+//            while (true) {
+//                boolean cont = false;
+//                if (result instanceof UserFunctionCall.FunctionCallPackage) {
+//                    result = ((UserFunctionCall.FunctionCallPackage)result).call();
+//                    cont = true;
+//                }
+//                if (!cont) {
+//                    break;
+//                }
+//            }
+//        }
 
         // If this is a memo function, save the result in the cache
         if (memoFunction) {

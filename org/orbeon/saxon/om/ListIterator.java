@@ -34,7 +34,12 @@ public final class ListIterator
     }
 
     public Item next() {
-        if (index >= length) return null;
+        if (index >= length) {
+            current = null;
+            index = -1;
+            length = -1;
+            return null;
+        }
         current = (Item)list.get(index++);
         return current;
     }

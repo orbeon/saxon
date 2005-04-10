@@ -1,6 +1,7 @@
 package net.sf.saxon.value;
 
 import net.sf.saxon.Err;
+import net.sf.saxon.ConversionContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.om.SequenceIterator;
@@ -70,12 +71,13 @@ public class StringValue extends AtomicValue {
      * @param validate true if validation is required. If set to false, the caller guarantees that
      * the value is valid for the target data type, and that further validation is therefore not required.
      * Note that a validation failure may be reported even if validation was not requested.
+     * @param conversion
      * @return the result of the conversion, if successful. If unsuccessful, the value returned
-     * will be an ErrorValue. The caller must check for this condition. No exception is thrown, instead
+     * will be a ValidationErrorValue. The caller must check for this condition. No exception is thrown, instead
      * the exception will be encapsulated within the ErrorValue.
      */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, ConversionContext conversion) {
 
         try {
             switch (requiredType.getFingerprint()) {
@@ -89,6 +91,21 @@ public class StringValue extends AtomicValue {
                 case Type.INTEGER:
                     return IntegerValue.stringToInteger(value);
 
+
+                case Type.UNSIGNED_LONG:
+                case Type.UNSIGNED_INT:
+                case Type.UNSIGNED_SHORT:
+                case Type.UNSIGNED_BYTE:
+                    if (validate) {
+                        for (int c=0; c<value.length(); c++) {
+                            if (value.charAt(c) == '+') {
+                                ValidationException err = new ValidationException(
+                                        "An unsigned number must not contain a plus sign");
+                                return new ValidationErrorValue(err);
+                            }
+                        }
+                    }
+                    // fall through
                 case Type.NON_POSITIVE_INTEGER:
                 case Type.NEGATIVE_INTEGER:
                 case Type.LONG:
@@ -97,24 +114,18 @@ public class StringValue extends AtomicValue {
                 case Type.BYTE:
                 case Type.NON_NEGATIVE_INTEGER:
                 case Type.POSITIVE_INTEGER:
-                case Type.UNSIGNED_LONG:
-                case Type.UNSIGNED_INT:
-                case Type.UNSIGNED_SHORT:
-                case Type.UNSIGNED_BYTE:
                     AtomicValue iv = IntegerValue.stringToInteger(value);
-                    if (iv instanceof ErrorValue) {
+                    if (iv instanceof ValidationErrorValue) {
                         // indicates that the conversion failed
                         return iv;
                     }
+                    ValidationException err;
                     if (iv instanceof IntegerValue) {
-                        ValidationException err = ((IntegerValue)iv).convertToSubtype(requiredType, validate);
-                        if (err != null) {
-                            return new ErrorValue(err);
-                        }
+                        err = ((IntegerValue)iv).convertToSubtype(requiredType, validate);
                     } else {
-                        ((BigIntegerValue)iv).setSubType(requiredType);
-                        return iv;
+                        err = ((BigIntegerValue)iv).convertToSubType(requiredType, validate);
                     }
+                    return (err == null ? iv : new ValidationErrorValue(err));
                 case Type.DECIMAL:
                     return DecimalValue.makeDecimalValue(value, validate);
                 case Type.FLOAT:
@@ -172,12 +183,18 @@ public class StringValue extends AtomicValue {
             if (err.getErrorCodeLocalPart() == null) {
                 err.setErrorCode("FORG0001");
             }
-            return new ErrorValue(err);
+            return new ValidationErrorValue(err);
         } catch (XPathException err) {
             if (err.getErrorCodeLocalPart() == null) {
                 err.setErrorCode("FORG0001");
             }
-            return new ErrorValue(new ValidationException(err));
+            ValidationException ve = new ValidationException(err.getMessage());
+            if (err.getErrorCodeLocalPart() == null) {
+                ve.setErrorCode("FORG0001");
+            } else {
+                ve.setErrorCode(err.getErrorCodeLocalPart());
+            }
+            return new ValidationErrorValue(ve);
         }
     }
 
@@ -286,46 +303,46 @@ public class StringValue extends AtomicValue {
         } else if (target == String.class || target == CharSequence.class) {
             return getStringValue();
         } else if (target == boolean.class) {
-            BooleanValue bval = (BooleanValue) convert(Type.BOOLEAN);
+            BooleanValue bval = (BooleanValue) convert(Type.BOOLEAN, context);
             return Boolean.valueOf(bval.getBooleanValue());
         } else if (target == Boolean.class) {
-            BooleanValue bval = (BooleanValue) convert(Type.BOOLEAN);
+            BooleanValue bval = (BooleanValue) convert(Type.BOOLEAN, context);
             return Boolean.valueOf(bval.getBooleanValue());
         } else if (target == double.class) {
-            DoubleValue dval = (DoubleValue) convert(Type.DOUBLE);
+            DoubleValue dval = (DoubleValue) convert(Type.DOUBLE, context);
             return new Double(dval.getDoubleValue());
         } else if (target == Double.class) {
-            DoubleValue dval = (DoubleValue) convert(Type.DOUBLE);
+            DoubleValue dval = (DoubleValue) convert(Type.DOUBLE, context);
             return new Double(dval.getDoubleValue());
         } else if (target == float.class) {
-            DoubleValue dval = (DoubleValue) convert(Type.DOUBLE);
+            DoubleValue dval = (DoubleValue) convert(Type.DOUBLE, context);
             return new Float(dval.getDoubleValue());
         } else if (target == Float.class) {
-            DoubleValue dval = (DoubleValue) convert(Type.DOUBLE);
+            DoubleValue dval = (DoubleValue) convert(Type.DOUBLE, context);
             return new Float(dval.getDoubleValue());
         } else if (target == long.class) {
-            IntegerValue dval = (IntegerValue) convert(Type.INTEGER);
+            IntegerValue dval = (IntegerValue) convert(Type.INTEGER, context);
             return new Long(dval.longValue());
         } else if (target == Long.class) {
-            IntegerValue dval = (IntegerValue) convert(Type.INTEGER);
+            IntegerValue dval = (IntegerValue) convert(Type.INTEGER, context);
             return new Long(dval.longValue());
         } else if (target == int.class) {
-            IntegerValue dval = (IntegerValue) convert(Type.INTEGER);
+            IntegerValue dval = (IntegerValue) convert(Type.INTEGER, context);
             return new Integer((int) dval.longValue());
         } else if (target == Integer.class) {
-            IntegerValue dval = (IntegerValue) convert(Type.INTEGER);
+            IntegerValue dval = (IntegerValue) convert(Type.INTEGER, context);
             return new Integer((int) dval.longValue());
         } else if (target == short.class) {
-            IntegerValue dval = (IntegerValue) convert(Type.INTEGER);
+            IntegerValue dval = (IntegerValue) convert(Type.INTEGER, context);
             return new Short((short) dval.longValue());
         } else if (target == Short.class) {
-            IntegerValue dval = (IntegerValue) convert(Type.INTEGER);
+            IntegerValue dval = (IntegerValue) convert(Type.INTEGER, context);
             return new Short((short) dval.longValue());
         } else if (target == byte.class) {
-            IntegerValue dval = (IntegerValue) convert(Type.INTEGER);
+            IntegerValue dval = (IntegerValue) convert(Type.INTEGER, context);
             return new Byte((byte) dval.longValue());
         } else if (target == Byte.class) {
-            IntegerValue dval = (IntegerValue) convert(Type.INTEGER);
+            IntegerValue dval = (IntegerValue) convert(Type.INTEGER, context);
             return new Byte((byte) dval.longValue());
         } else if (target == char.class || target == Character.class) {
             if (value.length() == 1) {
@@ -362,38 +379,43 @@ public class StringValue extends AtomicValue {
 
     public final class CharacterIterator implements SequenceIterator {
 
-        int pos;
-        int current;
+        int inpos = 0;        // 0-based index of the current Java char
+        int outpos = 0;       // 1-based value of position() function
+        int current = -1;     // Unicode codepoint most recently returned
 
         /**
          * Create an iterator over a string
          */
 
         public CharacterIterator() {
-            pos = 0;
         }
 
         public Item next() {
-            if (pos < value.length()) {
-                int c = value.charAt(pos++);
+            if (inpos < value.length()) {
+                int c = value.charAt(inpos++);
                 if (c >= 55296 && c <= 56319) {
                     // we'll trust the data to be sound
-                    current = ((c - 55296) * 1024) + ((int) value.charAt(pos++) - 56320) + 65536;
+                    current = ((c - 55296) * 1024) + ((int) value.charAt(inpos++) - 56320) + 65536;
                 } else {
                     current = c;
                 }
+                outpos++;
                 return new IntegerValue(current);
             } else {
+                outpos = -1;
                 return null;
             }
         }
 
         public Item current() {
+            if (outpos < 1) {
+                return null;
+            }
             return new IntegerValue(current);
         }
 
         public int position() {
-            return pos + 1;
+            return outpos;
         }
 
         public SequenceIterator getAnother() {

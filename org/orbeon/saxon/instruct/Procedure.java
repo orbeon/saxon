@@ -4,6 +4,7 @@ import net.sf.saxon.expr.ComputedExpression;
 import net.sf.saxon.expr.Container;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
+import net.sf.saxon.event.LocationProvider;
 
 import java.io.Serializable;
 
@@ -18,7 +19,7 @@ import java.io.Serializable;
  * convert the supplied arguments.
  */
 
-public class Procedure implements Serializable, Container {
+public class Procedure implements Serializable, Container, LocationProvider {
 
     private Expression body;
     private Executable executable;
@@ -55,7 +56,15 @@ public class Procedure implements Serializable, Container {
     public void setExecutable(Executable executable) {
         this.executable = executable;
     }
-        
+
+    /**
+     * Get the LocationProvider allowing location identifiers to be resolved.
+     */
+
+    public LocationProvider getLocationProvider() {
+        return this;
+    }
+
     public void setLineNumber(int lineNumber) {
         this.lineNumber = lineNumber;
     }
@@ -78,6 +87,14 @@ public class Procedure implements Serializable, Container {
 
     public String getPublicId() {
         return null;
+    }
+
+    public String getSystemId(int locationId) {
+        return systemId;
+    }
+
+    public int getLineNumber(int locationId) {
+        return lineNumber;
     }
 
 }

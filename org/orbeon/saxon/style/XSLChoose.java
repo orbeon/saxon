@@ -3,7 +3,6 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.instruct.Choose;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.instruct.Instruction;
 import net.sf.saxon.instruct.TraceWrapper;
 import net.sf.saxon.om.*;
 import net.sf.saxon.trans.XPathException;
@@ -42,7 +41,7 @@ public class XSLChoose extends StyleElement {
         return getCommonChildItemType();
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 		AttributeCollection atts = getAttributeList();
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
@@ -50,7 +49,7 @@ public class XSLChoose extends StyleElement {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
 
         AxisIterator kids = iterateAxis(Axis.CHILD);
@@ -61,27 +60,27 @@ public class XSLChoose extends StyleElement {
             }
             if (curr instanceof XSLWhen) {
                 if (otherwise!=null) {
-                    compileError("xsl:otherwise must come last", "XT0010");
+                    compileError("xsl:otherwise must come last", "XTSE0010");
                 }
                 numberOfWhens++;
             } else if (curr instanceof XSLOtherwise) {
                 if (otherwise!=null) {
-                    compileError("Only one xsl:otherwise allowed in an xsl:choose", "XT0010");
+                    compileError("Only one xsl:otherwise allowed in an xsl:choose", "XTSE0010");
                 } else {
                     otherwise = (StyleElement)curr;
                 }
             } else if (curr.getNodeKind() == Type.TEXT &&
                         Navigator.isWhite(curr.getStringValueCS())) {
-                compileError("Text node inside xsl:choose", "XT0010");
+                compileError("Text node inside xsl:choose", "XTSE0010");
                 // tolerate a whitespace text node; but it should have been stripped
                 // by now.
             } else {
-                compileError("Only xsl:when and xsl:otherwise are allowed here", "XT0010");
+                compileError("Only xsl:when and xsl:otherwise are allowed here", "XTSE0010");
             }
         }
 
         if (numberOfWhens==0) {
-            compileError("xsl:choose must contain at least one xsl:when", "XT0010");
+            compileError("xsl:choose must contain at least one xsl:when", "XTSE0010");
         }
     }
 
@@ -103,7 +102,7 @@ public class XSLChoose extends StyleElement {
     }
 
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
 
         int entries = numberOfWhens + (otherwise==null ? 0 : 1);
         Expression[] conditions = new Expression[entries];
@@ -189,7 +188,7 @@ public class XSLChoose extends StyleElement {
             }
             Expression[] conditions2 = new Expression[entries];
             System.arraycopy(conditions, 0, conditions2, 0, entries);
-            Instruction[] actions2 = new Instruction[entries];
+            Expression[] actions2 = new Expression[entries];
             System.arraycopy(actions, 0, actions2, 0, entries);
             conditions = conditions2;
             actions = actions2;

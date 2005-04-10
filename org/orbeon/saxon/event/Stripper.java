@@ -1,14 +1,12 @@
 package net.sf.saxon.event;
 import net.sf.saxon.Controller;
 import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.expr.ExpressionLocation;
 import net.sf.saxon.om.*;
 import net.sf.saxon.trans.Mode;
 import net.sf.saxon.trans.XPathException;
-import net.sf.saxon.trans.DynamicError;
-import net.sf.saxon.type.Type;
-import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.type.ComplexType;
+import net.sf.saxon.type.SchemaType;
+import net.sf.saxon.type.Type;
 
 /**
   * The Stripper class maintains details of which elements need to be stripped.
@@ -250,14 +248,16 @@ public class Stripper extends ProxyReceiver {
                 if ((stripStack[top] & (ALWAYS_STRIP | CANNOT_STRIP)) == 0) {
                     super.characters(chars, locationId, properties);
 
-                } else if ((stripStack[top] & CANNOT_STRIP) != 0) {
-                    DynamicError err = new DynamicError(
-                                    "Cannot apply strip-space to a schema-defined element with simple content");
-                    err.setErrorCode("XT0275");
-                    err.setLocator(new ExpressionLocation(
-                            getPipelineConfiguration().getLocationProvider(), locationId));
-                    controller.recoverableError(err);
                 }
+//                else if ((stripStack[top] & CANNOT_STRIP) != 0) {
+                    // this is no longer an error
+//                    DynamicError err = new DynamicError(
+//                                    "Cannot apply strip-space to a schema-defined element with simple content");
+//                    err.setErrorCode("XT0275");
+//                    err.setLocator(new ExpressionLocation(
+//                            getPipelineConfiguration().getLocationProvider(), locationId));
+//                    controller.recoverableError(err);
+//                }
             }
         }
     }

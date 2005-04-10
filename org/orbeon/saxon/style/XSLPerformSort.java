@@ -60,8 +60,8 @@ public class XSLPerformSort extends StyleElement {
     protected boolean isPermittedChild(StyleElement child) {
         return (child instanceof XSLSort);
     }
-    
-    public void prepareAttributes() throws TransformerConfigurationException {
+
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 
@@ -83,7 +83,7 @@ public class XSLPerformSort extends StyleElement {
 
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
         checkSortComesFirst(true);
 
@@ -110,7 +110,7 @@ public class XSLPerformSort extends StyleElement {
         select = typeCheck("select", select);
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         SortKeyDefinition[] sortKeys = makeSortKeys();
         if (select != null) {
             SortExpression sortedSequence = new SortExpression(select, sortKeys);

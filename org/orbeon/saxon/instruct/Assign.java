@@ -50,7 +50,7 @@ public class Assign extends GeneralVariable implements BindingReference {
             value = SequenceExtent.makeSequenceExtent(((Closure)value).iterate(null));
         }
         if (binding instanceof GeneralVariable) {
-            if (((GeneralVariable)binding).isGlobal()) {
+            if (binding.isGlobal()) {
                 context.getController().getBindery().assignGlobalVariable((GlobalVariable)binding, value);
             } else {
                 context.setLocalVariable(((GeneralVariable)binding).getSlotNumber(), value);

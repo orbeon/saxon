@@ -79,6 +79,26 @@ public class NamespaceResolverAsDeclarations implements NamespaceDeclarations {
         String uri = getURI(index);
         return pool.allocateNamespaceCode(prefix, uri);
     }
+
+    /**
+     * Get all the namespace codes, as an array.
+     *
+     * @param buffer a sacrificial array that the method is free to use to contain the result.
+     *               May be null.
+     * @return an integer array containing namespace codes. The array may be filled completely
+     *         with namespace codes, or it may be incompletely filled, in which case a -1 integer acts
+     *         as a terminator.
+     */
+
+    public int[] getNamespaceCodes(int[] buffer) {
+        if (buffer.length < getLength()) {
+            buffer = new int[getLength()];
+        }
+        for (int i=0; i<getLength(); i++) {
+            buffer[i] = getNamespaceCode(i);
+        }
+        return buffer;
+    }
 }
 
 //

@@ -22,7 +22,7 @@ public final class MappingIterator implements SequenceIterator, AtomizableIterat
     private SequenceIterator base;
     private MappingFunction action;
     private XPathContext context;
-    private Object info;
+    //private Object info;
     private SequenceIterator results = null;
     private boolean atomizing = false;
     private Item current = null;
@@ -32,19 +32,16 @@ public final class MappingIterator implements SequenceIterator, AtomizableIterat
     * Construct a MappingIterator that will apply a specified MappingFunction to
     * each Item returned by the base iterator.
     * @param base the base iterator
-    * @param action the mapping function to be applied
-    * @param context the processing context. This should be supplied only if each item to be processed
+     * @param action the mapping function to be applied
+     * @param context the processing context. This should be supplied only if each item to be processed
     * is to become the context item. In this case "base" should be the same as context.getCurrentIterator().
-    * @param info an arbitrary object to be passed as a parameter to the mapping function
-    * each time it is called
-    */
+     */
 
-    public MappingIterator(SequenceIterator base, MappingFunction action, XPathContext context, Object info) {
+    public MappingIterator(SequenceIterator base, MappingFunction action, XPathContext context) {
         // System.err.println("New Mapping iterator " + this + " with base " + base);
         this.base = base;
         this.action = action;
         this.context = context;
-        this.info = info;
     }
 
     public Item next() throws XPathException {
@@ -61,7 +58,7 @@ public final class MappingIterator implements SequenceIterator, AtomizableIterat
             Item nextSource = base.next();
             if (nextSource != null) {
                 // Call the supplied mapping function
-                Object obj = action.map(nextSource, context, info);
+                Object obj = action.map(nextSource, context);
 
                 // The result may be null (representing an empty sequence), an item
                 // (representing a singleton sequence), or a SequenceIterator (any sequence)
@@ -86,6 +83,8 @@ public final class MappingIterator implements SequenceIterator, AtomizableIterat
                 // now go round the loop to get the next item from the base sequence
             } else {
                 results = null;
+                current = null;
+                position = -1;
                 return null;
             }
         }
@@ -113,7 +112,7 @@ public final class MappingIterator implements SequenceIterator, AtomizableIterat
             c.setCurrentIterator(newBase);
             c.setOrigin(context.getOrigin());
         }
-        MappingIterator m = new MappingIterator(newBase, action, c, info);
+        MappingIterator m = new MappingIterator(newBase, action, c);
         m.setIsAtomizing(atomizing);
         return m;
     }

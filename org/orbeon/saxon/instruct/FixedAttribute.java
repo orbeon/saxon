@@ -1,7 +1,6 @@
 package net.sf.saxon.instruct;
 import net.sf.saxon.Controller;
 import net.sf.saxon.Err;
-import net.sf.saxon.event.NoOpenStartTagException;
 import net.sf.saxon.event.ReceiverOptions;
 import net.sf.saxon.event.SequenceReceiver;
 import net.sf.saxon.expr.*;
@@ -93,7 +92,8 @@ public final class FixedAttribute extends SimpleNodeConstructor {
         // Attempt early validation if possible
         if (select instanceof AtomicValue && schemaType != null && !schemaType.isNamespaceSensitive()) {
             CharSequence value = ((AtomicValue)select).getStringValueCS();
-            XPathException err = schemaType.validateContent(value, DummyNamespaceResolver.getInstance());
+            XPathException err = schemaType.validateContent(
+                    value, DummyNamespaceResolver.getInstance(), getExecutable().getConfiguration());
             if (err != null) {
                 throw new StaticError("Attribute value " + Err.wrap(value, Err.VALUE) +
                                                " does not the match the required type " +
@@ -189,7 +189,7 @@ public final class FixedAttribute extends SimpleNodeConstructor {
         String value = expandChildren(context).toString();
         if (schemaType != null) {
             // test whether the value actually conforms to the given type
-            XPathException err = schemaType.validateContent(value, DummyNamespaceResolver.getInstance());
+            XPathException err = schemaType.validateContent(value, DummyNamespaceResolver.getInstance(), context);
             if (err != null) {
                 ValidationException verr = new ValidationException(
                         "Attribute value " + Err.wrap(value, Err.VALUE) +
@@ -217,10 +217,11 @@ public final class FixedAttribute extends SimpleNodeConstructor {
         }
         try {
             out.attribute(nameCode, ann, value, locationId, opt);
-        } catch (NoOpenStartTagException err) {
-            err.setXPathContext(context);
-            err.setLocator(getSourceLocator());
-            context.getController().recoverableError(err);
+//        } catch (NoOpenStartTagException err) {
+            // no longer a recoverable error
+//            err.setXPathContext(context);
+//            err.setLocator(getSourceLocator());
+//            context.getController().recoverableError(err);
         } catch (XPathException err) {
             throw dynamicError(this, err, context);
         }
@@ -232,7 +233,7 @@ public final class FixedAttribute extends SimpleNodeConstructor {
         Orphan o = (Orphan)super.evaluateItem(context);
         if (schemaType != null) {
             XPathException err = schemaType.validateContent(
-                    o.getStringValueCS(), DummyNamespaceResolver.getInstance());
+                    o.getStringValueCS(), DummyNamespaceResolver.getInstance(), context);
             if (err != null) {
                 throw new ValidationException("Attribute value " + Err.wrap(o.getStringValueCS(), Err.VALUE) +
                                            " does not the match the required type " +

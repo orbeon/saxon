@@ -5,6 +5,7 @@ import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
+import net.sf.saxon.event.LocationProvider;
 
 import java.io.Serializable;
 import java.util.Iterator;
@@ -32,7 +33,7 @@ public abstract class Pattern implements Serializable, Container {
 
     public static Pattern make(String pattern, StaticContext env, Executable exec) throws XPathException {
 
-        Pattern pat = (new ExpressionParser()).parsePattern(pattern, env);        
+        Pattern pat = (new ExpressionParser()).parsePattern(pattern, env);
         pat.setSystemId(env.getSystemId());
         pat.setLineNumber(env.getLineNumber());
         // System.err.println("Simplified [" + pattern + "] to " + pat.getClass() + " default prio = " + pat.getDefaultPriority());
@@ -50,6 +51,14 @@ public abstract class Pattern implements Serializable, Container {
 
     public void setExecutable(Executable executable) {
         this.executable = executable;
+    }
+
+    /**
+     * Get the LocationProvider allowing location identifiers to be resolved.
+     */
+
+    public LocationProvider getLocationProvider() {
+        return executable.getLocationMap();
     }
 
 

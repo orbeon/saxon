@@ -51,7 +51,7 @@ public abstract class AttributeValueTemplate {
                 if (i8 != i9) {                        // a "}" that isn't a "}}"
                     StaticError err = new StaticError(
                             "Closing curly brace in attribute value template \"" + avt.substring(0,len) + "\" must be doubled");
-                    err.setErrorCode("XT0360");
+                    err.setErrorCode("XTSE0360");
                     throw err;
                 }
                 addStringComponent(components, avt, last, i8 + 1);

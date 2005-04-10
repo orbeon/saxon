@@ -13,6 +13,8 @@ import net.sf.saxon.type.Type;
 import net.sf.saxon.value.*;
 
 import java.util.Iterator;
+import java.io.ObjectOutputStream;
+import java.io.IOException;
 
 
 /**
@@ -28,6 +30,9 @@ public class Evaluate extends SystemFunction {
     // <xsl:value-of select="sum(//item, $exp)"/>
 
     IndependentContext staticContext;
+        // This staticContext is created at stylesheet compile time. It is therefore shared by all
+        // threads in which this stylesheet executes. Therefore it is immutable at run-time. When
+        // an XPath expression is compiled, a mutable copy of the staticContext is made.
     InstructionDetails details;
     public static final int EVALUATE = 0;
     public static final int EXPRESSION = 1;
@@ -61,6 +66,12 @@ public class Evaluate extends SystemFunction {
                 staticContext.setBaseURI(env.getBaseURI());
                 staticContext.setSchemaImporter(env);
                 staticContext.setDefaultFunctionNamespace(env.getDefaultFunctionNamespace());
+
+                // TODO: this creates a link to the XSLStylesheet and XSLFunction objects
+                // in the source stylesheet, which means that a stylesheet containing a call on evaluate()
+                // cannot be compiled.
+                staticContext.setFunctionLibrary(env.getFunctionLibrary());
+
                 for (Iterator iter = nsContext.iteratePrefixes(); iter.hasNext();) {
                     String prefix = (String)iter.next();
                     String uri = nsContext.getURIForPrefix(prefix, true);
@@ -71,26 +82,30 @@ public class Evaluate extends SystemFunction {
                 details.setSystemId(env.getLocationMap().getSystemId(this.locationId));
                 details.setLineNumber(env.getLocationMap().getLineNumber(this.locationId));
             } else if (operation == EVALUATE_NODE) {
+                // for saxon:evaluate-node() the static context of the expression is based
+                // on the node in the source document containing the expression.
                 staticContext = new IndependentContext(env.getConfiguration());
             }
         }
     }
 
     /**
-    * preEvaluate: this method suppresses compile-time evaluation by doing nothing
-    * (because the value of the expression depends on the runtime context)
-    */
+     * preEvaluate:  for saxon:expression, if the expression is
+     * known at compile time, then it is compiled at compile time.
+     * In other cases this method suppresses compile-time evaluation by doing nothing
+     * (because the value of the expression depends on the runtime context).
+     */
 
     public Expression preEvaluate(StaticContext env) throws XPathException {
         if (operation == EXPRESSION) {
             // compile-time evaluation of saxon:expression is allowed
             if (argument[0] instanceof StringValue) {
                 PreparedExpression pexpr = new PreparedExpression();
-                staticContext.setFunctionLibrary(env.getFunctionLibrary());
+                //staticContext.setFunctionLibrary(env.getFunctionLibrary());
                 String exprText = ((StringValue)argument[0]).getStringValue();
                 pexpr.variables = new Variable[10];
                 for (int i=1; i<10; i++) {
-                    pexpr.variables[i-1] = staticContext.declareVariable("p"+i, EmptySequence.getInstance());
+                    pexpr.variables[i-1] = staticContext.declareVariable("p"+i);
                 }
                 Expression expr = ExpressionTool.make(exprText, staticContext, 0, Token.EOF, 1);
 
@@ -129,23 +144,50 @@ public class Evaluate extends SystemFunction {
         String exprText;
         if (operation == EVALUATE_NODE) {
             NodeInfo node = (NodeInfo)argument[0].evaluateItem(context);
-            staticContext.setBaseURI(node.getBaseURI());
-            staticContext.setNamespaces(node);
+            IndependentContext env = staticContext.copy();
+            pexpr.expStaticContext = env;
+            env.setBaseURI(node.getBaseURI());
+            env.setFunctionLibrary(getExecutable().getFunctionLibrary());
+            env.setNamespaces(node);
             exprText = node.getStringValue();
-            context.setCurrentIterator(SingletonIterator.makeIterator(node));
-        } else {
-            staticContext.setFunctionLibrary(context.getController().getExecutable().getFunctionLibrary());
-            AtomicValue exprSource = (AtomicValue)argument[0].evaluateItem(context);
-            exprText = exprSource.getStringValue();
-            pexpr.variables = new Variable[10];
-            for (int i=1; i<10; i++) {
-                pexpr.variables[i-1] = staticContext.declareVariable("p"+i, EmptySequence.getInstance());
+            AxisIterator single = SingletonIterator.makeIterator(node);
+            single.next();
+            context.setCurrentIterator(single);
+            Expression expr;
+            try {
+                expr = ExpressionTool.make(exprText, env, 0, Token.EOF, 1);
+            } catch (XPathException e) {
+                String name = context.getController().getNamePool().getDisplayName(getFunctionNameCode());
+                DynamicError err = new DynamicError("Static error in XPath expression supplied to " + name + ": " +
+                        e.getMessage().trim());
+                err.setXPathContext(context);
+                throw err;
             }
+            ItemType contextItemType = Type.ITEM_TYPE;
+            expr = expr.analyze(env, contextItemType);
+            pexpr.stackFrameMap = env.getStackFrameMap();
+            ExpressionTool.allocateSlots(expr, pexpr.stackFrameMap.getNumberOfVariables(), pexpr.stackFrameMap);
+            pexpr.expression = expr;
+            if (expr instanceof ComputedExpression) {
+                ((ComputedExpression)expr).setParentExpression(this);
+            }
+            return pexpr;
+
+        }
+
+        AtomicValue exprSource = (AtomicValue)argument[0].evaluateItem(context);
+        exprText = exprSource.getStringValue();
+        IndependentContext env = staticContext.copy();
+        env.setFunctionLibrary(getExecutable().getFunctionLibrary());
+        pexpr.expStaticContext = env;
+        pexpr.variables = new Variable[10];
+        for (int i=1; i<10; i++) {
+            pexpr.variables[i-1] = env.declareVariable("p"+i);
         }
 
         Expression expr;
         try {
-            expr = ExpressionTool.make(exprText, staticContext, 0, Token.EOF, 1);
+            expr = ExpressionTool.make(exprText, env, 0, Token.EOF, 1);
         } catch (XPathException e) {
             String name = context.getController().getNamePool().getDisplayName(getFunctionNameCode());
             DynamicError err = new DynamicError("Static error in XPath expression supplied to " + name + ": " +
@@ -154,8 +196,8 @@ public class Evaluate extends SystemFunction {
             throw err;
         }
         ItemType contextItemType = Type.ITEM_TYPE;
-        expr = expr.analyze(staticContext, contextItemType);
-        pexpr.stackFrameMap = staticContext.getStackFrameMap();
+        expr = expr.analyze(env, contextItemType);
+        pexpr.stackFrameMap = env.getStackFrameMap();
         ExpressionTool.allocateSlots(expr, pexpr.stackFrameMap.getNumberOfVariables(), pexpr.stackFrameMap);
         pexpr.expression = expr;
 
@@ -226,9 +268,23 @@ public class Evaluate extends SystemFunction {
     */
 
     public static class PreparedExpression {
+        public IndependentContext expStaticContext;
         public Expression expression;
         public Variable[] variables;
         public SlotManager stackFrameMap;
+    }
+
+    /**
+     * Code to handle serialization: or rather, to report that it's not possible
+     */
+
+    private void writeObject(ObjectOutputStream s) throws IOException {
+        if (operation==EXPRESSION || operation==EVALUATE) {
+            throw new IOException("Cannot compile a stylesheet containing calls on saxon:evaluate() or saxon:expression(). " +
+                    "Consider using saxon:evaluate-node() instead.");
+        } else {
+            s.defaultWriteObject();
+        }
     }
 
 }

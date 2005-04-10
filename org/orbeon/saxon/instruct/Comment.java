@@ -75,19 +75,25 @@ public final class Comment extends SimpleNodeConstructor {
         while(true) {
             int hh = comment.indexOf("--");
             if (hh < 0) break;
-            DynamicError err = new DynamicError("Invalid characters (--) in comment", this);
-            err.setErrorCode((isXSLT(context) ? "XT0950" : "XQ0072"));
-            err.setXPathContext(context);
-            context.getController().recoverableError(err);
-            comment = comment.substring(0, hh+1) + ' ' + comment.substring(hh+1);
+            if (isXSLT(context)) {
+                comment = comment.substring(0, hh+1) + ' ' + comment.substring(hh+1);
+            } else {
+                DynamicError err = new DynamicError("Invalid characters (--) in comment", this);
+                err.setErrorCode("XQDY0072");
+                err.setXPathContext(context);
+                throw DynamicError.makeDynamicError(dynamicError(this, err, context));
+            }
         }
         if (comment.length()>0 && comment.charAt(comment.length()-1)=='-') {
-            DynamicError err = new DynamicError("Invalid character (-) at end of comment", this);
-            err.setErrorCode((isXSLT(context) ? "XT0950" : "XQ0072"));
-            err.setXPathContext(context);
-            context.getController().recoverableError(err);
-            comment = comment + ' ';
-        }        
+            if (isXSLT(context)) {
+                comment = comment + ' ';
+            } else {
+                DynamicError err = new DynamicError("Comment cannot end in '-'", this);
+                err.setErrorCode("XQDY0072");
+                err.setXPathContext(context);
+                throw DynamicError.makeDynamicError(dynamicError(this, err, context));
+            }
+        }
         return comment;
     }
 

@@ -393,13 +393,9 @@ public abstract class Token {
      */
     public static final int SUFFIX = 112;    // e.g. *:suffix
     /**
-     * Question mark symbol. That is, "?" 
+     * Question mark symbol. That is, "?"
      */
     public static final int QMARK = 113;
-    /**
-     * "type("
-     */
-    public static final int TYPETEST = 114;
     /**
      * "}" symbol (XQuery only)
      */
@@ -504,7 +500,6 @@ public abstract class Token {
         tokens [ FOR ] = "for";
         tokens [ SUFFIX ] = "<*:local-name>";
         tokens [ QMARK ] = "?";
-        tokens [ TYPETEST ] = "type(";
         tokens [ LCURLY ] = "{";
         tokens [ KEYWORD_CURLY ] = "<keyword> {";
         tokens [ RCURLY ] = "}";

@@ -10,6 +10,7 @@ import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.ObjectValue;
 import net.sf.saxon.value.Value;
 import net.sf.saxon.value.Whitespace;
+import net.sf.saxon.ConversionContext;
 
 import java.io.Serializable;
 
@@ -287,11 +288,12 @@ public class ExternalObjectType implements AtomicType, Serializable {
      * @param resolver a namespace resolver used to resolve any namespace prefixes appearing
      *                 in the content of values. Can supply null, in which case any namespace-sensitive content
      *                 will be rejected.
+     * @param conversion
      * @return an iterator over the atomic sequence comprising the typed value. The objects
      *         returned by this SequenceIterator will all be of type {@link net.sf.saxon.value.AtomicValue}
      */
 
-    public SequenceIterator getTypedValue(CharSequence value, NamespaceResolver resolver)
+    public SequenceIterator getTypedValue(CharSequence value, NamespaceResolver resolver, ConversionContext conversion)
             throws ValidationException {
         throw new ValidationException("Cannot validate a string against an external object type");
     }
@@ -374,6 +376,7 @@ public class ExternalObjectType implements AtomicType, Serializable {
      * @param nsResolver a namespace resolver used to resolve namespace prefixes if the type
      * is namespace sensitive. The value supplied may be null; in this case any namespace-sensitive
      * content will throw an UnsupportedOperationException.
+     * @param conversion
      * @return null if validation succeeds; return a ValidationException describing the validation failure
      * if validation fails, unless throwException is true, in which case the exception is thrown rather than
      * being returned.
@@ -381,7 +384,7 @@ public class ExternalObjectType implements AtomicType, Serializable {
      * resolver is supplied
      */
 
-    public ValidationException validateContent(CharSequence value, NamespaceResolver nsResolver) {
+    public ValidationException validateContent(CharSequence value, NamespaceResolver nsResolver, ConversionContext conversion) {
         throw new UnsupportedOperationException("Cannot use an external object type for validation");
     }
 

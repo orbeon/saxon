@@ -61,16 +61,17 @@ public class RootExpression extends SingleNodeExpression {
     public NodeInfo getNode(XPathContext context) throws XPathException {
         Item current = context.getContextItem();
         if (current==null) {
-            dynamicError("Finding root of tree: the context item is undefined", "XP0002", context);
+            dynamicError("Finding root of tree: the context item is undefined", "XPDY0002", context);
         }
         if (current instanceof NodeInfo) {
             DocumentInfo doc = ((NodeInfo)current).getDocumentRoot();
             if (doc==null) {
-                dynamicError("The root of the tree containing the context item is not a document node", "XP0050", context);
+                //TODO: we are returning this for errors in the key() function, should be XTDE1270
+                dynamicError("The root of the tree containing the context item is not a document node", "XPDY0050", context);
             }
             return doc;
         }
-        typeError("Finding root of tree: the context item is not a node", "XP0020", context);
+        typeError("Finding root of tree: the context item is not a node", "XPTY0020", context);
         // dummy return; we never get here
         return null;
     }

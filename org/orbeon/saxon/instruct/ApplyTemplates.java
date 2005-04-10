@@ -9,6 +9,7 @@ import net.sf.saxon.trace.TraceListener;
 import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.Mode;
 import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.trans.SaxonErrorCode;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.EmptySequence;
@@ -33,19 +34,26 @@ public class ApplyTemplates extends Instruction {
     private boolean backwardsCompatible;
 
     public ApplyTemplates(  Expression select,
-                            WithParam[] actualParams,
-                            WithParam[] tunnelParams,
                             boolean useCurrentMode,
                             boolean useTailRecursion,
                             Mode mode,
                             boolean backwardsCompatible) {
         this.select = select;
-        this.actualParams = actualParams;
-        this.tunnelParams = tunnelParams;
         this.useCurrentMode = useCurrentMode;
         this.useTailRecursion = useTailRecursion;
         this.mode = mode;
         this.backwardsCompatible = backwardsCompatible;
+    }
+
+   /**
+     * Set the actual parameters on the call
+     */
+
+    public void setActualParameters(
+                        WithParam[] actualParams,
+                        WithParam[] tunnelParams ) {
+        this.actualParams = actualParams;
+        this.tunnelParams = tunnelParams;
     }
 
     /**
@@ -147,7 +155,7 @@ public class ApplyTemplates extends Instruction {
             c2.setOrigin(this);
             return new ApplyTemplatesPackage(
                     ExpressionTool.lazyEvaluate(select, context, false),
-                    thisMode, params, tunnels, c2);
+                    thisMode, params, tunnels, c2, getLocationId());
         }
 
         // Get an iterator to iterate through the selected nodes in original order
@@ -164,13 +172,14 @@ public class ApplyTemplates extends Instruction {
         XPathContextMajor c2 = context.newContext();
         c2.setOrigin(this);
         try {
-            TailCall tc = applyTemplates(iter, thisMode, params, tunnels, c2, backwardsCompatible);
+            TailCall tc = applyTemplates(iter, thisMode, params, tunnels, c2, backwardsCompatible, getLocationId());
             while (tc != null) {
                 tc = tc.processLeavingTail(c2);
             }
         } catch (StackOverflowError e) {
             DynamicError err = new DynamicError(
                     "Too many nested apply-templates calls. The stylesheet is probably looping.");
+            err.setErrorCode(SaxonErrorCode.SXLM0001);
             err.setLocator(this);
             err.setXPathContext(context);
             throw err;
@@ -197,16 +206,18 @@ public class ApplyTemplates extends Instruction {
      *     the handler/template being invoked. Specify null if there are no
      *     parameters.
      * @param context A newly-created context object
+     * @param locationId
      * @return a TailCall returned by the last template to be invoked, or null,
      *     indicating that there are no outstanding tail calls.
      */
 
-    public static TailCall applyTemplates( SequenceIterator iterator,
-                                Mode mode,
-                                ParameterSet parameters,
-                                ParameterSet tunnelParameters,
-                                XPathContextMajor context,
-                                boolean backwardsCompatible)
+    public static TailCall applyTemplates(SequenceIterator iterator,
+                                          Mode mode,
+                                          ParameterSet parameters,
+                                          ParameterSet tunnelParameters,
+                                          XPathContextMajor context,
+                                          boolean backwardsCompatible,
+                                          int locationId)
                                 throws XPathException {
         Controller controller = context.getController();
         TailCall tc = null;
@@ -229,12 +240,12 @@ public class ApplyTemplates extends Instruction {
                         // We can assume it's a node - we did static type checking
                 if (node == null) break;
 
-                // find the node handler [i.e., the template rule] for this node
+                // find the template rule for this node
                 Template eh = controller.getRuleManager().getTemplateRule(node, mode, c2);
 
                 if (eh==null) {             // Use the default action for the node
                                             // No need to open a new stack frame!
-                    defaultAction(node, parameters, tunnelParameters, c2, backwardsCompatible);
+                    defaultAction(node, parameters, tunnelParameters, c2, backwardsCompatible, locationId);
 
                 } else {
                     if (tunnelParameters != null || eh.needsStackFrame()) {
@@ -275,7 +286,7 @@ public class ApplyTemplates extends Instruction {
 
                 if (eh==null) {             // Use the default action for the node
                                             // No need to open a new stack frame!
-                    defaultAction(node, parameters, tunnelParameters, c2, backwardsCompatible);
+                    defaultAction(node, parameters, tunnelParameters, c2, backwardsCompatible, locationId);
 
                 } else {
                     if (tunnelParameters != null || eh.needsStackFrame()) {
@@ -300,14 +311,17 @@ public class ApplyTemplates extends Instruction {
      * @param parameters the parameters supplied to apply-templates
      * @param tunnelParams the tunnel parameters to be passed through
      * @param backwardsCompatible true if in 1.0 mode (currently makes no difference)
+     * @param locationId location of the instruction (apply-templates, apply-imports etc) that caused
+     * the built-in template to be invoked
      * @exception XPathException if any dynamic error occurs
      */
 
     public static void defaultAction(NodeInfo node,
-                               ParameterSet parameters,
-                               ParameterSet tunnelParams,
-                               XPathContext context,
-                               boolean backwardsCompatible) throws XPathException {
+                                     ParameterSet parameters,
+                                     ParameterSet tunnelParams,
+                                     XPathContext context,
+                                     boolean backwardsCompatible,
+                                     int locationId) throws XPathException {
         switch(node.getNodeKind()) {
             case Type.DOCUMENT:
             case Type.ELEMENT:
@@ -315,7 +329,7 @@ public class ApplyTemplates extends Instruction {
                 XPathContextMajor c2 = context.newContext();
                 c2.setOrigin(builtInDetails);
 	            TailCall tc = applyTemplates(
-                        iter, context.getCurrentMode(), parameters, tunnelParams, c2, backwardsCompatible);
+                        iter, context.getCurrentMode(), parameters, tunnelParams, c2, backwardsCompatible, locationId);
                 while (tc != null) {
                     tc = tc.processLeavingTail(c2);
                 }
@@ -324,7 +338,7 @@ public class ApplyTemplates extends Instruction {
 	            // NOTE: I tried changing this to use the text node's copy() method, but
 	            // performance was worse
 	        case Type.ATTRIBUTE:
-	            context.getReceiver().characters(node.getStringValueCS(), 0, 0);
+	            context.getReceiver().characters(node.getStringValueCS(), locationId, 0);
 	            return;
 	        case Type.COMMENT:
 	        case Type.PROCESSING_INSTRUCTION:
@@ -396,23 +410,26 @@ public class ApplyTemplates extends Instruction {
         private ParameterSet params;
         private ParameterSet tunnelParams;
         private XPathContextMajor evaluationContext;
+        private int locationId;
 
-        public ApplyTemplatesPackage(ValueRepresentation selectedNodes,
+        ApplyTemplatesPackage(ValueRepresentation selectedNodes,
                                      Mode mode,
                                      ParameterSet params,
                                      ParameterSet tunnelParams,
-                                     XPathContextMajor context
+                                     XPathContextMajor context,
+                                     int locationId
                                      ) {
             this.selectedNodes = selectedNodes;
             this.mode = mode;
             this.params = params;
             this.tunnelParams = tunnelParams;
             this.evaluationContext = context;
+            this.locationId = locationId;
         }
 
         public TailCall processLeavingTail(XPathContext context) throws XPathException {
             TailCall tc = applyTemplates(
-                    Value.getIterator(selectedNodes), mode, params, tunnelParams, evaluationContext, false);
+                    Value.getIterator(selectedNodes), mode, params, tunnelParams, evaluationContext, false, locationId);
             return tc;
         }
     }

@@ -1,6 +1,7 @@
 package net.sf.saxon.sort;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.*;
+import net.sf.saxon.ConversionContext;
 
 import java.text.CollationKey;
 import java.text.Collator;
@@ -23,12 +24,14 @@ import java.util.Comparator;
 public class AtomicSortComparer implements Comparator, java.io.Serializable {
 
     private Comparator collator;
+    private ConversionContext conversion;
 
-    public AtomicSortComparer(Comparator collator) {
+    public AtomicSortComparer(Comparator collator, ConversionContext conversion) {
         this.collator = collator;
         if (collator == null) {
             this.collator = CodepointCollator.getInstance();
         }
+        this.conversion = conversion;
     }
 
     /**
@@ -55,9 +58,9 @@ public class AtomicSortComparer implements Comparator, java.io.Serializable {
             b = ((AtomicValue)b).getPrimitiveValue();
         }
         if (a instanceof UntypedAtomicValue) {
-            return ((UntypedAtomicValue)a).compareTo(b, collator);
+            return ((UntypedAtomicValue)a).compareTo(b, collator, conversion);
         } else if (b instanceof UntypedAtomicValue) {
-            return -((UntypedAtomicValue)b).compareTo(a, collator);
+            return -((UntypedAtomicValue)b).compareTo(a, collator, conversion);
         } else if (a instanceof DoubleValue && Double.isNaN(((DoubleValue)a).getDoubleValue())) {
             if (b instanceof DoubleValue && Double.isNaN(((DoubleValue)b).getDoubleValue())) {
                 return 0;
@@ -66,12 +69,18 @@ public class AtomicSortComparer implements Comparator, java.io.Serializable {
             }
         } else if (b instanceof DoubleValue && Double.isNaN(((DoubleValue)b).getDoubleValue())) {
             return +1;
+        } else if (a instanceof CalendarValue && b instanceof CalendarValue) {
+            return ((CalendarValue)a).compareTo((CalendarValue)b, conversion);
         } else if (a instanceof Comparable) {
             return ((Comparable)a).compareTo(b);
-        } else if (a instanceof StringValue) {
+        } else if (a instanceof StringValue && b instanceof StringValue) {
             return collator.compare(((StringValue)a).getStringValue(), ((StringValue)b).getStringValue());
+        } else if (a instanceof AtomicValue && b instanceof AtomicValue) {
+            throw new ClassCastException("Objects are not comparable (" +
+                    ((AtomicValue)a).getItemType() + ", " + ((AtomicValue)b).getItemType() + ")");
         } else {
-            throw new ClassCastException("Objects are not comparable (" + a.getClass() + ", " + b.getClass() + ")");
+            throw new ClassCastException("Objects are not comparable (" +
+                    a.getClass() + ", " + b.getClass() + ")");
         }
     }
 

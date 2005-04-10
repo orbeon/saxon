@@ -1,6 +1,5 @@
 package net.sf.saxon.sort;
-import net.sf.saxon.Loader;
-import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.Configuration;
 import net.sf.saxon.trans.XPathException;
 
 import java.net.URI;
@@ -17,7 +16,20 @@ import java.util.StringTokenizer;
 
 public class CollationFactory {
 
+    /**
+     * The class is never instantiated
+     */
+    private CollationFactory() {
+    }
 
+    /**
+     * Make a collator with given properties
+     * @param langAtt the language
+     * @param strengthAtt the collation strength: primary, secondary, tertiary, or identical
+     * @param decompositionAtt whether strings are normalized into Unicode decomposed normal form:
+     * none, standard, or full
+     * @return the collator
+     */
 
     public static Collator makeUsingProperties(
             String langAtt,
@@ -25,7 +37,7 @@ public class CollationFactory {
             String decompositionAtt )
     {
 
-        Collator collator = null;
+        Collator collator;
         // Start with the lang attribute
 
         if (langAtt!=null) {
@@ -80,28 +92,11 @@ public class CollationFactory {
     }
 
     /**
-    * Load a named collator class and check it is OK.
-    */
-
-    public static Comparator makeComparator (String className) throws XPathException
-    {
-        Object obj = Loader.getInstance(className);
-
-        if (obj instanceof Comparator ) {
-            return (Comparator)obj;
-        } else {
-            throw new DynamicError("Failed to load collation class " + className +
-                        ": it is not an instance of java.util.Comparator");
-        }
-
-    }
-
-    /**
      * Create a collator from a parameterized URI
      * @return null if the collation URI is not suitable
      */
 
-    public static Comparator makeCollationFromURI(String uri) throws XPathException {
+    public static Comparator makeCollationFromURI(String uri, Configuration config) throws XPathException {
         if (uri.equals("http://saxon.sf.net/collation")) {
             return makeUsingProperties(null, null, null);
         } else if (uri.startsWith("http://saxon.sf.net/collation?")) {
@@ -135,7 +130,7 @@ public class CollationFactory {
                 }
             }
             if (classname != null) {
-                return makeComparator(classname);
+                return config.makeCollator(classname);
             }
             return makeUsingProperties(lang, strength, decomposition);
         } else {

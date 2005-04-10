@@ -1,4 +1,5 @@
 package net.sf.saxon.sql;
+
 import net.sf.saxon.Controller;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.event.ReceiverOptions;
@@ -14,7 +15,6 @@ import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.ObjectValue;
 import net.sf.saxon.value.StringValue;
 
-import javax.xml.transform.TransformerConfigurationException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -22,12 +22,12 @@ import java.sql.SQLException;
 
 /**
  * An sql:query element in the stylesheet.
- *
+ * <p/>
  * For example:
  * <pre>
  *   &lt;sql:query column="{$column}" table="{$table}" where="{$where}"
  *                 xsl:extension-element-prefixes="sql"/ &gt;
- *
+ * <p/>
  * </pre>
  * (result with HTML-table-output) <BR>
  * <pre>
@@ -36,45 +36,60 @@ import java.sql.SQLException;
  *                 separatorType="tag"
  *                 xsl:extension-element-prefixes="sql"/ &gt;
  * </pre>
+ *
  * @author claudio.thomas@unix-ag.org (based on Michael Kay's SQLInsert.java)
-*/
+ */
 
 public class SQLQuery extends ExtensionInstruction {
 
     Expression connection;
-    /** selected column(s) to query */
+    /**
+     * selected column(s) to query
+     */
     Expression column;
-    /** the table(s) to query in */
+    /**
+     * the table(s) to query in
+     */
     Expression table;
-    /** conditions of query (can be omitted)*/
+    /**
+     * conditions of query (can be omitted)
+     */
     Expression where;
 
     String rowTag;
-    /** name of element to hold the rows */
+    /**
+     * name of element to hold the rows
+     */
     String colTag;
-    /** name of element to hold the columns */
+    /**
+     * name of element to hold the columns
+     */
 
     boolean disable = false;    // true means disable-output-escaping="yes"
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
         // Attributes for SQL-statement
         String dbCol = attributeList.getValue("", "column");
-        if (dbCol==null) reportAbsence("column");
+        if (dbCol == null) {
+            reportAbsence("column");
+        }
         column = makeAttributeValueTemplate(dbCol);
 
         String dbTab = attributeList.getValue("", "table");
-        if (dbTab==null) reportAbsence("table");
+        if (dbTab == null) {
+            reportAbsence("table");
+        }
         table = makeAttributeValueTemplate(dbTab);
 
         String dbWhere = attributeList.getValue("", "where");
-        if (dbWhere==null) {
+        if (dbWhere == null) {
             where = StringValue.EMPTY_STRING;
         } else {
             where = makeAttributeValueTemplate(dbWhere);
         }
 
         String connectAtt = attributeList.getValue("", "connection");
-        if (connectAtt==null) {
+        if (connectAtt == null) {
             reportAbsence("connection");
         } else {
             connection = makeExpression(connectAtt);
@@ -83,7 +98,7 @@ public class SQLQuery extends ExtensionInstruction {
         // Atributes for row & column element names
 
         rowTag = attributeList.getValue("", "row-tag");
-        if (rowTag==null) {
+        if (rowTag == null) {
             rowTag = "row";
         }
         if (rowTag.indexOf(':') >= 0) {
@@ -91,7 +106,7 @@ public class SQLQuery extends ExtensionInstruction {
         }
 
         colTag = attributeList.getValue("", "column-tag");
-        if (colTag==null) {
+        if (colTag == null) {
             colTag = "col";
         }
         if (colTag.indexOf(':') >= 0) {
@@ -111,7 +126,7 @@ public class SQLQuery extends ExtensionInstruction {
 
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         super.validate();
         column = typeCheck("column", column);
         table = typeCheck("table", table);
@@ -119,11 +134,10 @@ public class SQLQuery extends ExtensionInstruction {
         connection = typeCheck("connection", connection);
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
-        QueryInstruction inst = new QueryInstruction(
-                                        connection,
-                                        column, table, where,
-                                        rowTag, colTag, disable );
+    public Expression compile(Executable exec) throws XPathException {
+        QueryInstruction inst = new QueryInstruction(connection,
+                column, table, where,
+                rowTag, colTag, disable);
         return inst;
     }
 
@@ -137,14 +151,13 @@ public class SQLQuery extends ExtensionInstruction {
         String colTag;
         int options;
 
-        public QueryInstruction (
-                    Expression connection,
-                    Expression column,
-                    Expression table,
-                    Expression where,
-                    String rowTag,
-                    String colTag,
-                    boolean disable ) {
+        public QueryInstruction(Expression connection,
+                                Expression column,
+                                Expression table,
+                                Expression where,
+                                String rowTag,
+                                String colTag,
+                                boolean disable) {
             Expression[] sub = {connection, column, table, where};
             setArguments(sub);
             this.rowTag = rowTag;
@@ -170,7 +183,7 @@ public class SQLQuery extends ExtensionInstruction {
 
             Controller controller = context.getController();
             Item conn = arguments[CONNECTION].evaluateItem(context);
-            if (!(conn instanceof ObjectValue && ((ObjectValue)conn).getObject() instanceof Connection) ) {
+            if (!(conn instanceof ObjectValue && ((ObjectValue)conn).getObject() instanceof Connection)) {
                 DynamicError de = new DynamicError("Value of connection expression is not a JDBC Connection");
                 de.setXPathContext(context);
                 throw de;
@@ -186,34 +199,38 @@ public class SQLQuery extends ExtensionInstruction {
             int rowCode = pool.allocate("", "", rowTag);
             int colCode = pool.allocate("", "", colTag);
 
+            PreparedStatement ps = null;
+            ResultSet rs = null;
+            DynamicError de = null;
+
             try {
                 StringBuffer statement = new StringBuffer();
                 statement.append("SELECT " + dbCol + " FROM " + dbTab);
-                if (dbWhere!="")  {
+                if (dbWhere != "") {
                     statement.append(" WHERE " + dbWhere);
                 }
                 //System.err.println("-> SQL: " + statement.toString());
 
                 // -- Prepare the SQL statement
-            	PreparedStatement ps=connection.prepareStatement(statement.toString());
+                ps = connection.prepareStatement(statement.toString());
                 controller.setUserData(this, "sql:statement", ps);
 
                 // -- Execute Statement
-                ResultSet rs = ps.executeQuery();
+                rs = ps.executeQuery();
 
                 // -- Print out Result
                 Receiver out = context.getReceiver();
                 String result = "";
                 int icol = rs.getMetaData().getColumnCount();
-                while(rs.next()) {                            // next row
+                while (rs.next()) {                            // next row
                     //System.out.print("<- SQL : "+ rowStart);
                     out.startElement(rowCode, -1, locationId, 0);
-                    for (int col = 1; col<=icol; col++) {     // next column
+                    for (int col = 1; col <= icol; col++) {     // next column
                         // Read result from RS only once, because
                         // of JDBC-Specifications
                         result = rs.getString(col);
                         out.startElement(colCode, -1, locationId, 0);
-                        if (result!=null) {
+                        if (result != null) {
                             out.characters(result, locationId, options);
                         }
                         out.endElement();
@@ -221,20 +238,43 @@ public class SQLQuery extends ExtensionInstruction {
                     //System.out.println(rowEnd);
                     out.endElement();
                 }
-                rs.close();
+                //rs.close();
 
-    			if (!connection.getAutoCommit()) {
+                if (!connection.getAutoCommit()) {
                     connection.commit();
                 }
 
             } catch (SQLException ex) {
-    			DynamicError de = new DynamicError("(SQL) " + ex.getMessage());
+                de = new DynamicError("(SQL) " + ex.getMessage());
                 de.setXPathContext(context);
                 throw de;
+            } finally {
+                boolean wasDEThrown = (de != null);
+                if (rs != null) {
+                    try {
+                        rs.close();
+                    } catch (SQLException ex) {
+                        de = new DynamicError("(SQL) " + ex.getMessage());
+                        de.setXPathContext(context);
+                    }
+                }
+                if (ps != null) {
+                    try {
+                        ps.close();
+                    } catch (SQLException ex) {
+                        de = new DynamicError("(SQL) " + ex.getMessage());
+                        de.setXPathContext(context);
+                    }
+                }
+                if (!wasDEThrown && de != null) {
+                    throw de; // test so we don't lose the real exception
+                }
             }
         }
     }
 }
+
+
 
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");

@@ -5,6 +5,7 @@ import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.Axis;
 import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.value.EmptySequence;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -32,7 +33,7 @@ public class SaxonDoctype extends StyleElement {
         return true;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 		for (int a=0; a<atts.getLength(); a++) {
@@ -42,11 +43,11 @@ public class SaxonDoctype extends StyleElement {
 
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         Expression content = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
         if (content == null) {
             content = EmptySequence.getInstance();

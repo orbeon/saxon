@@ -42,7 +42,9 @@ public class FilterIterator implements SequenceIterator {
 
     public Item next() throws XPathException {
         current = getNextMatchingItem();
-        if (current != null) {
+        if (current == null) {
+            position = -1;
+        } else {
             position++;
         }
         return current;

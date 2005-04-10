@@ -8,6 +8,7 @@ import net.sf.saxon.instruct.SlotManager;
 import net.sf.saxon.om.*;
 import net.sf.saxon.sort.CollationFactory;
 import net.sf.saxon.type.Type;
+import net.sf.saxon.type.AtomicType;
 
 import javax.xml.transform.SourceLocator;
 import java.io.Serializable;
@@ -40,7 +41,7 @@ public class IndependentContext implements StaticContext, NamespaceResolver, Ser
     private NamespaceResolver externalResolver = null;
 
 	/**
-	* Create a StandaloneContext using the default Configuration and NamePool
+	* Create an IndependentContext using the default Configuration and NamePool
 	*/
 
 	public IndependentContext() {
@@ -48,7 +49,7 @@ public class IndependentContext implements StaticContext, NamespaceResolver, Ser
 	}
 
 	/**
-	* Create a StandaloneContext using a specific NamePool
+	* Create an IndependentContext using a specific Configuration
 	*/
 
 	public IndependentContext(Configuration config) {
@@ -64,25 +65,30 @@ public class IndependentContext implements StaticContext, NamespaceResolver, Ser
         lib.addFunctionLibrary(getConfiguration().getVendorFunctionLibrary());
         lib.addFunctionLibrary(new ConstructorFunctionLibrary(getConfiguration()));
         if (config.isAllowExternalFunctions()) {
-            lib.addFunctionLibrary(new JavaExtensionLibrary(getConfiguration()));
+            lib.addFunctionLibrary(config.getExtensionBinder());
         }
         functionLibrary = lib;
-	}
+    }
 
-	/**
-	* Create a StandaloneContext using a specific Node. This node is used to initialize
-	* the NamePool and also to establish the initial set of in-scope namespaces
-	*/
+    /**
+     * Create a copy of this IndependentContext. All aspects of the context are copied
+     * except for declared variables.
+     */
 
-	public IndependentContext(NodeInfo node) {
-	    DocumentInfo doc = node.getDocumentRoot();
-	    if (doc==null) {
-	        throw new IllegalArgumentException(
-	                    "The node used to establish a standalone context must be in a tree whose root is a document node");
-	    }
-	    namePool = doc.getNamePool();
-	    setNamespaces(node);
-	}
+    public IndependentContext copy() {
+        IndependentContext ic = new IndependentContext(config);
+        ic.namespaces = new HashMap(namespaces);
+        ic.collations = new HashMap(collations);
+        ic.variables = new HashMap();
+        ic.defaultCollationName = defaultCollationName;
+        ic.baseURI = baseURI;
+        ic.locationMap = locationMap;
+        ic.functionLibrary = functionLibrary;
+        ic.defaultFunctionNamespace = defaultFunctionNamespace;
+        ic.schemaImporter = schemaImporter;
+        ic.externalResolver = externalResolver;
+        return ic;
+    }
 
     /**
      * Get the system configuration
@@ -215,10 +221,10 @@ public class IndependentContext implements StaticContext, NamespaceResolver, Ser
 
     /**
     * Declare a variable. A variable must be declared before an expression referring
-    * to it is compiled.
+    * to it is compiled. The initial value of the variable will be the empty sequence
     */
 
-    public Variable declareVariable(String qname, Object initialValue) throws XPathException {
+    public Variable declareVariable(String qname) throws XPathException {
         String prefix;
         String localName;
         try {
@@ -233,7 +239,7 @@ public class IndependentContext implements StaticContext, NamespaceResolver, Ser
             uri = getURIForPrefix(prefix);
         }
         Variable var = Variable.make(qname, getConfiguration());
-        var.setValue(initialValue);
+        var.setXPathValue(null);
         int fingerprint = namePool.allocate(prefix, uri, localName) & 0xfffff;
         variables.put(new Integer(fingerprint), var);
         stackFrameMap.allocateSlotNumber(fingerprint);
@@ -389,7 +395,7 @@ public class IndependentContext implements StaticContext, NamespaceResolver, Ser
 
     public Comparator getCollation(String name) {
         try {
-            return CollationFactory.makeCollationFromURI(name);
+            return CollationFactory.makeCollationFromURI(name, getConfiguration());
         } catch (XPathException e) {
             return null;
         }
@@ -448,6 +454,23 @@ public class IndependentContext implements StaticContext, NamespaceResolver, Ser
             return false;
         }
         return schemaImporter.isImportedSchema(namespace);
+    }
+
+    /**
+     * Determine whether a built-in type is available in this context. This method caters for differences
+     * between host languages as to which set of types are built in.
+     *
+     * @param type the supposedly built-in type. This will always be a type in the
+     *             XS or XDT namespace.
+     * @return true if this type can be used in this static context
+     */
+
+    public boolean isAllowedBuiltInType(AtomicType type) {
+        if (schemaImporter == null) {
+            return true;
+        }
+        return schemaImporter.isAllowedBuiltInType(type);
+
     }
 
     public void setSchemaImporter(StaticContext importer) {

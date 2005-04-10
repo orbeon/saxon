@@ -1,5 +1,5 @@
 package net.sf.saxon.charcode;
-import net.sf.saxon.Loader;
+import net.sf.saxon.Controller;
 import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.XPathException;
 
@@ -27,21 +27,21 @@ public class CharacterSetFactory {
     * Make a CharacterSet appropriate to the encoding
     */
 
-    public static CharacterSet getCharacterSet(Properties details)
+    public static CharacterSet getCharacterSet(Properties details, Controller controller)
     throws XPathException {
 
         String encoding = details.getProperty(OutputKeys.ENCODING);
         if (encoding==null) encoding = "UTF8";
         if (encoding.equalsIgnoreCase("UTF-8")) encoding = "UTF8";    // needed for Microsoft Java VM
 
-        CharacterSet charSet = makeCharacterSet(encoding);
+        CharacterSet charSet = makeCharacterSet(encoding, controller);
         if (charSet==null) {
         	charSet = ASCIICharacterSet.getInstance();
         }
         return charSet;
     }
 
-	private static CharacterSet makeCharacterSet(String encoding)
+	private static CharacterSet makeCharacterSet(String encoding, Controller controller)
     throws XPathException {
         if (encoding.equalsIgnoreCase("UTF8")) {
             return UnicodeCharacterSet.getInstance();
@@ -115,7 +115,7 @@ public class CharacterSetFactory {
                 }
             } else {
                 try {
-                    Object obj = Loader.getInstance(csname);
+                    Object obj = controller.getConfiguration().getInstance(csname, controller.getClassLoader());
                     if (obj instanceof PluggableCharacterSet) {
                         return (PluggableCharacterSet)obj;
                     }

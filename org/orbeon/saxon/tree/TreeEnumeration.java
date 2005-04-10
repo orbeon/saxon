@@ -64,6 +64,8 @@ abstract class TreeEnumeration implements AxisIterator {
 
 	public final Item next() {
         if (next==null) {
+            current = null;
+            position = -1;
             return null;
         } else {
             current = next;

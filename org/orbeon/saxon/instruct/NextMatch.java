@@ -40,7 +40,7 @@ public class NextMatch extends ApplyImports {
         if (currentTemplate==null) {
             DynamicError e = new DynamicError("There is no current template rule");
             e.setXPathContext(context);
-            e.setErrorCode("XT0560");
+            e.setErrorCode("XTDE0560");
             throw e;
         }
         Mode mode = context.getCurrentMode();
@@ -50,21 +50,21 @@ public class NextMatch extends ApplyImports {
         if (context.getCurrentIterator()==null) {
             DynamicError e = new DynamicError("There is no context item");
             e.setXPathContext(context);
-            e.setErrorCode("XT0565");
+            e.setErrorCode("XTDE0565");
             throw e;
         }
         Item currentItem = context.getCurrentIterator().current();
         if (!(currentItem instanceof NodeInfo)) {
             DynamicError e = new DynamicError("Cannot call xsl:next-match when context item is not a node");
             e.setXPathContext(context);
-            e.setErrorCode("XT0565");
+            e.setErrorCode("XTDE0565");
             throw e;
         }
         NodeInfo node = (NodeInfo)currentItem;
         Template nh = controller.getRuleManager().getNextMatchHandler(node, mode, currentTemplate, context);
 
 		if (nh==null) {             // use the default action for the node
-            ApplyTemplates.defaultAction(node, params, tunnels, context, false);
+            ApplyTemplates.defaultAction(node, params, tunnels, context, false, getLocationId());
         } else {
             XPathContextMajor c2 = context.newContext();
             c2.setOrigin(this);

@@ -4,12 +4,11 @@ import net.sf.saxon.expr.SimpleExpression;
 import net.sf.saxon.expr.StaticProperty;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.style.ExtensionInstruction;
 import net.sf.saxon.om.Item;
+import net.sf.saxon.style.ExtensionInstruction;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.ObjectValue;
 
-import javax.xml.transform.TransformerConfigurationException;
 import java.sql.Connection;
 import java.sql.SQLException;
 
@@ -21,7 +20,7 @@ public class SQLClose extends ExtensionInstruction {
 
     Expression connection = null;
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
         String connectAtt = getAttributeList().getValue("", "connection");
         if (connectAtt==null) {
             reportAbsence("connection");
@@ -30,12 +29,12 @@ public class SQLClose extends ExtensionInstruction {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         super.validate();
         connection = typeCheck("connection", connection);
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         return new CloseInstruction(connection);
     }
 

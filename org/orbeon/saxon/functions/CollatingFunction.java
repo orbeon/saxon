@@ -34,6 +34,7 @@ public abstract class CollatingFunction extends SystemFunction {
             if (collation == null) {
                 StaticError err = new StaticError("Unknown collation {" +
                         ((Value)argument[getNumberOfArguments()-1]).getStringValue() + '}');
+                err.setErrorCode("FOCH0002");
                 err.setLocator(this);
                 throw err;
             }
@@ -54,7 +55,7 @@ public abstract class CollatingFunction extends SystemFunction {
     */
 
     protected AtomicComparer getAtomicComparer(int arg, XPathContext context) throws XPathException {
-        return new AtomicComparer(getCollator(arg, context, true));
+        return new AtomicComparer(getCollator(arg, context, true), context);
     }
 
     /**

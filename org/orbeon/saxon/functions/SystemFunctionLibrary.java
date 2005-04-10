@@ -76,7 +76,9 @@ public class SystemFunctionLibrary implements FunctionLibrary {
         if (uri.equals(NamespaceConstant.FN)) {
             StandardFunction.Entry entry = StandardFunction.getFunction(local, staticArgs.length);
             if (entry == null) {
-                throw new StaticError("Unknown system function " + local + "()");
+                StaticError err = new StaticError("Unknown system function " + local + "()");
+                err.setErrorCode("XPST0017");
+                throw err;
             }
             Class functionClass = entry.implementationClass;
             SystemFunction f;
@@ -87,24 +89,24 @@ public class SystemFunctionLibrary implements FunctionLibrary {
             }
             f.setDetails(entry);
             f.setFunctionNameCode(nameCode);
-            f.setArguments(staticArgs);
-            checkArgumentCount(staticArgs.length, entry.minArguments, entry.maxArguments, local);
             if (functionSet != FULL_XSLT) {
                 if (f instanceof XSLTFunction || (f instanceof NamePart && entry.opcode==NamePart.GENERATE_ID)) {
                     if (functionSet == XPATH_ONLY) {
                         StaticError err = new StaticError(
                                 "Cannot use the " + local + "() function in a non-XSLT context");
-                        err.setErrorCode("XP0017");
+                        err.setErrorCode("XPST0017");
                         throw err;
                     } else if (functionSet == USE_WHEN &&
                             !(f instanceof Available || f instanceof SystemProperty)) {
                         StaticError err = new StaticError(
                                 "Cannot use the " + local + "() function in a use-when expression");
-                        err.setErrorCode("XP0017");
+                        err.setErrorCode("XPST0017");
                         throw err;
                     }
                 }
             }
+            f.setArguments(staticArgs);
+            checkArgumentCount(staticArgs.length, entry.minArguments, entry.maxArguments, local);
             return f;
         } else {
             return null;
@@ -143,6 +145,18 @@ public class SystemFunctionLibrary implements FunctionLibrary {
     private static String pluralArguments(int num) {
         if (num==1) return " argument";
         return " arguments";
+    }
+
+    /**
+     * This method creates a copy of a FunctionLibrary: if the original FunctionLibrary allows
+     * new functions to be added, then additions to this copy will not affect the original, or
+     * vice versa.
+     *
+     * @return a copy of this function library. This must be an instance of the original class.
+     */
+
+    public FunctionLibrary copy() {
+        return this;
     }
 }
 //

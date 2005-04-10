@@ -1,7 +1,7 @@
 package net.sf.saxon.value;
 
 import net.sf.saxon.Err;
-import net.sf.saxon.expr.ExpressionTool;
+import net.sf.saxon.ConversionContext;
 import net.sf.saxon.expr.Token;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.trans.DynamicError;
@@ -78,7 +78,8 @@ public final class IntegerValue extends NumericValue {
      * Convert the value to a subtype of xs:integer
      * @param subtype the target subtype
      * @param validate true if validation is required; false if the caller already knows that the value is valid
-     * @return null if the conversion succeeds; an XPathException describing the failure if it fails
+     * @return null if the conversion succeeds; a ValidationException describing the failure if it fails. Note
+     * that the exception is returned, not thrown.
      */
 
     public ValidationException convertToSubtype(AtomicType subtype, boolean validate) {
@@ -183,10 +184,10 @@ public final class IntegerValue extends NumericValue {
      * @param message error message
      * @return an ErrorValue encapsulating an Exception describing the error
      */
-    private static ErrorValue numericError(String message) {
+    private static ValidationErrorValue numericError(String message) {
         ValidationException err = new ValidationException(message);
         err.setErrorCode("FORG0001");
-        return new ErrorValue(err);
+        return new ValidationErrorValue(err);
     }
 
     /**
@@ -197,10 +198,15 @@ public final class IntegerValue extends NumericValue {
      * @return true if successful, false if value is out of range for the subtype
      */
 
-    private static boolean checkRange(long value, AtomicType type) {
+    static boolean checkRange(long value, AtomicType type) {
         for (int i = 0; i < ranges.length; i += 3) {
             if (ranges[i] == type.getFingerprint()) {
-                if (value < ranges[i + 1] || value > ranges[i + 2]) {
+                long min = ranges[i+1];
+                if (min != NO_LIMIT && value < min) {
+                    return false;
+                }
+                long max = ranges[i+2];
+                if (max != NO_LIMIT && max != MAX_UNSIGNED_LONG && value > max) {
                     return false;
                 }
                 return true;
@@ -211,19 +217,52 @@ public final class IntegerValue extends NumericValue {
     }
 
     /**
-     * Static data identifying the min and max values for each built-in subtype of xs:integer
+     * Check that a BigInteger is within the required range for a given integer subtype.
+     * This method is expensive, so it should not be used unless the BigInteger is outside the range of a long.
      */
-    static long[] ranges = {
-        Type.INTEGER, Long.MIN_VALUE, Long.MAX_VALUE,
-        Type.NON_POSITIVE_INTEGER, Long.MIN_VALUE, 0,
-        Type.NEGATIVE_INTEGER, Long.MIN_VALUE, -1,
+
+    static boolean checkBigRange(BigInteger big, AtomicType type) {
+
+        for (int i = 0; i < ranges.length; i += 3) {
+            if (ranges[i] == type.getFingerprint()) {
+                long min = ranges[i+1];
+                if (min != NO_LIMIT && BigInteger.valueOf(min).compareTo(big) > 0) {
+                    return false;
+                }
+                long max = ranges[i+2];
+                if (max == NO_LIMIT) {
+                    return true;
+                } else if (max == MAX_UNSIGNED_LONG) {
+                    return BigIntegerValue.MAX_UNSIGNED_LONG.compareTo(big) >= 0;
+                } else {
+                    return BigInteger.valueOf(max).compareTo(big) >= 0;
+                }
+            }
+        }
+        throw new IllegalArgumentException(
+                "No range information found for integer subtype " + type.getDescription());
+    }
+
+    /**
+     * Static data identifying the min and max values for each built-in subtype of xs:integer.
+     * This is a sequence of triples, each holding the fingerprint of the type, the minimum
+     * value, and the maximum value. The special value NO_LIMIT indicates that there is no
+     * minimum (or no maximum) for this type. The special value MAX_UNSIGNED_LONG represents the
+     * value 2^64-1
+     */
+    private static long NO_LIMIT = -9999;
+    private static long MAX_UNSIGNED_LONG = -9998;
+    private static long[] ranges = {
+        Type.INTEGER, NO_LIMIT, NO_LIMIT,
+        Type.NON_POSITIVE_INTEGER, NO_LIMIT, 0,
+        Type.NEGATIVE_INTEGER, NO_LIMIT, -1,
         Type.LONG, Long.MIN_VALUE, Long.MAX_VALUE,
         Type.INT, Integer.MIN_VALUE, Integer.MAX_VALUE,
         Type.SHORT, Short.MIN_VALUE, Short.MAX_VALUE,
         Type.BYTE, Byte.MIN_VALUE, Byte.MAX_VALUE,
-        Type.NON_NEGATIVE_INTEGER, 0, Long.MAX_VALUE,
-        Type.POSITIVE_INTEGER, 1, Long.MAX_VALUE,
-        Type.UNSIGNED_LONG, 0, Long.MAX_VALUE, // not long enough!
+        Type.NON_NEGATIVE_INTEGER, 0, NO_LIMIT,
+        Type.POSITIVE_INTEGER, 1, NO_LIMIT,
+        Type.UNSIGNED_LONG, 0, MAX_UNSIGNED_LONG,
         Type.UNSIGNED_INT, 0, 4294967295L,
         Type.UNSIGNED_SHORT, 0, 65535,
         Type.UNSIGNED_BYTE, 0, 255};
@@ -285,10 +324,11 @@ public final class IntegerValue extends NumericValue {
      * Convert to target data type
      *
      * @param requiredType an integer identifying the required atomic type
+     * @param conversion
      * @return an AtomicValue, a value of the required type
      */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, ConversionContext conversion) {
         switch (requiredType.getFingerprint()) {
             case Type.BOOLEAN:
                 return BooleanValue.get(value != 0);
@@ -314,7 +354,7 @@ public final class IntegerValue extends NumericValue {
                 IntegerValue val = new IntegerValue(value);
                 ValidationException err = val.convertToSubtype(requiredType, validate);
                 if (err != null) {
-                    return new ErrorValue(err);
+                    return new ValidationErrorValue(err);
                 }
                 return val;
 
@@ -338,7 +378,7 @@ public final class IntegerValue extends NumericValue {
                         requiredType.getDisplayName());
                 //err.setXPathContext(context);
                 err2.setErrorCode("FORG0001");
-                return new ErrorValue(err2);
+                return new ValidationErrorValue(err2);
         }
     }
 
@@ -490,7 +530,6 @@ public final class IntegerValue extends NumericValue {
                         } else {
                             e = new DynamicError("Integer division failure", err);
                         }
-                        e.setLocator(ExpressionTool.getLocator(this));
                         e.setXPathContext(context);
                         throw e;
                     }
@@ -501,8 +540,7 @@ public final class IntegerValue extends NumericValue {
                     if (quotient == 0) {
                         DynamicError err = new DynamicError("Integer division by zero");
                         err.setXPathContext(context);
-                        err.setLocator(ExpressionTool.getLocator(this));
-                        err.setErrorCode("FORG0001");
+                        err.setErrorCode("FOAR0001");
                         throw err;
                     }
                     if (value % quotient == 0) {
@@ -518,7 +556,7 @@ public final class IntegerValue extends NumericValue {
         } else if (other instanceof BigIntegerValue) {
             return new BigIntegerValue(value).arithmetic(operator, other, context);
         } else {
-            NumericValue v = (NumericValue) convert(other.getItemType().getPrimitiveType());
+            NumericValue v = (NumericValue) convert(other.getItemType().getPrimitiveType(), context);
             return v.arithmetic(operator, other, context);
         }
     }
@@ -558,10 +596,10 @@ public final class IntegerValue extends NumericValue {
         } else if (target.isAssignableFrom(IntegerValue.class)) {
             return this;
         } else if (target == boolean.class) {
-            BooleanValue bval = (BooleanValue) convert(Type.BOOLEAN);
+            BooleanValue bval = (BooleanValue) convert(Type.BOOLEAN, context);
             return Boolean.valueOf(bval.getBooleanValue());
         } else if (target == Boolean.class) {
-            BooleanValue bval = (BooleanValue) convert(Type.BOOLEAN);
+            BooleanValue bval = (BooleanValue) convert(Type.BOOLEAN, context);
             return Boolean.valueOf(bval.getBooleanValue());
         } else if (target == String.class || target == CharSequence.class) {
             return getStringValue();

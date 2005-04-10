@@ -5,11 +5,12 @@ import net.sf.saxon.StandardURIResolver;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.trans.StaticError;
 import net.sf.saxon.tree.DocumentImpl;
 import net.sf.saxon.tree.ElementImpl;
 
 import javax.xml.transform.Source;
-import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
 
 
@@ -29,7 +30,7 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
 
     public abstract boolean isImport();
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 
@@ -48,7 +49,7 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         // The node will never be validated, because it replaces itself
         // by the contents of the included file.
         checkEmpty();
@@ -56,7 +57,7 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
     }
 
     public XSLStylesheet getIncludedStylesheet(XSLStylesheet importer, int precedence)
-                 throws TransformerConfigurationException {
+                 throws XPathException {
 
         if (href==null) {
             // error already reported
@@ -64,7 +65,7 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
         }
 
         checkEmpty();
-        checkTopLevel((this instanceof XSLInclude ? "XT0170" : "XT0190"));
+        checkTopLevel((this instanceof XSLInclude ? "XTSE0170" : "XTSE0190"));
 
         try {
             XSLStylesheet thisSheet = (XSLStylesheet)getParent();
@@ -72,7 +73,12 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
             Configuration config = pss.getConfiguration();
 
             // System.err.println("GeneralIncorporate: href=" + href + " base=" + getBaseURI());
-            Source source = config.getURIResolver().resolve(href, getBaseURI());
+            Source source;
+            try {
+                source = config.getURIResolver().resolve(href, getBaseURI());
+            } catch (TransformerException e) {
+                throw StaticError.makeStaticError(e);
+            }
 
             // if a user URI resolver returns null, try the standard one
             // (Note, the standard URI resolver never returns null)
@@ -88,15 +94,14 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
                 while(anc!=null) {
                     if (source.getSystemId().equals(anc.getSystemId())) {
                         compileError("A stylesheet cannot " + getLocalPart() + " itself",
-                                (this instanceof XSLInclude ? "XT0180" : "XT0210"));
+                                (this instanceof XSLInclude ? "XTSE0180" : "XTSE0210"));
                         return null;
                     }
                     anc = anc.getImporter();
                 }
             }
 
-            StyleNodeFactory snFactory =
-                    new StyleNodeFactory(getNamePool(), config.isAllowExternalFunctions());
+            StyleNodeFactory snFactory = new StyleNodeFactory(config);
             includedDoc = PreparedStylesheet.loadStylesheetModule(source, config, getNamePool(), snFactory);
 
             // allow the included document to use "Literal Result Element as Stylesheet" syntax
@@ -110,7 +115,7 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
             }
 
             if (!(outermost instanceof XSLStylesheet)) {
-                compileError("Included document " + href + " is not a stylesheet", "XT0165");
+                compileError("Included document " + href + " is not a stylesheet", "XTSE0165");
                 return null;
             }
             XSLStylesheet incSheet = (XSLStylesheet)outermost;
@@ -134,13 +139,14 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
 
             return incSheet;
 
-        } catch (TransformerException err) {
+        } catch (XPathException err) {
+            err.setErrorCode("XTSE0165");
             compileError(err);
             return null;
         }
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         return null;
         // no action. The node will never be compiled, because it replaces itself
         // by the contents of the included file.

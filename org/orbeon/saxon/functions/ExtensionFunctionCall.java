@@ -1,4 +1,5 @@
 package net.sf.saxon.functions;
+import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.AnyNodeTest;
@@ -35,6 +36,7 @@ public class ExtensionFunctionCall extends FunctionCall {
     private MethodRepresentation persistentMethod;
              // a serializable representation of the method, constructor, or field to be called
     private Class theClass;
+    private Configuration config;
 
     /**
      * Default constructor
@@ -43,27 +45,17 @@ public class ExtensionFunctionCall extends FunctionCall {
     public ExtensionFunctionCall() {}
 
     /**
-    * Constructor: creates an ExtensionFunctionCall
-     * @param nameCode the name code of the function, for display purposes
-     * @param theClass the Java class containing the method to be called
-     * @param object the method, field, or constructor of the Java class to be called
-    */
-
-    public ExtensionFunctionCall(int nameCode, Class theClass, AccessibleObject object) {
-        init(nameCode, theClass, object);
-    }
-
-    /**
      * Initialization: creates an ExtensionFunctionCall
      * @param nameCode the name code of the function, for display purposes
      * @param theClass the Java class containing the method to be called
      * @param object the method, field, or constructor of the Java class to be called
     */
 
-    public void init(int nameCode, Class theClass, AccessibleObject object) {
+    public void init(int nameCode, Class theClass, AccessibleObject object, Configuration config) {
         setFunctionNameCode(nameCode);
         this.theClass = theClass;
         this.theMethod = object;
+        this.config = config;
     }
 
     /**
@@ -353,7 +345,10 @@ public class ExtensionFunctionCall extends FunctionCall {
      */
 
     public ItemType getItemType() {
-        Class resultClass = getReturnClass();
+        return convertClassToType(getReturnClass());
+    }
+
+    private ItemType convertClassToType(Class resultClass) {
         if (resultClass==null || resultClass==Value.class) {
             return AnyItemType.getInstance();
         } else if (resultClass.toString().equals("void")) {
@@ -375,12 +370,27 @@ public class ExtensionFunctionCall extends FunctionCall {
         } else if (Value.class.isAssignableFrom(resultClass) ||
                     SequenceIterator.class.isAssignableFrom(resultClass)) {
             return AnyItemType.getInstance();
-        } else if ( NodeInfo.class.isAssignableFrom(resultClass) ||
+
+        } else {
+            // Offer the object to all the registered external object models
+            List externalObjectModels = config.getExternalObjectModels();
+            for (int m=0; m<externalObjectModels.size(); m++) {
+                ExternalObjectModel model = (ExternalObjectModel)externalObjectModels.get(m);
+                if (model.isRecognizedNodeClass(resultClass)) {
+                    return AnyNodeTest.getInstance();
+                }
+            }
+        }
+
+        if ( NodeInfo.class.isAssignableFrom(resultClass) ||
                     Source.class.isAssignableFrom(resultClass)) {
             return AnyNodeTest.getInstance();
             // we could be more specific regarding the kind of node
         } else if (List.class.isAssignableFrom(resultClass)) {
             return AnyItemType.getInstance();
+        } else if (resultClass.isArray()) {
+            Class component = resultClass.getComponentType();
+            return convertClassToType(component);
         } else {
             return new ExternalObjectType(resultClass);
         }

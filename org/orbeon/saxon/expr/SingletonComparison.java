@@ -7,6 +7,7 @@ import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.AtomicValue;
 import net.sf.saxon.value.BooleanValue;
+import net.sf.saxon.ConversionContext;
 
 import java.util.Comparator;
 
@@ -25,11 +26,11 @@ public class SingletonComparison extends BinaryExpression {
         super(p1, operator, p2);
     }
 
-    public void setComparator(Comparator comp) {
+    public void setComparator(Comparator comp, ConversionContext conversion) {
         if (comp instanceof AtomicComparer) {
             comparer = (AtomicComparer)comp;
         } else {
-            comparer = new AtomicComparer(comp);
+            comparer = new AtomicComparer(comp, conversion);
         }
     }
 

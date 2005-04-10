@@ -27,9 +27,9 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
     private String[] values = null;
     private int[] codes = null;
     private int used = 0;
-    
+
     // Empty attribute collection. The caller is trusted not to try and modify it.
-    
+
     public static final AttributeCollection EMPTY_ATTRIBUTE_COLLECTION =
             new AttributeCollectionImpl(null);
 
@@ -264,6 +264,24 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
         return codes[index * RECSIZE + PROPERTIES];
     }
 
+    /**
+     * Get the prefix of the name of an attribute (by position).
+     *
+     * @param index The position of the attribute in the list.
+     * @return The prefix of the attribute name as a string, or null if there
+     *         is no attribute at that position. Returns "" for an attribute that
+     *         has no prefix.
+     */
+
+    public String getPrefix(int index) {
+        if (codes == null) {
+            return null;
+        }
+        if (index < 0 || index >= used) {
+            return null;
+        }
+        return namePool.getPrefix(getNameCode(index));
+    }
 
     /**
      * Get the lexical QName of an attribute (by position).
@@ -449,7 +467,8 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
     }
 
     /**
-     * Get the index, given the fingerprint
+     * Get the index, given the fingerprint.
+     * Return -1 if not found.
      */
 
     public int getIndexByFingerprint(int fingerprint) {

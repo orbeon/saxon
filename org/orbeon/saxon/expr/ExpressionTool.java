@@ -1,16 +1,15 @@
 package net.sf.saxon.expr;
 
 import net.sf.saxon.Controller;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.AnyItemType;
 import net.sf.saxon.event.SequenceOutputter;
 import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.sort.SortExpression;
 import net.sf.saxon.sort.TupleSorter;
 import net.sf.saxon.trace.InstructionInfoProvider;
-import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.type.AnyItemType;
 import net.sf.saxon.value.*;
 
 import javax.xml.transform.SourceLocator;
@@ -157,7 +156,14 @@ public class ExpressionTool
         PromotionOffer offer = new PromotionOffer();
         offer.action = PromotionOffer.UNORDERED;
         offer.mustEliminateDuplicates = eliminateDuplicates;
-        return exp.promote(offer);
+        Expression exp2 = exp.promote(offer);
+        if (exp2 != exp) {
+            if (exp2 instanceof ComputedExpression) {
+                ((ComputedExpression)exp2).setParentExpression(exp.getParentExpression());
+            }
+            return exp2;
+        }
+        return exp;
     }
 
     /**
@@ -202,6 +208,8 @@ public class ExpressionTool
     public static ValueRepresentation lazyEvaluate(Expression exp, XPathContext context, boolean save) throws XPathException {
         if (exp instanceof Value) {
             return (Value)exp;
+//        } else if (exp instanceof LazyExpression) {
+//            return Closure.make(exp, context, true);
         } else if (exp instanceof VariableReference) {
             return ((VariableReference)exp).evaluateVariable(context);
         } else if (context == null) {
@@ -257,6 +265,19 @@ public class ExpressionTool
                 return EmptySequence.getInstance();
             } else if (iterator instanceof SingletonIterator) {
                 Item item = ((SingletonIterator)iterator).getValue();
+//                // TODO: following code added to fix Novatchev str-reverse bug; but doesn't fix it
+//                ValueRepresentation v = item;
+//                while (v instanceof UserFunctionCall.FunctionCallPackage) {
+//                    v = ((UserFunctionCall.FunctionCallPackage)item).call();
+//                }
+//                if (v instanceof Closure) {
+//                    return SequenceExtent.makeSequenceExtent(((Closure)v).iterate(null));
+//                } else if (v instanceof Value) {
+//                    return (Value)v;
+//                } else if (v instanceof NodeInfo) {
+//                    return new SingletonNode((NodeInfo)v);
+//                }
+                // can't get here?
                 return Value.asValue(item);
             }
             Value extent = SequenceExtent.makeSequenceExtent(iterator);

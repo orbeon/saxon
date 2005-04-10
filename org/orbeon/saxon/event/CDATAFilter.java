@@ -33,7 +33,7 @@ public class CDATAFilter extends ProxyReceiver {
     public void setOutputProperties (Properties details)
     throws XPathException {
         nameList = getCdataElements(details);
-        characterSet = CharacterSetFactory.getCharacterSet(details);
+        characterSet = CharacterSetFactory.getCharacterSet(details, getPipelineConfiguration().getController());
     }
 
     /**

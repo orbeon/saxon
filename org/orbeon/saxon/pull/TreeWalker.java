@@ -6,6 +6,7 @@ import net.sf.saxon.tinytree.TinyNodeImpl;
 import net.sf.saxon.tinytree.TinyTreeWalker;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
+import net.sf.saxon.value.AtomicValue;
 
 import javax.xml.transform.SourceLocator;
 import java.util.Stack;
@@ -33,8 +34,18 @@ public class TreeWalker implements PullProvider, SourceLocator {
      */
 
     public static PullProvider makeTreeWalker(NodeInfo startNode) {
+        if (startNode instanceof UnconstructedParent) {
+            return ((UnconstructedParent)startNode).getPuller();
+        }
         if (startNode instanceof TinyNodeImpl) {
-             return new TinyTreeWalker((TinyNodeImpl)startNode);
+            switch (startNode.getNodeKind()) {
+                case Type.DOCUMENT:
+                case Type.ELEMENT:
+                    return new TinyTreeWalker((TinyNodeImpl)startNode);
+                default:
+                    return new PullFromIterator(SingletonIterator.makeIterator(startNode));
+            }
+
         } else {
             return new TreeWalker(startNode);
         }
@@ -51,16 +62,11 @@ public class TreeWalker implements PullProvider, SourceLocator {
 
     /**
      * Set configuration information. This must only be called before any events
-     * have been read. The returned value is a new PullProvider, which must be used
-     * in place of the original provider to read all subsequent events: the effect
-     * of calling the original provider is not defined. This mechanism allows
-     * the provider to implement this method by inserting a filter between itself and
-     * the client.
+     * have been read.
      */
 
-    public PullProvider setPipelineConfiguration(PipelineConfiguration pipe) {
+    public void setPipelineConfiguration(PipelineConfiguration pipe) {
         this.pipe = pipe;
-        return this;
     }
 
     /**
@@ -131,6 +137,9 @@ public class TreeWalker implements PullProvider, SourceLocator {
                     return currentEvent;
                 } else {
                     iteratorStack.pop();
+                    if (iteratorStack.isEmpty()) {
+                        currentNode = startNode;
+                    }
                     if (currentEvent == START_DOCUMENT) {
                         currentEvent = END_DOCUMENT;
                     } else {
@@ -143,8 +152,17 @@ public class TreeWalker implements PullProvider, SourceLocator {
             case PROCESSING_INSTRUCTION:
             case END_ELEMENT:
                 if (iteratorStack.isEmpty()) {
-                    currentNode = null;
-                    currentEvent = END_OF_INPUT;
+                    if (currentNode == startNode) {
+                        currentNode = null;
+                        currentEvent = END_OF_INPUT;
+                    } else {
+                        currentNode = startNode;
+                        if (currentNode.getNodeKind() == Type.ELEMENT) {
+                            currentEvent = END_ELEMENT;
+                        } else {
+                            currentEvent = END_DOCUMENT;
+                        }
+                    }
                     return currentEvent;
                 }
                 do {
@@ -153,8 +171,12 @@ public class TreeWalker implements PullProvider, SourceLocator {
                     if (currentNode == null) {
                         iteratorStack.pop();
                         if (iteratorStack.isEmpty()) {
-                            currentNode = null;
-                            currentEvent = END_OF_INPUT;
+                            currentNode = startNode;
+                            if (currentNode.getNodeKind() == Type.ELEMENT) {
+                                currentEvent = END_ELEMENT;
+                            } else {
+                                currentEvent = END_DOCUMENT;
+                            }
                             return currentEvent;
                         }
                         AxisIterator uncles = (AxisIterator)iteratorStack.peek();
@@ -326,12 +348,14 @@ public class TreeWalker implements PullProvider, SourceLocator {
 
     /**
      * Get the nameCode identifying the name of the current node. This method
-     * can be used after START_ELEMENT, START_CONTENT, ATTRIBUTE, PROCESSING_INSTRUCTION.
-     * If called at other times, the result is undefined
-     *
-     * @return the nameCode. The nameCode can
-     *         be used to obtain the prefix, local name, and namespace URI from the
-     *         name pool.
+     * can be used after the {@link #START_ELEMENT}, {@link #PROCESSING_INSTRUCTION},
+     * {@link #ATTRIBUTE}, or {@link #NAMESPACE} events. With some PullProvider implementations,
+     * including this one, it can also be used after {@link #END_ELEMENT}.
+     * If called at other times, the result is undefined and may result in an IllegalStateException.
+     * If called when the current node is an unnamed namespace node (a node representing the default namespace)
+     * the returned value is -1.
+     * @return the nameCode. The nameCode can be used to obtain the prefix, local name,
+     * and namespace URI from the name pool.
      */
 
     public int getNameCode() {
@@ -342,7 +366,7 @@ public class TreeWalker implements PullProvider, SourceLocator {
      * Get the fingerprint of the name of the element. This is similar to the nameCode, except that
      * it does not contain any information about the prefix: so two elements with the same fingerprint
      * have the same name, excluding prefix. This method
-     * can be used after the {@link #START_ELEMENT}, {@link #PROCESSING_INSTRUCTION},
+     * can be used after the {@link #START_ELEMENT}, {@link #END_ELEMENT}, {@link #PROCESSING_INSTRUCTION},
      * {@link #ATTRIBUTE}, or {@link #NAMESPACE} events.
      * If called at other times, the result is undefined and may result in an IllegalStateException.
      * If called when the current node is an unnamed namespace node (a node representing the default namespace)
@@ -382,6 +406,16 @@ public class TreeWalker implements PullProvider, SourceLocator {
 
     public int getTypeAnnotation() {
         return currentNode.getTypeAnnotation();
+    }
+
+    /**
+     * Get an atomic value. This call may be used only when the last event reported was
+     * ATOMIC_VALUE. This indicates that the PullProvider is reading a sequence that contains
+     * a free-standing atomic value; it is never used when reading the content of a node.
+     */
+
+    public AtomicValue getAtomicValue() {
+        throw new IllegalStateException();
     }
 
     /**

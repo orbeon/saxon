@@ -70,6 +70,7 @@ public class LocationMap implements LocationProvider, Serializable {
     public int getLineNumber(int locationId) {
         return locationId & 0xfffff;
     }
+
 }
 
 //

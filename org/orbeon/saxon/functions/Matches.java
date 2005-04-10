@@ -109,9 +109,13 @@ public class Matches extends SystemFunction {
                         ((StringValue)args[patternArg]).getStringValueCS(), true);
                 return Pattern.compile(javaRegex, flags);
             } catch (RegexTranslator.RegexSyntaxException err) {
-                throw new StaticError(err);
+                StaticError e2 = new StaticError(err.getMessage());
+                e2.setErrorCode("FORX0002");
+                throw e2;
             } catch (PatternSyntaxException err) {
-                throw new StaticError(err);
+                StaticError e2 =  new StaticError(err.getMessage());
+                e2.setErrorCode("FORX0002");
+                throw e2;
             }
         } else {
             return null;

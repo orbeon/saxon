@@ -13,9 +13,9 @@ import net.sf.saxon.query.XQueryFunctionLibrary;
 import net.sf.saxon.sort.CodepointCollator;
 import net.sf.saxon.sort.CollationFactory;
 import net.sf.saxon.trans.*;
+import net.sf.saxon.type.SchemaException;
 import net.sf.saxon.type.Type;
 
-import javax.xml.transform.TransformerConfigurationException;
 import java.util.*;
 
 /**
@@ -77,7 +77,7 @@ public class XSLStylesheet extends StyleElement {
     private XQueryFunctionLibrary queryFunctions;
 
     // function library for external Java functions
-    private JavaExtensionLibrary javaFunctions;
+    private FunctionLibrary javaFunctions;
 
     // media type (MIME type) of principal output
     //private String mediaType;
@@ -108,6 +108,7 @@ public class XSLStylesheet extends StyleElement {
         exec.setConfiguration(config);
         exec.setRuleManager(new RuleManager());
         exec.setLocationMap(locationMap);
+        exec.setHostLanguage(Configuration.XSLT);
 
         functionLibrary = new FunctionLibraryList();
         functionLibrary.addFunctionLibrary(new SystemFunctionLibrary(SystemFunctionLibrary.FULL_XSLT));
@@ -116,8 +117,8 @@ public class XSLStylesheet extends StyleElement {
         functionLibrary.addFunctionLibrary(new ConstructorFunctionLibrary(config));
         queryFunctions = new XQueryFunctionLibrary(config, false);
         functionLibrary.addFunctionLibrary(queryFunctions);
-        if (getConfiguration().isAllowExternalFunctions()) {
-            javaFunctions = new JavaExtensionLibrary(config);
+        if (config.isAllowExternalFunctions()) {
+            javaFunctions = config.getExtensionBinder();
             functionLibrary.addFunctionLibrary(javaFunctions);
         }
         functionLibrary.addFunctionLibrary(new StylesheetFunctionLibrary(this, false));
@@ -288,7 +289,7 @@ public class XSLStylesheet extends StyleElement {
         }
 
         try {
-            return CollationFactory.makeCollationFromURI(name);
+            return CollationFactory.makeCollationFromURI(name, getConfiguration());
         } catch (XPathException e) {
             return null;
         }
@@ -414,7 +415,7 @@ public class XSLStylesheet extends StyleElement {
      * Prepare the attributes on the stylesheet element
      */
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
         String inputTypeAnnotationsAtt = null;
         AttributeCollection atts = getAttributeList();
@@ -434,7 +435,7 @@ public class XSLStylesheet extends StyleElement {
                 defaultValidation = Validation.getCode(atts.getValue(a));
                 if (defaultValidation == Validation.INVALID) {
                     compileError("Invalid value for default-validation attribute. " +
-                            "Permitted values are (strict, lax, preserve, strip)", "XT0020");
+                            "Permitted values are (strict, lax, preserve, strip)", "XTSE0020");
                 }
             } else if (f == StandardNames.INPUT_TYPE_ANNOTATIONS) {
                 inputTypeAnnotationsAtt = atts.getValue("", f);
@@ -455,7 +456,7 @@ public class XSLStylesheet extends StyleElement {
                 //
             } else {
                 compileError("Invalid value for input-type-annotations attribute. " +
-                             "Permitted values are (strip, preserve, unspecified)", "XT0020");
+                             "Permitted values are (strip, preserve, unspecified)", "XTSE0020");
             }
         }
     }
@@ -475,7 +476,7 @@ public class XSLStylesheet extends StyleElement {
      * {@link #ANNOTATION_STRIP} and {@link #ANNOTATION_PRESERVE}
      */
 
-    public int getInputTypeAnnotationsAttribute() throws TransformerConfigurationException {
+    public int getInputTypeAnnotationsAttribute() throws XPathException {
         String inputTypeAnnotationsAtt = getAttributeValue(StandardNames.INPUT_TYPE_ANNOTATIONS);
         if (inputTypeAnnotationsAtt != null) {
             if (inputTypeAnnotationsAtt.equals("strip")) {
@@ -486,7 +487,7 @@ public class XSLStylesheet extends StyleElement {
                 //
             } else {
                 compileError("Invalid value for input-type-annotations attribute. " +
-                             "Permitted values are (strip, preserve, unspecified)", "XT0020");
+                             "Permitted values are (strip, preserve, unspecified)", "XTSE0020");
             }
         }
         return inputAnnotations;
@@ -509,11 +510,11 @@ public class XSLStylesheet extends StyleElement {
      * {@link #ANNOTATION_STRIP} and {@link #ANNOTATION_PRESERVE}
      */
 
-    public void setInputTypeAnnotations(int annotations) throws TransformerConfigurationException {
+    public void setInputTypeAnnotations(int annotations) throws XPathException {
         inputAnnotations |= annotations;
         if (inputAnnotations == (ANNOTATION_STRIP | ANNOTATION_PRESERVE)) {
             compileError("One stylesheet module specifies input-type-annotations='strip', " +
-                    "another specifies input-type-annotations='preserve'", "XT0265");
+                    "another specifies input-type-annotations='preserve'", "XTSE0265");
         }
     }
 
@@ -554,12 +555,12 @@ public class XSLStylesheet extends StyleElement {
      * Validate this element
      */
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         if (validationError != null) {
             compileError(validationError);
         }
         if (!(getParent() instanceof DocumentInfo)) {
-            compileError(getDisplayName() + " must be the outermost element", "XT0010");
+            compileError(getDisplayName() + " must be the outermost element", "XTSE0010");
         }
 
         AxisIterator kids = iterateAxis(Axis.CHILD);
@@ -590,7 +591,7 @@ public class XSLStylesheet extends StyleElement {
                 // this is OK: an unknown XSLT element is allowed in forwards compatibility mode
             } else {
                 ((StyleElement)curr).compileError("Element " + curr.getDisplayName() +
-                        " must not appear directly within " + getDisplayName(), "XT0010");
+                        " must not appear directly within " + getDisplayName(), "XTSE0010");
             }
         }
     }
@@ -602,7 +603,7 @@ public class XSLStylesheet extends StyleElement {
      * principal stylesheet module
      */
 
-    public void preprocess() throws TransformerConfigurationException {
+    public void preprocess() throws XPathException {
 
         // process any xsl:include and xsl:import elements
 
@@ -644,7 +645,7 @@ public class XSLStylesheet extends StyleElement {
      * Process xsl:include and xsl:import elements.
      */
 
-    public void spliceIncludes() throws TransformerConfigurationException {
+    public void spliceIncludes() throws XPathException {
 
         boolean foundNonImport = false;
         topLevel = new ArrayList(50);
@@ -662,7 +663,7 @@ public class XSLStylesheet extends StyleElement {
                 // in an embedded stylesheet, white space nodes may still be there
                 if (!Navigator.isWhite(child.getStringValueCS())) {
                     previousElement.compileError(
-                            "No character data is allowed between top-level elements");
+                            "No character data is allowed between top-level elements", "XTSE0010");
                 }
 
             } else if (child instanceof DataElement) {
@@ -675,7 +676,7 @@ public class XSLStylesheet extends StyleElement {
 
                     if (xslinc.isImport()) {
                         if (foundNonImport) {
-                            xslinc.compileError("xsl:import elements must come first", "XT0010");
+                            xslinc.compileError("xsl:import elements must come first", "XTSE0010");
                         }
                     } else {
                         foundNonImport = true;
@@ -732,7 +733,7 @@ public class XSLStylesheet extends StyleElement {
      * Build indexes for selected top-level declarations
      */
 
-    private void buildIndexes() throws TransformerConfigurationException {
+    private void buildIndexes() throws XPathException {
     // Scan the declarations in reverse order
         for (int i = topLevel.size() - 1; i >= 0; i--) {
             Object node = topLevel.get(i);
@@ -744,7 +745,11 @@ public class XSLStylesheet extends StyleElement {
                 namespaceAliasList.add(node);
                 numberOfAliases++;
             } else if (node instanceof XSLImportSchema) {
-                ((XSLImportSchema) node).readSchema();
+                try {
+                    ((XSLImportSchema) node).readSchema();
+                } catch (SchemaException e) {
+                    throw StaticError.makeStaticError(e);
+                }
             } else if (node instanceof XSLDecimalFormat) {
                 ((XSLDecimalFormat) node).register();
             } else if (node instanceof SaxonImportQuery) {
@@ -756,10 +761,10 @@ public class XSLStylesheet extends StyleElement {
     /**
      * Index a global xsl:variable or xsl:param element
      * @param var The XSLVariable or XSLParam element
-     * @throws TransformerConfigurationException
+     * @throws XPathException
      */
 
-    private void indexVariableDeclaration(XSLVariableDeclaration var) throws TransformerConfigurationException {
+    private void indexVariableDeclaration(XSLVariableDeclaration var) throws XPathException {
         int fingerprint = var.getVariableFingerprint();
         //System.err.println("fingerprint = " + fingerprint);
         if (fingerprint != -1) {
@@ -775,7 +780,7 @@ public class XSLStylesheet extends StyleElement {
                 int otherPrecedence = other.getPrecedence();
                 if (thisPrecedence == otherPrecedence) {
                     var.compileError("Duplicate global variable declaration (see line " +
-                            other.getLineNumber() + " of " + other.getSystemId() + ')', "XT0630");
+                            other.getLineNumber() + " of " + other.getSystemId() + ')', "XTSE0630");
                 } else if (thisPrecedence < otherPrecedence) {
                     var.setRedundant();
                 } else {
@@ -790,9 +795,9 @@ public class XSLStylesheet extends StyleElement {
     /**
      * Add a named template to the index
      * @param template The Template object
-     * @throws TransformerConfigurationException
+     * @throws XPathException
      */
-    private void indexNamedTemplate(XSLTemplate template) throws TransformerConfigurationException {
+    private void indexNamedTemplate(XSLTemplate template) throws XPathException {
         int fingerprint = template.getTemplateFingerprint();
         if (fingerprint != -1) {
             Integer key = new Integer(fingerprint);
@@ -807,7 +812,7 @@ public class XSLStylesheet extends StyleElement {
                 int otherPrecedence = other.getPrecedence();
                 if (thisPrecedence == otherPrecedence) {
                     template.compileError("Duplicate named template (see line " +
-                            other.getLineNumber() + " of " + other.getSystemId() + ')', "XT0660");
+                            other.getLineNumber() + " of " + other.getSystemId() + ')', "XTSE0660");
                 } else if (thisPrecedence < otherPrecedence) {
                     //template.setRedundantNamedTemplate();
                 } else {
@@ -824,7 +829,7 @@ public class XSLStylesheet extends StyleElement {
      * Collect any namespace aliases
      */
 
-    private void collectNamespaceAliases() throws TransformerConfigurationException {
+    private void collectNamespaceAliases() throws XPathException {
         aliasSCodes = new short[numberOfAliases];
         aliasNCodes = new int[numberOfAliases];
         int precedenceBoundary = 0;
@@ -848,7 +853,7 @@ public class XSLStylesheet extends StyleElement {
             for (int j = precedenceBoundary; j < i; j++) {
                 if (scode == aliasSCodes[j]) {
                     if ((ncode & 0xffff) != (aliasNCodes[j] & 0xffff)) {
-                        xna.compileError("More than one alias is defined for the same namespace prefix", "XT0810");
+                        xna.compileError("More than one alias is defined for the same namespace prefix", "XTSE0810");
                     }
                 }
             }
@@ -867,7 +872,7 @@ public class XSLStylesheet extends StyleElement {
      * Process the attributes of every node in the stylesheet
      */
 
-    public void processAllAttributes() throws TransformerConfigurationException {
+    public void processAllAttributes() throws XPathException {
         prepareAttributes();
         if (topLevel == null) return;   // can happen if xsl:stylesheet appears in the wrong place
         for (int i = 0; i < topLevel.size(); i++) {
@@ -875,7 +880,7 @@ public class XSLStylesheet extends StyleElement {
             if (s instanceof StyleElement) {
                 try {
                     ((StyleElement) s).processAllAttributes();
-                } catch (TransformerConfigurationException err) {
+                } catch (XPathException err) {
                     ((StyleElement) s).compileError(err);
                 }
             }
@@ -896,11 +901,11 @@ public class XSLStylesheet extends StyleElement {
      * @param fingerprint The name of the output format required. If set to -1, gathers
      * information for the unnamed output format
      * @return the Properties object containing the details of the specified output format
-     * @throws TransformerConfigurationException if a named output format does not exist in
+     * @throws XPathException if a named output format does not exist in
      * the stylesheet
      */
 
-    public Properties gatherOutputProperties(int fingerprint) throws TransformerConfigurationException {
+    public Properties gatherOutputProperties(int fingerprint) throws XPathException {
         boolean found = (fingerprint == -1);
         Properties details = new Properties();
         for (int i = 0; i < topLevel.size(); i++) {
@@ -914,7 +919,7 @@ public class XSLStylesheet extends StyleElement {
             }
         }
         if (!found) {
-            throw new TransformerConfigurationException("Requested output format has not been defined");
+            throw new StaticError("Requested output format has not been defined");
         }
         return details;
     }
@@ -932,7 +937,11 @@ public class XSLStylesheet extends StyleElement {
      */
 
     protected void declareJavaClass(String uri, Class theClass) {
-        javaFunctions.declareJavaClass(uri, theClass);
+        if (javaFunctions instanceof JavaExtensionLibrary) {
+            ((JavaExtensionLibrary)javaFunctions).declareJavaClass(uri, theClass);
+        } else {
+            throw new IllegalStateException("saxon:script cannot be used with a custom extension library factory");
+        }
     }
 
     /**
@@ -954,7 +963,7 @@ public class XSLStylesheet extends StyleElement {
      * Compile the stylesheet to create an executable.
      */
 
-    public Executable compileStylesheet() throws TransformerConfigurationException {
+    public Executable compileStylesheet() throws XPathException {
 
         try {
 

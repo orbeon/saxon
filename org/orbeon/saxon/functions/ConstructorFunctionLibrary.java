@@ -2,10 +2,8 @@ package net.sf.saxon.functions;
 
 import net.sf.saxon.Configuration;
 import net.sf.saxon.expr.CastExpression;
-import net.sf.saxon.expr.ErrorExpression;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.om.NamespaceConstant;
-import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.StaticError;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.AtomicType;
@@ -20,16 +18,16 @@ import net.sf.saxon.type.Type;
 public class ConstructorFunctionLibrary implements FunctionLibrary {
 
     private Configuration config;
-    
+
     /**
      * Create a SystemFunctionLibrary
      * @param config the Configuration
-     */ 
-    
+     */
+
     public ConstructorFunctionLibrary(Configuration config) {
         this.config = config;
     }
-    
+
     /**
      * Test whether a system function with a given name and arity is available. This supports
      * the function-available() function in XSLT. This method may be called either at compile time
@@ -45,10 +43,11 @@ public class ConstructorFunctionLibrary implements FunctionLibrary {
         if (arity != 1 && arity != -1) {
             return false;
         }
-        if (uri.equals(NamespaceConstant.SCHEMA) || uri.equals(NamespaceConstant.SCHEMA_DATATYPES)
-                || uri.equals(NamespaceConstant.XDT)) {
-
+        if (uri.equals(NamespaceConstant.SCHEMA)) {
             AtomicType type = (AtomicType)Type.getBuiltInItemType(uri, local);
+            return type != null;
+        } else if (NamespaceConstant.isXDTNamespace(uri)) {
+            AtomicType type = (AtomicType)Type.getBuiltInItemType(NamespaceConstant.XDT, local);
             return type != null;
         }
 
@@ -70,21 +69,27 @@ public class ConstructorFunctionLibrary implements FunctionLibrary {
      * @throws net.sf.saxon.trans.XPathException if a function is found with the required name and arity, but
      * the implementation of the function cannot be loaded or used; or if an error occurs
      * while searching for the function; or if this function library "owns" the namespace containing
-     * the function call, but no function was found. 
+     * the function call, but no function was found.
      */
 
     public Expression bind(int nameCode, String uri, String localName, Expression[] arguments)
             throws XPathException {
-         if (uri.equals(NamespaceConstant.SCHEMA) || uri.equals(NamespaceConstant.SCHEMA_DATATYPES)
-                || uri.equals(NamespaceConstant.XDT)) {
+        String targetURI = uri;
+        boolean builtInNamespace = uri.equals(NamespaceConstant.SCHEMA);
+        if (!builtInNamespace && NamespaceConstant.isXDTNamespace(uri)) {
+            targetURI = NamespaceConstant.XDT;
+            builtInNamespace = true;
+        }
+        if (builtInNamespace) {
             // it's a constructor function: treat it as shorthand for a cast expression
             if (arguments.length != 1) {
                 throw new StaticError("A constructor function must have exactly one argument");
             }
-            AtomicType type = (AtomicType)Type.getBuiltInItemType(uri, localName);
+            AtomicType type = (AtomicType)Type.getBuiltInItemType(targetURI, localName);
             if (type==null) {
-                return new ErrorExpression(
-                            new DynamicError("Unknown constructor function: " + localName));
+                StaticError err = new StaticError("Unknown constructor function: {" + uri + '}' + localName);
+                err.setErrorCode("XPST0017");
+                throw err;
             }
             return new CastExpression(arguments[0], type, true);
         }
@@ -101,6 +106,17 @@ public class ConstructorFunctionLibrary implements FunctionLibrary {
         return null;
     }
 
+    /**
+     * This method creates a copy of a FunctionLibrary: if the original FunctionLibrary allows
+     * new functions to be added, then additions to this copy will not affect the original, or
+     * vice versa.
+     *
+     * @return a copy of this function library. This must be an instance of the original class.
+     */
+
+    public FunctionLibrary copy() {
+        return this;
+    }
 
 }
 //

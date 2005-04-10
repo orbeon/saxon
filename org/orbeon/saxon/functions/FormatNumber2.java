@@ -119,7 +119,7 @@ public class FormatNumber2 extends SystemFunction implements XSLTFunction {
         SubPicture[] pics = new SubPicture[2];
         if (picture.length()==0) {
             DynamicError err = new DynamicError("format-number() picture is zero-length");
-            err.setErrorCode("XT1310");
+            err.setErrorCode("XTDE1310");
             throw err;
         }
         int sep = picture.indexOf(dfs.getPatternSeparator());
@@ -173,7 +173,7 @@ public class FormatNumber2 extends SystemFunction implements XSLTFunction {
             // the decimal-format name was not resolved statically
             if (requireFixup) {
                 // we registered for a fixup, but none came
-                dynamicError("Unknown decimal format name", "XT1280", context);
+                dynamicError("Unknown decimal format name", "XTDE1280", context);
                 return null;
             }
             DecimalFormatManager dfm = ctrl.getDecimalFormatManager();
@@ -187,17 +187,17 @@ public class FormatNumber2 extends SystemFunction implements XSLTFunction {
                     String localName = parts[1];
                     String uri = nsContext.getURIForPrefix(parts[0], false);
                     if (uri==null) {
-                        dynamicError("Namespace prefix '" + parts[0] + "' has not been defined", "XT1280", context);
+                        dynamicError("Namespace prefix '" + parts[0] + "' has not been defined", "XTDE1280", context);
                         return null;
                     }
                     dfs = dfm.getNamedDecimalFormat(uri, localName);
                     if (dfs==null) {
                         dynamicError(
-                            "format-number function: decimal-format '" + localName + "' is not defined", "XT1280", context);
+                            "format-number function: decimal-format '" + localName + "' is not defined", "XTDE1280", context);
                         return null;
                     }
                 } catch (QNameException e) {
-                    dynamicError("Invalid decimal format name. " + e.getMessage(), "XT1280", context);
+                    dynamicError("Invalid decimal format name. " + e.getMessage(), "XTDE1280", context);
                 }
             }
         }
@@ -244,7 +244,7 @@ public class FormatNumber2 extends SystemFunction implements XSLTFunction {
     }
 
     private void grumble(String s) throws XPathException {
-        dynamicError("format-number picture: " + s, "XT1310", null);
+        dynamicError("format-number picture: " + s, "XTDE1310", null);
     }
 
     /**
@@ -643,7 +643,7 @@ public class FormatNumber2 extends SystemFunction implements XSLTFunction {
                 long mantissa = bits & 0x000fffffffffffffL | 0x0010000000000000L;
                 BigInteger big = BigInteger.valueOf(mantissa);
                 big = big.multiply(BigInteger.valueOf(2).pow(exponent));
-                
+
                 if (negative) {
                     sb.append('-');
                 }

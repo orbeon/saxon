@@ -1,12 +1,14 @@
 package net.sf.saxon.style;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.om.*;
+import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.om.Name;
+import net.sf.saxon.om.NamespaceException;
+import net.sf.saxon.om.QNameException;
 import net.sf.saxon.trans.DecimalFormatManager;
 import net.sf.saxon.trans.StaticError;
 import net.sf.saxon.trans.XPathException;
 
-import javax.xml.transform.TransformerConfigurationException;
 import java.text.DecimalFormatSymbols;
 import java.util.HashMap;
 
@@ -30,7 +32,7 @@ public class XSLDecimalFormat extends StyleElement {
     String digit;
     String patternSeparator;
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
         if (prepared) {
             return;
@@ -70,12 +72,12 @@ public class XSLDecimalFormat extends StyleElement {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkTopLevel(null);
         checkEmpty();
     }
 
-    public DecimalFormatSymbols makeDecimalFormatSymbols() throws TransformerConfigurationException {
+    public DecimalFormatSymbols makeDecimalFormatSymbols() throws XPathException {
         DecimalFormatSymbols d = new DecimalFormatSymbols();
         DecimalFormatManager.setDefaults(d);
         if (decimalSeparator!=null) {
@@ -114,10 +116,10 @@ public class XSLDecimalFormat extends StyleElement {
 
     /**
      * Check that no character is used in more than one role
-     * @throws TransformerConfigurationException
+     * @throws XPathException
      */
 
-    private void checkDistinctRoles(DecimalFormatSymbols dfs) throws TransformerConfigurationException {
+    private void checkDistinctRoles(DecimalFormatSymbols dfs) throws XPathException {
         HashMap map = new HashMap(20);
         Character c = new Character(dfs.getDecimalSeparator());
         map.put(c, StandardNames.DECIMAL_SEPARATOR);
@@ -159,12 +161,12 @@ public class XSLDecimalFormat extends StyleElement {
         map.put(c, StandardNames.PATTERN_SEPARATOR);
     }
 
-    private void duplicate(String role1, String role2) throws TransformerConfigurationException {
+    private void duplicate(String role1, String role2) throws XPathException {
         compileError("The same character is used as the " + role1 +
-                " and as the " + role2, "XT1300");
+                " and as the " + role2, "XTSE1300");
     }
 
-    public void register() throws TransformerConfigurationException
+    public void register() throws XPathException
     {
         prepareAttributes();
         DecimalFormatSymbols d = makeDecimalFormatSymbols();
@@ -186,22 +188,22 @@ public class XSLDecimalFormat extends StyleElement {
                     compileError(err.getMessage(), err.getErrorCodeLocalPart());
                 }
             } catch (XPathException err) {
-                compileError("Invalid decimal format name. " + err.getMessage(), "XT0020");
+                compileError("Invalid decimal format name. " + err.getMessage(), "XTSE0020");
             } catch (QNameException err) {
-                compileError("Invalid decimal format name. " + err.getMessage(), "XT0020");
+                compileError("Invalid decimal format name. " + err.getMessage(), "XTSE0020");
             } catch (NamespaceException err) {
-                compileError("Invalid decimal format name. " + err.getMessage(), "XT0280");
+                compileError("Invalid decimal format name. " + err.getMessage(), "XTSE0280");
             }
         }
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         return null;
     }
 
-    private char toChar(String s) throws TransformerConfigurationException {
+    private char toChar(String s) throws XPathException {
         if (s.length()!=1)
-            compileError("Attribute \"" + s + "\" should be a single character", "XT0020");
+            compileError("Attribute \"" + s + "\" should be a single character", "XTSE0020");
         return s.charAt(0);
     }
 

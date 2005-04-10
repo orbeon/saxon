@@ -1,10 +1,7 @@
 package net.sf.saxon.instruct;
 import net.sf.saxon.Controller;
 import net.sf.saxon.expr.*;
-import net.sf.saxon.om.Name;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.om.NamespaceResolver;
-import net.sf.saxon.om.QNameException;
+import net.sf.saxon.om.*;
 import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.trace.InstructionInfo;
 import net.sf.saxon.trans.DynamicError;
@@ -32,8 +29,7 @@ public class CallTemplate extends Instruction {
     * Construct a CallTemplate instruction.
     * @param template the Template object identifying the template to be called, in the normal
     * case where this is known statically
-    * @param actualParams array of WithParam instructions to calculate the actual parameters
-    * to be supplied to the call
+    * @param useTailRecursion 
     * @param calledTemplateExpression expression to calculate the name of the template to be called
     * at run-time, this supports the saxon:allow-avt option
     * @param nsContext the static namespace context of the instruction, needed only in the case
@@ -41,18 +37,25 @@ public class CallTemplate extends Instruction {
     */
 
     public CallTemplate (   Template template,
-                            WithParam[] actualParams,
-                            WithParam[] tunnelParams,
                             boolean useTailRecursion,
                             Expression calledTemplateExpression,
                             NamespaceResolver nsContext ) {
 
         this.template = template;
-        this.actualParams = actualParams;
-        this.tunnelParams = tunnelParams;
         this.useTailRecursion = useTailRecursion;
         this.calledTemplateExpression = calledTemplateExpression;
         this.nsContext = nsContext;
+    }
+
+   /**
+     * Set the actual parameters on the call
+     */
+
+    public void setActualParameters(
+                        WithParam[] actualParams,
+                        WithParam[] tunnelParams ) {
+        this.actualParams = actualParams;
+        this.tunnelParams = tunnelParams;
     }
 
     /**
@@ -123,6 +126,13 @@ public class CallTemplate extends Instruction {
         return this;
     }
 
+    public int getIntrinsicDependencies() {
+        // we could go to the called template and find which parts of the context it depends on, but this
+        // would create the risk of infinite recursion. So we just assume that the dependencies exist
+        return StaticProperty.DEPENDS_ON_XSLT_CONTEXT |
+                StaticProperty.DEPENDS_ON_FOCUS;
+    }
+
     /**
      * Determine whether this instruction creates new nodes.
      * This implementation currently returns true unconditionally.
@@ -184,7 +194,7 @@ public class CallTemplate extends Instruction {
             }
         } catch (StackOverflowError e) {
             DynamicError err = new DynamicError(
-                    "Too many nested xsl:call-template calls. The stylesheet is probably looping.");
+                    "Too many nested template or function calls. The stylesheet is probably looping.");
             err.setLocator(this);
             err.setXPathContext(context);
             throw err;
@@ -222,6 +232,13 @@ public class CallTemplate extends Instruction {
         //System.err.println("Call template using tail recursion");
         if (params==null) {                  // bug 490967
             params = ParameterSet.EMPTY_PARAMETER_SET;
+        }
+
+        // clear all the local variables: they are no longer needed
+        StackFrame frame = context.getStackFrame();
+        ValueRepresentation[] vars = frame.getStackFrameValues();
+        for (int i=0; i<vars.length; i++) {
+            vars[i] = null;
         }
 
         return new CallTemplatePackage(target, params, tunnels, context);
@@ -321,6 +338,10 @@ public class CallTemplate extends Instruction {
         */
 
         public TailCall processLeavingTail(XPathContext context) throws XPathException {
+            // TODO: the idea of tail call optimization is to reuse the caller's stack frame rather than
+            // creating a new one. We're doing this for the Java stack, but not for the context stack where
+            // local variables are held. It should be possible to avoid creating a new context, and instead
+            // to update the existing one in situ.
             XPathContextMajor c2 = evaluationContext.newContext();
             c2.setOrigin(CallTemplate.this);
             c2.setLocalParameters(params);

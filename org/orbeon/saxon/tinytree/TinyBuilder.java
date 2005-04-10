@@ -2,7 +2,6 @@ package net.sf.saxon.tinytree;
 import net.sf.saxon.event.Builder;
 import net.sf.saxon.event.LocationProvider;
 import net.sf.saxon.event.ReceiverOptions;
-import net.sf.saxon.om.DocumentInfo;
 import net.sf.saxon.om.FastStringBuffer;
 import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.XPathException;
@@ -36,25 +35,6 @@ public class TinyBuilder extends Builder  {
     public TinyTree getTree() {
         return tree;
     }
-
-    /**
-     * Set the root (document) node to use. This method is used to support
-     * the JAXP facility to attach transformation output to a supplied Document
-     * node. It must be called before startDocument(), and the type of document
-     * node must be compatible with the type of Builder used.
-     */
-
-    public void setRootNode(DocumentInfo doc) {
-        currentRoot = doc;
-        if (doc instanceof TinyDocumentImpl) {
-            tree = ((TinyDocumentImpl)doc).getTree();
-            currentDepth = 1;
-            prevAtDepth[0] = 0;
-            prevAtDepth[1] = -1;
-            tree.next[0] = -1;
-        }
-    }
-
 
     /**
      * Open the event stream
@@ -96,23 +76,24 @@ public class TinyBuilder extends Builder  {
         }
         started = true;
 
-        if (currentRoot==null) {
+        //if (currentRoot==null) {
             // normal case
             currentRoot = new TinyDocumentImpl(tree);
             TinyDocumentImpl doc = (TinyDocumentImpl)currentRoot;
             doc.setSystemId(getSystemId());
             doc.setConfiguration(config);
             //tree.document = doc;
-        } else {
-            // document node supplied by user
-            if (!(currentRoot instanceof TinyDocumentImpl)) {
-                throw new DynamicError("Document node supplied is of wrong kind");
-            }
-            if (currentRoot.hasChildNodes()) {
-                throw new DynamicError("Supplied document is not empty");
-            }
-            //currentRoot.setConfiguration(config);
-        }
+//        } else {
+//            // document node supplied by user
+//            if (!(currentRoot instanceof TinyDocumentImpl)) {
+//                throw new DynamicError("Document node supplied is of wrong kind (" +
+//                        currentRoot.getClass().getName() + ')');
+//            }
+//            if (currentRoot.hasChildNodes()) {
+//                throw new DynamicError("Supplied document is not empty");
+//            }
+//            //currentRoot.setConfiguration(config);
+//        }
 
         currentDepth = 0;
         tree.addDocumentNode((TinyDocumentImpl)currentRoot);
@@ -147,6 +128,7 @@ public class TinyBuilder extends Builder  {
     }
 
     public void close() throws XPathException {
+        tree.addNode(Type.STOPPER, 0, 0, 0, 0);
         tree.condense();
         super.close();
     }
@@ -167,9 +149,9 @@ public class TinyBuilder extends Builder  {
 		}
 
         if (currentDepth == 0) {
-            prevAtDepth[0] = 0;
+            prevAtDepth[0] = nodeNr;
             prevAtDepth[1] = -1;
-            tree.next[0] = -1;
+            //tree.next[0] = -1;
             currentRoot = tree.getNode(nodeNr);
         } else {
             int prev = prevAtDepth[currentDepth];
@@ -207,6 +189,7 @@ public class TinyBuilder extends Builder  {
 
         if ((properties & ReceiverOptions.DISABLE_ESCAPING) != 0) {
             DynamicError err = new DynamicError("Cannot disable output escaping when writing a tree");
+            // TODO: error code 1610 no longer exists
             err.setErrorCode("XT1610");
             throw err;
         }
@@ -222,10 +205,7 @@ public class TinyBuilder extends Builder  {
     * Callback interface for SAX: not for application use
     */
 
-    public void endElement () throws XPathException
-    {
-        //System.err.println("End element ()");
-
+    public void endElement () throws XPathException {
         prevAtDepth[currentDepth] = -1;
         currentDepth--;
     }
@@ -239,6 +219,7 @@ public class TinyBuilder extends Builder  {
         if (chars.length()>0) {
             if ((properties & ReceiverOptions.DISABLE_ESCAPING) != 0) {
                 DynamicError err = new DynamicError("Cannot disable output escaping when writing a tree");
+                // TODO: error code 1610 no longer exists
                 err.setErrorCode("XT1610");
                 throw err;
             }

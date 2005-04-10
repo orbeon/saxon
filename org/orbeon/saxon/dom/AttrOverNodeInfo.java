@@ -5,7 +5,6 @@ import org.w3c.dom.Attr;
 import org.w3c.dom.DOMException;
 import org.w3c.dom.Element;
 import org.w3c.dom.TypeInfo;
-import com.saxonica.schema.TypeInfoImpl;
 
 /**
  * This class is an implementation of the DOM Element class that wraps a Saxon NodeInfo

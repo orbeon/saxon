@@ -41,7 +41,8 @@ public class Closure extends Value {
 
     protected SequenceIterator inputIterator;
 
-    private static final ValueRepresentation[] EMPTY_STACKFRAME = new ValueRepresentation[0];
+//    private static int countClosures = 0;
+//    private static int countMemoClosures = 0;
 
     /**
      * Private constructor: instances must be created using the make() method
@@ -54,6 +55,13 @@ public class Closure extends Value {
     */
 
     public static Value make(Expression expression, XPathContext context, boolean save) throws XPathException {
+
+        // Don't allow lazy evaluation of an ErrorExpression, the results are too confusing
+
+        if (expression instanceof ErrorExpression) {
+            expression.evaluateItem(context);    // throws the exception
+            return null;                         // keep the compiler happy
+        }
 
         // Treat tail recursion as a special case, to avoid creating a deeply-nested
         // tree of Closures. If this expression is a TailExpression, and its first
@@ -69,6 +77,15 @@ public class Closure extends Value {
                     SequenceIterator it = base.iterate(null);
                     base = ((GroundedIterator)it).materialize();
                 }
+                if (base instanceof IntegerRange) {
+                    long start = ((IntegerRange)base).getStart() + 1;
+                    long end = ((IntegerRange)base).getEnd();
+                    if (start == end) {
+                        return new IntegerValue(end);
+                    } else {
+                        return new IntegerRange(start, end);
+                    }
+                }
                 if (base instanceof SequenceExtent) {
                     return new SequenceExtent(
                             (SequenceExtent)base,
@@ -79,6 +96,13 @@ public class Closure extends Value {
         }
 
         Closure c = (save? new MemoClosure() : new Closure());
+//        if (save) {
+//            countMemoClosures++;
+//            if (countMemoClosures % 100 == 0) System.err.println("MEMO_CLOSURES " + countMemoClosures);
+//        } else {
+//            countClosures++;
+//            if (countClosures % 100 == 0) System.err.println("CLOSURES " + countClosures);
+//        }
         c.expression = expression;
         c.savedXPathContext = context.newContext();
         c.savedXPathContext.setOriginatingConstructType(Location.LAZY_EVALUATION);
@@ -96,7 +120,6 @@ public class Closure extends Value {
             ValueRepresentation[] local = localStackFrame.getStackFrameValues();
             if (local != null) {
                 ValueRepresentation[] savedStackFrame = new ValueRepresentation[local.length];
-                //System.arraycopy(local, 0, savedStackFrame, 0, local.length);
                 for (int i=0; i<local.length; i++) {
                     if (local[i] instanceof Closure) {
                         int cdepth = ((Closure)local[i]).depth;
@@ -110,21 +133,22 @@ public class Closure extends Value {
                 }
                 c.savedXPathContext.setStackFrame(localStackFrame.getStackFrameMap(), savedStackFrame);
             }
-        } else {
-            //c.savedXPathContext.setStackFrame(localStackFrame.getStackFrameMap(), EMPTY_STACKFRAME);
         }
 
         // Make a copy of the context item
         SequenceIterator currentIterator = context.getCurrentIterator();
         if (currentIterator != null) {
             Item contextItem = currentIterator.current();
-            c.savedXPathContext.setCurrentIterator(SingletonIterator.makeIterator(contextItem));
+            AxisIterator single = SingletonIterator.makeIterator(contextItem);
+            single.next();
+            c.savedXPathContext.setCurrentIterator(single);
             // we don't save position() and last() because we have no way
             // of restoring them. So the caller must ensure that a Closure is not
             // created if the expression depends on position() or last()
         }
 
         c.savedXPathContext.setReceiver(new SequenceOutputter());
+            // TODO: creating this SequenceOutputter is expensive and in most cases it's never used: delay it
 
         return c;
     }
@@ -177,6 +201,8 @@ public class Closure extends Value {
             inputIterator = expression.iterate(savedXPathContext);
             return inputIterator;
         } else {
+            // This is usually bad news: we have to evaluate the expression again. It would have been
+            // better to use a MemoClosure. But we struggle on regardless.
             return inputIterator.getAnother();
         }
     }
@@ -197,14 +223,15 @@ public class Closure extends Value {
     }
 
     /**
-    * Convert to Java object (for passing to external functions)
-    */
+     * Reduce a value to its simplest form. If the value is a closure or some other form of deferred value
+     * such as a FunctionCallPackage, then it is reduced to a SequenceExtent. If it is a SequenceExtent containing
+     * a single item, then it is reduced to that item. One consequence that is exploited by class FilterExpression
+     * is that if the value is a singleton numeric value, then the result will be an instance of NumericValue
+     */
 
-//    public Object convertToJava(Class target, Configuration config, XPathContext context) throws XPathException {
-//        Value val = ExpressionTool.eagerEvaluate(this, null);
-//        return val.convertToJava(target, config, context);
-//    }
-
+    public Value reduce() throws XPathException {
+        return new SequenceExtent(iterate(null)).reduce();
+    }
 
     public void display(int level, NamePool pool, PrintStream out) {
         out.println(ExpressionTool.indent(level) + "Closure of expression:");

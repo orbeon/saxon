@@ -1,5 +1,7 @@
 package net.sf.saxon.value;
 import net.sf.saxon.Err;
+import net.sf.saxon.ConversionContext;
+import net.sf.saxon.om.FastStringBuffer;
 import net.sf.saxon.expr.Token;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.trans.DynamicError;
@@ -51,7 +53,7 @@ public final class DecimalValue extends NumericValue {
                     ValidationException err = new ValidationException(
                             "Cannot convert string " + Err.wrap(trimmed, Err.VALUE) + " to xs:decimal");
                     err.setErrorCode("FORG0001");
-                    return new ErrorValue(err);
+                    return new ValidationErrorValue(err);
                 }
             }
             BigDecimal val = new BigDecimal(trimmed);
@@ -64,7 +66,7 @@ public final class DecimalValue extends NumericValue {
             ValidationException e = new ValidationException(
                     "Cannot convert string " + Err.wrap(trimmed, Err.VALUE) + " to xs:decimal");
             e.setErrorCode("FORG0001");
-            return new ErrorValue(e);
+            return new ValidationErrorValue(e);
         }
     }
 
@@ -101,17 +103,28 @@ public final class DecimalValue extends NumericValue {
     */
 
     private void loseTrailingZeros() {
-        // this is an odd way to do it, but it seems the simplest method available
-        if (value.scale() > 0) {
-            String s = value.toString();
-            int len = s.length();
-            if (s.charAt(len-1) != '0') return;
-            while (s.charAt(len-1) == '0') {
-                len--;
+        int scale = value.scale();
+        if (scale > 0) {
+            BigInteger i = value.unscaledValue();
+            while (true) {
+                BigInteger[] dr = i.divideAndRemainder(TEN);
+                if (dr[1].equals(BigInteger.ZERO)) {
+                    i = dr[0];
+                    scale--;
+                    if (scale==0) {
+                        break;
+                    }
+                } else {
+                    break;
+                }
             }
-            value = new BigDecimal(s.substring(0, len));
+            if (scale != value.scale()) {
+                value = new BigDecimal(i, scale);
+            }
         }
     }
+
+    private static final BigInteger TEN = BigInteger.valueOf(10);
 
     /**
     * Get the value
@@ -144,7 +157,7 @@ public final class DecimalValue extends NumericValue {
     * Convert to target data type
     */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, ConversionContext conversion) {
         switch(requiredType.getPrimitiveType()) {
         case Type.BOOLEAN:
                 // 0.0 => false, anything else => true
@@ -169,7 +182,7 @@ public final class DecimalValue extends NumericValue {
                                      requiredType.getDisplayName());
             //err.setXPathContext(context);
             err.setErrorCode("FORG0001");
-            return new ErrorValue(err);
+            return new ValidationErrorValue(err);
         }
     }
 
@@ -179,11 +192,32 @@ public final class DecimalValue extends NumericValue {
     */
 
     public String getStringValue() {
-        String s = value.toString();
-        //if (value.scale()==0) {
-        //    s += ".0";
-        //}
-        return s;
+        // Can't use the plain BigDecimal#toString() under JDK 1.5 because this produces values like "1E-5".
+        // TODO: JDK 1.5 offers BigDecimal#toPlainString() which might do the job directly
+        if (value.scale() <= 0) {
+            return value.toString();
+        } else {
+            boolean negative = value.signum() < 0;
+            String s = value.abs().unscaledValue().toString();
+            int len = s.length();
+            int scale = value.scale();
+            FastStringBuffer sb = new FastStringBuffer(len+1);
+            if (negative) {
+                sb.append('-');
+            }
+            if (scale >= len) {
+                sb.append("0.");
+                for (int i=len; i<scale; i++) {
+                    sb.append('0');
+                }
+                sb.append(s);
+            } else {
+                sb.append(s.substring(0, len-scale));
+                sb.append('.');
+                sb.append(s.substring(len-scale));
+            }
+            return sb.toString();
+        }
     }
 
     /**
@@ -252,7 +286,7 @@ public final class DecimalValue extends NumericValue {
     public NumericValue roundToHalfEven(int scale) {
         if (scale<0) {
             try {
-                AtomicValue val = convert(Type.INTEGER);
+                AtomicValue val = convert(Type.INTEGER, null);
                 if (val instanceof IntegerValue) {
                     return ((IntegerValue)val).roundToHalfEven(scale);
                 } else {
@@ -273,7 +307,7 @@ public final class DecimalValue extends NumericValue {
 
     public double signum() {
         return value.signum();
-    }    
+    }
 
     /**
     * Determine whether the value is a whole number, that is, whether it compares
@@ -306,6 +340,12 @@ public final class DecimalValue extends NumericValue {
                         BigDecimal result = value.divide(((DecimalValue)other).value, scale, BigDecimal.ROUND_HALF_DOWN);
                         return new DecimalValue(result);
                     case Token.IDIV:
+                        if (((DecimalValue)other).value.signum() == 0) {
+                            DynamicError e = new DynamicError("Integer division by zero");
+                            e.setErrorCode("FOAR0001");
+                            e.setXPathContext(context);
+                            throw e;
+                        }
                         BigInteger quot = value.divide(((DecimalValue)other).value, 0, BigDecimal.ROUND_DOWN).toBigInteger();
                         return BigIntegerValue.makeValue(quot);
                     case Token.MOD:
@@ -320,9 +360,9 @@ public final class DecimalValue extends NumericValue {
                 throw new DynamicError(err);
             }
         } else if (NumericValue.isInteger(other)) {
-            return arithmetic(operator, (DecimalValue)other.convert(Type.DECIMAL), context);
+            return arithmetic(operator, (DecimalValue)other.convert(Type.DECIMAL, context), context);
         } else {
-            NumericValue n = (NumericValue)convert(other.getItemType().getPrimitiveType());
+            NumericValue n = (NumericValue)convert(other.getItemType().getPrimitiveType(), context);
             return n.arithmetic(operator, other, context);
         }
     }
@@ -335,7 +375,7 @@ public final class DecimalValue extends NumericValue {
         if ((NumericValue.isInteger((NumericValue)other))) {
             // deliberately triggers a ClassCastException if other value is the wrong type
             try {
-                return compareTo(((NumericValue)other).convert(Type.DECIMAL));
+                return compareTo(((NumericValue)other).convert(Type.DECIMAL, null));
             } catch (XPathException err) {
                 throw new AssertionError("Conversion of integer to decimal should never fail");
             }
@@ -358,10 +398,10 @@ public final class DecimalValue extends NumericValue {
         } else if (target.isAssignableFrom(DecimalValue.class)) {
             return this;
         } else if (target==boolean.class) {
-            BooleanValue bval = (BooleanValue)convert(Type.BOOLEAN);
+            BooleanValue bval = (BooleanValue)convert(Type.BOOLEAN, context);
             return Boolean.valueOf(bval.getBooleanValue());
         } else if (target==Boolean.class) {
-            BooleanValue bval = (BooleanValue)convert(Type.BOOLEAN);
+            BooleanValue bval = (BooleanValue)convert(Type.BOOLEAN, context);
             return Boolean.valueOf(bval.getBooleanValue());
         } else if (target==String.class || target==CharSequence.class) {
             return getStringValue();

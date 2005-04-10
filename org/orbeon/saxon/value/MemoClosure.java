@@ -152,6 +152,10 @@ public final class MemoClosure extends Closure {
             reservoir = (Item[])list.toArray(reservoir);
             used = list.size();
             state = ALL_READ;
+            // give unwanted stuff to the garbage collector
+            savedXPathContext = null;
+//            inputIterator = null;
+//            expression = null;
         }
 
     }
@@ -225,6 +229,10 @@ public final class MemoClosure extends Closure {
             System.arraycopy(reservoir, 0, r2, 0, used);
             reservoir = r2;
         }
+        // give unwanted stuff to the garbage collector
+        savedXPathContext = null;
+//        inputIterator = null;
+//        expression = null;
     }
 
     /**
@@ -243,14 +251,20 @@ public final class MemoClosure extends Closure {
         }
 
         public Item next() throws XPathException {
+            if (position == -2) {   // means we've already return null once, keep doing so if called again.
+                return null;
+            }
             if (++position < used) {
                 return reservoir[position];
+//            } else if (state == ALL_READ) {
+//                return null;
             } else {
                 Item i = inputIterator.next();
                 if (i == null) {
                     state = ALL_READ;
                     condense();
-                    position--;     // leave position at last item
+                    //position--;     // leave position at last item
+                    position = -2;
                     return null;
                 }
                 position = used;
@@ -261,6 +275,9 @@ public final class MemoClosure extends Closure {
         }
 
         public Item current() {
+            if (position < 0) {
+                return null;
+            }
             return reservoir[position];
         }
 
@@ -297,11 +314,10 @@ public final class MemoClosure extends Closure {
         }
 
         /**
-         * Return a SequenceValue containing all the items in the sequence returned by this
+         * Return a value containing all the items in the sequence returned by this
          * SequenceIterator
          *
-         * @return the corresponding SequenceValue if it exists, or null if it doesn't; in this case
-         *         the caller must construct a new SequenceExtent by calling new SequenceExtent(iter.getAnother())
+         * @return the corresponding value
          */
 
         public Value materialize() throws XPathException {

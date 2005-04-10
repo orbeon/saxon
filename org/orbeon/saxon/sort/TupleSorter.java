@@ -30,11 +30,17 @@ public class TupleSorter extends ComputedExpression implements MappingFunction {
 
      public Expression simplify(StaticContext env) throws XPathException {
         base = base.simplify(env);
+        for (int i=0; i<sortKeys.length; i++) {
+            sortKeys[i].setSortKey(sortKeys[i].getSortKey().simplify(env));
+        }
         return this;
     }
 
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
         base = base.analyze(env, contextItemType);
+        for (int i=0; i<sortKeys.length; i++) {
+            sortKeys[i].setSortKey(sortKeys[i].getSortKey().analyze(env, contextItemType));
+        }
         return this;
     }
 
@@ -69,7 +75,7 @@ public class TupleSorter extends ComputedExpression implements MappingFunction {
         }
         return false;
     }
-    
+
     /**
     * Promote this expression if possible
     */
@@ -80,8 +86,13 @@ public class TupleSorter extends ComputedExpression implements MappingFunction {
             return exp;
         } else {
             base = base.promote(offer);
-            for (int i=0; i<sortKeys.length; i++) {
-                sortKeys[i].setSortKey(sortKeys[i].getSortKey().promote(offer));
+            if (offer.action != PromotionOffer.RANGE_INDEPENDENT) {
+                // Don't try to move sort keys, or parts of sort keys, outside the containing ForExpression.
+                // This is because the TupleSorter isn't a child of the ForExpression(s) defining the sequence
+                // that we're sorting, so the variables it depends on aren't necessarily listed in the PromotionOffer.
+                for (int i=0; i<sortKeys.length; i++) {
+                    sortKeys[i].setSortKey(sortKeys[i].getSortKey().promote(offer));
+                }
             }
             return this;
         }
@@ -89,7 +100,7 @@ public class TupleSorter extends ComputedExpression implements MappingFunction {
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
         SequenceIterator iter = new SortedTupleIterator(context, base.iterate(context), sortKeys);
-        MappingIterator mapper = new MappingIterator(iter, this, context, null);
+        MappingIterator mapper = new MappingIterator(iter, this, context);
         return mapper;
     }
 
@@ -109,7 +120,7 @@ public class TupleSorter extends ComputedExpression implements MappingFunction {
      * of underlying values that share the same sort key.
      */
 
-    public Object map(Item item, XPathContext context, Object info) throws XPathException {
+    public Object map(Item item, XPathContext context) throws XPathException {
         ObjectValue tuple = (ObjectValue)item;
         Object o = tuple.getObject();
         if (o == null) {
@@ -118,7 +129,7 @@ public class TupleSorter extends ComputedExpression implements MappingFunction {
         if (o instanceof Item) {
             return o;
         }
-        Value value = (Value)tuple.getObject();
+        Value value = (Value)o;
         return value.iterate(context);
     }
 

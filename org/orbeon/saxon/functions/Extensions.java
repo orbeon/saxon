@@ -14,6 +14,8 @@ import net.sf.saxon.value.*;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.io.ByteArrayInputStream;
+import java.io.InputStreamReader;
 
 /**
 * This class implements functions that are supplied as standard with SAXON,
@@ -150,7 +152,7 @@ public class Extensions  {
             if (next == null) break;
             Item val = pexpression.expression.evaluateItem(c);
             if (val instanceof NumericValue) {
-                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE);
+                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE, context);
                 total += v.getDoubleValue();
             } else {
                 DynamicError e = new DynamicError("expression in saxon:sum() must return numeric values");
@@ -177,7 +179,7 @@ public class Extensions  {
             if (next==null) break;
             Item val = pexpression.expression.evaluateItem(c);
             if (val instanceof NumericValue) {
-                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE);
+                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE, context);
                 if (v.getDoubleValue()>max) max = v.getDoubleValue();
             } else {
                 DynamicError e = new DynamicError("expression in saxon:max() must return numeric values");
@@ -204,7 +206,7 @@ public class Extensions  {
             if (next==null) break;
             Item val = pexpression.expression.evaluateItem(c);
             if (val instanceof NumericValue) {
-                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE);
+                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE, context);
                 if (v.getDoubleValue()<min) min = v.getDoubleValue();
             } else {
                 DynamicError e = new DynamicError("expression in saxon:min() must return numeric values");
@@ -241,7 +243,7 @@ public class Extensions  {
             if (next==null) break;
             Item val = pexpression.expression.evaluateItem(c);
             if (val instanceof NumericValue) {
-                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE);
+                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE, context);
                 if (v.getDoubleValue()>max) {
                     max = v.getDoubleValue();
                     highest = nsv.current();
@@ -280,7 +282,7 @@ public class Extensions  {
             if (next==null) break;
             Item val = pexpression.expression.evaluateItem(c);
             if (val instanceof NumericValue) {
-                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE);
+                DoubleValue v = (DoubleValue)((NumericValue)val).convert(Type.DOUBLE, context);
                 if (v.getDoubleValue()<min) {
                     min = v.getDoubleValue();
                     lowest = nsv.current();
@@ -540,6 +542,33 @@ public class Extensions  {
     public static byte[] hexBinaryToOctets(HexBinaryValue in) {
         return in.getBinaryValue();
     }
+
+    /**
+     * Convert a base64Binary value to a String, assuming a particular encoding
+     */
+
+    public static String base64BinaryToString(Base64BinaryValue in, String encoding) throws Exception {
+        byte[] bytes = in.getBinaryValue();
+        ByteArrayInputStream stream = new ByteArrayInputStream(bytes);
+        InputStreamReader reader = new InputStreamReader(stream, encoding);
+        char[] array = new char[bytes.length];
+        int used = reader.read(array, 0, array.length);
+        return new String(array, 0, used);
+    }
+
+    /**
+     * Convert a hexBinary value to a String, assuming a particular encoding
+     */
+
+    public static String hexBinaryToString(HexBinaryValue in, String encoding) throws Exception {
+        byte[] bytes = in.getBinaryValue();
+        ByteArrayInputStream stream = new ByteArrayInputStream(bytes);
+        InputStreamReader reader = new InputStreamReader(stream, encoding);
+        char[] array = new char[bytes.length];
+        int used = reader.read(array, 0, array.length);
+        return new String(array, 0, used);
+    }
+
 
     /**
      * Create a parentless namespace node. This function is useful in XQuery when namespaces need to be created

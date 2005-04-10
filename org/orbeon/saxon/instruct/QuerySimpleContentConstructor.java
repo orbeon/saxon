@@ -46,10 +46,10 @@ public class QuerySimpleContentConstructor extends SimpleContentConstructor {
         if (isSingleton && isAtomic) {
             // optimize for this case
             Item item = select.evaluateItem(context);
-            if (item instanceof StringValue) {
+            if (item == null || item instanceof StringValue) {
                 return item;
             } else {
-                return ((AtomicValue)item).convert(Type.STRING);
+                return ((AtomicValue)item).convert(Type.STRING, context);
             }
         }
         SequenceIterator iter = select.iterate(context);

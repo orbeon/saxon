@@ -11,6 +11,7 @@ import net.sf.saxon.pattern.NoNodeTest;
 import net.sf.saxon.style.StandardNames;
 import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.trans.SaxonErrorCode;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.value.Value;
@@ -209,10 +210,10 @@ public class ResultDocument extends Instruction {
                 resolver = controller.getOutputURIResolver();
 
                 String hrefValue = href.evaluateAsString(context);
-                result = resolver.resolve(hrefValue, controller.getPrincipalResultURI());
+                result = resolver.resolve(hrefValue, controller.getBaseOutputURI());
                 if (result == null) {
                     resolver = StandardOutputResolver.getInstance();
-                    result = resolver.resolve(hrefValue, controller.getPrincipalResultURI());
+                    result = resolver.resolve(hrefValue, controller.getBaseOutputURI());
                 }
             } catch (TransformerException e) {
                 throw DynamicError.makeDynamicError(e);
@@ -223,7 +224,7 @@ public class ResultDocument extends Instruction {
             DynamicError err = new DynamicError("Cannot write more than one result document to the same URI: " +
                     result.getSystemId());
             err.setXPathContext(context);
-            err.setErrorCode("XT1490");
+            err.setErrorCode("XTDE1490");
             throw err;
         }
 
@@ -321,20 +322,20 @@ public class ResultDocument extends Instruction {
                         String prefix = parts[0];
                         if (prefix.equals("")) {
                             DynamicError err = new DynamicError("method must be xml, html, xhtml, or text, or a prefixed name");
-                            err.setErrorCode("XT1570");
+                            err.setErrorCode("XTSE1570");
                             throw err;
                         } else {
                             String muri = nsResolver.getURIForPrefix(prefix, false);
                             if (muri==null) {
                                 DynamicError err = new DynamicError("Namespace prefix '" + prefix + "' has not been declared");
-                                err.setErrorCode("XT1570");
+                                err.setErrorCode("XTSE1570");
                                 throw err;
                             }
                             details.put(OutputKeys.METHOD, '{' + muri + '}' + parts[1]);
                         }
                     } catch (QNameException e) {
                         DynamicError err = new DynamicError("Invalid method name. " + e.getMessage());
-                        err.setErrorCode("XT1570");
+                        err.setErrorCode("XTSE1570");
                         throw err;
                     }
                 }
@@ -349,17 +350,17 @@ public class ResultDocument extends Instruction {
                     details.put(SaxonOutputKeys.BYTE_ORDER_MARK, value);
                 } else {
                     DynamicError err = new DynamicError("byte-order-mark value must be 'yes' or 'no'");
-                    err.setErrorCode("XT0030");
+                    err.setErrorCode("XTDE0030");
                     throw err;
                 }
             } else
-            
+
             if (lname.equals(StandardNames.INDENT)) {
                 if (value.equals("yes") || value.equals("no")) {
                     details.put(OutputKeys.INDENT, value);
                 } else {
                     DynamicError err = new DynamicError("indent must be 'yes' or 'no'");
-                    err.setErrorCode("XT0030");
+                    err.setErrorCode("XTDE0030");
                     throw err;
                 }
             } else
@@ -385,7 +386,7 @@ public class ResultDocument extends Instruction {
                     details.put(OutputKeys.OMIT_XML_DECLARATION, value);
                 } else {
                     DynamicError err = new DynamicError("omit-xml-declaration attribute must be 'yes' or 'no'");
-                    err.setErrorCode("XT0030");
+                    err.setErrorCode("XTDE0030");
                     throw err;
                 }
             } else
@@ -394,7 +395,7 @@ public class ResultDocument extends Instruction {
                 if (value.equals("yes") || value.equals("no") || value.equals("omit")) {
                     details.put(OutputKeys.STANDALONE, value);
                     DynamicError err = new DynamicError("standalone attribute must be 'yes' or 'no' or 'omit'");
-                    err.setErrorCode("XT0030");
+                    err.setErrorCode("XTDE0030");
                     throw err;
                 }
             } else
@@ -419,7 +420,7 @@ public class ResultDocument extends Instruction {
                         s += " {" + muri + '}' + parts[1];
                     } catch (QNameException err) {
                         DynamicError e = new DynamicError("Invalid CDATA element name. " + err.getMessage());
-                        e.setErrorCode("XT0030");
+                        e.setErrorCode("XTDE0030");
                         throw e;
                     }
 
@@ -441,7 +442,7 @@ public class ResultDocument extends Instruction {
                     details.put(SaxonOutputKeys.UNDECLARE_PREFIXES, value);
                 } else {
                     DynamicError err = new DynamicError("undeclare-namespaces value must be 'yes' or 'no'");
-                    err.setErrorCode("XT0030");
+                    err.setErrorCode("XTDE0030");
                     throw err;
                 }
             } else
@@ -451,7 +452,7 @@ public class ResultDocument extends Instruction {
                     details.put(SaxonOutputKeys.INCLUDE_CONTENT_TYPE, value);
                 } else {
                     DynamicError err = new DynamicError("include-content-type attribute must be 'yes' or 'no'");
-                    err.setErrorCode("XT0030");
+                    err.setErrorCode("XTDE0030");
                     throw err;
                 }
             } else
@@ -461,7 +462,7 @@ public class ResultDocument extends Instruction {
                     details.put(SaxonOutputKeys.ESCAPE_URI_ATTRIBUTES, value);
                 } else {
                     DynamicError err = new DynamicError("escape-uri-attributes value must be 'yes' or 'no'");
-                    err.setErrorCode("XT0030");
+                    err.setErrorCode("XTDE0030");
                     throw err;
                 }
             }
@@ -479,14 +480,14 @@ public class ResultDocument extends Instruction {
                     details.put(SaxonOutputKeys.INDENT_SPACES, value);
                 } catch (NumberFormatException err) {
                     DynamicError e = new DynamicError("saxon:indent-spaces must be an integer");
-                    e.setErrorCode(NamespaceConstant.SAXON, "warning");
+                    e.setErrorCode(NamespaceConstant.SAXON, SaxonErrorCode.SXWN9002);
                     throw e;
                 }
             } else
 
             if (lname.equals("next-in-chain")) {
                 DynamicError e = new DynamicError("saxon:next-in-chain value cannot be specified dynamically");
-                e.setErrorCode(NamespaceConstant.SAXON, "warning");
+                e.setErrorCode(NamespaceConstant.SAXON, SaxonErrorCode.SXWN9004);
                 throw e;
             } else
 
@@ -495,7 +496,7 @@ public class ResultDocument extends Instruction {
                     details.put(SaxonOutputKeys.REQUIRE_WELL_FORMED, value);
                 } else {
                     DynamicError e = new DynamicError("saxon:require-well-formed value must be 'yes' or 'no'");
-                    e.setErrorCode(NamespaceConstant.SAXON, "warning");
+                    e.setErrorCode(NamespaceConstant.SAXON, SaxonErrorCode.SXWN9003);
                     throw e;
                 }
             }

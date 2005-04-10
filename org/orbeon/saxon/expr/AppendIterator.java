@@ -14,6 +14,7 @@ public class AppendIterator implements SequenceIterator {
     private Expression second;
     private XPathContext context;
     private SequenceIterator currentIterator;
+    private int position = 0;
 
     /**
      * This form of constructor is designed to delay getting an iterator for the second
@@ -35,7 +36,12 @@ public class AppendIterator implements SequenceIterator {
         Item n = currentIterator.next();
         if (n == null && currentIterator==first) {
             currentIterator = second.iterate(context);
-            return currentIterator.next();
+            n = currentIterator.next();
+        }
+        if (n == null) {
+            position = -1;
+        } else {
+            position++;
         }
         return n;
     }
@@ -45,11 +51,7 @@ public class AppendIterator implements SequenceIterator {
     }
 
     public int position() {
-        if (currentIterator == first) {
-            return first.position();
-        } else {
-            return first.position() + currentIterator.position();
-        }
+        return position;
     }
 
     public SequenceIterator getAnother() throws XPathException {

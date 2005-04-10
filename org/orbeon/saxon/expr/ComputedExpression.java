@@ -1,5 +1,6 @@
 package net.sf.saxon.expr;
 
+import net.sf.saxon.event.LocationProvider;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.instruct.Instruction;
 import net.sf.saxon.instruct.InstructionDetails;
@@ -69,7 +70,7 @@ public abstract class ComputedExpression
         parentExpression = parent;
     }
 
-    protected void adoptChildExpression(Expression child) {
+    public void adoptChildExpression(Expression child) {
         if (this == child) {
             throw new AssertionError("Incestuous relationship!");
         }
@@ -152,7 +153,11 @@ public abstract class ComputedExpression
         }
         Executable exec = getExecutable();
         if (exec == null) {
-            return null;
+            if (parentExpression instanceof LocationProvider) {
+                return ((LocationProvider)parentExpression).getSystemId(locationId);
+            } else {
+                return null;
+            }
         }
         return exec.getLocationMap().getSystemId(locationId);
     }
@@ -177,6 +182,21 @@ public abstract class ComputedExpression
             throw new IllegalStateException("Expression cannot contain itself");
         } else {
             return container.getExecutable();
+        }
+    }
+
+    /**
+     * Get the LocationProvider allowing location identifiers to be resolved.
+     */
+
+    public LocationProvider getLocationProvider() {
+        Executable exec = getExecutable();
+        if (exec != null) {
+            return exec.getLocationMap();
+        } else if (getParentExpression() instanceof LocationProvider) {
+            return ((LocationProvider)getParentExpression());
+        } else {
+            return null;
         }
     }
 
@@ -429,13 +449,13 @@ public abstract class ComputedExpression
      */
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
-        if ((!Cardinality.allowsMany(getCardinality()))) {
-            // The above line is defensive coding. We should only be here if it's a singleton.
-            Item value = evaluateItem(context);
-            return SingletonIterator.makeIterator(value);
-        } else {
-            throw new UnsupportedOperationException("Non-singleton expression " + getClass() + " must supply iterate() method");
-        }
+        Item value = evaluateItem(context);
+//        if (value instanceof UserFunctionCall.FunctionCallPackage) {
+//            // TODO: this test should be redundant
+//            throw new IllegalStateException("Unexpected FunctionCallPackage");
+//            //return ((UserFunctionCall.FunctionCallPackage)value).iterateResults(context);
+//        }
+        return SingletonIterator.makeIterator(value);
     }
 
 
@@ -471,11 +491,18 @@ public abstract class ComputedExpression
         } else if ((m & ITERATE_METHOD) != 0) {
 
             SequenceIterator iter = iterate(context);
-            while (true) {
-                Item it = iter.next();
-                if (it == null) break;
-                // Need to cater for it being a tailcall returned from a function
-                Instruction.appendItem(it, context.getReceiver(), locationId);
+            try {
+                while (true) {
+                    Item it = iter.next();
+                    if (it == null) break;
+                    // Need to cater for it being a tailcall returned from a function
+                    Instruction.appendItem(it, context.getReceiver(), locationId);
+                }
+            } catch (XPathException e) {
+                if (e.getLocator() == null) {
+                    e.setLocator(this);
+                }
+                throw e;
             }
 
         } else {

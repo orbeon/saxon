@@ -1,8 +1,5 @@
 package net.sf.saxon.style;
-import net.sf.saxon.expr.ErrorExpression;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.RoleLocator;
-import net.sf.saxon.expr.TypeChecker;
+import net.sf.saxon.expr.*;
 import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.NodeKindTest;
@@ -13,8 +10,6 @@ import net.sf.saxon.value.Cardinality;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.SequenceType;
 import net.sf.saxon.value.StringValue;
-
-import javax.xml.transform.TransformerConfigurationException;
 
 /**
 * This class defines common behaviour across xsl:variable, xsl:param, and xsl:with-param
@@ -132,13 +127,13 @@ public abstract class XSLGeneralVariable extends StyleElement {
             } catch (NamespaceException err) {
                 setObjectNameCode(-1);
             } catch (XPathException err) {
-                setObjectNameCode(-1);;
+                setObjectNameCode(-1);
             }
         }
         return getObjectFingerprint();
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
         getVariableFingerprint();
 
@@ -179,13 +174,13 @@ public abstract class XSLGeneralVariable extends StyleElement {
             } catch (NamespaceException err) {
                 compileError(err.getMessage());
             } catch (XPathException err) {
-                compileError(err.getMessage());
+                compileError(err);
             }
         }
 
         if (selectAtt!=null) {
             if (!allowsValue()) {
-                compileError("Function parameters cannot have a default value", "XT0760");
+                compileError("Function parameters cannot have a default value", "XTSE0760");
             }
             select = makeExpression(selectAtt);
         }
@@ -200,7 +195,7 @@ public abstract class XSLGeneralVariable extends StyleElement {
             } else if (requiredAtt.equals("no")) {
                 requiredParam = false;
             } else {
-                compileError("The attribute 'required' must be set to 'yes' or 'no'", "XT0020");
+                compileError("The attribute 'required' must be set to 'yes' or 'no'", "XTSE0020");
             }
         }
 
@@ -210,7 +205,7 @@ public abstract class XSLGeneralVariable extends StyleElement {
             } else if (tunnelAtt.equals("no")) {
                 tunnel = false;
             } else {
-                compileError("The attribute 'tunnel' must be set to 'yes' or 'no'", "XT0020");
+                compileError("The attribute 'tunnel' must be set to 'yes' or 'no'", "XTSE0020");
             }
         }
 
@@ -219,14 +214,14 @@ public abstract class XSLGeneralVariable extends StyleElement {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         global = isTopLevel();
 
         if (global) {
             slotManager = getConfiguration().makeSlotManager();
         }
         if (select!=null && hasChildNodes()) {
-            compileError("An " + getDisplayName() + " element with a select attribute must be empty", "XT0620");
+            compileError("An " + getDisplayName() + " element with a select attribute must be empty", "XTSE0620");
         }
 
         if (assignable && !global) {
@@ -257,7 +252,7 @@ public abstract class XSLGeneralVariable extends StyleElement {
                         if (Cardinality.allowsZero(requiredType.getCardinality())) {
                             select = EmptySequence.getInstance();
                         } else {
-                            compileError("The implicit value () is not valid for the declared type", "XT0570");
+                            compileError("The implicit value () is not valid for the declared type", "XTTE0570");
                         }
                     }
                 }
@@ -284,13 +279,15 @@ public abstract class XSLGeneralVariable extends StyleElement {
      */
 
     protected void checkAgainstRequiredType(SequenceType required)
-    throws TransformerConfigurationException {
+    throws XPathException {
         try {
-            RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, getVariableName(), 0, null);
-            role.setErrorCode("XT0570");
+
             if (required!=null) {
                 // check that the expression is consistent with the required type
                 if (select != null) {
+                    RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, getVariableName(), 0, null);
+                    role.setSourceLocator(new ExpressionLocation(this));
+                    role.setErrorCode("XTTE0570");
                     select = TypeChecker.staticTypeCheck(select, required, false, role, getStaticContext());
                 } else {
                     // do the check later
@@ -308,7 +305,7 @@ public abstract class XSLGeneralVariable extends StyleElement {
     */
 
     protected void initializeInstruction(Executable exec, GeneralVariable var)
-    throws TransformerConfigurationException {
+    throws XPathException {
 
         var.init(select, getObjectNameCode());
         var.setAssignable(assignable);
@@ -325,7 +322,7 @@ public abstract class XSLGeneralVariable extends StyleElement {
                 if (b == null) {
                     b = EmptySequence.getInstance();
                 }
-                doc.setContent(b);
+                doc.setContentExpression(b);
                 select = doc;
                 var.setSelectExpression(doc);
             } else {
@@ -337,7 +334,8 @@ public abstract class XSLGeneralVariable extends StyleElement {
                     if (requiredType != null) {
                         RoleLocator role =
                                 new RoleLocator(RoleLocator.VARIABLE, getVariableName(), 0, null);
-                        role.setErrorCode("XT0570");
+                        role.setErrorCode("XTTE0570");
+                        role.setSourceLocator(new ExpressionLocation(this));
                         select = select.simplify(getStaticContext());
                         select = TypeChecker.staticTypeCheck(select, requiredType, false, role, getStaticContext());
                     }

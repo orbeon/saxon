@@ -83,7 +83,7 @@ public final class AtomicSequenceConverter extends UnaryExpression implements Ma
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
         SequenceIterator base = operand.iterate(context);
-        return new MappingIterator(base, this, null, null);
+        return new MappingIterator(base, this, null);
     }
 
     /**
@@ -93,15 +93,15 @@ public final class AtomicSequenceConverter extends UnaryExpression implements Ma
     public Item evaluateItem(XPathContext context) throws XPathException {
         Item item = operand.evaluateItem(context);
         if (item==null) return null;
-        return ((AtomicValue)item).convert(requiredPrimitiveType);
+        return ((AtomicValue)item).convert(requiredPrimitiveType, context);
     }
 
     /**
     * Implement the mapping function
     */
 
-    public Object map(Item item, XPathContext context, Object info) throws XPathException {
-        return ((AtomicValue)item).convert(requiredPrimitiveType);
+    public Object map(Item item, XPathContext context) throws XPathException {
+        return ((AtomicValue)item).convert(requiredPrimitiveType, context);
     }
 
     /**

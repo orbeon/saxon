@@ -112,6 +112,8 @@ public class RegexIterator implements SequenceIterator, LastPositionFinder {
 
     public Item next() {
         if (!hasNext) {
+            current = null;
+            position = -1;
             return null;
         }
         current = next;

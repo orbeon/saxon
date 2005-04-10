@@ -11,8 +11,6 @@ import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.SequenceType;
 
-import javax.xml.transform.TransformerConfigurationException;
-
 
 /**
 * An xsl:apply-templates element in the stylesheet
@@ -37,7 +35,7 @@ public class XSLApplyTemplates extends StyleElement {
     }
 
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 
@@ -64,9 +62,9 @@ public class XSLApplyTemplates extends StyleElement {
                 try {
                     modeNameCode = makeNameCode(modeAttribute.trim());
                 } catch (NamespaceException err) {
-                    compileError(err.getMessage());
+                    compileError(err.getMessage(), "XTSE0280");
                 } catch (XPathException err) {
-                    compileError("Mode name " + Err.wrap(modeAttribute) + " is not a valid QName", "XT0280");
+                    compileError("Mode name " + Err.wrap(modeAttribute) + " is not a valid QName", "XTSE0280");
                 }
             }
         }
@@ -76,7 +74,7 @@ public class XSLApplyTemplates extends StyleElement {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
 
         checkWithinTemplate();
 
@@ -100,10 +98,10 @@ public class XSLApplyTemplates extends StyleElement {
             } else if (child.getNodeKind() == Type.TEXT) {
                     // with xml:space=preserve, white space nodes may still be there
                 if (!Navigator.isWhite(child.getStringValueCS())) {
-                    compileError("No character data is allowed within xsl:apply-templates", "XT0010");
+                    compileError("No character data is allowed within xsl:apply-templates", "XTSE0010");
                 }
             } else {
-                compileError("Invalid element within xsl:apply-templates", "XT0010");
+                compileError("Invalid element within xsl:apply-templates", "XTSE0010");
             }
         }
 
@@ -115,7 +113,8 @@ public class XSLApplyTemplates extends StyleElement {
         try {
             RoleLocator role =
                 new RoleLocator(RoleLocator.INSTRUCTION, "xsl:apply-templates/select", 0, null);
-            role.setErrorCode("XT0520");
+            role.setSourceLocator(new ExpressionLocation(this));
+            role.setErrorCode("XTTE0520");
             select = TypeChecker.staticTypeCheck(select,
                                         SequenceType.NODE_SEQUENCE,
                                         false, role, getStaticContext());
@@ -135,7 +134,7 @@ public class XSLApplyTemplates extends StyleElement {
     }
 
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         SortKeyDefinition[] sortKeys = makeSortKeys();
         if (sortKeys != null) {
             useTailRecursion = false;
@@ -147,12 +146,12 @@ public class XSLApplyTemplates extends StyleElement {
         }
         ApplyTemplates app = new ApplyTemplates(
                                     sortedSequence,
-                                    getWithParamInstructions(exec, false),
-                                    getWithParamInstructions(exec, true),
                                     useCurrentMode,
                                     useTailRecursion,
                                     mode,
                                     backwardsCompatibleModeIsEnabled());
+        app.setActualParameters(getWithParamInstructions(exec, false, app),
+                                 getWithParamInstructions(exec, true, app));
         ExpressionTool.makeParentReferences(app);
         return app;
     }

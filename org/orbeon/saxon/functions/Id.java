@@ -17,7 +17,7 @@ import net.sf.saxon.value.Cardinality;
 */
 
 
-public class Id extends SystemFunction implements MappingFunction {
+public class Id extends SystemFunction {
 
     private boolean isSingletonId = false;
 
@@ -94,40 +94,50 @@ public class Id extends SystemFunction implements MappingFunction {
                     idrefs.indexOf(0x0a)>=0 ||
                     idrefs.indexOf(0x0d)>=0) {
                 StringTokenIterator tokens = new StringTokenIterator(idrefs);
-                SequenceIterator result = new MappingIterator(tokens, this, null, doc);
+                IdMappingFunction map = new IdMappingFunction();
+                map.document = doc;
+                SequenceIterator result = new MappingIterator(tokens, map, null);
                 return new DocumentOrderIterator(result, LocalOrderComparer.getInstance());
             } else {
                 return SingletonIterator.makeIterator(doc.selectID(idrefs));
             }
         } else {
             SequenceIterator idrefs = argument[0].iterate(context);
-            SequenceIterator result = new MappingIterator(idrefs, this, null, doc);
+            IdMappingFunction map = new IdMappingFunction();
+            map.document = doc;
+            SequenceIterator result = new MappingIterator(idrefs, map, null);
             return new DocumentOrderIterator(result, LocalOrderComparer.getInstance());
         }
     }
 
-    /**
-    * Evaluate the function for a single string value
-    * (implements the MappingFunction interface)
-    */
+    private static class IdMappingFunction implements MappingFunction {
 
-    public Object map(Item item, XPathContext c, Object info) throws XPathException {
+        public DocumentInfo document;
 
-        String idrefs = item.getStringValue().trim();
-        DocumentInfo doc = (DocumentInfo)info;
+        /**
+        * Evaluate the function for a single string value
+        * (implements the MappingFunction interface)
+        */
 
-        // If this value contains a space, we need to break it up into its
-        // separate tokens; if not, we can process it directly
+        public Object map(Item item, XPathContext c) throws XPathException {
 
-        if (idrefs.indexOf(0x20)>=0 ||
-                idrefs.indexOf(0x09)>=0 ||
-                idrefs.indexOf(0x0a)>=0 ||
-                idrefs.indexOf(0x0d)>=0) {
-            StringTokenIterator tokens = new StringTokenIterator(idrefs);
-            return new MappingIterator(tokens, this, null, info);
+            String idrefs = item.getStringValue().trim();
 
-        } else {
-            return doc.selectID(idrefs);
+            // If this value contains a space, we need to break it up into its
+            // separate tokens; if not, we can process it directly
+
+            if (idrefs.indexOf(0x20)>=0 ||
+                    idrefs.indexOf(0x09)>=0 ||
+                    idrefs.indexOf(0x0a)>=0 ||
+                    idrefs.indexOf(0x0d)>=0) {
+                StringTokenIterator tokens = new StringTokenIterator(idrefs);
+                IdMappingFunction submap = new IdMappingFunction();
+                submap.document = document;
+                return new MappingIterator(tokens, submap, null);
+
+            } else {
+                return document.selectID(idrefs);
+            }
         }
     }
 

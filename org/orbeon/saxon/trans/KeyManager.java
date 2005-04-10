@@ -163,7 +163,7 @@ public class KeyManager implements Serializable {
             		context.getController().getNamePool().getDisplayName(fingerprint) +
             							" has not been defined");
             de.setXPathContext(context);
-            de.setErrorCode("XT1260");
+            de.setErrorCode("XTDE1260");
             throw de;
         }
 
@@ -336,7 +336,7 @@ public class KeyManager implements Serializable {
                     break;
                 }
                 try {
-                    val = item.convert(soughtItemType);
+                    val = item.convert(soughtItemType, xc);
                 } catch (XPathException err) {
                     // ignore values that can't be converted to the required type
                     break;
@@ -409,7 +409,7 @@ public class KeyManager implements Serializable {
                 itemType == StandardNames.XS_DECIMAL ||
                 itemType == StandardNames.XS_FLOAT) {
             itemType = StandardNames.XS_DOUBLE;
-            value = value.convert(itemType);
+            value = value.convert(itemType, context);
         }
 
         Object indexObject = getIndex(doc, fingerprint, itemType);
@@ -417,7 +417,7 @@ public class KeyManager implements Serializable {
             // index is under construction
             DynamicError de = new DynamicError("Key definition is circular");
             de.setXPathContext(context);
-            de.setErrorCode("XT0640");
+            de.setErrorCode("XTDE0640");
             throw de;
         }
         HashMap index = (HashMap)indexObject;

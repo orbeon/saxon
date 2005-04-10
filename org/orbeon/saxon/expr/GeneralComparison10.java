@@ -70,7 +70,7 @@ public class GeneralComparison10 extends BinaryExpression {
 
         Comparator comp = env.getCollation(env.getDefaultCollationName());
         if (comp==null) comp = CodepointCollator.getInstance();
-        comparer = new AtomicComparer(comp);
+        comparer = new AtomicComparer(comp, env.getConfiguration());
 
         // evaluate the expression now if both arguments are constant
 
@@ -96,12 +96,19 @@ public class GeneralComparison10 extends BinaryExpression {
         }
 
         if (!maybeBoolean0 && !maybeBoolean1) {
-            boolean maybeNumeric0 = Type.relationship(type0, Type.NUMBER_TYPE) != Type.DISJOINT;
-            boolean maybeNumeric1 = Type.relationship(type1, Type.NUMBER_TYPE) != Type.DISJOINT;
+            int n0 = Type.relationship(type0, Type.NUMBER_TYPE);
+            int n1 = Type.relationship(type1, Type.NUMBER_TYPE);
+            boolean maybeNumeric0 = (n0 != Type.DISJOINT);
+            boolean maybeNumeric1 = (n1 != Type.DISJOINT);
+            boolean numeric0 = (n0 == Type.SUBSUMED_BY || n0 == Type.SAME_TYPE);
+            boolean numeric1 = (n1 == Type.SUBSUMED_BY || n1 == Type.SAME_TYPE);
 
             // Use the 2.0 path if we don't have to deal with the possibility of boolean values,
             // or the complications of converting values to numbers
             if (!maybeNumeric0 && !maybeNumeric1) {
+                return new GeneralComparison(operand0, operator, operand1).analyze(env, contextItemType);
+            }
+            if (numeric0 && numeric1) {
                 return new GeneralComparison(operand0, operator, operand1).analyze(env, contextItemType);
             }
         }
@@ -189,8 +196,8 @@ public class GeneralComparison10 extends BinaryExpression {
         // using the number() function
 
         if (operator == Token.LT || operator == Token.LE || operator == Token.GT || operator == Token.GE) {
-            iter0 = new MappingIterator(iter0, new NumberFn(), null, null);
-            iter1 = new MappingIterator(iter1, new NumberFn(), null, null);
+            iter0 = new MappingIterator(iter0, new NumberFn(), null);
+            iter1 = new MappingIterator(iter1, new NumberFn(), null);
         }
 
         // Compare all pairs of atomic values in the two atomized sequences
@@ -270,8 +277,8 @@ public class GeneralComparison10 extends BinaryExpression {
 
         if (t0 == Type.STRING_TYPE || t1 == Type.STRING_TYPE ||
                 (t0 == Type.UNTYPED_ATOMIC_TYPE && t1 == Type.UNTYPED_ATOMIC_TYPE)) {
-            StringValue s0 = (StringValue)a0.convert(Type.STRING);
-            StringValue s1 = (StringValue)a1.convert(Type.STRING);
+            StringValue s0 = (StringValue)a0.convert(Type.STRING, context);
+            StringValue s1 = (StringValue)a1.convert(Type.STRING, context);
             return ValueComparison.compare(s0, operator, s1, comparer);
         }
 
@@ -280,15 +287,15 @@ public class GeneralComparison10 extends BinaryExpression {
 
         if (t0 == Type.UNTYPED_ATOMIC_TYPE) {
             a0 = a0.convert(t1, context, true);
-            if (a0 instanceof ErrorValue) {
-                throw ((ErrorValue)a0).getException();
+            if (a0 instanceof ValidationErrorValue) {
+                throw ((ValidationErrorValue)a0).getException();
             }
         }
 
         if (t1 == Type.UNTYPED_ATOMIC_TYPE) {
             a1 = a1.convert(t0, context, true);
-            if (a1 instanceof ErrorValue) {
-                throw ((ErrorValue)a1).getException();
+            if (a1 instanceof ValidationErrorValue) {
+                throw ((ValidationErrorValue)a1).getException();
             }
         }
 

@@ -187,10 +187,10 @@ public class SimpleContentConstructor extends ComputedExpression {
         if (isSingleton) {
             // optimize for this case
             Item item = select.evaluateItem(context);
-            if (item instanceof StringValue) {
+            if (item == null || item instanceof StringValue) {
                 return item;
             } else if (item instanceof AtomicValue) {
-                return ((AtomicValue)item).convert(Type.STRING);
+                return ((AtomicValue)item).convert(Type.STRING, context);
             } else {
                 iter = SingletonIterator.makeIterator(item);
             }

@@ -1,9 +1,13 @@
 package net.sf.saxon.instruct;
 
 import net.sf.saxon.Controller;
+import net.sf.saxon.pull.UnconstructedDocument;
 import net.sf.saxon.event.Receiver;
 import net.sf.saxon.event.SequenceReceiver;
-import net.sf.saxon.expr.*;
+import net.sf.saxon.expr.ExpressionTool;
+import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.expr.Expression;
+import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.om.*;
 import net.sf.saxon.pattern.NodeKindTest;
 import net.sf.saxon.style.StandardNames;
@@ -14,7 +18,6 @@ import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.value.TextFragmentValue;
 
 import java.io.PrintStream;
-import java.util.Iterator;
 
 
 /**
@@ -28,17 +31,15 @@ import java.util.Iterator;
  * children of the document node.</p>
  */
 
-public class DocumentInstr extends Instruction {
+public class DocumentInstr extends ParentNodeConstructor {
 
     private static final int[] treeSizeParameters = {50, 10, 5, 200};
     // estimated size of a temporary tree: {nodes, attributes, namespaces, characters}
 
-    private Expression content;
     private boolean textOnly;
     private String constantText;
     private String baseURI;
-    private int validationAction = Validation.PRESERVE;
-    private SchemaType schemaType;
+
 
     public DocumentInstr(boolean textOnly,
                          String constantText,
@@ -49,20 +50,21 @@ public class DocumentInstr extends Instruction {
     }
 
     /**
-     * Set the expression that constructs the content
+     * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
+     * This method indicates which of these methods is prefered. For instructions this is the process() method.
      */
 
-    public void setContent(Expression content) {
-        this.content = content;
-        adoptChildExpression(content);
+    public int getImplementationMethod() {
+        return Expression.EVALUATE_METHOD;
     }
+
 
     /**
      * Set the validation action
      */
 
     public void setValidationAction(int action) {
-        validationAction = action;
+        validation = action;
     }
 
     /**
@@ -76,14 +78,15 @@ public class DocumentInstr extends Instruction {
     /**
      * Simplify an expression. This performs any static optimization (by rewriting the expression
      * as a different expression). The default implementation does nothing.
+     *
      * @return the simplified expression
      * @throws net.sf.saxon.trans.XPathException
      *          if an error is discovered during expression rewriting
      */
 
     public Expression simplify(StaticContext env) throws XPathException {
-        content = content.simplify(env);
-        return this;
+        setLazyConstruction(env.getConfiguration().isLazyConstructionMode());
+        return super.simplify(env);
     }
 
     /**
@@ -108,44 +111,13 @@ public class DocumentInstr extends Instruction {
      */
 
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
-        content = content.analyze(env, contextItemType);
-        return this;
-    }
-
-    /**
-     * Handle promotion offers, that is, non-local tree rewrites.
-     * @param offer The type of rewrite being offered
-     * @throws XPathException
-     */
-
-    protected void promoteInst(PromotionOffer offer) throws XPathException {
-        content = content.promote(offer);
-    }
-
-    /**
-      * Get the immediate sub-expressions of this expression.
-      * @return an iterator containing the sub-expressions of this expression
-      */
-
-    public Iterator iterateSubExpressions() {
-        return new MonoIterator(content);
-    }
-
-    /**
-     * Determine whether this instruction creates new nodes.
-     * This implementation returns true.
-     */
-
-    public final boolean createsNewNodes() {
-        return true;
+        Expression res = super.analyze(env, contextItemType);
+        verifyLazyConstruction();
+        return res;
     }
 
     public ItemType getItemType() {
         return NodeKindTest.DOCUMENT;
-    }
-
-    public int getCardinality() {
-        return StaticProperty.EXACTLY_ONE;
     }
 
     public TailCall processLeavingTail(XPathContext context) throws XPathException {
@@ -162,66 +134,66 @@ public class DocumentInstr extends Instruction {
      */
 
     public Item evaluateItem(XPathContext context) throws XPathException {
-        Controller controller = context.getController();
-        DocumentInfo root;
-        if (textOnly) {
-            CharSequence textValue;
-            if (constantText != null) {
-                textValue = constantText;
-            } else {
-                FastStringBuffer sb = new FastStringBuffer(100);
-                SequenceIterator iter = content.iterate(context);
-                if (iter instanceof AtomizableIterator) {
-                    ((AtomizableIterator)iter).setIsAtomizing(true);
-                }
-                while (true) {
-                    Item item = iter.next();
-                    if (item==null) break;
-                    sb.append(item.getStringValueCS());
-                }
-                textValue = sb.condense();
-            }
-            root = new TextFragmentValue(textValue, baseURI);
-            root.setConfiguration(controller.getConfiguration());
+        if (isLazyConstruction()) {
+            return new UnconstructedDocument(this, context);
         } else {
-            XPathContext c2 = context.newMinorContext();
-            c2.setOrigin(this);
+            Controller controller = context.getController();
+            DocumentInfo root;
+            if (textOnly) {
+                CharSequence textValue;
+                if (constantText != null) {
+                    textValue = constantText;
+                } else {
+                    FastStringBuffer sb = new FastStringBuffer(100);
+                    SequenceIterator iter = content.iterate(context);
+                    if (iter instanceof AtomizableIterator) {
+                        ((AtomizableIterator)iter).setIsAtomizing(true);
+                    }
+                    while (true) {
+                        Item item = iter.next();
+                        if (item==null) break;
+                        sb.append(item.getStringValueCS());
+                    }
+                    textValue = sb.condense();
+                }
+                root = new TextFragmentValue(textValue, baseURI);
+                ((TextFragmentValue)root).setConfiguration(controller.getConfiguration());
+            } else {
+                XPathContext c2 = context.newMinorContext();
+                c2.setOrigin(this);
 
-            // TODO: delayed evaluation of temporary trees, in the same way as
-            // node-sets. This requires saving the controller, including values of local variables
-            // and any assignable global variables (ouch).
+                // TODO: use an Outputter that delayes the decision whether to build a
+                // TextFragment or a TinyTree until the first element is encountered, to
+                // avoid the overhead of using a TinyTree for text-only trees. This would
+                // make the static analysis superfluous.
 
-            // TODO: use an Outputter that delayes the decision whether to build a
-            // TextFragment or a TinyTree until the first element is encountered, to
-            // avoid the overhead of using a TinyTree for text-only trees. This would
-            // make the static analysis superfluous.
+                TinyBuilder builder = new TinyBuilder();
+                //System.err.println("Build doc " + builder);
+                builder.setSizeParameters(treeSizeParameters);
+                builder.setLineNumbering(controller.getConfiguration().isLineNumbering());
 
-            TinyBuilder builder = new TinyBuilder();
-            //System.err.println("Build doc " + builder);
-            builder.setSizeParameters(treeSizeParameters);
-            builder.setLineNumbering(controller.getConfiguration().isLineNumbering());
+                Receiver receiver = builder;
+                receiver.setSystemId(baseURI);
+                receiver.setPipelineConfiguration(controller.makePipelineConfiguration());
 
-            Receiver receiver = builder;
-            receiver.setSystemId(baseURI);
-            receiver.setPipelineConfiguration(controller.makePipelineConfiguration());
+                c2.changeOutputDestination(null,
+                        receiver,
+                        false,
+                        validation,
+                        schemaType);
+                Receiver out = c2.getReceiver();
+                out.open();
+                out.startDocument(0);
 
-            c2.changeOutputDestination(null,
-                    receiver,
-                    false,
-                    validationAction,
-                    schemaType);
-            Receiver out = c2.getReceiver();
-            out.open();
-            out.startDocument(0);
+                content.process(c2);
 
-            content.process(c2);
+                out.endDocument();
+                out.close();
 
-            out.endDocument();
-            out.close();
-
-            root = (DocumentInfo)builder.getCurrentRoot();
+                root = (DocumentInfo)builder.getCurrentRoot();
+            }
+            return root;
         }
-        return root;
     }
 
 

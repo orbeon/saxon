@@ -91,6 +91,7 @@ public abstract class SystemFunction extends FunctionCall {
 
     private void checkArgument(int arg, StaticContext env) throws XPathException {
         RoleLocator role = new RoleLocator(RoleLocator.FUNCTION, new Integer(getFunctionNameCode()), arg, env.getNamePool());
+        role.setSourceLocator(this);
         argument[arg] = TypeChecker.staticTypeCheck(
                                 argument[arg],
                                 getRequiredType(arg),
@@ -113,6 +114,10 @@ public abstract class SystemFunction extends FunctionCall {
     */
 
     public ItemType getItemType() {
+        if (details == null) {
+            // probably an unresolved function call
+            return AnyItemType.getInstance();
+        }
         ItemType type = details.itemType;
         if (type == StandardFunction.SAME_AS_FIRST_ARGUMENT) {
             if (argument.length > 0) {
@@ -132,7 +137,7 @@ public abstract class SystemFunction extends FunctionCall {
 
     public int computeCardinality() {
         if (details==null) {
-            System.err.println("**** No details for " + getClass() + " at " + this);
+            //System.err.println("**** No details for " + getClass() + " at " + this);
             return StaticProperty.ALLOWS_ZERO_OR_MORE;
         }
         return details.cardinality;

@@ -65,6 +65,7 @@ public class QueryParser extends ExpressionParser {
         exec.setConfiguration(config);
         exec.setFunctionLibrary(new ExecutableFunctionLibrary(config));
                 // this will be changed later
+        exec.setHostLanguage(Configuration.XQUERY);
         setExecutable(exec);
         staticContext.setExecutable(exec);
         Expression exp = parseQuery(query, 0, Token.EOF, staticContext);
@@ -75,7 +76,7 @@ public class QueryParser extends ExpressionParser {
             docInstruction = (DocumentInstr) exp;
         } else {
             docInstruction = new DocumentInstr(false, null, staticContext.getSystemId());
-            docInstruction.setContent(exp);
+            docInstruction.setContentExpression(exp);
             setLocation(docInstruction, 1);
             //makeContentConstructor(exp, docInstruction, 1);
         }
@@ -90,7 +91,7 @@ public class QueryParser extends ExpressionParser {
         lib.addFunctionLibrary(config.getVendorFunctionLibrary());
         lib.addFunctionLibrary(new ConstructorFunctionLibrary(config));
         if (config.isAllowExternalFunctions()) {
-            lib.addFunctionLibrary(new JavaExtensionLibrary(config));
+            lib.addFunctionLibrary(config.getExtensionBinder());
         }
         lib.addFunctionLibrary(userlib);
         exec.setFunctionLibrary(lib);
@@ -131,6 +132,7 @@ public class QueryParser extends ExpressionParser {
                                        int terminator,
                                        StaticQueryContext env) throws XPathException {
         this.env = env;
+        this.language = XQUERY;
         t = new Tokenizer();
         try {
             t.tokenize(queryString, start, -1, 1);
@@ -223,16 +225,8 @@ public class QueryParser extends ExpressionParser {
     protected void grumble(String message, String errorCode) throws StaticError {
         String s = t.recentText();
         ExpressionLocation loc = makeLocator();
-
-//        String columnInfo = "at char " + column + ' ';
-//        String lineInfo = "on line " + line + ' ';
-//        String module = env.getSystemId();
-//        lineInfo += (module == null ? "" : "of " + module + ' ');
-//        String prefix = getLanguage() + " syntax error " + columnInfo + lineInfo +
-//                (message.startsWith("...") ? "near" : "in") +
-//                " #" + s + "#:\n    ";
         String prefix = getLanguage() +
-                (errorCode.equals("XP0003") ? " syntax error " : " static error ") +
+                ("XPST0003".equals(errorCode) ? " syntax error " : " static error ") +
                 (message.startsWith("...") ? "near" : "in") +
                 " #" + s + "#:\n    ";
         StaticError exception = new StaticError(prefix + message);
@@ -279,7 +273,7 @@ public class QueryParser extends ExpressionParser {
             nextToken();
             expect(Token.STRING_LITERAL);
             if (!("1.0".equals(t.currentTokenValue))) {
-                grumble("XQuery version must be 1.0", "XQ0031");
+                grumble("XQuery version must be 1.0", "XQST0031");
             }
             nextToken();
             if ("encoding".equals(t.currentTokenValue)) {
@@ -334,6 +328,7 @@ public class QueryParser extends ExpressionParser {
     private void parseProlog() throws StaticError {
         boolean allowSetters = true;
         boolean allowModuleDecl = true;
+        boolean allowDeclarations = true;
         while (true) {
             try {
                 if (t.currentToken == Token.MODULE_NAMESPACE) {
@@ -349,22 +344,35 @@ public class QueryParser extends ExpressionParser {
                 }
                 allowModuleDecl = false;
                 if (t.currentToken == Token.DECLARE_NAMESPACE) {
+                    if (!allowDeclarations) {
+                        grumble("Namespace declarations cannot follow variables, functions, or options");
+                    }
                     allowSetters = false;
                     parseNamespaceDeclaration();
                 } else if (t.currentToken == Token.DECLARE_DEFAULT) {
                     nextToken();
                     expect(Token.NAME);
-                    if (!allowSetters) {
-                        grumble("'declare default " + t.currentTokenValue +
-                                "' must appear earlier in the query prolog");
-                    }
                     if (t.currentTokenValue == "element") {
+                        if (!allowDeclarations) {
+                            grumble("Namespace declarations cannot follow variables, functions, or options");
+                        }
+                        allowSetters = false;
                         parseDefaultElementNamespace();
                     } else if (t.currentTokenValue == "function") {
+                        if (!allowDeclarations) {
+                            grumble("Namespace declarations cannot follow variables, functions, or options");
+                        }
+                        allowSetters = false;
                         parseDefaultFunctionNamespace();
                     } else if (t.currentTokenValue == "collation") {
+                        if (!allowDeclarations) {
+                            grumble("Collation declarations must appear earlier in the prolog");
+                        }
                         parseDefaultCollation();
                     } else if (t.currentTokenValue == "order") {
+                        if (!allowDeclarations) {
+                            grumble("Order declarations must appear earlier in the prolog");
+                        }
                         parseDefaultOrder();
                     } else {
                         grumble("After 'declare default', expected 'element', 'function', or 'collation'");
@@ -391,18 +399,27 @@ public class QueryParser extends ExpressionParser {
                     parseBaseURIDeclaration();
                 } else if (t.currentToken == Token.IMPORT_SCHEMA) {
                     allowSetters = false;
+                    if (!allowDeclarations) {
+                        grumble("Import schema must appear earlier in the prolog");
+                    }
                     parseSchemaImport();
                 } else if (t.currentToken == Token.IMPORT_MODULE) {
                     allowSetters = false;
+                    if (!allowDeclarations) {
+                        grumble("Import module must appear earlier in the prolog");
+                    }
                     parseModuleImport();
                 } else if (t.currentToken == Token.DECLARE_VARIABLE) {
                     allowSetters = false;
+                    allowDeclarations = false;
                     parseVariableDeclaration();
                 } else if (t.currentToken == Token.DECLARE_FUNCTION) {
                     allowSetters = false;
+                    allowDeclarations = false;
                     parseFunctionDeclaration();
                 } else if (t.currentToken == Token.DECLARE_OPTION) {
                     allowSetters = false;
+                    allowDeclarations = false;
                     parseOptionDeclaration();
                 } else if (t.currentToken == Token.DECLARE_CONSTRUCTION) {
                     if (!allowSetters) {
@@ -434,7 +451,7 @@ public class QueryParser extends ExpressionParser {
                     if (t.currentToken == Token.EOF) {
                         return;
                     } else if (t.currentToken == Token.RCURLY) {
-                         t.lookAhead();
+                        t.lookAhead();
                     } else if (t.currentToken == Token.TAG) {
                         parsePseudoXML(true);
                     }
@@ -447,7 +464,7 @@ public class QueryParser extends ExpressionParser {
     private void parseDefaultCollation() throws StaticError {
         // <"default" "collation"> StringLiteral
         if (foundDefaultCollation) {
-            grumble("default collation appears more than once", "XQ0038");
+            grumble("default collation appears more than once", "XQST0038");
         }
         foundDefaultCollation = true;
         nextToken();
@@ -466,7 +483,7 @@ public class QueryParser extends ExpressionParser {
      */
     private void parseDefaultOrder() throws StaticError {
         if (foundEmptyOrderingDeclaration) {
-            grumble("default ordering declaration appears more than once", "XQ0069");
+            grumble("empty ordering declaration appears more than once", "XQST0069");
         }
         foundEmptyOrderingDeclaration = true;
         nextToken();
@@ -492,7 +509,7 @@ public class QueryParser extends ExpressionParser {
 
     private void parseBoundarySpaceDeclaration() throws StaticError {
         if (foundBoundarySpaceDeclaration) {
-            grumble("'declare boundary-space' appears more than once", "XQ0038");
+            grumble("'declare boundary-space' appears more than once", "XQST0068");
         }
         foundBoundarySpaceDeclaration = true;
         nextToken();
@@ -515,7 +532,7 @@ public class QueryParser extends ExpressionParser {
 
     private void parseOrderingDeclaration() throws StaticError {
         if (foundOrderingDeclaration) {
-            grumble("ordering mode declaration appears more than once", "XQ0065");
+            grumble("ordering mode declaration appears more than once", "XQST0065");
         }
         foundOrderingDeclaration = true;
         nextToken();
@@ -538,7 +555,7 @@ public class QueryParser extends ExpressionParser {
 
     private void parseCopyNamespacesDeclaration() throws StaticError {
         if (foundCopyNamespaces) {
-            grumble("declare inherit-namespaces appears more than once", "XQ0055");
+            grumble("declare inherit-namespaces appears more than once", "XQST0055");
         }
         foundCopyNamespaces = true;
         nextToken();
@@ -574,7 +591,7 @@ public class QueryParser extends ExpressionParser {
 
     private void parseConstructionDeclaration() throws StaticError {
         if (foundConstructionDeclaration) {
-            grumble("declare construction appears more than once", "XQ0067");
+            grumble("declare construction appears more than once", "XQST0067");
         }
         foundConstructionDeclaration = true;
         nextToken();
@@ -600,7 +617,7 @@ public class QueryParser extends ExpressionParser {
 
     private void parseSchemaImport() throws StaticError {
         if (!env.getConfiguration().isSchemaAware(Configuration.XQUERY)) {
-            grumble("To import a schema, you need the schema-aware version of Saxon", "XQ0009");
+            grumble("To import a schema, you need the schema-aware version of Saxon", "XQST0009");
         }
         String prefix = null;
         String namespaceURI = null;
@@ -648,7 +665,7 @@ public class QueryParser extends ExpressionParser {
         }
         if (prefix != null) {
             if (namespaceURI==null || "".equals(namespaceURI)) {
-                grumble("A prefix cannot be bound to the null namespace", "XQ0057");
+                grumble("A prefix cannot be bound to the null namespace", "XQST0057");
             }
             try {
                 if ("".equals(prefix)) {
@@ -671,10 +688,10 @@ public class QueryParser extends ExpressionParser {
                     PipelineConfiguration pipe = config.makePipelineConfiguration();
                     config.readMultipleSchemas(pipe, env.getBaseURI(), locationURIs, namespaceURI);
                 } catch (TransformerConfigurationException err) {
-                    grumble("Error in schema. " + err.getMessage(), "XQ0059");
+                    grumble("Error in schema. " + err.getMessage(), "XQST0059");
                 }
             } else {
-                grumble("Unable to locate requested schema", "XQ0059");
+                grumble("Unable to locate requested schema", "XQST0059");
             }
         }
         ((StaticQueryContext) env).addImportedSchema(namespaceURI);
@@ -703,7 +720,7 @@ public class QueryParser extends ExpressionParser {
         if (t.currentToken == Token.STRING_LITERAL) {
             moduleURI = t.currentTokenValue;
             if (importedModules.contains(moduleURI)) {
-                grumble("Two 'import module' declarations specify the same module namespace", "XQ0047");
+                grumble("Two 'import module' declarations specify the same module namespace", "XQST0047");
             }
             importedModules.add(moduleURI);
             nextToken();
@@ -728,7 +745,8 @@ public class QueryParser extends ExpressionParser {
         }
         String thisModuleNS = thisModule.getModuleNamespace();
         if (thisModuleNS != null && thisModuleNS.equals(moduleURI)) {
-            grumble("A module cannot import its own namespace", "XQ0056");
+            grumble("A module cannot import its own namespace", "XQST0056");
+            // TODO: this error condition has been removed from the April 05 spec
         }
 
         // No location information given: import all the modules known to be in this namespace (if any)
@@ -736,7 +754,7 @@ public class QueryParser extends ExpressionParser {
         if (locationURIs.size() == 0) {
             List modules = executable.getQueryLibraryModules(moduleURI);
             if (modules == null) {
-                grumble("Cannot locate a library module with this module namespace", "XQ0059");
+                grumble("Cannot locate a library module with this module namespace", "XQST0059");
             } else {
                 for (int m=0; m<modules.size(); m++) {
                     importModuleContents(((StaticQueryContext)modules.get(m)), thisModule);
@@ -828,7 +846,7 @@ public class QueryParser extends ExpressionParser {
         String uri = env.getNamePool().getURI(fingerprint);
         if (uri.equals(NamespaceConstant.SCHEMA)) {
             return;
-        } else if (uri.equals(NamespaceConstant.XDT)) {
+        } else if (NamespaceConstant.isXDTNamespace(uri)) {
             return;
         } if (env.isImportedSchema(uri)) {
             return;   // schema namespace is imported in this module
@@ -842,7 +860,7 @@ public class QueryParser extends ExpressionParser {
                         env.getNamePool().getDisplayName(((XQueryFunction)declaration).getNameCode());
             }
             msg += " is not declared in any schema imported by this query module";
-            grumble(msg, "XQ0036");
+            grumble(msg, "XQST0036");
         }
     }
 
@@ -854,7 +872,7 @@ public class QueryParser extends ExpressionParser {
 
     private void parseBaseURIDeclaration() throws StaticError {
         if (foundBaseURIDeclaration) {
-            grumble("Base URI Declaration may only appear once", "XQ0032");
+            grumble("Base URI Declaration may only appear once", "XQST0032");
         }
         foundBaseURIDeclaration = true;
         nextToken();
@@ -872,7 +890,7 @@ public class QueryParser extends ExpressionParser {
 
     private void parseDefaultFunctionNamespace() throws StaticError {
         if (foundDefaultFunctionNamespace) {
-            grumble("default function namespace appears more than once", "XQ0066");
+            grumble("default function namespace appears more than once", "XQST0066");
         }
         foundDefaultFunctionNamespace = true;
         nextToken();
@@ -884,7 +902,8 @@ public class QueryParser extends ExpressionParser {
         expect(Token.STRING_LITERAL);
         String uri = t.currentTokenValue;
         if (uri.equals("")) {
-            grumble("The default function namespace must not be a zero-length string", "XQ0063");
+            grumble("The default function namespace must not be a zero-length string", "XQST0063");
+            // TODO: this is no longer an error (April 05) - the default function namespace should be "undeclared".
         }
         ((StaticQueryContext) env).setDefaultFunctionNamespace(uri);
         nextToken();
@@ -898,7 +917,7 @@ public class QueryParser extends ExpressionParser {
 
     private void parseDefaultElementNamespace() throws StaticError {
         if (foundDefaultElementNamespace) {
-            grumble("default element namespace appears more than once", "XQ0066");
+            grumble("default element namespace appears more than once", "XQST0066");
         }
         foundDefaultElementNamespace = true;
         nextToken();
@@ -952,7 +971,7 @@ public class QueryParser extends ExpressionParser {
 
     private void checkProhibitedPrefixes(String prefix) throws StaticError {
         if ("xml".equals(prefix) || "xmlns".equals(prefix)) {
-            grumble("The namespace prefix " + Err.wrap(prefix) + " cannot be redeclared", "XQ0070");
+            grumble("The namespace prefix " + Err.wrap(prefix) + " cannot be redeclared", "XQST0070");
         }
     }
 
@@ -982,7 +1001,7 @@ public class QueryParser extends ExpressionParser {
         String uri = env.getNamePool().getURI(varNameCode);
         String moduleURI = ((StaticQueryContext)env).getModuleNamespace();
         if (moduleURI != null && !moduleURI.equals(uri)) {
-            grumble("A variable declared in a library module must be in the module namespace", "XQ0048");
+            grumble("A variable declared in a library module must be in the module namespace", "XQST0048");
         }
 
         nextToken();
@@ -1011,45 +1030,8 @@ public class QueryParser extends ExpressionParser {
                 grumble("Variable must either be initialized or be declared as external");
             }
         } else {
-            grumble("Expected '{' or ':=' or 'external' in variable declaration");
+            grumble("Expected ':=' or 'external' in variable declaration");
         }
-
-//        // we recognize the pragma (:: pragma saxon:default value ::) where value is a numeric or string literal
-//        AtomicValue defaultValue = null;
-//        while (t.lastPragma != null) {
-//            try {
-//                StringTokenizer tok = new StringTokenizer(t.lastPragma);
-//                t.lastPragma = null;
-//                if (tok.hasMoreTokens()) {
-//                    String qname = tok.nextToken();
-//                    String[] parts = Name.getQNameParts(qname);
-//                    if (!"default".equals(parts[1])) {
-//                        break;
-//                    }
-//                    try {
-//                        if (!env.getURIForPrefix(parts[0]).equals(NamespaceConstant.SAXON)) {
-//                            break;
-//                        }
-//                    } catch (XPathException err) {
-//                        grumble("Unrecognized namespace prefix in pragma name {" + qname + '}');
-//                        break;
-//                    }
-//                }
-//                if (tok.hasMoreTokens()) {
-//                    String value = tok.nextToken();
-//                    if (value.charAt(0) == '"' || value.charAt(0) == '\'') {
-//                        defaultValue = new StringValue(value.substring(1, value.length() - 1));
-//                    } else {
-//                        defaultValue = NumericValue.parseNumber(value);
-//                        if (((NumericValue)defaultValue).isNaN()) {
-//                            grumble("Default value of query parameter must be a string or numeric literal");
-//                        }
-//                    }
-//                }
-//            } catch (QNameException err) {
-//            }
-//        }
-
 
         StaticQueryContext qenv = (StaticQueryContext) env;
         if (qenv.getModuleNamespace() != null &&
@@ -1090,16 +1072,16 @@ public class QueryParser extends ExpressionParser {
         }
 
         if (uri.equals("")) {
-            grumble("The function must be in a namespace", "XQ0060");
+            grumble("The function must be in a namespace", "XQST0060");
         }
 
         String moduleURI = ((StaticQueryContext)env).getModuleNamespace();
         if (moduleURI != null && !moduleURI.equals(uri)) {
-            grumble("A function in a library module must be in the module namespace", "XQ0048");
+            grumble("A function in a library module must be in the module namespace", "XQST0048");
         }
 
         if (NamespaceConstant.isReservedInQuery(uri)) {
-            grumble("The function name " + t.currentTokenValue + " is in a reserved namespace", "XQ0045");
+            grumble("The function name " + t.currentTokenValue + " is in a reserved namespace", "XQST0045");
         }
 
         XQueryFunction func = new XQueryFunction();
@@ -1126,7 +1108,7 @@ public class QueryParser extends ExpressionParser {
             int fingerprint = nameCode & 0xfffff;
             Integer f = new Integer(fingerprint);
             if (paramNames.contains(f)) {
-                grumble("Duplicate parameter name " + Err.wrap(t.currentTokenValue, Err.VARIABLE), "XQ0039");
+                grumble("Duplicate parameter name " + Err.wrap(t.currentTokenValue, Err.VARIABLE), "XQST0039");
             }
             paramNames.add(f);
             SequenceType paramType = SequenceType.ANY_SEQUENCE;
@@ -1371,12 +1353,14 @@ public class QueryParser extends ExpressionParser {
             exp.setExpression(0, action);
             for (int i = 0; i < sortSpecList.size(); i++) {
                 try {
+                    RoleLocator role = new RoleLocator(RoleLocator.ORDER_BY, "FLWR", i, null);
+                    role.setSourceLocator(makeLocator());
                     Expression sk =
                             TypeChecker.staticTypeCheck(
                                     ((SortSpec) sortSpecList.get(i)).sortKey,
                                     SequenceType.OPTIONAL_ATOMIC,
                                     false,
-                                    new RoleLocator(RoleLocator.ORDER_BY, "FLWR", i, null), env);
+                                    role, env);
                     exp.setExpression(i + 1, sk);
                 } catch (XPathException err) {
                     grumble(err.getMessage());
@@ -1392,7 +1376,7 @@ public class QueryParser extends ExpressionParser {
             action = new IfExpression(whereCondition, action, EmptySequence.getInstance());
             action = makeTracer(whereOffset, action, Location.WHERE_CLAUSE, -1);
             setLocation(action);
-        }        
+        }
 
         for (int i = clauseList.size() - 1; i >= 0; i--) {
             Object clause = clauseList.get(i);
@@ -1430,7 +1414,7 @@ public class QueryParser extends ExpressionParser {
                     if (spec.collation != null) {
                         key.setCollation(env.getCollation(spec.collation));
                     }
-                    key.bindComparer();
+                    key.bindComparer(env.getConfiguration());
                     keys[i] = key;
                 } catch (XPathException e) {
                     grumble(e.getMessage());
@@ -1527,7 +1511,7 @@ public class QueryParser extends ExpressionParser {
                 pos.setRequiredType(SequenceType.SINGLE_INTEGER);
                 pos.setVariableName(t.currentTokenValue);
                 clause.positionVariable = pos;
-                declareRangeVariable(pos);
+                //declareRangeVariable(pos);
                 nextToken();
             }
             expect(Token.IN);
@@ -1873,11 +1857,13 @@ public class QueryParser extends ExpressionParser {
             // a node for now. Because we are reusing XSLT copy-of code, we need
             // an ad-hoc check that the node is of the right kind.
             try {
+                RoleLocator role = new RoleLocator(RoleLocator.TYPE_OP, "validate", 0, null);
+                role.setSourceLocator(makeLocator());
                 exp = TypeChecker.staticTypeCheck(
                         exp,
                         SequenceType.SINGLE_NODE,
                         false,
-                        new RoleLocator(RoleLocator.TYPE_OP, "validate", 0, null), env);
+                        role, env);
             } catch (XPathException err) {
                 grumble(err.getMessage());
             }
@@ -1954,7 +1940,7 @@ public class QueryParser extends ExpressionParser {
                     lookAhead();  // must be done manually after an RCURLY
                     nextToken();
                     DocumentInstr doc = new DocumentInstr(false, null, env.getBaseURI());
-                    doc.setContent(content);
+                    doc.setContentExpression(content);
                     setLocation(doc, offset);
                     //makeContentConstructor(content, doc, offset);
                     return doc;
@@ -2000,29 +1986,29 @@ public class QueryParser extends ExpressionParser {
                         }
                         inst = new FixedElement(nameCode,
                                 ((StaticQueryContext) env).getActiveNamespaceCodes(),
-                                null,
                                 ((StaticQueryContext) env).isInheritNamespaces(),
                                 null,
                                 ((StaticQueryContext) env).getConstructionMode());
                         if (content == null) {
                             content = EmptySequence.getInstance();
                         }
-                        ((FixedElement)inst).setContent(content);
+                        ((FixedElement)inst).setContentExpression(content);
                         setLocation(inst, offset);
                         //makeContentConstructor(content, (InstructionWithChildren) inst, offset);
                         return makeTracer(offset, inst,Location.LITERAL_RESULT_ELEMENT, nameCode);
                     } else {
                         // it really is a computed element constructor: save the namespace context
-                        inst = new Element(name, null,
+                        inst = new ComputedElement(name, null,
                                 env.getNamespaceResolver(),
-                                null, null,
+                                null,
                                 ((StaticQueryContext) env).getConstructionMode(),
-                                ((StaticQueryContext) env).isInheritNamespaces());
+                                ((StaticQueryContext) env).isInheritNamespaces(),
+                                true);
                         setLocation(inst);
                         if (content == null) {
                             content = EmptySequence.getInstance();
                         }
-                        ((Element)inst).setContent(content);
+                        ((ComputedElement)inst).setContentExpression(content);
                         setLocation(inst, offset);
                         //makeContentConstructor(content, (InstructionWithChildren) inst, offset);
                         return makeTracer(offset, inst, StandardNames.XSL_ELEMENT, -1);
@@ -2050,7 +2036,7 @@ public class QueryParser extends ExpressionParser {
                         int nameCode = makeNameCode(((StringValue)name).getStringValue(), false);
                         FixedAttribute fatt = new FixedAttribute(nameCode,
                                 Validation.STRIP,
-                                Type.UNTYPED_ATOMIC_TYPE,
+                                null,
                                 -1);
                         fatt.setRejectDuplicates();
                         makeSimpleContent(content, fatt, offset);
@@ -2062,7 +2048,8 @@ public class QueryParser extends ExpressionParser {
                                 env.getNamespaceResolver(),
                                 Validation.STRIP,
                                 null,
-                                -1);
+                                -1,
+                                true);
                         att.setRejectDuplicates();
                         makeSimpleContent(content, att, offset);
                         return makeTracer(offset, att, StandardNames.XSL_ATTRIBUTE, -1);
@@ -2134,7 +2121,6 @@ public class QueryParser extends ExpressionParser {
                 nextToken();
                 FixedElement el2 = new FixedElement(nameCode,
                         ((StaticQueryContext) env).getActiveNamespaceCodes(),
-                        null,
                         ((StaticQueryContext) env).isInheritNamespaces(),
                         null,
                         ((StaticQueryContext) env).getConstructionMode());
@@ -2142,7 +2128,7 @@ public class QueryParser extends ExpressionParser {
                 if (content == null) {
                     content = EmptySequence.getInstance();
                 }
-                el2.setContent(content);
+                el2.setContentExpression(content);
                 //makeContentConstructor(content, el2, offset);
                 return makeTracer(offset, el2, Location.LITERAL_RESULT_ELEMENT, nameCode);
             case Token.ATTRIBUTE_QNAME:
@@ -2245,7 +2231,8 @@ public class QueryParser extends ExpressionParser {
                 if (c == '-') {
                     exp = parseCommentConstructor();
                 } else if (c == '[') {
-                    exp = parseCDATAConstructor();
+                    grumble("A CDATA section is allowed only in element content");
+                    // if CDATA were allowed here, we would have already read it
                 } else {
                     grumble("Expected '--' or '[CDATA[' after '<!'");
                 }
@@ -2350,7 +2337,7 @@ public class QueryParser extends ExpressionParser {
             }
             if ("xmlns".equals(attName) || attName.startsWith("xmlns:")) {
                 if (rval.indexOf('{') >= 0) {
-                    grumble("Namespace URI must be a constant value", "XQ0022");
+                    grumble("Namespace URI must be a constant value", "XQST0022");
                 }
                 String prefix, uri;
                 if ("xmlns".equals(attName)) {
@@ -2359,13 +2346,14 @@ public class QueryParser extends ExpressionParser {
                 } else {
                     prefix = attName.substring(6);
                     if (prefix.equals("xml")) {
-                        grumble("Cannot redeclare the XML namespace", "XQ0070");
+                        grumble("Cannot redeclare the XML namespace", "XQST0070");
                     } else if (prefix.equals("xmlns")) {
-                        grumble("Cannot use xmlns as a namespace prefix", "XQ0070");
+                        grumble("Cannot use xmlns as a namespace prefix", "XQST0070");
                     }
                     uri = rval;
                     if ("".equals(uri)) {
                         grumble("Namespace URI must not be empty");
+                        // TODO: error code?
                     }
                 }
                 namespaceCount++;
@@ -2373,9 +2361,9 @@ public class QueryParser extends ExpressionParser {
             }
             if (attributes.get(attName) != null) {
                 if ("xmlns".equals(attName) || attName.startsWith("xmlns:")) {
-                    grumble("Duplicate namespace declaration " + attName, "XQ0071");
+                    grumble("Duplicate namespace declaration " + attName, "XQST0071");
                 } else {
-                    grumble("Duplicate attribute name " + attName, "XQ0040");
+                    grumble("Duplicate attribute name " + attName, "XQST0040");
                 }
             }
             AttributeDetails a = new AttributeDetails();
@@ -2399,7 +2387,6 @@ public class QueryParser extends ExpressionParser {
         FixedElement elInst = new FixedElement(
                 elNameCode,
                 ((StaticQueryContext) env).getActiveNamespaceCodes(),
-                null,
                 ((StaticQueryContext) env).isInheritNamespaces(),
                 null,
                 validationMode);
@@ -2441,7 +2428,7 @@ public class QueryParser extends ExpressionParser {
                     attNameCode = env.getNamePool().allocate(parts[0], attNamespace, parts[1]);
                     Integer key = new Integer(attNameCode & NamePool.FP_MASK);
                     if (attFingerprints.contains(key)) {
-                        grumble("Duplicate expanded attribute name " + attName, "XQ0040");
+                        grumble("Duplicate expanded attribute name " + attName, "XQST0040");
                     }
                     attFingerprints.add(key);
                 } catch (QNameException e) {
@@ -2485,7 +2472,7 @@ public class QueryParser extends ExpressionParser {
         }
         Block block = new Block();
         block.setChildren(elk);
-        elInst.setContent(block);
+        elInst.setContentExpression(block);
 
         // reset the in-scope namespaces to what they were before
 
@@ -2569,7 +2556,7 @@ public class QueryParser extends ExpressionParser {
                 components.add(makeStringJoin(exp, env));
 
             } else {
-                throw new IllegalStateException("Internal error parsing AVT");
+                throw new IllegalStateException("Internal error parsing direct attribute constructor");
             }
         }
 
@@ -2630,6 +2617,19 @@ public class QueryParser extends ExpressionParser {
                 while (true) {
                     c = t.nextChar();
                     if (c == '<') {
+                        // See if we've got a CDATA section
+                        if (t.nextChar() == '!') {
+                            if (t.nextChar() == '[') {
+                                readCDATASection(text);
+                                containsEntities = true;
+                                continue;
+                            } else {
+                                t.unreadChar();
+                                t.unreadChar();
+                            }
+                        } else {
+                            t.unreadChar();
+                        }
                         break;
                     } else if (c == '&') {
                         text.append(readEntityReference());
@@ -2676,10 +2676,14 @@ public class QueryParser extends ExpressionParser {
                 } else {
                     // we read an '{' indicating an enclosed expression
                     if (afterRightCurly) {
-                        // Add a zero-length text node, to prevent {"a"}{"b"} generating an intervening space (qxmp132)
-                        ValueOf inst = new ValueOf(new StringValue(""), false);
-                        setLocation(inst);
-                        components.add(inst);
+                        Expression previousComponent = (Expression)components.get(components.size()-1);
+                        ItemType previousItemType = previousComponent.getItemType();
+                        if (!(previousItemType instanceof NodeTest)) {
+                            // Add a zero-length text node, to prevent {"a"}{"b"} generating an intervening space (qxmp132)
+                            ValueOf inst = new ValueOf(new StringValue(""), false);
+                            setLocation(inst);
+                            components.add(inst);
+                        }
                     }
                     t.unreadChar();
                     t.setState(Tokenizer.DEFAULT_STATE);
@@ -2733,7 +2737,7 @@ public class QueryParser extends ExpressionParser {
         }
     }
 
-    private Expression parseCDATAConstructor() throws StaticError {
+    private void readCDATASection(FastStringBuffer cdata) throws StaticError {
         try {
             char c;
             // CDATA section
@@ -2749,17 +2753,12 @@ public class QueryParser extends ExpressionParser {
             expectChar(c, 'A');
             c = t.nextChar();
             expectChar(c, '[');
-            FastStringBuffer cdata = new FastStringBuffer(240);
             while (!cdata.toString().endsWith("]]>")) {
                 cdata.append(t.nextChar());
             }
-            CharSequence content = cdata.subSequence(0, cdata.length() - 3);
-            ValueOf inst = new ValueOf(new StringValue(content), false);
-            setLocation(inst);
-            return inst;
+            cdata.setLength(cdata.length() - 3);
         } catch (StringIndexOutOfBoundsException err) {
             grumble("No closing ']]>' found for CDATA section");
-            return null;
         }
     }
 

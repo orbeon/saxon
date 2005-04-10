@@ -1,6 +1,5 @@
 package net.sf.saxon.value;
 
-import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.om.FastStringBuffer;
 import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.XPathException;
@@ -8,6 +7,7 @@ import net.sf.saxon.type.BuiltInAtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.type.ValidationException;
+import net.sf.saxon.ConversionContext;
 
 import java.util.Calendar;
 import java.util.GregorianCalendar;
@@ -36,6 +36,10 @@ public class GYearValue extends DateValue {
         setLexicalValue(date);
     }
 
+    public GYearValue(GregorianCalendar calendar, boolean timezoneSpecified, int tzoffset) {
+        super(calendar, timezoneSpecified, tzoffset);
+    }
+
     /**
     * Determine the data type of the expression
     * @return Type.G_YEAR_TYPE,
@@ -49,10 +53,11 @@ public class GYearValue extends DateValue {
     /**
     * Convert to target data type
     * @param requiredType an integer identifying the required atomic type
-    * @return an AtomicValue, a value of the required type; or an ErrorValue
+    * @param conversion
+     * @return an AtomicValue, a value of the required type; or an ErrorValue
     */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate)  {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, ConversionContext conversion)  {
         switch(requiredType.getPrimitiveType()) {
         case Type.G_YEAR:
         case Type.ATOMIC:
@@ -67,7 +72,7 @@ public class GYearValue extends DateValue {
             ValidationException err = new ValidationException("Cannot convert gYear to " +
                                      requiredType.getDisplayName());
             err.setErrorCode("FORG0001");
-            return new ErrorValue(err);
+            return new ValidationErrorValue(err);
         }
     }
 

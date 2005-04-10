@@ -29,6 +29,7 @@ public final class ContextItemExpression extends ComputedExpression {
     public Expression analyze(StaticContext env, ItemType contextItemType) throws XPathException {
         if (contextItemType == null) {
             StaticError err = new StaticError("The context item is undefined at this point");
+            err.setErrorCode("XPDY0002");
             err.setIsTypeError(true);
             err.setLocator(this);
             throw err;

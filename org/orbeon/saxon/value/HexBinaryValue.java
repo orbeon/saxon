@@ -7,6 +7,7 @@ import net.sf.saxon.type.BuiltInAtomicType;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.type.ValidationException;
+import net.sf.saxon.ConversionContext;
 
 /**
 * A value of type xs:hexBinary
@@ -75,10 +76,11 @@ public class HexBinaryValue extends AtomicValue {
     /**
     * Convert to target data type
     * @param requiredType an integer identifying the required atomic type
-    * @return an AtomicValue, a value of the required type; or an ErrorValue
+    * @param conversion
+     * @return an AtomicValue, a value of the required type; or an ErrorValue
     */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, ConversionContext conversion) {
         switch(requiredType.getPrimitiveType()) {
         case Type.HEX_BINARY:
         case Type.ATOMIC:
@@ -96,7 +98,7 @@ public class HexBinaryValue extends AtomicValue {
                                      requiredType.getDisplayName());
             //err.setXPathContext(context);
             err.setErrorCode("FORG0001");
-            return new ErrorValue(err);
+            return new ValidationErrorValue(err);
         }
     }
 
@@ -164,7 +166,7 @@ public class HexBinaryValue extends AtomicValue {
             v2 = (HexBinaryValue)other;
         } else if (other instanceof AtomicValue) {
             try {
-                v2 = (HexBinaryValue)((AtomicValue)other).convert(Type.HEX_BINARY);
+                v2 = (HexBinaryValue)((AtomicValue)other).convert(Type.HEX_BINARY, null);
             } catch (XPathException err) {
                 return false;
             }

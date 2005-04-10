@@ -28,7 +28,9 @@ public class ForExpression extends Assignation {
 
     public void setPositionVariable (RangeVariableDeclaration decl) {
         positionVariable = decl;
-        positionBinding = new PositionBinding();
+        if (decl != null) {
+            positionBinding = new PositionBinding();
+        }
     }
 
     public void setAction(Expression action) {
@@ -65,6 +67,7 @@ public class ForExpression extends Assignation {
         SequenceType sequenceType = SequenceType.makeSequenceType(
                 decl.getPrimaryType(), StaticProperty.ALLOWS_ZERO_OR_MORE);
         RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, new Integer(nameCode), 0, env.getNamePool());
+        role.setSourceLocator(this);
         sequence = TypeChecker.strictTypeCheck(
                                 sequence, sequenceType, role, env);
         ItemType actualItemType = sequence.getItemType();
@@ -74,6 +77,26 @@ public class ForExpression extends Assignation {
                 sequence.getSpecialProperties());
 
         action = action.analyze(env, contextItemType);
+        if (action instanceof EmptySequence) {
+            return EmptySequence.getInstance();
+        }
+
+        // If the IN expression is a singleton, replace the FOR expression by a LET expression.
+        // This is generally simpler, and enables tail-calls to be recognized.
+
+//        if (positionBinding==null && sequence.getCardinality() == StaticProperty.EXACTLY_ONE) {
+//            LetExpression let = new LetExpression();
+//            let.setSequence(sequence);
+//            let.setAction(action);
+//            let.setLocationId(locationId);
+//            let.setParentExpression(getParentExpression());
+//            let.variableName = variableName;
+//            let.nameCode = nameCode;
+//            let.slotNumber = slotNumber;
+//            let.declaration = declaration;
+//            declaration.fixupReferences(let);
+//            return let.simplify(env).analyze(env, contextItemType);
+//        }
 
         // See if there is a simple "where" condition that can be turned into a predicate
 
@@ -211,6 +234,19 @@ public class ForExpression extends Assignation {
     }
 
     /**
+     * Mark tail function calls: only possible if the for expression iterates zero or one times.
+     * (This arises in XSLT/XPath, which does not have a LET expression, so FOR gets used instead)
+     */
+
+    public boolean markTailFunctionCalls() {
+        if (!Cardinality.allowsMany(sequence.getCardinality())) {
+            return ExpressionTool.markTailFunctionCalls(action);
+        } else {
+            return false;
+        }
+    }
+
+    /**
      * Extend an array of variable bindings to include the binding(s) defined in this expression
      */
 
@@ -263,7 +299,7 @@ public class ForExpression extends Assignation {
         SequenceIterator base = sequence.iterate(context);
 
         MappingFunction map = new MappingAction(context, slotNumber, positionBinding, action);
-        return new MappingIterator(base, map, null, null);
+        return new MappingIterator(base, map, null);
     }
 
     /**
@@ -343,7 +379,7 @@ public class ForExpression extends Assignation {
             this.action = action;
         }
 
-        public Object map(Item item, XPathContext c, Object info) throws XPathException {
+        public Object map(Item item, XPathContext c) throws XPathException {
             context.setLocalVariable(slotNumber, item);
             if (positionBinding != null) {
                 positionBinding.setPosition(position++);

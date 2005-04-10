@@ -26,14 +26,23 @@ public final class GlobalOrderComparer implements NodeOrderComparer, Serializabl
     }
 
     public int compare(NodeInfo a, NodeInfo b) {
-        NodeInfo r1 = a.getRoot();
-        NodeInfo r2 = b.getRoot();
-        if (r1.isSameNodeInfo(r2)) {
+        if (a==b) {
+            return 0;
+        }
+        int d1 = a.getDocumentNumber();
+        int d2 = b.getDocumentNumber();
+        if (d1 == d2) {
             return a.compareOrder(b);
         }
-        int d1 = r1.getDocumentNumber();
-        int d2 = r2.getDocumentNumber();
         return d1 - d2;
+//        NodeInfo r1 = a.getRoot();
+//        NodeInfo r2 = b.getRoot();
+//        if (r1.isSameNodeInfo(r2)) {
+//            return a.compareOrder(b);
+//        }
+//        int d1 = r1.getDocumentNumber();
+//        int d2 = r2.getDocumentNumber();
+//        return d1 - d2;
     }
 }
 

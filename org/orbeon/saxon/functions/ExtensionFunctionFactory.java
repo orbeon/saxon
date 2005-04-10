@@ -1,5 +1,6 @@
 package net.sf.saxon.functions;
 import net.sf.saxon.expr.Expression;
+import net.sf.saxon.Configuration;
 
 import java.io.Serializable;
 import java.lang.reflect.AccessibleObject;
@@ -13,7 +14,12 @@ import java.lang.reflect.AccessibleObject;
 
 public class ExtensionFunctionFactory implements Serializable {
 
+    public ExtensionFunctionFactory(Configuration config) {
+        this.config = config;
+    }
+
     private Class extensionFunctionCallClass = ExtensionFunctionCall.class;
+    private Configuration config;
 
     /**
      * Set the class to be used to represent extension function calls. This must be a subclass
@@ -47,7 +53,7 @@ public class ExtensionFunctionFactory implements Serializable {
         } catch (IllegalAccessException e) {
             throw new IllegalArgumentException(e.getMessage());
         }
-        fn.init(nameCode, theClass, method);
+        fn.init(nameCode, theClass, method, config);
         fn.setArguments(arguments);
         return fn;
     }

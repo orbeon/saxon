@@ -43,6 +43,8 @@ final class AttributeEnumeration extends AxisIteratorImpl {
         while (true) {
             if (index >= tree.numberOfAttributes || tree.attParent[index] != element) {
                 index = Integer.MAX_VALUE;
+                current = null;
+                position = -1;
                 return null;
             }
             int typeCode = tree.getAttributeAnnotation(index);

@@ -14,6 +14,8 @@ import net.sf.saxon.type.Type;
 import net.sf.saxon.value.*;
 import net.sf.saxon.pattern.NoNodeTest;
 
+import javax.xml.transform.SourceLocator;
+
 /**
  * This class provides Saxon's type checking capability. It contains a static method,
  * staticTypeCheck, which is called at compile time to perform type checking of
@@ -257,7 +259,7 @@ public final class TypeChecker {
         if (suppliedCard==StaticProperty.EMPTY && ((reqCard & StaticProperty.ALLOWS_ZERO) == 0) ) {
             StaticError err = new StaticError(
                         "An empty sequence is not allowed as the " + role.getMessage(),
-                        ExpressionTool.getLocator(supplied));
+                        getLocator(supplied, role));
             err.setErrorCode(role.getErrorCode());
             err.setIsTypeError(true);
             throw err;
@@ -277,18 +279,18 @@ public final class TypeChecker {
                             "; supplied value has item type " +
                             suppliedItemType.toString(env.getNamePool()) +
                             ". The expression can succeed only if the supplied value is an empty sequence.";
-                    env.issueWarning(msg, ExpressionTool.getLocator(supplied));
+                    env.issueWarning(msg, getLocator(supplied, role));
                 }
             } else {
-                    StaticError err = new StaticError(
-                        "Required item type of " + role.getMessage() +
-                            " is " + reqItemType.toString(env.getNamePool()) +
-                            "; supplied value has item type " +
-                            suppliedItemType.toString(env.getNamePool()),
-                        ExpressionTool.getLocator(supplied));
-                    err.setErrorCode(role.getErrorCode());
-                    err.setIsTypeError(true);
-                    throw err;
+                StaticError err = new StaticError(
+                    "Required item type of " + role.getMessage() +
+                        " is " + reqItemType.toString(env.getNamePool()) +
+                        "; supplied value has item type " +
+                        suppliedItemType.toString(env.getNamePool()),
+                    getLocator(supplied, role));
+                err.setErrorCode(role.getErrorCode());
+                err.setIsTypeError(true);
+                throw err;
             }
         }
 
@@ -304,12 +306,12 @@ public final class TypeChecker {
 
         if (!cardOK) {
             if (exp instanceof Value) {
-                 StaticError err = new StaticError (
+                StaticError err = new StaticError (
                     "Required cardinality of " + role.getMessage() +
                         " is " + Cardinality.toString(reqCard) +
                         "; supplied value has cardinality " +
                         Cardinality.toString(suppliedCard),
-                    ExpressionTool.getLocator(supplied));
+                    getLocator(supplied, role));
                 err.setIsTypeError(true);
                 err.setErrorCode(role.getErrorCode());
                 throw err;
@@ -408,7 +410,7 @@ public final class TypeChecker {
         if (suppliedCard==StaticProperty.EMPTY && ((reqCard & StaticProperty.ALLOWS_ZERO) == 0) ) {
             StaticError err = new StaticError(
                         "An empty sequence is not allowed as the " + role.getMessage(),
-                        ExpressionTool.getLocator(supplied));
+                        getLocator(supplied, role));
             err.setErrorCode(role.getErrorCode());
             err.setIsTypeError(true);
             throw err;
@@ -428,18 +430,18 @@ public final class TypeChecker {
                             "; supplied value has item type " +
                             suppliedItemType.toString(env.getNamePool()) +
                             ". The expression can succeed only if the supplied value is an empty sequence.";
-                    env.issueWarning(msg, ExpressionTool.getLocator(supplied));
+                    env.issueWarning(msg, getLocator(supplied, role));
                 }
             } else {
-                    StaticError err = new StaticError(
-                        "Required item type of " + role.getMessage() +
-                            " is " + reqItemType.toString(env.getNamePool()) +
-                            "; supplied value has item type " +
-                            suppliedItemType.toString(env.getNamePool()),
-                        ExpressionTool.getLocator(supplied));
-                    err.setErrorCode(role.getErrorCode());
-                    err.setIsTypeError(true);
-                    throw err;
+                StaticError err = new StaticError(
+                    "Required item type of " + role.getMessage() +
+                        " is " + reqItemType.toString(env.getNamePool()) +
+                        "; supplied value has item type " +
+                        suppliedItemType.toString(env.getNamePool()),
+                    getLocator(supplied, role));
+                err.setErrorCode(role.getErrorCode());
+                err.setIsTypeError(true);
+                throw err;
             }
         }
 
@@ -455,12 +457,12 @@ public final class TypeChecker {
 
         if (!cardOK) {
             if (exp instanceof Value) {
-                 StaticError err = new StaticError (
+                StaticError err = new StaticError (
                     "Required cardinality of " + role.getMessage() +
                         " is " + Cardinality.toString(reqCard) +
                         "; supplied value has cardinality " +
                         Cardinality.toString(suppliedCard),
-                    ExpressionTool.getLocator(supplied));
+                    getLocator(supplied, role));
                 err.setIsTypeError(true);
                 err.setErrorCode(role.getErrorCode());
                 throw err;
@@ -472,6 +474,18 @@ public final class TypeChecker {
         }
 
         return exp;
+    }
+
+    /**
+     * Get a SourceLocator given an expression and a role
+     */
+
+    private static SourceLocator getLocator(Expression supplied, RoleLocator role) {
+        SourceLocator loc = ExpressionTool.getLocator(supplied);
+        if (loc == null) {
+            loc = role.getSourceLocator();
+        }
+        return loc;
     }
 
     /**

@@ -13,16 +13,32 @@ import javax.xml.transform.Source;
 /**
  * This interface must be implemented by any third-party object model that can
  * be wrapped with a wrapper that implements the Saxon Object Model (the NodeInfo interface).
+ * <p>
+ * This interface is designed to enable advanced applications to implement and register
+ * new object model implementations that Saxon can then use without change. Although it is intended
+ * for external use, it cannot at this stage be considered part of the stable Saxon Public API.
+ * In particular, it is likely that the interface will grow by the addition of new methods.
  */
 
 public interface ExternalObjectModel {
 
     /**
-     * Test whether this object model recognizes a given node as one of its own.
+     * Test whether this object model recognizes a given node as one of its own. This method
+     * will generally be called at run time.
+     * @param object An object that possibly represents a node
      * @return true if the object is a representation of a node in this object model
      */
 
     public boolean isRecognizedNode(Object object);
+
+    /**
+     * Test whether this object model recognizes a given class as representing a
+     * node in that object model. This method will generally be called at compile time.
+     * @param nodeClass A class that possibly represents nodes
+     * @return true if the class is used to represent nodes in this object model
+     */
+
+    public boolean isRecognizedNodeClass(Class nodeClass);
 
     /**
      * Test whether this object model recognizes a particular kind of JAXP Result object,
@@ -63,7 +79,7 @@ public interface ExternalObjectModel {
      * that the supplied class might be a List, in which case the method should inspect the contents of the
      * Value to see whether they belong to this object model.
      * @throws XPathException if the target class is explicitly associated with this object model, but the
-     * supplied value cannot be converted to the appropriate class 
+     * supplied value cannot be converted to the appropriate class
      */
 
     public Object convertXPathValueToObject(Value value, Class targetClass, XPathContext context) throws XPathException;

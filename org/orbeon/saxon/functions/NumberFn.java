@@ -9,7 +9,8 @@ import net.sf.saxon.type.Type;
 import net.sf.saxon.value.*;
 
 /**
- * Implements the XPath number() function
+ * Implements the XPath number() function. This can also be used as a mapping function
+ * in a MappingIterator to map a sequence of values to numbers.
  */
 
 public class NumberFn extends SystemFunction implements MappingFunction {
@@ -34,7 +35,7 @@ public class NumberFn extends SystemFunction implements MappingFunction {
             return DoubleValue.NaN;
         }
         if (arg0 instanceof BooleanValue || arg0 instanceof NumericValue) {
-            return ((AtomicValue)arg0).convert(Type.DOUBLE);
+            return ((AtomicValue)arg0).convert(Type.DOUBLE, context);
         }
         CharSequence s = arg0.getStringValueCS();
         try {
@@ -55,7 +56,7 @@ public class NumberFn extends SystemFunction implements MappingFunction {
                 return DoubleValue.NaN;
             }
             if (value instanceof BooleanValue || value instanceof NumericValue) {
-                return (DoubleValue)value.convert(Type.DOUBLE);
+                return (DoubleValue)value.convert(Type.DOUBLE, null);
             }
             CharSequence s = value.getStringValueCS();
             return new DoubleValue(Value.stringToNumber(s));
@@ -71,7 +72,7 @@ public class NumberFn extends SystemFunction implements MappingFunction {
      * using the rules of the number() function
      */
 
-    public Object map(Item item, XPathContext context, Object info) throws XPathException {
+    public Object map(Item item, XPathContext context) throws XPathException {
         return convert((AtomicValue)item);
     }
 }

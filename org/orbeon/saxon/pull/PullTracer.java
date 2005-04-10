@@ -61,7 +61,7 @@ public class PullTracer extends PullFilter {
                 break;
 
             case END_ELEMENT:
-                System.err.println("END_ELEMENT");
+                System.err.println("END_ELEMENT " + in.getNameCode());
                 break;
 
             case END_DOCUMENT:
@@ -71,6 +71,13 @@ public class PullTracer extends PullFilter {
             case END_OF_INPUT:
                 System.err.println("END_OF_INPUT");
                 break;
+
+            case ATOMIC_VALUE:
+                try {
+                    System.err.println("ATOMIC VALUE: " + in.getStringValue());
+                } catch (XPathException e) {
+                    //
+                }
         }
     }
 }

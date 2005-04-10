@@ -2,6 +2,7 @@ package net.sf.saxon.style;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -29,7 +30,7 @@ public class XSLFallback extends StyleElement {
         return true;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 		AttributeCollection atts = getAttributeList();
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
@@ -37,7 +38,7 @@ public class XSLFallback extends StyleElement {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         // Parent elements are now responsible for validating their children
 //        StyleElement parent = (StyleElement)getParent();
 //        if (!parent.mayContainFallback()) {
@@ -45,7 +46,7 @@ public class XSLFallback extends StyleElement {
 //        }
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         // if we get here, then the parent instruction is OK, so the fallback is not activated
         return null;
     }

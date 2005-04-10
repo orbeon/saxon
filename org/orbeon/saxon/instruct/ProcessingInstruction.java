@@ -54,13 +54,13 @@ public class ProcessingInstruction extends SimpleNodeConstructor {
     public Expression simplify(StaticContext env) throws XPathException {
         name = name.simplify(env);
         return super.simplify(env);
-    }    
+    }
 
     public void typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
         name = name.analyze(env, contextItemType);
 
-        RoleLocator role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "processing-instruction:name", 0, null);
+        RoleLocator role = new RoleLocator(RoleLocator.INSTRUCTION, "processing-instruction:name", 0, null);
+        role.setSourceLocator(this);
         name = TypeChecker.staticTypeCheck(name, SequenceType.SINGLE_STRING, false, role, env);
     }
 
@@ -129,12 +129,16 @@ public class ProcessingInstruction extends SimpleNodeConstructor {
 
     protected String checkContent(String data, XPathContext context) throws DynamicError {
         int hh = data.indexOf("?>");
+        // TODO: this only replaces one occurrence of ?> in the content
         if (hh >= 0) {
-            DynamicError err = new DynamicError("Invalid characters (?>) in processing instruction", this);
-            err.setErrorCode((isXSLT(context) ? "XT0900" : "XQ0026"));
-            err.setXPathContext(context);
-            context.getController().recoverableError(err);
-            data = data.substring(0, hh + 1) + ' ' + data.substring(hh + 1);
+            if (isXSLT(context)) {
+                data = data.substring(0, hh + 1) + ' ' + data.substring(hh + 1);
+            } else {
+                DynamicError err = new DynamicError("Invalid characters (?>) in processing instruction", this);
+                err.setErrorCode("XQDY0026");
+                err.setXPathContext(context);
+                context.getController().recoverableError(err);
+            }
         }
         return data;
     }
@@ -160,15 +164,15 @@ public class ProcessingInstruction extends SimpleNodeConstructor {
             DynamicError e = new DynamicError(
                     "Processing instruction name " + Err.wrap(expandedName) + " is not a valid NCName");
             e.setXPathContext(context);
-            e.setErrorCode((isXSLT(context) ? "XT0890" : "XQ0041"));
-            context.getController().recoverableError(e);
+            e.setErrorCode((isXSLT(context) ? "XTDE0890" : "XQDY0041"));
+            throw dynamicError(this, e, context);
         }
         if (expandedName.equalsIgnoreCase("xml")) {
             DynamicError e = new DynamicError(
                     "Processing instructions cannot be named 'xml' in any combination of upper/lower case");
             e.setXPathContext(context);
-            e.setErrorCode((isXSLT(context) ? "XT0890" : "XQ0064"));
-            context.getController().recoverableError(e);
+            e.setErrorCode((isXSLT(context) ? "XTDE0890" : "XQDY0064"));
+            throw dynamicError(this, e, context);
         }
         return expandedName;
     }

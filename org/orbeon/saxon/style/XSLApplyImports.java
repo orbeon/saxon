@@ -4,9 +4,8 @@ import net.sf.saxon.expr.ExpressionTool;
 import net.sf.saxon.instruct.ApplyImports;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.*;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.Type;
-
-import javax.xml.transform.TransformerConfigurationException;
 
 /**
 * An xsl:apply-imports element in the stylesheet
@@ -24,7 +23,7 @@ public class XSLApplyImports extends StyleElement {
         return true;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 
@@ -34,7 +33,7 @@ public class XSLApplyImports extends StyleElement {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
         AxisIterator kids = iterateAxis(Axis.CHILD);
         while (true) {
@@ -47,19 +46,19 @@ public class XSLApplyImports extends StyleElement {
             } else if (child.getNodeKind() == Type.TEXT) {
                     // with xml:space=preserve, white space nodes may still be there
                 if (!Navigator.isWhite(child.getStringValueCS())) {
-                    compileError("No character data is allowed within xsl:apply-imports", "XT0010");
+                    compileError("No character data is allowed within xsl:apply-imports", "XTSE0010");
                 }
             } else {
                 compileError("Child element " + child.getDisplayName() +
-                        " is not allowed within xsl:apply-imports", "XT0010");
+                        " is not allowed within xsl:apply-imports", "XTSE0010");
             }
         }
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         ApplyImports inst = new ApplyImports(backwardsCompatibleModeIsEnabled());
-        inst.setActualParameters(getWithParamInstructions(exec, false),
-                                 getWithParamInstructions(exec, true));
+        inst.setActualParameters(getWithParamInstructions(exec, false, inst),
+                                 getWithParamInstructions(exec, true, inst));
         ExpressionTool.makeParentReferences(inst);
         return inst;
     }

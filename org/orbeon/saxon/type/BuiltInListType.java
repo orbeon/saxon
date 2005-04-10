@@ -8,6 +8,7 @@ import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.StringValue;
 import net.sf.saxon.value.Whitespace;
+import net.sf.saxon.ConversionContext;
 
 import java.io.Serializable;
 
@@ -18,7 +19,7 @@ import java.io.Serializable;
  *
 **/
 
-public class BuiltInListType implements ListType, MappingFunction, Serializable {
+public class BuiltInListType implements ListType, Serializable {
 
     private int fingerprint;
 
@@ -74,7 +75,7 @@ public class BuiltInListType implements ListType, MappingFunction, Serializable 
     public int getValidationStatus()  {
         return VALIDATED;
     }
-    
+
    /**
      * Returns the base type that this type inherits from.
      * If this type is a Simpletype that is a built in primitive type then null is returned.
@@ -84,7 +85,7 @@ public class BuiltInListType implements ListType, MappingFunction, Serializable 
     public SchemaType getBaseType() {
         return AnySimpleType.getInstance();
     }
-    
+
    /**
      * Returns true if this type is derived by list, or if it is derived by restriction
      * from a list type, or if it is a union that contains a list as one of its members
@@ -211,7 +212,7 @@ public class BuiltInListType implements ListType, MappingFunction, Serializable 
 
     public SequenceIterator getTypedValue(NodeInfo node) throws XPathException {
         try {
-            return getTypedValue(node.getStringValue(), new InscopeNamespaceResolver(node));
+            return getTypedValue(node.getStringValue(), new InscopeNamespaceResolver(node), node.getConfiguration());
         } catch (ValidationException err) {
             throw new DynamicError("Internal error: value doesn't match its type annotation. " + err.getMessage());
         }
@@ -294,11 +295,12 @@ public class BuiltInListType implements ListType, MappingFunction, Serializable 
      * @param nsResolver a namespace resolver used to resolve namespace prefixes if the type
      * is namespace sensitive. The value supplied may be null; in this case any namespace-sensitive
      * content will throw an UnsupportedOperationException.
+     * @param conversion
      * @throws UnsupportedOperationException if the type is namespace-sensitive and no namespace
      * resolver is supplied
      */
 
-    public ValidationException validateContent(CharSequence value, NamespaceResolver nsResolver) {
+    public ValidationException validateContent(CharSequence value, NamespaceResolver nsResolver, ConversionContext conversion) {
         SimpleType base = getItemType();
         SequenceIterator iter = new StringTokenIterator(value.toString());
         ValidationException result = null;
@@ -306,7 +308,7 @@ public class BuiltInListType implements ListType, MappingFunction, Serializable 
             while (true) {
                 StringValue val = (StringValue)iter.next();
                 if (val == null) break;
-                ValidationException v = base.validateContent(val.getStringValue(), nsResolver);
+                ValidationException v = base.validateContent(val.getStringValue(), nsResolver, conversion);
                 if (v != null) {
                     return v;
                 }
@@ -324,28 +326,35 @@ public class BuiltInListType implements ListType, MappingFunction, Serializable 
      * is valid according to this SimpleType
      * @param value the string whose typed value is required
      * @param resolver
+     * @param conversion
      */
 
-    public SequenceIterator getTypedValue(CharSequence value, NamespaceResolver resolver) throws ValidationException {
+    public SequenceIterator getTypedValue(CharSequence value, NamespaceResolver resolver, ConversionContext conversion) throws ValidationException {
         SequenceIterator iter = new StringTokenIterator(value.toString());
-        Object[] data = {resolver, getItemType()};
-        return new MappingIterator(iter, this, null, data);
+        ListTypeMappingFunction map = new ListTypeMappingFunction();
+        map.resolver = resolver;
+        map.atomicType = (AtomicType)getItemType();
+        return new MappingIterator(iter, map, null);
     }
 
-    /**
-     * The typed value of a list-valued node is obtained by tokenizing the string value and
-     * applying a mapping function to the sequence of tokens.
-     * This method implements the mapping function. It is for internal use only.
-     * For details see {@link net.sf.saxon.expr.MappingFunction}
-    */
+    private static class ListTypeMappingFunction implements MappingFunction {
 
-    public Object map(Item item, XPathContext context, Object info) throws XPathException {
-        try {
-            NamespaceResolver resolver = (NamespaceResolver)((Object[])info)[0];
-            AtomicType type = (AtomicType)((Object[])info)[1];
-            return type.getTypedValue(item.getStringValue(), resolver);
-        } catch (ValidationException err) {
-            return new DynamicError(err);
+        public NamespaceResolver resolver;
+        public AtomicType atomicType;
+
+        /**
+         * The typed value of a list-valued node is obtained by tokenizing the string value and
+         * applying a mapping function to the sequence of tokens.
+         * This method implements the mapping function. It is for internal use only.
+         * For details see {@link net.sf.saxon.expr.MappingFunction}
+        */
+
+        public Object map(Item item, XPathContext context) throws XPathException {
+            try {
+                return atomicType.getTypedValue(item.getStringValue(), resolver, context);
+            } catch (ValidationException err) {
+                return new DynamicError(err);
+            }
         }
     }
 

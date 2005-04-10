@@ -71,14 +71,6 @@ public abstract class XPathException extends TransformerException {
         this.errorCodeNamespace = namespace;
     }
 
-//    public void setErrorCode(QName code) {
-//        this.errorCode = code;
-//    }
-
-//    public QName getErrorCode() {
-//        return errorCode;
-//    }
-
     public String getErrorCodeLocalPart() {
         return errorCode;
     }
@@ -94,7 +86,7 @@ public abstract class XPathException extends TransformerException {
     public Value getErrorObject() {
         return errorObject;
     }
-    
+
     public void setHasBeenReported() {
         hasBeenReported = true;
     }

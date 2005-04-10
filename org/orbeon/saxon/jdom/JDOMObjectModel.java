@@ -14,6 +14,7 @@ import org.jdom.*;
 
 import javax.xml.transform.Result;
 import javax.xml.transform.Source;
+import java.io.Serializable;
 
 
 /**
@@ -22,8 +23,8 @@ import javax.xml.transform.Source;
  * This implementation of the interface supports wrapping of JDOM Documents.
  */
 
-public class JDOMObjectModel implements ExternalObjectModel {
-    
+public class JDOMObjectModel implements ExternalObjectModel, Serializable {
+
     public JDOMObjectModel() {}
 
      /**
@@ -39,6 +40,25 @@ public class JDOMObjectModel implements ExternalObjectModel {
                  object instanceof Comment ||
                  object instanceof ProcessingInstruction ||
                  object instanceof Namespace;
+    }
+
+    /**
+     * Test whether this object model recognizes a given class as representing a
+     * node in that object model. This method will generally be called at compile time.
+     *
+     * @param nodeClass A class that possibly represents nodes
+     * @return true if the class is used to represent nodes in this object model
+     */
+
+    public boolean isRecognizedNodeClass(Class nodeClass) {
+        return Document.class.isAssignableFrom(nodeClass) ||
+                Element.class.isAssignableFrom(nodeClass) ||
+                Attribute.class.isAssignableFrom(nodeClass) ||
+                Text.class.isAssignableFrom(nodeClass) ||
+                CDATA.class.isAssignableFrom(nodeClass) ||
+                Comment.class.isAssignableFrom(nodeClass) ||
+                ProcessingInstruction.class.isAssignableFrom(nodeClass) ||
+                Namespace.class.isAssignableFrom(nodeClass);
     }
 
     /**
@@ -100,8 +120,8 @@ public class JDOMObjectModel implements ExternalObjectModel {
      * @param baseURI the base URI of the node (supply "" if unknown)
      * @param config the Saxon configuration (which among other things provides access to the NamePool)
      * @return the wrapper, which must implement DocumentInfo
-     */ 
-    
+     */
+
     public DocumentInfo wrapDocument(Object node, String baseURI, Configuration config) {
         Document documentNode = getDocumentRoot(node);
         return new DocumentWrapper(documentNode, baseURI, config);
@@ -114,8 +134,8 @@ public class JDOMObjectModel implements ExternalObjectModel {
      * @param node the node to be wrapped. This must be a node within the document wrapped by the
      * DocumentInfo provided in the first argument
      * @return the wrapper for the node, as an instance of VirtualNode
-     */ 
-    
+     */
+
     public VirtualNode wrapNode(DocumentInfo document, Object node) {
         return ((DocumentWrapper)document).wrap(node);
     }

@@ -1,6 +1,7 @@
 package net.sf.saxon.type;
 
 import net.sf.saxon.Err;
+import net.sf.saxon.ConversionContext;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.StaticContext;
 import net.sf.saxon.functions.NormalizeSpace;
@@ -29,6 +30,12 @@ public class BuiltInAtomicType implements AtomicType, Serializable {
         this.fingerprint = fingerprint;
     }
 
+    private static ConversionContext dummyConversionContext = new ConversionContext() {
+        public int getImplicitTimezone() {
+            return 0;
+        }
+    };
+
     /**
      * Get the most specific possible atomic type that all items in this SimpleType belong to
      * @return the lowest common supertype of all member types
@@ -44,9 +51,9 @@ public class BuiltInAtomicType implements AtomicType, Serializable {
     public final int getValidationStatus()  {
         return VALIDATED;
     }
-    
+
     /**
-     * Returns the value of the 'block' attribute for this type, as a bit-signnificant
+     * Returns the value of the 'block' attribute for this type, as a bit-significant
      * integer with fields such as {@link SchemaType#DERIVATION_LIST} and {@link SchemaType#DERIVATION_EXTENSION}
      *
      * @return the value of the 'block' attribute for this type
@@ -223,6 +230,15 @@ public class BuiltInAtomicType implements AtomicType, Serializable {
                 return this.getFingerprint();
             }
         }
+    }
+
+    /**
+     * Determine whether this type is supported in a basic XSLT processor
+     */
+
+    public boolean isAllowedInBasicXSLT() {
+        int fp = getFingerprint();
+        return (Type.isPrimitiveType(fp) && fp != StandardNames.XS_NOTATION);
     }
 
     /**
@@ -409,13 +425,14 @@ public class BuiltInAtomicType implements AtomicType, Serializable {
      * @param nsResolver a namespace resolver used to resolve namespace prefixes if the type
      *                   is namespace sensitive. The value supplied may be null; in this case any namespace-sensitive
      *                   content will throw an UnsupportedOperationException.
+     * @param conversion
      * @return XPathException if the value is invalid. Note that the exception is returned rather than being thrown.
      * Returns null if the value is valid.
      * @throws UnsupportedOperationException if the type is namespace-sensitive and no namespace
      *                                       resolver is supplied
      */
 
-    public ValidationException validateContent(CharSequence value, NamespaceResolver nsResolver) {
+    public ValidationException validateContent(CharSequence value, NamespaceResolver nsResolver, ConversionContext conversion) {
         int f = getFingerprint();
         if (f==StandardNames.XS_STRING ||
                 f==StandardNames.XS_ANY_SIMPLE_TYPE ||
@@ -442,10 +459,11 @@ public class BuiltInAtomicType implements AtomicType, Serializable {
                 result = new ValidationException(err.getMessage());
             }
         } else {
-            Value v = new StringValue(value).convert(this, null, true);
-            if (v instanceof ErrorValue) {
+
+            Value v = new StringValue(value).convert(this, dummyConversionContext, true);
+            if (v instanceof ValidationErrorValue) {
                 result = new ValidationException("Value " + Err.wrap(value, Err.VALUE) + " is invalid for type "
-                        + getDisplayName() + ". " + ((ErrorValue)v).getException().getMessage());
+                        + getDisplayName() + ". " + ((ValidationErrorValue)v).getException().getMessage());
             }
         }
         return result;
@@ -462,7 +480,7 @@ public class BuiltInAtomicType implements AtomicType, Serializable {
     public final SequenceIterator getTypedValue(NodeInfo node)
             throws XPathException {
         try {
-            return getTypedValue(node.getStringValue(), new InscopeNamespaceResolver(node));
+            return getTypedValue(node.getStringValue(), new InscopeNamespaceResolver(node), node.getConfiguration());
         } catch (ValidationException err) {
             throw new DynamicError("Internal error: value doesn't match its type annotation. " + err.getMessage());
         }
@@ -476,11 +494,12 @@ public class BuiltInAtomicType implements AtomicType, Serializable {
      * @param resolver a namespace resolver used to resolve any namespace prefixes appearing
      *                 in the content of values. Can supply null, in which case any namespace-sensitive content
      *                 will be rejected.
+     * @param conversion
      * @return an iterator over the atomic sequence comprising the typed value. The objects
      *         returned by this SequenceIterator will all be of type {@link net.sf.saxon.value.AtomicValue}
      */
 
-    public SequenceIterator getTypedValue(CharSequence value, NamespaceResolver resolver)
+    public SequenceIterator getTypedValue(CharSequence value, NamespaceResolver resolver, ConversionContext conversion)
             throws ValidationException {
         // Fast path for common cases
         if (fingerprint == StandardNames.XS_STRING) {
@@ -488,9 +507,9 @@ public class BuiltInAtomicType implements AtomicType, Serializable {
         } else if (fingerprint == StandardNames.XDT_UNTYPED_ATOMIC) {
             return SingletonIterator.makeIterator(new UntypedAtomicValue(value));
         }
-        AtomicValue val = new StringValue(value).convert(this, null, true);
-        if (val instanceof ErrorValue) {
-            throw ((ErrorValue)val).getException();
+        AtomicValue val = new StringValue(value).convert(this, conversion, true);
+        if (val instanceof ValidationErrorValue) {
+            throw ((ValidationErrorValue)val).getException();
         }
         return SingletonIterator.makeIterator(val);
     }

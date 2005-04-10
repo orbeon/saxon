@@ -23,6 +23,7 @@ import javax.xml.parsers.ParserConfigurationException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.HashSet;
+import java.io.Serializable;
 
 /**
  * This interface must be implemented by any third-party object model that can
@@ -30,7 +31,7 @@ import java.util.HashSet;
  * This implementation of the interface supports wrapping of DOM Documents.
  */
 
-public class DOMObjectModel implements ExternalObjectModel {
+public class DOMObjectModel implements ExternalObjectModel, Serializable {
 
     public DOMObjectModel() {}
 
@@ -40,6 +41,18 @@ public class DOMObjectModel implements ExternalObjectModel {
 
     public boolean isRecognizedNode(Object object) {
          return object instanceof Node;
+    }
+
+    /**
+     * Test whether this object model recognizes a given class as representing a
+     * node in that object model. This method will generally be called at compile time.
+     *
+     * @param nodeClass A class that possibly represents nodes
+     * @return true if the class is used to represent nodes in this object model
+     */
+
+    public boolean isRecognizedNodeClass(Class nodeClass) {
+        return Node.class.isAssignableFrom(nodeClass);
     }
 
     /**

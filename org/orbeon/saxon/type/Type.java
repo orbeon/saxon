@@ -401,7 +401,7 @@ public abstract class Type implements Serializable {
         BuiltInSchemaFactory.getSchemaType(StandardNames.XS_ID);
 
     public static final BuiltInAtomicType NCNAME_TYPE = (BuiltInAtomicType)
-        BuiltInSchemaFactory.getSchemaType(StandardNames.XS_NCNAME);    
+        BuiltInSchemaFactory.getSchemaType(StandardNames.XS_NCNAME);
 
     public static final BuiltInAtomicType NUMBER_TYPE = (BuiltInAtomicType)
         BuiltInSchemaFactory.getSchemaType(StandardNames.XDT_NUMERIC);
@@ -713,11 +713,12 @@ public abstract class Type implements Serializable {
         if (t2 instanceof NoNodeTest) {
             return t1;
         }
-        if (t1==t2) {
+        int r = Type.relationship(t1, t2);
+        if (r == Type.SAME_TYPE) {
             return t1;
-        } else if (Type.isSubType(t1, t2)) {
+        } else if (r == SUBSUMED_BY) {
             return t2;
-        } else if (Type.isSubType(t2, t1)) {
+        } else if (r == SUBSUMES) {
             return t1;
         } else {
             return getCommonSuperType(t2.getSuperType(), t1);
@@ -781,6 +782,7 @@ public abstract class Type implements Serializable {
             case NUMBER:
             case BOOLEAN:
             case STRING:
+            case ANY_URI:
             case DATE_TIME:
             case DATE:
             case TIME:

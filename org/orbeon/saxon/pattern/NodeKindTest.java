@@ -1,6 +1,8 @@
 package net.sf.saxon.pattern;
 import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.type.Type;
+import net.sf.saxon.type.AnySimpleType;
 
 /**
   * NodeTest is an interface that enables a test of whether a node has a particular
@@ -99,6 +101,19 @@ public class NodeKindTest extends NodeTest {
 
     public int getNodeKindMask() {
         return 1<<kind;
+    }
+
+    /**
+     * Get the content type allowed by this NodeTest (that is, the type annotation of the matched nodes).
+     * Return AnyType if there are no restrictions. The default implementation returns AnyType.
+     */
+
+    public SchemaType getContentType() {
+        if (kind == Type.ATTRIBUTE) {
+            return AnySimpleType.getInstance();
+        } else {
+            return super.getContentType();
+        }
     }
 
     public String toString() {

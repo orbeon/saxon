@@ -71,9 +71,11 @@ public class GeneralComparison extends BinaryExpression {
         SequenceType atomicType = SequenceType.ATOMIC_SEQUENCE;
 
         RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0, null);
+        role0.setSourceLocator(this);
         operand0 = TypeChecker.staticTypeCheck(operand0, atomicType, false, role0, env);
 
         RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1, null);
+        role1.setSourceLocator(this);
         operand1 = TypeChecker.staticTypeCheck(operand1, atomicType, false, role1, env);
 
         ItemType t0 = operand0.getItemType();
@@ -92,7 +94,7 @@ public class GeneralComparison extends BinaryExpression {
                 StaticError err = new StaticError(
                         "Cannot compare " + t0.toString(env.getNamePool()) +
                         " to " + t1.toString(env.getNamePool()));
-                err.setErrorCode("XP0006");
+                err.setErrorCode("XPTY0004");
                 err.setIsTypeError(true);
                 throw err;
             }
@@ -140,7 +142,7 @@ public class GeneralComparison extends BinaryExpression {
 
         Comparator comp = env.getCollation(env.getDefaultCollationName());
         if (comp==null) comp = CodepointCollator.getInstance();
-        comparer = new AtomicComparer(comp);
+        comparer = new AtomicComparer(comp, env.getConfiguration());
 
         // Check if neither argument allows a sequence of >1
 
@@ -151,7 +153,7 @@ public class GeneralComparison extends BinaryExpression {
             SingletonComparison sc = new SingletonComparison(operand0, singletonOperator, operand1);
             ExpressionTool.copyLocationInfo(this, sc);
             sc.setParentExpression(getParentExpression());
-            sc.setComparator(comparer);
+            sc.setComparator(comparer, env.getConfiguration());
             return sc.analyze(env, contextItemType);
         }
 
@@ -205,15 +207,15 @@ public class GeneralComparison extends BinaryExpression {
 
             Expression e0 = operand0;
             if (!Type.isSubType(t0, Type.NUMBER_TYPE)) {
-                e0 = TypeChecker.staticTypeCheck(e0, SequenceType.NUMERIC_SEQUENCE,
-                        false,
-                        new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0, null), env);
+                RoleLocator role = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0, null);
+                role.setSourceLocator(this);
+                e0 = TypeChecker.staticTypeCheck(e0, SequenceType.NUMERIC_SEQUENCE, false, role, env);
             }
             Expression e1 = operand1;
             if (!Type.isSubType(t1, Type.NUMBER_TYPE)) {
-                e1 = TypeChecker.staticTypeCheck(e1, SequenceType.NUMERIC_SEQUENCE,
-                        false,
-                        new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1, null), env);
+                RoleLocator role = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1, null);
+                role.setSourceLocator(this);
+                e1 = TypeChecker.staticTypeCheck(e1, SequenceType.NUMERIC_SEQUENCE, false, role, env);
             }
             MinimaxComparison mc = new MinimaxComparison(e0, operator, e1);
             ExpressionTool.copyLocationInfo(this, mc);
@@ -351,20 +353,20 @@ public class GeneralComparison extends BinaryExpression {
         AtomicValue v2 = a2;
         if (a1 instanceof UntypedAtomicValue) {
             if (a2 instanceof NumericValue) {
-                v1 = a1.convert(Type.DOUBLE);
+                v1 = a1.convert(Type.DOUBLE, context);
             } else if (a2 instanceof UntypedAtomicValue) {
                 // the spec says convert it to a string, but this doesn't affect the outcome
             } else {
-                v1 = a1.convert(a2.getItemType().getPrimitiveType());
+                v1 = a1.convert(a2.getItemType().getPrimitiveType(), context);
             }
         }
         if (a2 instanceof UntypedAtomicValue) {
             if (a1 instanceof NumericValue) {
-                v2 = a2.convert(Type.DOUBLE);
+                v2 = a2.convert(Type.DOUBLE, context);
             } else if (a1 instanceof UntypedAtomicValue) {
                 // the spec says convert it to a string, but this doesn't affect the outcome
             } else {
-                v2 = a2.convert(a1.getItemType().getPrimitiveType());
+                v2 = a2.convert(a1.getItemType().getPrimitiveType(), context);
             }
         }
         return ValueComparison.compare(v1, operator, v2, comparer);

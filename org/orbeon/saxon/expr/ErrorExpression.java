@@ -43,8 +43,10 @@ public class ErrorExpression extends ComputedExpression {
     */
 
     public Item evaluateItem(XPathContext context) throws XPathException {
+        // copy the exception for thread-safety, because we want to add context information
         DynamicError err = new DynamicError(exception.getMessage());
         err.setLocator(ExpressionTool.getLocator(this));
+        err.setErrorCode(exception.getErrorCodeLocalPart());
         err.setXPathContext(context);
         throw err;
     }
@@ -55,10 +57,8 @@ public class ErrorExpression extends ComputedExpression {
     */
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
-        DynamicError err = new DynamicError(exception.getMessage());
-        err.setLocator(ExpressionTool.getLocator(this));
-        err.setXPathContext(context);
-        throw err;
+        evaluateItem(context);
+        return null;    // to fool the compiler
     }
 
     /**

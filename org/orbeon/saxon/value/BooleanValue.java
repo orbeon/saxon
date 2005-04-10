@@ -1,5 +1,6 @@
 package net.sf.saxon.value;
 import net.sf.saxon.Err;
+import net.sf.saxon.ConversionContext;
 import net.sf.saxon.expr.XPathContext;
 import net.sf.saxon.trans.DynamicError;
 import net.sf.saxon.trans.XPathException;
@@ -60,7 +61,7 @@ public final class BooleanValue extends AtomicValue implements Comparable {
             ValidationException err = new ValidationException(
                                 "The string " + Err.wrap(s, Err.VALUE) + " cannot be cast to a boolean");
             err.setErrorCode("FORG0001");
-            return new ErrorValue(err);
+            return new ValidationErrorValue(err);
         }
     }
 
@@ -87,10 +88,11 @@ public final class BooleanValue extends AtomicValue implements Comparable {
     /**
      * Convert to target data type
      * @param requiredType an integer identifying the required atomic type
+     * @param conversion
      * @return an AtomicValue, a value of the required type
      */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate) {
+    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, ConversionContext conversion) {
         switch(requiredType.getPrimitiveType()) {
         case Type.BOOLEAN:
         case Type.ATOMIC:
@@ -102,7 +104,7 @@ public final class BooleanValue extends AtomicValue implements Comparable {
         case Type.DECIMAL:
         case Type.FLOAT:
         case Type.DOUBLE:
-            return new IntegerValue(value ? 1 : 0).convertPrimitive(requiredType, validate);
+            return new IntegerValue(value ? 1 : 0).convertPrimitive(requiredType, validate, conversion);
         case Type.STRING:
             return new StringValue(getStringValueCS());
         case Type.UNTYPED_ATOMIC:
@@ -112,7 +114,7 @@ public final class BooleanValue extends AtomicValue implements Comparable {
                                      requiredType.getDisplayName());
             //err.setXPathContext(context);
             err.setErrorCode("FORG0001");
-            return new ErrorValue(err);
+            return new ValidationErrorValue(err);
         }
     }
 

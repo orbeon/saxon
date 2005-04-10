@@ -131,6 +131,9 @@ public class GlobalVariableDefinition implements VariableDeclaration {
             ((GlobalVariable)var).setExecutable(env.getExecutable());
         }
         if (value != null) {
+            if (value instanceof ComputedExpression) {
+                ((ComputedExpression)value).setParentExpression(var);
+            }
             RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, variableName, 0, null);
             Expression value2 = TypeChecker.strictTypeCheck(
                                     value.simplify(env).analyze(env, Type.ITEM_TYPE),
@@ -183,7 +186,9 @@ public class GlobalVariableDefinition implements VariableDeclaration {
      */
     public void explain(NamePool pool) {
         System.err.println("declare variable " + pool.getDisplayName(nameCode) + " := ");
-        value.display(4, pool, System.err);
+        if (value != null) {
+            value.display(4, pool, System.err);
+        }
         System.err.println(";");
     }
 }

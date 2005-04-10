@@ -26,7 +26,7 @@ import java.util.Properties;
  */
 public class QueryResult {
 
-    private static String RESULT_NS = "http://saxon.sf.net/xquery-results";
+    public static String RESULT_NS = "http://saxon.sf.net/xquery-results";
 
     private QueryResult() {
     }
@@ -41,7 +41,6 @@ public class QueryResult {
      */
 
     public static DocumentInfo wrap(SequenceIterator iterator, Configuration config) throws XPathException {
-        NamePool pool = config.getNamePool();
         PipelineConfiguration pipe = config.makePipelineConfiguration();
         TinyBuilder builder = new TinyBuilder();
 
@@ -51,6 +50,32 @@ public class QueryResult {
 
         tree.setPipelineConfiguration(pipe);
         builder.setPipelineConfiguration(pipe);
+        sendWrappedSequence(iterator, tree);
+        return (DocumentInfo)builder.getCurrentRoot();
+    }
+
+    /**
+     * Take a sequence supplied in the form of an iterator and generate a wrapped represention of the
+     * items in the sequence, the wrapped representation being a sequence of events sent to a supplied
+     * Receiver.
+     * @param iterator the input sequence
+     * @param destination the Receiver to accept the wrapped output
+     */
+
+    public static void sendWrappedSequence(SequenceIterator iterator, Receiver destination) throws XPathException {
+        SequenceCopier.copySequence(iterator, new SequenceWrapper(destination));
+    }
+
+    /**
+     * Take a sequence supplied in the form of an iterator and generate a wrapped represention of the
+     * items in the sequence, the wrapped representation being a sequence of events sent to a supplied
+     * Receiver.
+     * @param iterator the input sequence
+     * @param tree the Receiver to accept the output
+     */
+    public static void sendWrappedSequenceOLD(SequenceIterator iterator, Receiver tree) throws XPathException {
+
+        NamePool pool = tree.getPipelineConfiguration().getConfiguration().getNamePool();
         tree.open();
         tree.startDocument(0);
 
@@ -149,7 +174,6 @@ public class QueryResult {
         tree.endElement();
         tree.endDocument();
         tree.close();
-        return (DocumentInfo)builder.getCurrentRoot();
     }
 
     /**

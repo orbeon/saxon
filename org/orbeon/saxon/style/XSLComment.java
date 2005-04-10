@@ -5,6 +5,7 @@ import net.sf.saxon.instruct.Comment;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.value.StringValue;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -14,7 +15,7 @@ import javax.xml.transform.TransformerConfigurationException;
 
 public final class XSLComment extends XSLStringConstructor {
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
         String selectAtt = null;
 
@@ -34,13 +35,13 @@ public final class XSLComment extends XSLStringConstructor {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         select = typeCheck("select", select);
         checkWithinTemplate();
         super.validate();
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         Comment inst = new Comment();
         compileContent(exec, inst, StringValue.SINGLE_SPACE);
         //inst.setSeparator(new StringValue(select==null ? "" : " "));

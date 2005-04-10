@@ -8,6 +8,7 @@ import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.type.AtomicType;
 import net.sf.saxon.value.*;
+import net.sf.saxon.ConversionContext;
 
 /**
  * Arithmetic Expression: an expression using one of the operators
@@ -135,10 +136,12 @@ class ArithmeticExpression extends BinaryExpression {
         // TODO: this is using the function call rules. Arithetic expressions have slightly different rules.
 
         RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0, null);
+        role0.setSourceLocator(this);
         operand0 = TypeChecker.staticTypeCheck(operand0, atomicType, backwardsCompatible, role0, env);
         // System.err.println("First operand"); operand0.display(10);
 
         RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1, null);
+        role1.setSourceLocator(this);
         operand1 = TypeChecker.staticTypeCheck(operand1, atomicType, backwardsCompatible, role1, env);
         // System.err.println("Second operand"); operand1.display(10);
 
@@ -199,7 +202,7 @@ class ArithmeticExpression extends BinaryExpression {
                         StaticError err = new StaticError("Unsuitable operands for arithmetic operation (" +
                                 type0.toString(env.getNamePool()) + ", " +
                                 type1.toString(env.getNamePool()) + ')');
-                        err.setErrorCode("XP0006");
+                        err.setErrorCode("XPTY0004");
                         err.setIsTypeError(true);
                         err.setLocator(ExpressionTool.getLocator(this));
                         throw err;
@@ -368,19 +371,19 @@ class ArithmeticExpression extends BinaryExpression {
                     NumericValue nv1;
                     NumericValue nv2;
                     try {
-                        nv1 = (NumericValue)v1.convert(Type.DOUBLE);
-                        nv2 = (NumericValue)v2.convert(Type.DOUBLE);
+                        nv1 = (NumericValue)v1.convert(Type.DOUBLE, context);
+                        nv2 = (NumericValue)v2.convert(Type.DOUBLE, context);
                     } catch (XPathException err) {
                         typeError("Unsuitable operands for arithmetic operation (" +
                                 v1.getItemType() + ", " +
-                                v2.getItemType() + ')', "XP0006", context);
+                                v2.getItemType() + ')', "XPTY0004", context);
                         return null;
                     }
                     e = new NumericArithmetic(nv1, operator, nv2);
                 } else {
                     typeError("Unsuitable operands for arithmetic operation (" +
                             v1.getItemType() + ", " +
-                            v2.getItemType() + ')', "XP0006", context);
+                            v2.getItemType() + ')', "XPTY0004", context);
                     return null;
                 }
         }
@@ -405,9 +408,11 @@ class ArithmeticExpression extends BinaryExpression {
             SequenceType atomicType = SequenceType.OPTIONAL_ATOMIC;
 
             RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0, null);
+            role0.setSourceLocator(this);
             operand0 = TypeChecker.staticTypeCheck(operand0, atomicType, backwardsCompatible, role0, env);
 
             RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1, null);
+            role1.setSourceLocator(this);
             operand1 = TypeChecker.staticTypeCheck(operand1, atomicType, backwardsCompatible, role1, env);
 
             Expression e = super.analyze(env, contextItemType);
@@ -462,7 +467,7 @@ class ArithmeticExpression extends BinaryExpression {
                             StaticError err = new StaticError("Unsuitable operands for arithmetic operation (" +
                                     type0.toString(env.getNamePool()) + ", " +
                                     type1.toString(env.getNamePool()) + ')');
-                            err.setErrorCode("XP0006");
+                            err.setErrorCode("XPTY0004");
                             err.setIsTypeError(true);
                             throw err;
                         }
@@ -513,7 +518,7 @@ class ArithmeticExpression extends BinaryExpression {
             v1 = v1.getPrimitiveValue();
             if (v1 instanceof BooleanValue || v1 instanceof StringValue || v1 instanceof NumericValue) {
                 try {
-                    v1 = v1.convert(Type.DOUBLE);
+                    v1 = v1.convert(Type.DOUBLE, context);
                 } catch (XPathException e) {
                     return DoubleValue.NaN;
                 }
@@ -526,7 +531,7 @@ class ArithmeticExpression extends BinaryExpression {
             v2 = v2.getPrimitiveValue();
             if (v2 instanceof BooleanValue || v2 instanceof StringValue || v2 instanceof NumericValue) {
                 try {
-                    v2 = v2.convert(Type.DOUBLE);
+                    v2 = v2.convert(Type.DOUBLE, context);
                 } catch (XPathException e) {
                     return DoubleValue.NaN;
                 }
@@ -559,7 +564,7 @@ class ArithmeticExpression extends BinaryExpression {
                 default:
                     typeError("Unsuitable operands for arithmetic operation (" +
                             v1.getItemType() + ", " +
-                            v2.getItemType() + ')', "XP0006", context);
+                            v2.getItemType() + ')', "XPTY0004", context);
                     return null;
             }
             ExpressionTool.copyLocationInfo(this, e);
@@ -617,8 +622,12 @@ class ArithmeticExpression extends BinaryExpression {
                 try {
                     return ((NumericValue)v1).arithmetic(operator, (NumericValue)v2, context);
                 } catch (DynamicError err) {
-                    err.setXPathContext(context);
-                    err.setLocator(ExpressionTool.getLocator(this));
+                    if (err.getXPathContext() == null) {
+                        err.setXPathContext(context);
+                    }
+                    if (err.getLocator() == null) {
+                        err.setLocator(ExpressionTool.getLocator(this));
+                    }
                     throw err;
                 } catch (ArithmeticException err) {
                     DynamicError e = new DynamicError("Arithmetic exception: " + err.getMessage());
@@ -804,6 +813,11 @@ class ArithmeticExpression extends BinaryExpression {
 
     public static class DateDifference extends ArithmeticExpression {
 
+        // TODO: the rules for subtracting date/times with and without timezones are under review.
+        // In some cases the result depends on the implicit timezone, which is part of the dynamic
+        // context: this means that the operation shouldn't be performed at compile-time (but at present,
+        // if the values are constant, it's done early.)
+
         public DateDifference(Expression p1, int operator, Expression p2) {
             super(p1, operator, p2);
         }
@@ -825,7 +839,11 @@ class ArithmeticExpression extends BinaryExpression {
             }
             CalendarValue v2 = (CalendarValue)av2.getPrimitiveValue();
 
-            return v1.subtract(v2, context);
+            ConversionContext cc = context;
+            if (cc == null) {
+                cc = getExecutable().getConfiguration();
+            }
+            return v1.subtract(v2, cc);
 
         }
     }

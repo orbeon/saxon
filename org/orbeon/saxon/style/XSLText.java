@@ -8,10 +8,9 @@ import net.sf.saxon.om.Axis;
 import net.sf.saxon.om.AxisIterator;
 import net.sf.saxon.om.Item;
 import net.sf.saxon.pattern.NodeKindTest;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.StringValue;
-
-import javax.xml.transform.TransformerConfigurationException;
 
 /**
 * Handler for xsl:text elements in stylesheet. <BR>
@@ -32,7 +31,7 @@ public class XSLText extends XSLStringConstructor {
         return NodeKindTest.TEXT;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
         String disableAtt = null;
 
@@ -54,33 +53,33 @@ public class XSLText extends XSLStringConstructor {
             } else if (disableAtt.equals("no")) {
                 disable = false;
             } else {
-                compileError("disable-output-escaping attribute must be either 'yes' or 'no'", "XT0020");
+                compileError("disable-output-escaping attribute must be either 'yes' or 'no'", "XTSE0020");
             }
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
 
         // 2.0 spec has reverted to the 1.0 rule that xsl:text may not have child elements
         AxisIterator kids = iterateAxis(Axis.CHILD);
+        value = StringValue.EMPTY_STRING;
         while(true) {
             Item child = kids.next();
             if (child == null) {
-                value = StringValue.EMPTY_STRING;
                 break;
             } else if (child instanceof StyleElement) {
-                compileError("xsl:text must not contain child elements", "XT0010");
+                ((StyleElement)child).compileError("xsl:text must not contain child elements", "XTSE0010");
                 return;
             } else {
                 value = new StringValue(child.getStringValueCS());
-                break;
+                continue;
             }
         }
         super.validate();
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         ValueOf inst = new ValueOf(value, disable);
         //compileContent(exec, inst);
         ExpressionTool.makeParentReferences(inst);

@@ -87,6 +87,7 @@ public class UnionEnumeration implements SequenceIterator, LookaheadIterator {
             return current;
         }
         current = null;
+        position = -1;
         return null;
     }
 

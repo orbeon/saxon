@@ -45,7 +45,7 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
         return stackFrameMap;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
         String nameAtt = null;
         String matchAtt = null;
@@ -76,9 +76,9 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
         try {
             setObjectNameCode(makeNameCode(nameAtt.trim()));
         } catch (NamespaceException err) {
-            compileError(err.getMessage(), "XT0280");
+            compileError(err.getMessage(), "XTSE0280");
         } catch (XPathException err) {
-            compileError(err.getMessage());
+            compileError(err);
         }
 
         if (matchAtt==null) {
@@ -92,18 +92,19 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
 
         stackFrameMap = getConfiguration().makeSlotManager();
         checkTopLevel(null);
         if (use!=null) {
             // the value can be supplied as a content constructor in place of a use expression
             if (hasChildNodes()) {
-                compileError("An xsl:key element with a @use attribute must be empty", "XT1205");
+                compileError("An xsl:key element with a @use attribute must be empty", "XTSE1205");
             }
             try {
                 RoleLocator role =
                     new RoleLocator(RoleLocator.INSTRUCTION, "xsl:key/use", 0, null);
+                role.setSourceLocator(new ExpressionLocation(this));
                 use = TypeChecker.staticTypeCheck(
                                 use,
                                 SequenceType.makeSequenceType(Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE),
@@ -113,7 +114,7 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
             }
         } else {
             if (!hasChildNodes()) {
-                compileError("An xsl:key element must either have a @use attribute or have content", "XT1205");
+                compileError("An xsl:key element must either have a @use attribute or have content", "XTSE1205");
             }
         }
         use = typeCheck("use", use);
@@ -121,16 +122,16 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
 
      }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
 
         Collator collator = null;
         if (collationName != null) {
             Comparator comp = getPrincipalStylesheet().findCollation(collationName);
             if (comp==null) {
-                 compileError("The collation name " + Err.wrap(collationName) + " is not recognized", "XT1210");
+                 compileError("The collation name " + Err.wrap(collationName) + " is not recognized", "XTSE1210");
             }
             if (!(comp instanceof Collator)) {
-                compileError("The collation used for xsl:key must be a java.text.Collator", "XT1210");
+                compileError("The collation used for xsl:key must be a java.text.Collator", "XTSE1210");
             }
             collator = (Collator)comp;
         }
@@ -147,6 +148,7 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
             try {
                 RoleLocator role =
                     new RoleLocator(RoleLocator.INSTRUCTION, "xsl:key/use", 0, null);
+                role.setSourceLocator(new ExpressionLocation(this));
                 use = TypeChecker.staticTypeCheck(
                                 use,
                                 SequenceType.makeSequenceType(Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE),

@@ -84,9 +84,9 @@ public abstract class Builder implements Receiver {
      * node must be compatible with the type of Builder used.
      */
 
-    public void setRootNode(DocumentInfo doc) {
-        currentRoot = doc;
-    }
+//    public void setRootNode(DocumentInfo doc) {
+//        currentRoot = doc;
+//    }
 
 
     /**

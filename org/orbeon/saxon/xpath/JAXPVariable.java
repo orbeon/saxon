@@ -95,7 +95,9 @@ public final class JAXPVariable implements VariableDeclaration, Binding {
      */
 
     public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException {
-        Object value = resolver.resolveVariable((QName)name.makeQName());
+        Object value = resolver.resolveVariable(
+                (QName)name.makeQName(
+                        context.getController().getConfiguration()));
         if (value == null) {
             return EmptySequence.getInstance();
         }

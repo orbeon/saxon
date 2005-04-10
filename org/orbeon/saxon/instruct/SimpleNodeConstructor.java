@@ -41,11 +41,7 @@ public abstract class SimpleNodeConstructor extends Instruction {
         if (select != null) {
             select = select.simplify(env);
         }
-//        if (separator != null) {
-//            separator = separator.simplify(env);
-//        }
         return this;
-        //return super.simplify(env);
     }
 
     /**
@@ -59,7 +55,7 @@ public abstract class SimpleNodeConstructor extends Instruction {
     public int computeSpecialProperties() {
         return super.computeSpecialProperties() |
                 StaticProperty.SINGLE_DOCUMENT_NODESET;
-    }    
+    }
 
     public abstract void typeCheck(StaticContext env, ItemType contextItemType) throws XPathException;
 

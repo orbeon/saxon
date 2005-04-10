@@ -4,12 +4,13 @@ import net.sf.saxon.event.LocationProvider;
 import net.sf.saxon.event.SaxonLocator;
 
 import javax.xml.transform.SourceLocator;
+import java.io.Serializable;
 
 /**
  * Class to hold details of the location of an expression, of an error in a source file, etc.
  */
 
-public class ExpressionLocation implements SaxonLocator {
+public class ExpressionLocation implements SaxonLocator, Serializable {
 
     public ExpressionLocation() {}
 

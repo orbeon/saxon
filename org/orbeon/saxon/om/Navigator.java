@@ -766,6 +766,7 @@ public final class Navigator {
             while (true) {
     	        current = base.next();
                 if (current == null) {
+                    position = -1;
                     return null;
                 }
                 if (nodeTest.matches((NodeInfo)current)) {
@@ -783,7 +784,11 @@ public final class Navigator {
     /**
      * BaseEnumeration is an abstract implementation of an AxisIterator, it
      * simplifies the implementation of the underlying AxisIterator by requiring
-     * it to provide only two methods: advance(), and getAnother()
+     * it to provide only two methods: advance(), and getAnother().
+     *
+     * NOTA BENE: BaseEnumeration does not maintain the value of the position variable.
+     * It must therefore either (a) be wrapped in an AxisFilter, which does maintain
+     * position, or (b) be subclassed by a class that maintains position itself.
      */
 
     public static abstract class BaseEnumeration extends AxisIteratorImpl {

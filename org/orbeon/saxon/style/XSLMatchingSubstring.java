@@ -3,6 +3,7 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -24,7 +25,7 @@ public class XSLMatchingSubstring extends StyleElement {
     }
 
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 		AttributeCollection atts = getAttributeList();
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
@@ -41,13 +42,13 @@ public class XSLMatchingSubstring extends StyleElement {
         return true;
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         if (!(getParent() instanceof XSLAnalyzeString)) {
-            compileError(getDisplayName() + " must be immediately within xsl:analyze-string", "XT0010");
+            compileError(getDisplayName() + " must be immediately within xsl:analyze-string", "XTSE0010");
         }
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         throw new UnsupportedOperationException("XSLMatchingSubstring#compile() should not be called");
     }
 

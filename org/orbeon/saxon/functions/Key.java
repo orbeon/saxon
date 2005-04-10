@@ -13,13 +13,7 @@ import net.sf.saxon.value.Cardinality;
 import net.sf.saxon.value.StringValue;
 
 
-public class Key extends SystemFunction implements MappingFunction, XSLTFunction {
-
-    private static class KeyContextInfo {
-        public DocumentInfo document;
-        public XPathContext context;
-        public int keyFingerprint;
-    }
+public class Key extends SystemFunction implements XSLTFunction {
 
     private NamespaceResolver nsContext = null;
     private int keyFingerprint = -1;
@@ -31,6 +25,9 @@ public class Key extends SystemFunction implements MappingFunction, XSLTFunction
     */
 
      public Expression simplify(StaticContext env) throws XPathException {
+        if (!(env instanceof ExpressionContext)) {
+            throw new StaticError("The key() function is available only in XPath expressions within an XSLT stylesheet");
+        }
         Key f = (Key)super.simplify(env);
         if (argument.length == 2) {
             f.addContextDocumentArgument(2, "key");
@@ -51,14 +48,14 @@ public class Key extends SystemFunction implements MappingFunction, XSLTFunction
                 StaticError err = new StaticError("Error in key name " +
                         ((StringValue)argument[0]).getStringValue() + ": " + e.getMessage());
                 err.setLocator(this);
-                err.setErrorCode("XT1260");
+                err.setErrorCode("XTDE1260");
                 throw err;
             }
             if (keyFingerprint==-1) {
                 StaticError err = new StaticError("Key " +
                         ((StringValue)argument[0]).getStringValue() + " has not been defined");
                 err.setLocator(this);
-                err.setErrorCode("XT1260");
+                err.setErrorCode("XTDE1260");
                 throw err;
             }
         } else {
@@ -102,7 +99,7 @@ public class Key extends SystemFunction implements MappingFunction, XSLTFunction
 
         Item arg2 = argument[2].evaluateItem(context);
         if (!(arg2 instanceof NodeInfo)) {
-            dynamicError("When calling the key() function, the context item must be a node", "XT1270", context);
+            dynamicError("When calling the key() function, the context item must be a node", "XTDE1270", context);
             return null;
         }
         NodeInfo origin = (NodeInfo)arg2;
@@ -110,7 +107,7 @@ public class Key extends SystemFunction implements MappingFunction, XSLTFunction
         if (!(root instanceof DocumentInfo)) {
             dynamicError("In the key() function," +
                             " the node supplied in the third argument (or the context node if absent)" +
-                            " must be in a tree whose root is a document node", "XT1270", context);
+                            " must be in a tree whose root is a document node", "XTDE1270", context);
             return null;
         }
         DocumentInfo doc = (DocumentInfo)root;
@@ -122,10 +119,10 @@ public class Key extends SystemFunction implements MappingFunction, XSLTFunction
                 fprint = context.getController().getNamePool().allocateLexicalQName(
                         givenkeyname, false, nsContext) & NamePool.FP_MASK;
             } catch (XPathException err) {
-                dynamicError("Invalid key name: " + err.getMessage(), "XT1260", context);
+                dynamicError("Invalid key name: " + err.getMessage(), "XTDE1260", context);
             }
             if (fprint==-1) {
-                dynamicError("Key '" + givenkeyname + "' has not been defined", "XT1260", context);
+                dynamicError("Key '" + givenkeyname + "' has not been defined", "XTDE1260", context);
                 return null;
             }
         }
@@ -137,13 +134,13 @@ public class Key extends SystemFunction implements MappingFunction, XSLTFunction
         Expression expression = argument[1];
         SequenceIterator allResults;
         if (Cardinality.allowsMany(expression.getCardinality())) {
-            KeyContextInfo info = new KeyContextInfo();
-            info.document = doc;
-            info.context = context;
-            info.keyFingerprint = fprint;
+            KeyMappingFunction map = new KeyMappingFunction();
+            map.document = doc;
+            map.keyContext = context;
+            map.keyFingerprint = fprint;
 
             SequenceIterator keys = argument[1].iterate(context);
-            SequenceIterator allValues = new MappingIterator(keys, this, null, info);
+            SequenceIterator allValues = new MappingIterator(keys, map, null);
             allResults = new DocumentOrderIterator(allValues, LocalOrderComparer.getInstance());
         } else {
             AtomicValue keyValue = (AtomicValue)argument[1].evaluateItem(context);
@@ -156,7 +153,9 @@ public class Key extends SystemFunction implements MappingFunction, XSLTFunction
         if (origin == doc) {
             return allResults;
         }
-        return new MappingIterator(allResults, new SubtreeFilter(), null, origin);
+        SubtreeFilter filter = new SubtreeFilter();
+        filter.origin = origin;
+        return new MappingIterator(allResults, filter, null);
     }
 
 
@@ -165,11 +164,17 @@ public class Key extends SystemFunction implements MappingFunction, XSLTFunction
     * Implement the MappingFunction interface
     */
 
-    public Object map(Item item, XPathContext context, Object info) throws XPathException {
-        KeyContextInfo k = (KeyContextInfo)info;
-        KeyManager keyManager = k.context.getController().getKeyManager();
-        return keyManager.selectByKey(
-                k.keyFingerprint, k.document, (AtomicValue)item, k.context);
+    private static class KeyMappingFunction implements MappingFunction {
+
+        public XPathContext keyContext;
+        public int keyFingerprint;
+        public DocumentInfo document;
+
+        public Object map(Item item, XPathContext context) throws XPathException {
+            KeyManager keyManager = keyContext.getController().getKeyManager();
+            return keyManager.selectByKey(
+                    keyFingerprint, document, (AtomicValue)item, keyContext);
+        }
     }
 
     /**
@@ -178,10 +183,12 @@ public class Key extends SystemFunction implements MappingFunction, XSLTFunction
 
     private static class SubtreeFilter implements MappingFunction {
 
+        public NodeInfo origin;
+
         // TODO: much more efficient implementations are possible, especially with the TinyTree
 
-        public Object map(Item item, XPathContext context, Object info) throws XPathException {
-            if (isAncestorOrSelf((NodeInfo)info, (NodeInfo)item)) {
+        public Object map(Item item, XPathContext context) throws XPathException {
+            if (isAncestorOrSelf(origin, (NodeInfo)item)) {
                 return item;
             } else {
                 return null;

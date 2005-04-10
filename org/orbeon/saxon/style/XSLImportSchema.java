@@ -1,5 +1,6 @@
 package net.sf.saxon.style;
 import net.sf.saxon.Configuration;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.event.PipelineConfiguration;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
@@ -16,7 +17,7 @@ import javax.xml.transform.TransformerConfigurationException;
 
 public class XSLImportSchema extends StyleElement {
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
         String namespace = null;
@@ -39,12 +40,12 @@ public class XSLImportSchema extends StyleElement {
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         //checkEmpty();
         checkTopLevel(null);
     }
 
-    public void readSchema() throws SchemaException, TransformerConfigurationException {
+    public void readSchema() throws SchemaException, XPathException {
         try {
             String schemaLoc = getAttributeValue(StandardNames.SCHEMA_LOCATION);
             if (schemaLoc != null) {
@@ -103,7 +104,7 @@ public class XSLImportSchema extends StyleElement {
     }
 
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         return null;
         // No action. The effect of import-schema is compile-time only
     }

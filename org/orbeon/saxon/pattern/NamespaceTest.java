@@ -1,6 +1,7 @@
 package net.sf.saxon.pattern;
 import net.sf.saxon.om.NamePool;
 import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.type.ItemType;
 
 /**
   * NodeTest is an interface that enables a test of whether a node has a particular
@@ -12,13 +13,13 @@ import net.sf.saxon.om.NodeInfo;
 public final class NamespaceTest extends NodeTest {
 
 	private NamePool namePool;
-	private int type;
+	private int nodeKind;
 	private short uriCode;
     private String uri;
 
-	public NamespaceTest(NamePool pool, int nodeType, String uri) {
+	public NamespaceTest(NamePool pool, int nodeKind, String uri) {
 	    namePool = pool;
-		type = nodeType;
+		this.nodeKind = nodeKind;
         this.uri = uri;
 		this.uriCode = pool.allocateCodeForURI(uri);
 	}
@@ -31,7 +32,7 @@ public final class NamespaceTest extends NodeTest {
 
     public boolean matches(int nodeType, int fingerprint, int annotation) {
         if (fingerprint == -1) return false;
-        if (nodeType != type) return false;
+        if (nodeType != nodeKind) return false;
         return uriCode == namePool.getURICode(fingerprint);
     }
 
@@ -43,7 +44,7 @@ public final class NamespaceTest extends NodeTest {
      */
 
     public boolean matches(NodeInfo node) {
-        return node.getNodeKind()==type && node.getURI().equals(uri);
+        return node.getNodeKind()==nodeKind && node.getURI().equals(uri);
     }
 
     /**
@@ -61,7 +62,24 @@ public final class NamespaceTest extends NodeTest {
     */
 
     public int getPrimitiveType() {
-        return type;
+        return nodeKind;
+    }
+
+    /**
+     * Get the type from which this item type is derived by restriction. This
+     * is the supertype in the XPath type heirarchy, as distinct from the Schema
+     * base type: this means that the supertype of xs:boolean is xdt:anyAtomicType,
+     * whose supertype is item() (rather than xs:anySimpleType).
+     * <p>
+     * In fact the concept of "supertype" is not really well-defined, because the types
+     * form a lattice rather than a hierarchy. The only real requirement on this function
+     * is that it returns a type that strictly subsumes this type, ideally as narrowly
+     * as possible.
+     * @return the supertype, or null if this type is item()
+     */
+
+    public ItemType getSuperType() {
+        return NodeKindTest.makeNodeKindTest(nodeKind);
     }
 
     /**
@@ -70,11 +88,11 @@ public final class NamespaceTest extends NodeTest {
      */
 
     public int getNodeKindMask() {
-        return 1<<type;
+        return 1<<nodeKind;
     }
 
     public String toString() {
-        return "{" + namePool.getURIFromURICode(uriCode) + "}:*";
+        return '{' + namePool.getURIFromURICode(uriCode) + "}:*";
     }
 
     /**
@@ -82,7 +100,7 @@ public final class NamespaceTest extends NodeTest {
      */
 
     public int hashCode() {
-        return uriCode << 5 + type;
+        return uriCode << 5 + nodeKind;
     }
 
 }

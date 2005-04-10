@@ -58,7 +58,7 @@ public final class NumericPromoter extends UnaryExpression implements MappingFun
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
         SequenceIterator base = operand.iterate(context);
-        return new MappingIterator(base, this, null, null);
+        return new MappingIterator(base, this, null);
     }
 
     /**
@@ -75,7 +75,7 @@ public final class NumericPromoter extends UnaryExpression implements MappingFun
     * Implement the mapping function
     */
 
-    public Object map(Item item, XPathContext context, Object info) throws XPathException {
+    public Object map(Item item, XPathContext context) throws XPathException {
         return promote(((AtomicValue)item), context);
     }
 
@@ -91,7 +91,7 @@ public final class NumericPromoter extends UnaryExpression implements MappingFun
             err.setXPathContext(context);
             throw err;
         }
-        return v.convert(requiredType);
+        return v.convert(requiredType, context);
     }
 
     /**

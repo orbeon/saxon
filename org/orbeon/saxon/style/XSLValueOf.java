@@ -8,6 +8,7 @@ import net.sf.saxon.type.ItemType;
 import net.sf.saxon.type.Type;
 import net.sf.saxon.value.Cardinality;
 import net.sf.saxon.value.StringValue;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -37,7 +38,7 @@ public final class XSLValueOf extends XSLStringConstructor {
         return NodeKindTest.TEXT;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		String selectAtt = null;
 		String disableAtt = null;
@@ -73,19 +74,19 @@ public final class XSLValueOf extends XSLStringConstructor {
             } else if (disableAtt.equals("no")) {
                 disable = false;
             } else {
-                compileError("disable-output-escaping attribute must be either 'yes' or 'no'", "XT0020");
+                compileError("disable-output-escaping attribute must be either 'yes' or 'no'", "XTSE0020");
             }
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         super.validate();
         checkWithinTemplate();
         select = typeCheck("select", select);
         separator = typeCheck("separator", separator);
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
 
         if (separator == null && select != null && backwardsCompatibleModeIsEnabled()) {
             if (!Type.isSubType(select.getItemType(), Type.ANY_ATOMIC_TYPE)) {

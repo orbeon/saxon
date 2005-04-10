@@ -36,7 +36,8 @@ public class Aggregate extends SystemFunction {
             case COUNT:
                 return super.getItemType();
             case SUM: {
-                ItemType base = argument[0].getItemType();
+                //ItemType base = argument[0].getItemType();
+                ItemType base = Atomizer.getAtomizedItemType(argument[0], false);
                 if (base == Type.UNTYPED_ATOMIC_TYPE) {
                     base = Type.DOUBLE_TYPE;
                 }
@@ -51,7 +52,7 @@ public class Aggregate extends SystemFunction {
                 }
             }
             case AVG: {
-                ItemType base = argument[0].getItemType();
+                ItemType base = Atomizer.getAtomizedItemType(argument[0], false);
                 if (base == Type.UNTYPED_ATOMIC_TYPE) {
                     return Type.DOUBLE_TYPE;
                 } else if (base.getPrimitiveType() == Type.INTEGER) {
@@ -104,7 +105,7 @@ public class Aggregate extends SystemFunction {
             sum = sum.getPrimitiveValue();
         }
         if (sum instanceof UntypedAtomicValue) {
-            sum = sum.convert(Type.DOUBLE);
+            sum = sum.convert(Type.DOUBLE, context);
         }
         if (sum instanceof NumericValue) {
             while (true) {
@@ -114,7 +115,7 @@ public class Aggregate extends SystemFunction {
                 }
                 AtomicValue next = nextVal.getPrimitiveValue();
                 if (next instanceof UntypedAtomicValue) {
-                    next = next.convert(Type.DOUBLE);
+                    next = next.convert(Type.DOUBLE, context);
                 } else if (!(next instanceof NumericValue)) {
                     DynamicError err =
                             new DynamicError("Input to sum() contains a mix of numeric and non-numeric values");
@@ -169,7 +170,7 @@ public class Aggregate extends SystemFunction {
             sum = sum.getPrimitiveValue();
         }
         if (sum instanceof UntypedAtomicValue) {
-            sum = sum.convert(Type.DOUBLE);
+            sum = sum.convert(Type.DOUBLE, context);
         }
         if (sum instanceof NumericValue) {
             while (true) {
@@ -180,7 +181,7 @@ public class Aggregate extends SystemFunction {
                 count++;
                 AtomicValue next = nextVal.getPrimitiveValue();
                 if (next instanceof UntypedAtomicValue) {
-                    next = next.convert(Type.DOUBLE);
+                    next = next.convert(Type.DOUBLE, context);
                 } else if (!(next instanceof NumericValue)) {
                     DynamicError err =
                             new DynamicError("Input to avg() contains a mix of numeric and non-numeric values");

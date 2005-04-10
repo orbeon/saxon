@@ -8,7 +8,7 @@ import net.sf.saxon.trans.DynamicError;
 */
 
 public class NoOpenStartTagException extends DynamicError {
-    
+
     public NoOpenStartTagException(int nodeKind, boolean topLevel) {
         super((topLevel ?
                 ("Cannot create " +
@@ -18,7 +18,7 @@ public class NoOpenStartTagException extends DynamicError {
                 (nodeKind==net.sf.saxon.type.Type.ATTRIBUTE ? "Attribute" : "Namespace") +
                     " nodes must be created before the children of an element node"
                 ));
-        setErrorCode(topLevel ? "XT0410" : "XT0420");
+        setErrorCode(topLevel ? "XTDE0410" : "XTDE0420");
     }
 
 }

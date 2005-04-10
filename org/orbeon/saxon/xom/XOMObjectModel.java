@@ -1,20 +1,25 @@
 package net.sf.saxon.xom;
 
 import net.sf.saxon.Configuration;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.value.Value;
-import net.sf.saxon.trans.XPathException;
-import net.sf.saxon.event.Receiver;
 import net.sf.saxon.event.PipelineConfiguration;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.ExternalObjectModel;
-import net.sf.saxon.om.VirtualNode;
-import net.sf.saxon.om.NodeInfo;
+import net.sf.saxon.event.Receiver;
+import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.om.*;
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.value.Value;
+import net.sf.saxon.value.SingletonNode;
+import net.sf.saxon.value.SequenceExtent;
 import nu.xom.Document;
 import nu.xom.Node;
 
 import javax.xml.transform.Result;
 import javax.xml.transform.Source;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.lang.reflect.Array;
+import java.io.Serializable;
 
 
 
@@ -24,8 +29,8 @@ import javax.xml.transform.Source;
  * This implementation of the interface supports wrapping of JDOM Documents.
  */
 
-public class XOMObjectModel implements ExternalObjectModel {
-    
+public class XOMObjectModel implements ExternalObjectModel, Serializable {
+
     public XOMObjectModel() {}
 
      /**
@@ -34,6 +39,18 @@ public class XOMObjectModel implements ExternalObjectModel {
 
     public boolean isRecognizedNode(Object object) {
         return (object instanceof nu.xom.Node);
+    }
+
+    /**
+     * Test whether this object model recognizes a given class as representing a
+     * node in that object model. This method will generally be called at compile time.
+     *
+     * @param nodeClass A class that possibly represents nodes
+     * @return true if the class is used to represent nodes in this object model
+     */
+
+    public boolean isRecognizedNodeClass(Class nodeClass) {
+        return nu.xom.Node.class.isAssignableFrom(nodeClass);
     }
 
     /**
@@ -73,7 +90,26 @@ public class XOMObjectModel implements ExternalObjectModel {
      */
 
     public Value convertObjectToXPathValue(Object object, Configuration config) throws XPathException {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        if (object instanceof Node) {
+            return new SingletonNode(wrapNode((Node)object, config));
+        } else if (object instanceof Node[]) {
+            NodeInfo[] nodes = new NodeInfo[((Node[])object).length];
+            for (int i=0; i<nodes.length; i++) {
+                nodes[i] = wrapNode(((Node[])object)[i], config);
+            }
+            return new SequenceExtent(nodes);
+        } else {
+            return null;
+        }
+    }
+
+    private NodeInfo wrapNode(Node node, Configuration config) {
+        Document root = (node).getDocument();
+        VirtualNode wrapper = config.getNamePool().getDocumentWrapper(root);
+        if (wrapper == null) {
+            wrapper = new DocumentWrapper(root, "", config);
+        }
+        return (((DocumentWrapper)wrapper).wrap(node));
     }
 
     /**
@@ -84,8 +120,77 @@ public class XOMObjectModel implements ExternalObjectModel {
      * Value to see whether they belong to this object model.
      */
 
-    public Object convertXPathValueToObject(Value value, Class targetClass, XPathContext context) {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+    public Object convertXPathValueToObject(Value value, Class targetClass, XPathContext context)
+    throws XPathException {
+        // We accept the object if (a) the target class is Node or Node[],
+        // or (b) the supplied object is a node, or sequence of nodes, that wrap XOM nodes,
+        // provided that the target class is Object or a collection class
+        boolean requireXOM =
+                (Node.class.isAssignableFrom(targetClass) ||
+                (targetClass.isArray() && Node.class.isAssignableFrom(targetClass.getComponentType())));
+
+        // Note: we allow the declared type of the method argument to be a subclass of Node. If the actual
+        // node supplied is the wrong kind of node, this will result in a Java exception.
+
+        boolean allowXOM =
+                (targetClass == Object.class || targetClass.isAssignableFrom(ArrayList.class) ||
+                targetClass.isAssignableFrom(HashSet.class) ||
+                (targetClass.isArray() && targetClass.getComponentType() == Object.class));
+        if (!(requireXOM || allowXOM)) {
+            return null;
+        }
+        List nodes = new ArrayList(20);
+
+        SequenceIterator iter = value.iterate(context);
+        while (true) {
+            Item item = iter.next();
+            if (item == null) {
+                break;
+            }
+            if (item instanceof VirtualNode) {
+                Object o = ((VirtualNode)item).getUnderlyingNode();
+                if (o instanceof Node) {
+                    nodes.add(o);
+                } else {
+                    if (requireXOM) {
+                        DynamicError err = new DynamicError("Extension function required class " + targetClass.getName() +
+                                "; supplied value of class " + item.getClass().getName() +
+                                " could not be converted");
+                        throw err;
+                    };
+                }
+            } else if (requireXOM) {
+                DynamicError err = new DynamicError("Extension function required class " + targetClass.getName() +
+                            "; supplied value of class " + item.getClass().getName() +
+                            " could not be converted");
+                throw err;
+            } else {
+                return null;    // DOM Nodes are not actually required; let someone else try the conversion
+            }
+        }
+
+        if (nodes.size() == 0 && !requireXOM) {
+            return null;  // empty sequence supplied - try a different mapping
+        }
+        if (Node.class.isAssignableFrom(targetClass)) {
+            if (nodes.size() != 1) {
+                DynamicError err = new DynamicError("Extension function requires a single XOM Node" +
+                                "; supplied value contains " + nodes.size() + " nodes");
+                throw err;
+            }
+            return nodes.get(0);
+        } else if (targetClass.isArray() && Node.class.isAssignableFrom(targetClass.getComponentType())) {
+            Node[] array = (Node[])Array.newInstance(targetClass.getComponentType(), nodes.size());
+            nodes.toArray(array);
+            return array;
+        } else if (targetClass.isAssignableFrom(ArrayList.class)) {
+            return nodes;
+        } else if (targetClass.isAssignableFrom(HashSet.class)) {
+            return new HashSet(nodes);
+        } else {
+            // after all this work, give up
+            return null;
+        }
     }
 
     /**
@@ -95,8 +200,8 @@ public class XOMObjectModel implements ExternalObjectModel {
      * @param baseURI the base URI of the node (supply "" if unknown)
      * @param config the Saxon configuration (which among other things provides access to the NamePool)
      * @return the wrapper, which must implement DocumentInfo
-     */ 
-    
+     */
+
     public DocumentInfo wrapDocument(Object node, String baseURI, Configuration config) {
         Document documentNode = ((Node)node).getDocument();
         return new DocumentWrapper(documentNode, baseURI, config);
@@ -109,8 +214,8 @@ public class XOMObjectModel implements ExternalObjectModel {
      * @param node the node to be wrapped. This must be a node within the document wrapped by the
      * DocumentInfo provided in the first argument
      * @return the wrapper for the node, as an instance of VirtualNode
-     */ 
-    
+     */
+
     public VirtualNode wrapNode(DocumentInfo document, Object node) {
         if (!(node instanceof Node)) {
             throw new IllegalArgumentException("Object to be wrapped is not a XOM Node: " + node.getClass());

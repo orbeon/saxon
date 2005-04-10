@@ -5,6 +5,7 @@ import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.instruct.Namespace;
 import net.sf.saxon.om.AttributeCollection;
 import net.sf.saxon.value.StringValue;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 
@@ -16,7 +17,7 @@ public class XSLNamespace extends XSLStringConstructor {
 
     Expression name;
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
         String nameAtt = null;
         String selectAtt = null;
@@ -46,14 +47,14 @@ public class XSLNamespace extends XSLStringConstructor {
 
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
         name = typeCheck("name", name);
         select = typeCheck("select", select);
         super.validate();
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         Namespace inst = new Namespace(name);
         compileContent(exec, inst, StringValue.SINGLE_SPACE);
         ExpressionTool.makeParentReferences(inst);

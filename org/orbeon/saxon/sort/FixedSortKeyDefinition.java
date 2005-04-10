@@ -1,5 +1,6 @@
 package net.sf.saxon.sort;
 import net.sf.saxon.Configuration;
+import net.sf.saxon.ConversionContext;
 import net.sf.saxon.expr.CardinalityChecker;
 import net.sf.saxon.expr.RoleLocator;
 import net.sf.saxon.expr.StaticProperty;
@@ -46,10 +47,10 @@ public class FixedSortKeyDefinition extends SortKeyDefinition {
     }
 
     /**
-    * Allocate a resusable Comparer to implement this sort key comparison
+    * Allocate a reusable Comparer to implement this sort key comparison
     */
 
-    public void bindComparer() throws XPathException {
+    public void bindComparer(ConversionContext conversion) throws XPathException {
 
         String orderX = ((StringValue)order).getStringValue();
         String caseOrderX = ((StringValue)caseOrder).getStringValue();
@@ -74,7 +75,7 @@ public class FixedSortKeyDefinition extends SortKeyDefinition {
             RoleLocator role =
                 new RoleLocator(RoleLocator.INSTRUCTION, "xsl:sort/sort-key", 0, null);
             sortKey = new CardinalityChecker(sortKey, StaticProperty.ALLOWS_ZERO_OR_ONE, role);
-            comp = new AtomicSortComparer(comp);
+            comp = new AtomicSortComparer(comp, conversion);
         } else {
             String dataType = ((StringValue)dataTypeExpression).getStringValue();
             if (dataType.equals("text")) {
@@ -83,7 +84,7 @@ public class FixedSortKeyDefinition extends SortKeyDefinition {
                 comp = new NumericComparer();
             } else {
                 DynamicError err = new DynamicError("data-type on xsl:sort must be 'text' or 'number'");
-                err.setErrorCode("XT0030");
+                err.setErrorCode("XTDE0030");
                 throw err;
             }
         }
@@ -99,7 +100,7 @@ public class FixedSortKeyDefinition extends SortKeyDefinition {
             return new DescendingComparer(base);
         } else {
             DynamicError err = new DynamicError("order must be 'ascending' or 'descending'");
-            err.setErrorCode("XT0030");
+            err.setErrorCode("XTDE0030");
             throw err;
         }
     }
@@ -114,7 +115,7 @@ public class FixedSortKeyDefinition extends SortKeyDefinition {
             return new UppercaseFirstComparer(base);
         } else {
             DynamicError err = new DynamicError("case-order must be 'lower-first' or 'upper-first'");
-            err.setErrorCode("XT0030");
+            err.setErrorCode("XTDE0030");
             throw err;
         }
     }

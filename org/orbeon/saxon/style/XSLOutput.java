@@ -4,9 +4,9 @@ import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.*;
 import net.sf.saxon.trans.XPathException;
+import net.sf.saxon.trans.SaxonErrorCode;
 
 import javax.xml.transform.OutputKeys;
-import javax.xml.transform.TransformerConfigurationException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Properties;
@@ -42,7 +42,7 @@ public class XSLOutput extends StyleElement {
 
     //Emitter handler = null;
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 		AttributeCollection atts = getAttributeList();
 		String nameAtt = null;
 
@@ -108,9 +108,9 @@ public class XSLOutput extends StyleElement {
             try {
                 fingerprint = makeNameCode(nameAtt.trim()) & 0xfffff;
             } catch (NamespaceException err) {
-                compileError(err.getMessage(), "XT1570");
+                compileError(err.getMessage(), "XTSE1570");
             } catch (XPathException err) {
-                compileError(err.getMessage(), "XT1570");
+                compileError(err.getMessage(), "XTSE1570");
             }
         }
     }
@@ -124,7 +124,7 @@ public class XSLOutput extends StyleElement {
         return fingerprint;
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkTopLevel(null);
         checkEmpty();
     }
@@ -140,7 +140,7 @@ public class XSLOutput extends StyleElement {
     */
 
     protected void gatherOutputProperties(Properties details)
-    throws TransformerConfigurationException {
+    throws XPathException {
 
         if (method != null) {
             if (method.equals("xml") || method.equals("html") ||
@@ -152,16 +152,16 @@ public class XSLOutput extends StyleElement {
                     parts = Name.getQNameParts(method);
                     String prefix = parts[0];
                     if (prefix.equals("")) {
-                        compileError("method must be xml, html, xhtml, or text, or a prefixed name", "XT0020");
+                        compileError("method must be xml, html, xhtml, or text, or a prefixed name", "XTSE1570");
                     } else {
                         String uri = getURIForPrefix(prefix, false);
                         if (uri == null) {
-                            undeclaredNamespaceError(prefix, "XT0280");
+                            undeclaredNamespaceError(prefix, "XTSE0280");
                         }
                         details.put(OutputKeys.METHOD, '{' + uri + '}' + parts[1] );
                     }
                 } catch (QNameException e) {
-                    compileError("Invalid method name. " + e.getMessage(), "XT0020");
+                    compileError("Invalid method name. " + e.getMessage(), "XTSE1570");
                 }
             }
         }
@@ -170,7 +170,7 @@ public class XSLOutput extends StyleElement {
             if (byteOrderMark.equals("yes") || byteOrderMark.equals("no")) {
                 details.put(SaxonOutputKeys.BYTE_ORDER_MARK, byteOrderMark);
             } else {
-                compileError("byte-order-mark value must be 'yes' or 'no'", "XT0020");
+                compileError("byte-order-mark value must be 'yes' or 'no'", "XTSE0020");
             }
         }
 
@@ -182,7 +182,7 @@ public class XSLOutput extends StyleElement {
             if (indent.equals("yes") || indent.equals("no")) {
                 details.put(OutputKeys.INDENT, indent);
             } else {
-                compileError("indent value must be 'yes' or 'no'", "XT0020");
+                compileError("indent value must be 'yes' or 'no'", "XTSE0020");
             }
         }
 
@@ -192,7 +192,8 @@ public class XSLOutput extends StyleElement {
                 details.put(OutputKeys.INDENT, "yes");
                 details.put(SaxonOutputKeys.INDENT_SPACES, indentSpaces);
             } catch (NumberFormatException err) {
-                compileWarning("saxon:indent-spaces must be an integer. Using default value (3).");
+                compileWarning("saxon:indent-spaces must be an integer. Using default value (3).",
+                        SaxonErrorCode.SXWN9002);
             }
         }
 
@@ -216,7 +217,7 @@ public class XSLOutput extends StyleElement {
             if (omitDeclaration.equals("yes") || omitDeclaration.equals("no")) {
                 details.put(OutputKeys.OMIT_XML_DECLARATION, omitDeclaration);
             } else {
-                compileError("omit-xml-declaration attribute must be 'yes' or 'no'", "XT0020");
+                compileError("omit-xml-declaration attribute must be 'yes' or 'no'", "XTSE0020");
             }
         }
 
@@ -226,7 +227,7 @@ public class XSLOutput extends StyleElement {
             } else if (standalone.equals("omit")) {
                 // ignore
             } else {
-                compileError("standalone attribute must be 'yes' or 'no' or 'omit'", "XT0020");
+                compileError("standalone attribute must be 'yes' or 'no' or 'omit'", "XTSE0020");
             }
         }
 
@@ -243,11 +244,11 @@ public class XSLOutput extends StyleElement {
                     String[] parts = Name.getQNameParts(displayname);
                     String uri = getURIForPrefix(parts[0], true);
                     if (uri == null) {
-                        undeclaredNamespaceError(parts[0], "XT0280");
+                        undeclaredNamespaceError(parts[0], "XTSE0280");
                     }
                     s += " {" + uri + '}' + parts[1];
                 } catch (QNameException err) {
-                    compileError("Invalid CDATA element name. " + err.getMessage());
+                    compileError("Invalid CDATA element name. " + err.getMessage(), "XTSE0280");
                 }
 
                 details.put(OutputKeys.CDATA_SECTION_ELEMENTS, existing+s);
@@ -258,7 +259,7 @@ public class XSLOutput extends StyleElement {
             if (undeclareNamespaces.equals("yes") || undeclareNamespaces.equals("no")) {
                 details.put(SaxonOutputKeys.UNDECLARE_PREFIXES, undeclareNamespaces);
             } else {
-                compileError("undeclare-namespaces value must be 'yes' or 'no'", "XT0020");
+                compileError("undeclare-namespaces value must be 'yes' or 'no'", "XTSE0020");
             }
         }
 
@@ -275,7 +276,7 @@ public class XSLOutput extends StyleElement {
             if (includeContentType.equals("yes") || includeContentType.equals("no")) {
                 details.put(SaxonOutputKeys.INCLUDE_CONTENT_TYPE, includeContentType);
             } else {
-                compileError("include-content-type attribute must be 'yes' or 'no'", "XT0020");
+                compileError("include-content-type attribute must be 'yes' or 'no'", "XTSE0020");
             }
         }
 
@@ -283,7 +284,7 @@ public class XSLOutput extends StyleElement {
             if (escapeURIAttributes.equals("yes") || escapeURIAttributes.equals("no")) {
                 details.put(SaxonOutputKeys.ESCAPE_URI_ATTRIBUTES, escapeURIAttributes);
             } else {
-                compileError("escape-uri-attributes value must be 'yes' or 'no'", "XT0020");
+                compileError("escape-uri-attributes value must be 'yes' or 'no'", "XTSE0020");
             }
         }
 
@@ -296,7 +297,8 @@ public class XSLOutput extends StyleElement {
             if (requireWellFormed.equals("yes") || requireWellFormed.equals("no")) {
                 details.put(SaxonOutputKeys.REQUIRE_WELL_FORMED, requireWellFormed);
             } else {
-                compileWarning("saxon:require-well-formed value must be 'yes' or 'no' (treated as no)");
+                compileWarning("saxon:require-well-formed value must be 'yes' or 'no' (treated as no)",
+                        SaxonErrorCode.SXWN9003);
             }
         }
 
@@ -316,12 +318,12 @@ public class XSLOutput extends StyleElement {
     /**
      * Process the use-character-maps attribute
      * @param details The output details to received the processed value
-     * @throws TransformerConfigurationException if the value is invalid
+     * @throws XPathException if the value is invalid
      */
     public static String prepareCharacterMaps(StyleElement element,
                                             String useCharacterMaps,
                                             Properties details)
-            throws TransformerConfigurationException {
+            throws XPathException {
         XSLStylesheet principal = element.getPrincipalStylesheet();
         String existing = details.getProperty(SaxonOutputKeys.USE_CHARACTER_MAPS);
         if (existing==null) {
@@ -341,11 +343,11 @@ public class XSLOutput extends StyleElement {
                 XSLCharacterMap ref =
                         principal.getCharacterMap(nameCode & 0xfffff);
                 if (ref == null) {
-                    element.compileError("No character-map named '" + displayname + "' has been defined", "XT1590");
+                    element.compileError("No character-map named '" + displayname + "' has been defined", "XTSE1590");
                 }
                 s += " {" + uri + '}' + parts[1];
             } catch (QNameException err) {
-                element.compileError("Invalid character-map name. " + err.getMessage());
+                element.compileError("Invalid character-map name. " + err.getMessage(), "XTSE1590");
             }
             existing += s;
         }

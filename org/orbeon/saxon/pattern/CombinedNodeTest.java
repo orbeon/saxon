@@ -5,6 +5,7 @@ import net.sf.saxon.om.NodeInfo;
 import net.sf.saxon.type.AnyType;
 import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.type.Type;
+import net.sf.saxon.type.ItemType;
 
 import java.util.Set;
 import java.util.HashSet;
@@ -100,15 +101,40 @@ public class CombinedNodeTest extends NodeTest {
     }
 
     /**
+     * Get the supertype of this type. This isn't actually a well-defined concept: the types
+     * form a lattice rather than a strict hierarchy.
+     */
+
+    public ItemType getSuperType() {
+        switch (operator) {
+            case Token.UNION:
+                return Type.getCommonSuperType(nodetest1, nodetest2);
+            case Token.INTERSECT:
+                return nodetest1;
+            case Token.EXCEPT:
+                return nodetest1;
+            default:
+                throw new IllegalArgumentException("Unknown operator in Combined Node Test");
+        }
+    }
+
+    /**
      * Get a mask indicating which kinds of nodes this NodeTest can match. This is a combination
      * of bits: 1<<Type.ELEMENT for element nodes, 1<<Type.TEXT for text nodes, and so on.
      */
 
     public int getNodeKindMask() {
-//        if (operator == Token.INTERSECT) {
-//
-//        }
-        return nodetest1.getNodeKindMask() & nodetest2.getNodeKindMask();
+        switch (operator) {
+            case Token.UNION:
+                return nodetest1.getNodeKindMask() | nodetest2.getNodeKindMask();
+            case Token.INTERSECT:
+                return nodetest1.getNodeKindMask() & nodetest2.getNodeKindMask();
+            case Token.EXCEPT:
+                return nodetest1.getNodeKindMask();
+            default:
+                return 0;
+        }
+
     }
 
     /**

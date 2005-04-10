@@ -134,6 +134,10 @@ public abstract class StandardFunction {
         e = register("ceiling", Rounding.class, Rounding.CEILING, 1, 1, SAME_AS_FIRST_ARGUMENT, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.NUMBER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
+        e = register("codepoint-equal", CodepointEqual.class, 0, 2, 2, Type.BOOLEAN_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+            arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+            arg(e, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);   
+
         e = register("codepoints-to-string", Unicode.class, Unicode.FROM_CODEPOINTS, 1, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
 
@@ -178,10 +182,6 @@ public abstract class StandardFunction {
         e = register("day-from-dateTime", Component.class, (Component.DAY<<16) + Type.DATE_TIME, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.DATE_TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
-        // TODO: obsolete name, delete this function at some stage
-        e = register("days-from-dayTimeDuration", Component.class, (Component.DAY<<16) + Type.DAY_TIME_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
         e = register("days-from-duration", Component.class, (Component.DAY<<16) + Type.DAY_TIME_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
                     arg(e, 0, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
@@ -196,7 +196,10 @@ public abstract class StandardFunction {
             arg(e, 0, Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
             arg(e, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
 
-        e = register("doc", Doc.class, 0, 1, 1, NodeKindTest.DOCUMENT, StaticProperty.ALLOWS_ZERO_OR_ONE);
+        e = register("doc", Doc.class, Doc.DOC, 1, 1, NodeKindTest.DOCUMENT, StaticProperty.ALLOWS_ZERO_OR_ONE);
+            arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+
+        e = register("doc-available", Doc.class, Doc.DOC_AVAILABLE, 1, 1, Type.BOOLEAN_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
         e = register("document", Document.class, 0, 1, 2, Type.NODE_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
@@ -285,90 +288,8 @@ public abstract class StandardFunction {
         e = register("generate-id", NamePart.class, NamePart.GENERATE_ID, 0, 1, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
             arg(e, 0, Type.NODE_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
-        // TODO: the versions of the following functions currently support both the old and the new names
-
-        e = register("get-year-from-dateTime", Component.class, (Component.YEAR<<16) + Type.DATE_TIME, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.DATE_TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-month-from-dateTime", Component.class, (Component.MONTH<<16) + Type.DATE_TIME, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.DATE_TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-day-from-dateTime", Component.class, (Component.DAY<<16) + Type.DATE_TIME, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.DATE_TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-hours-from-dateTime", Component.class, (Component.HOURS<<16) + Type.DATE_TIME, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.DATE_TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-minutes-from-dateTime", Component.class, (Component.MINUTES<<16) + Type.DATE_TIME, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.DATE_TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-seconds-from-dateTime", Component.class, (Component.SECONDS<<16) + Type.DATE_TIME, 1, 1, Type.DECIMAL_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.DATE_TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-timezone-from-dateTime", Component.class, (Component.TIMEZONE<<16) + Type.DATE_TIME, 1, 1, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.DATE_TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-year-from-date", Component.class, (Component.YEAR<<16) + Type.DATE, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.DATE_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-month-from-date", Component.class, (Component.MONTH<<16) + Type.DATE, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.DATE_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-day-from-date", Component.class, (Component.DAY<<16) + Type.DATE, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.DATE_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-timezone-from-date", Component.class, (Component.TIMEZONE<<16) + Type.DATE, 1, 1, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.DATE_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-hours-from-time", Component.class, (Component.HOURS<<16) + Type.TIME, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-minutes-from-time", Component.class, (Component.MINUTES<<16) + Type.TIME, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-seconds-from-time", Component.class, (Component.SECONDS<<16) + Type.TIME, 1, 1, Type.DECIMAL_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-timezone-from-time", Component.class, (Component.TIMEZONE<<16) + Type.TIME, 1, 1, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-years-from-yearMonthDuration", Component.class, (Component.YEAR<<16) + Type.YEAR_MONTH_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.YEAR_MONTH_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-months-from-yearMonthDuration", Component.class, (Component.MONTH<<16) + Type.YEAR_MONTH_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.YEAR_MONTH_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-days-from-dayTimeDuration", Component.class, (Component.DAY<<16) + Type.DAY_TIME_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-hours-from-dayTimeDuration", Component.class, (Component.HOURS<<16) + Type.DAY_TIME_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-minutes-from-dayTimeDuration", Component.class, (Component.MINUTES<<16) + Type.DAY_TIME_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-seconds-from-dayTimeDuration", Component.class, (Component.SECONDS<<16) + Type.DAY_TIME_DURATION, 1, 1, Type.DECIMAL_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-local-name-from-QName", Component.class, (Component.LOCALNAME<<16) + Type.QNAME, 1, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.QNAME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-namespace-from-QName", Component.class, (Component.NAMESPACE<<16) + Type.QNAME, 1, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.QNAME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        e = register("get-in-scope-prefixes", InScopePrefixes.class, 0, 1, 1, Type.STRING_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
-            arg(e, 0, NodeKindTest.ELEMENT, StaticProperty.EXACTLY_ONE);
-
-        e = register("get-namespace-uri-for-prefix", NamespaceForPrefix.class, 0, 2, 2, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
-            arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
-            arg(e, 1, NodeKindTest.ELEMENT, StaticProperty.EXACTLY_ONE);
-
         e = register("hours-from-dateTime", Component.class, (Component.HOURS<<16) + Type.DATE_TIME, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.DATE_TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        // TODO: delete this obsolete name
-        e = register("hours-from-dayTimeDuration", Component.class, (Component.HOURS<<16) + Type.DAY_TIME_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
         e = register("hours-from-duration", Component.class, (Component.HOURS<<16) + Type.DAY_TIME_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
                     arg(e, 0, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
@@ -434,10 +355,6 @@ public abstract class StandardFunction {
 
         e = register("minutes-from-dateTime", Component.class, (Component.MINUTES<<16) + Type.DATE_TIME, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.DATE_TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        // TODO: delete this obsolete synonym
-        e = register("minutes-from-dayTimeDuration", Component.class, (Component.MINUTES<<16) + Type.DAY_TIME_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-                    arg(e, 0, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
         e = register("minutes-from-duration", Component.class, (Component.MINUTES<<16) + Type.DAY_TIME_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
@@ -536,10 +453,6 @@ public abstract class StandardFunction {
 
         e = register("seconds-from-dateTime", Component.class, (Component.SECONDS<<16) + Type.DATE_TIME, 1, 1, Type.DECIMAL_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.DATE_TIME_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
-        // TODO: remove obsolete synonym
-        e = register("seconds-from-dayTimeDuration", Component.class, (Component.SECONDS<<16) + Type.DAY_TIME_DURATION, 1, 1, Type.DECIMAL_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
         e = register("seconds-from-duration", Component.class, (Component.SECONDS<<16) + Type.DAY_TIME_DURATION, 1, 1, Type.DECIMAL_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
                     arg(e, 0, Type.DAY_TIME_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
@@ -657,10 +570,6 @@ public abstract class StandardFunction {
         e = register("years-from-duration", Component.class, (Component.YEAR<<16) + Type.YEAR_MONTH_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.YEAR_MONTH_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
-        // TODO: delete obsolete signature
-        e = register("years-from-yearMonthDuration", Component.class, (Component.YEAR<<16) + Type.YEAR_MONTH_DURATION, 1, 1, Type.INTEGER_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            arg(e, 0, Type.YEAR_MONTH_DURATION_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-
         e = register("zero-or-one", TreatFn.class, StaticProperty.ALLOWS_ZERO_OR_ONE, 1, 1, SAME_AS_FIRST_ARGUMENT, StaticProperty.ALLOWS_ZERO_OR_ONE);
             arg(e, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
                 // because we don't do draconian static type checking, we can do the work in the argument type checking code
@@ -737,7 +646,7 @@ public abstract class StandardFunction {
 //
 // The Original Code is: all this file.
 //
-// The Initial Developer of the Original Code is Michael Kay 
+// The Initial Developer of the Original Code is Michael Kay
 //
 // Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
 //

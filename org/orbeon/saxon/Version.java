@@ -6,9 +6,9 @@ package net.sf.saxon;
 
 public final class Version {
 
-    private static final String VERSION = "8.3";
-    private static final String BUILD = "020623";
-    private static final String RELEASE_DATE = "2005-02-11";
+    private static final String VERSION = "8.4";
+    private static final String BUILD = "040514"; //mmddhh
+    private static final String RELEASE_DATE = "2005-04-05";
 
     private Version() {
         // class is never instantiated

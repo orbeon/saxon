@@ -3,16 +3,12 @@ import net.sf.saxon.Configuration;
 import net.sf.saxon.Err;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.instruct.AttributeSet;
-import net.sf.saxon.instruct.Element;
-import net.sf.saxon.instruct.Executable;
-import net.sf.saxon.instruct.FixedElement;
+import net.sf.saxon.instruct.*;
 import net.sf.saxon.om.*;
+import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.SchemaType;
 import net.sf.saxon.value.EmptySequence;
 import net.sf.saxon.value.StringValue;
-
-import javax.xml.transform.TransformerConfigurationException;
 
 
 /**
@@ -47,7 +43,7 @@ public class XSLElement extends StyleElement {
         return true;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 
@@ -85,7 +81,7 @@ public class XSLElement extends StyleElement {
                 if (!Name.isQName(((StringValue)elementName).getStringValue())) {
                     compileError("Element name " +
                             Err.wrap(((StringValue)elementName).getStringValue(), Err.ELEMENT) +
-                            " is not a valid QName", "XT0820");
+                            " is not a valid QName", "XTDE0820");
                     // to prevent duplicate error messages:
                     elementName = new StringValue("saxon-error-element");
                 }
@@ -99,11 +95,11 @@ public class XSLElement extends StyleElement {
         if (validationAtt!=null) {
             validation = Validation.getCode(validationAtt);
             if (validation != Validation.STRIP && !getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("To perform validation, a schema-aware XSLT processor is needed", "XT1660");
+                compileError("To perform validation, a schema-aware XSLT processor is needed", "XTSE1660");
             }
             if (validation == Validation.INVALID) {
-                compileError("Invalid value for validation attribute. " +
-                             "Permitted values are (strict, lax, preserve, strip)", "XT0020");
+                compileError("Invalid value for @validation attribute. " +
+                             "Permitted values are (strict, lax, preserve, strip)", "XTSE0020");
             }
         } else {
             validation = getContainingStylesheet().getDefaultValidation();
@@ -111,13 +107,13 @@ public class XSLElement extends StyleElement {
 
         if (typeAtt!=null) {
             if (!getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("The type attribute is available only with a schema-aware XSLT processor", "XT1660");
+                compileError("The @type attribute is available only with a schema-aware XSLT processor", "XTSE1660");
             }
             schemaType = getSchemaType(typeAtt);
         }
 
         if (typeAtt != null && validationAtt != null) {
-            compileError("The validation and type attributes are mutually exclusive", "XT1505");
+            compileError("The @validation and @type attributes are mutually exclusive", "XTSE1505");
         }
 
         if (inheritAtt != null) {
@@ -126,12 +122,12 @@ public class XSLElement extends StyleElement {
             } else if (inheritAtt.equals("no")) {
                 inheritNamespaces = false;
             } else {
-                compileError("The inherit-namespaces attribute has permitted values (yes, no)", "XT0020");
+                compileError("The @inherit-namespaces attribute has permitted values (yes, no)", "XTSE0020");
             }
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
         if (use!=null) {
             attributeSets = getAttributeSets(use, null);        // find any referenced attribute sets
@@ -140,7 +136,7 @@ public class XSLElement extends StyleElement {
         namespace = typeCheck("namespace", namespace);
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
 
         NamespaceResolver nsContext = null;
 
@@ -153,7 +149,7 @@ public class XSLElement extends StyleElement {
             try {
                 parts = Name.getQNameParts(qName);
             } catch (QNameException e) {
-                compileError("Invalid element name: " + qName);
+                compileError("Invalid element name: " + qName, "XTDE0820");
                 return null;
             }
 
@@ -166,22 +162,30 @@ public class XSLElement extends StyleElement {
             } else if (namespace==null) {
                 nsuri = getURIForPrefix(parts[0], true);
                 if (nsuri == null) {
-                    undeclaredNamespaceError(parts[0], "XT0280");
+                    undeclaredNamespaceError(parts[0], "XTDE0280");
                 }
             }
             if (nsuri != null) {
                 int nameCode = getTargetNamePool().allocate(parts[0], nsuri, parts[1]);
                 FixedElement inst = new FixedElement(nameCode,
                                                      null,
-                                                     attributeSets,
-                                                     inheritNamespaces,
+                        inheritNamespaces,
                                                      schemaType,
                                                      validation);
-                Expression b = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
-                if (b == null) {
-                    b = EmptySequence.getInstance();
+                Expression content = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+
+                if (attributeSets != null) {
+                    UseAttributeSets use = new UseAttributeSets(attributeSets);
+                    if (content == null) {
+                        content = use;
+                    } else {
+                        content = Block.makeBlock(use, content);
+                    }
                 }
-                inst.setContent(b);
+                if (content == null) {
+                    content = EmptySequence.getInstance();
+                }
+                inst.setContentExpression(content);
                 ExpressionTool.makeParentReferences(inst);
                 return inst;
             }
@@ -194,18 +198,18 @@ public class XSLElement extends StyleElement {
             }
         }
 
-        Element inst = new Element( elementName,
-                                    namespace,
-                                    nsContext,
-                                    attributeSets,
-                                    schemaType,
-                                    validation,
-                                    inheritNamespaces);
+        ComputedElement inst = new ComputedElement( elementName,
+                                                    namespace,
+                                                    nsContext,
+                                                    schemaType,
+                                                    validation,
+                                                    inheritNamespaces,
+                                                    false);
         Expression b = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
         if (b == null) {
             b = EmptySequence.getInstance();
         }
-        inst.setContent(b);
+        inst.setContentExpression(b);
         ExpressionTool.makeParentReferences(inst);
         return inst;
     }

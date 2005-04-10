@@ -120,24 +120,33 @@ public final class Atomizer extends UnaryExpression {
     }
 
     /**
-    * Implement the mapping function
+    * Implement the mapping function. This is stateless, so there is a singleton instance.
     */
 
     public static class AtomizingFunction implements MappingFunction {
 
+        /**
+         * Private constructor, ensuring that everyone uses the singleton instance
+         */
+
         private AtomizingFunction(){};
 
         private static final AtomizingFunction theInstance = new AtomizingFunction();
+
+        /**
+         * Get the singleton instance
+         * @return the singleton instance of this mapping function
+         */
 
         public static AtomizingFunction getInstance() {
             return theInstance;
         }
 
         public static SequenceIterator getAtomizingIterator(SequenceIterator base) {
-            return new MappingIterator(base, theInstance, null, null);
+            return new MappingIterator(base, theInstance, null);
         }
 
-        public Object map(Item item, XPathContext context, Object info) throws XPathException {
+        public Object map(Item item, XPathContext context) throws XPathException {
             if (item instanceof NodeInfo) {
                 return item.getTypedValue();
             } else {
@@ -153,6 +162,17 @@ public final class Atomizer extends UnaryExpression {
     */
 
 	public ItemType getItemType() {
+        return getAtomizedItemType(operand, untyped);
+    }
+
+    /**
+     * Compute the type that will result from atomizing the result of a given expression
+     * @param operand the given expression
+     * @param alwaysUntyped true if it is known that nodes will always be untyped
+     * @return the item type of the result of evaluating the operand expression, after atomization
+     */
+
+    public static final ItemType getAtomizedItemType(Expression operand, boolean alwaysUntyped) {
         ItemType in = operand.getItemType();
         if (in instanceof AtomicType) {
             return in;
@@ -162,14 +182,16 @@ public final class Atomizer extends UnaryExpression {
             if (in instanceof NoNodeTest) {
                 return in;
             }
-            // Some node-kinds always have a typed value that's a string
             int kinds = ((NodeTest)in).getNodeKindMask();
-            if ((kinds | STRING_KINDS) == STRING_KINDS) {
-                return Type.STRING_TYPE;
-            }
-            // Some node-kinds are always untyped atomic; some are untypedAtomic provided that the configuration
-            // is untyped
-            if (untyped) {
+            if (alwaysUntyped) {
+                // Some node-kinds always have a typed value that's a string
+
+                if ((kinds | STRING_KINDS) == STRING_KINDS) {
+                    return Type.STRING_TYPE;
+                }
+                // Some node-kinds are always untyped atomic; some are untypedAtomic provided that the configuration
+                // is untyped
+
                 if ((kinds | UNTYPED_IF_UNTYPED_KINDS) == UNTYPED_IF_UNTYPED_KINDS) {
                     return Type.UNTYPED_ATOMIC_TYPE;
                 }

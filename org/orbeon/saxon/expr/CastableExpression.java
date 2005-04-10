@@ -49,6 +49,7 @@ public final class CastableExpression extends UnaryExpression {
                                              : StaticProperty.EXACTLY_ONE));
 
         RoleLocator role = new RoleLocator(RoleLocator.TYPE_OP, "castable as", 0, null);
+        role.setSourceLocator(this);
         operand = TypeChecker.staticTypeCheck(operand, atomicType, false, role, env);
 
         if (operand instanceof AtomicValue) {
@@ -104,16 +105,16 @@ public final class CastableExpression extends UnaryExpression {
                 return allowEmpty;
             }
             if (targetType instanceof BuiltInAtomicType) {
-                return !(value.convert(targetType, context, true) instanceof ErrorValue);
+                return !(value.convert(targetType, context, true) instanceof ValidationErrorValue);
             } else {
                 AtomicValue prim =
                     value.convert((AtomicType)targetType.getBuiltInBaseType(), context, true);
-                if (prim instanceof ErrorValue) {
+                if (prim instanceof ValidationErrorValue) {
                     return false;
                 }
                 AtomicValue val =
                     targetType.makeDerivedValue(prim, prim.getStringValueCS(), true);
-                return !(val instanceof ErrorValue);
+                return !(val instanceof ValidationErrorValue);
             }
         } catch (XPathException err) {
             return false;

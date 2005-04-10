@@ -1,6 +1,5 @@
 package net.sf.saxon.value;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.functions.CurrentDateTime;
+import net.sf.saxon.ConversionContext;
 import net.sf.saxon.trans.XPathException;
 
 import java.util.GregorianCalendar;
@@ -25,16 +24,23 @@ public abstract class CalendarValue extends AtomicValue implements Comparable {
      * Determine the difference between two points in time, as a duration
      * @param other the other point in time
      * @param context the dynamic context, used to obtain timezone information. May be set to null
-     * only if both values contain an explicit timezone.
+     * only if both values contain an explicit timezone, or if neither does so.
      * @return the duration as an xdt:dayTimeDuration
      * @throws net.sf.saxon.trans.XPathException for example if one value is a date and the other is a time
      */
 
-    public SecondsDurationValue subtract(CalendarValue other, XPathContext context) throws XPathException {
-        CalendarValue v1 =
-                (zoneSpecified ? this : setTimezone(CurrentDateTime.getImplicitTimezone(context)));
-        CalendarValue v2 =
-                (other.zoneSpecified ? other : other.setTimezone(CurrentDateTime.getImplicitTimezone(context)));
+    public SecondsDurationValue subtract(CalendarValue other, ConversionContext context) throws XPathException {
+        CalendarValue v1 = this;
+        CalendarValue v2 = other;
+        if (v1.zoneSpecified != v2.zoneSpecified) {
+            SecondsDurationValue tz = SecondsDurationValue.fromMilliseconds(context.getImplicitTimezone() * 60000);
+            if (!v1.zoneSpecified) {
+                v1 = v1.setTimezone(tz);
+            }
+            if (!v2.zoneSpecified) {
+                v2 = v2.setTimezone(tz);
+            }
+        }
         long t1 = v1.calendar.getTimeInMillis();
         long t2 = v2.calendar.getTimeInMillis();
         long diff = (t1 - t2);
@@ -58,6 +64,13 @@ public abstract class CalendarValue extends AtomicValue implements Comparable {
      */
 
     public abstract CalendarValue setTimezone(SecondsDurationValue tz) throws XPathException;
+
+    /**
+     * Compare this value to another value of the same type, using the supplied ConversionContext
+     * to get the implicit timezone if required.
+     */
+
+    public abstract int compareTo(CalendarValue other, ConversionContext conversion);
 }
 
 //

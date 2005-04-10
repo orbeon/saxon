@@ -43,13 +43,12 @@ public class XPathContextMajor extends XPathContextMinor {
 
     /**
     * Constructor for use in free-standing Java applications.
-    * Must be used with care, since functions dependent on a Controller
-    * will not be available.
     */
 
     public XPathContextMajor(Item item, Configuration config) {
-        controller = new Controller(config);
-        controller.setExecutable(new Executable());
+        Executable exec = new Executable();
+        exec.setHostLanguage(Configuration.JAVA_APPLICATION);
+        controller = new Controller(config, exec);
         AxisIterator iter = SingletonIterator.makeIterator(item);
         iter.next();
         currentIterator = iter;

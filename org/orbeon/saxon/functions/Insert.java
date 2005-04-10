@@ -67,6 +67,8 @@ public class Insert extends SystemFunction {
                 }
             }
             if (nextItem == null) {
+                current = null;
+                position = -1;
                 return null;
             } else {
                 current = nextItem;

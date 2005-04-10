@@ -1,20 +1,18 @@
 package net.sf.saxon.sql;
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.RoleLocator;
-import net.sf.saxon.expr.TypeChecker;
-import net.sf.saxon.expr.XPathContext;
+import net.sf.saxon.expr.*;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.instruct.GeneralVariable;
 import net.sf.saxon.instruct.InstructionDetails;
 import net.sf.saxon.instruct.TailCall;
-import net.sf.saxon.om.*;
+import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.om.Name;
+import net.sf.saxon.om.Navigator;
+import net.sf.saxon.om.ValueRepresentation;
 import net.sf.saxon.style.XSLGeneralVariable;
 import net.sf.saxon.trace.InstructionInfo;
 import net.sf.saxon.trace.Location;
 import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.value.SequenceType;
-
-import javax.xml.transform.TransformerConfigurationException;
 
 
 /**
@@ -41,7 +39,7 @@ public class SQLColumn extends XSLGeneralVariable {
         return false;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
         getVariableFingerprint();
 
@@ -74,7 +72,7 @@ public class SQLColumn extends XSLGeneralVariable {
     }
 
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         if (!(getParent() instanceof SQLInsert)) {
             compileError("parent node must be sql:insert");
         }
@@ -82,6 +80,7 @@ public class SQLColumn extends XSLGeneralVariable {
         try {
             RoleLocator role =
                 new RoleLocator(RoleLocator.INSTRUCTION, "sql:column/select", 0, null);
+            role.setSourceLocator(new ExpressionLocation(this));
             select = TypeChecker.staticTypeCheck(select,
                         SequenceType.SINGLE_ATOMIC,
                         false, role, getStaticContext());
@@ -91,7 +90,7 @@ public class SQLColumn extends XSLGeneralVariable {
         }
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         ColumnInstruction inst = new ColumnInstruction();
         initializeInstruction(exec, inst);
         return inst;

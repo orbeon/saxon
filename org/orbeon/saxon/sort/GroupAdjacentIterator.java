@@ -46,7 +46,7 @@ public class GroupAdjacentIterator implements GroupIterator, LookaheadIterator {
         //runningContext.setOrigin(baseContext);
         runningContext.setCurrentIterator(population);
         this.collator = collator;
-        this.comparer = new AtomicSortComparer(collator);
+        this.comparer = new AtomicSortComparer(collator, baseContext);
         next = population.next();
         if (next != null) {
             nextKey = (AtomicValue)keyExpression.evaluateItem(runningContext);
@@ -99,6 +99,8 @@ public class GroupAdjacentIterator implements GroupIterator, LookaheadIterator {
 
     public Item next() throws XPathException {
         if (next == null) {
+            current = null;
+            position = -1;
             return null;
         }
         current = next;

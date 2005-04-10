@@ -11,8 +11,6 @@ import net.sf.saxon.trans.XPathException;
 import net.sf.saxon.type.ItemType;
 import net.sf.saxon.value.EmptySequence;
 
-import javax.xml.transform.TransformerConfigurationException;
-
 
 /**
 * Handler for xsl:for-each elements in stylesheet. <br>
@@ -58,7 +56,7 @@ public class XSLForEach extends StyleElement {
         return true;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 
@@ -82,13 +80,13 @@ public class XSLForEach extends StyleElement {
 
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
         checkSortComesFirst(false);
         select = typeCheck("select", select);
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         SortKeyDefinition[] sortKeys = makeSortKeys();
         Expression sortedSequence = select;
         if (sortKeys != null) {

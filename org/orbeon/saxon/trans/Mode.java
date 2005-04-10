@@ -546,20 +546,28 @@ public class Mode implements Serializable {
         if (r1.object == r2.object) {
             return;
         }
-        Pattern pat1 = r1.pattern;
-        Pattern pat2 = r2.pattern;
-
         String path;
+        String errorCode = "XTRE0540";
+
         if (isStripper) {
+            // don't report an error if the conflict is between strip-space and strip-space, or
+            // preserve-space and preserve-space
+            if (r1.object.equals(r2.object)) {
+                return;
+            }
+            errorCode = "XTRE0270";
             path = "xsl:strip-space";
         } else {
             path = Navigator.getPath(node);
         }
 
+        Pattern pat1 = r1.pattern;
+        Pattern pat2 = r2.pattern;
+
         DynamicError err = new DynamicError("Ambiguous rule match for " + path + '\n' +
                 "Matches both \"" + pat1 + "\" on line " + pat1.getLineNumber() + " of " + pat1.getSystemId() +
                 "\nand \"" + pat2 + "\" on line " + pat2.getLineNumber() + " of " + pat2.getSystemId());
-        err.setErrorCode((isStripper ? "XT0270" : "XT0540"));
+        err.setErrorCode(errorCode);
         err.setLocator(c.getOrigin().getInstructionInfo());
         c.getController().recoverableError(err);
     }

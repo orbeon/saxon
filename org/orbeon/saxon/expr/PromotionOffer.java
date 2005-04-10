@@ -174,7 +174,7 @@ public class PromotionOffer  {
         Container container = containingExpression.getParentExpression();
         LetExpression let = new LetExpression();
         let.setVariableDeclaration(decl);
-        let.setSequence(child);
+        let.setSequence(new LazyExpression(child));
         let.setAction(containingExpression);
         let.setParentExpression(container);
         let.adoptChildExpression(containingExpression);

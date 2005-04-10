@@ -1,8 +1,8 @@
 package net.sf.saxon.style;
-import net.sf.saxon.Loader;
 import net.sf.saxon.expr.Expression;
 import net.sf.saxon.instruct.Executable;
 import net.sf.saxon.om.AttributeCollection;
+import net.sf.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
@@ -21,7 +21,7 @@ public class SaxonScript extends StyleElement {
     private String implementsURI = null;
     private String language = null;
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 
 	    String languageAtt = null;
 	    String implementsAtt = null;
@@ -74,7 +74,7 @@ public class SaxonScript extends StyleElement {
 
             if (archiveAtt==null) {
                 try {
-                    javaClass = Loader.getClass(className, false);
+                    javaClass = getConfiguration().getClass(className, false, null);
                 } catch (TransformerException err) {
                     compileError(err);
                     return;
@@ -121,11 +121,11 @@ public class SaxonScript extends StyleElement {
         getPrincipalStylesheet().declareJavaClass(implementsURI, javaClass);
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkTopLevel(null);
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         return null;
     }
 
