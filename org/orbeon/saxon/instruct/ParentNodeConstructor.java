@@ -1,10 +1,10 @@
-package net.sf.saxon.instruct;
+package org.orbeon.saxon.instruct;
 
-import net.sf.saxon.expr.*;
-import net.sf.saxon.trans.XPathException;
-import net.sf.saxon.type.ItemType;
-import net.sf.saxon.type.SchemaType;
-import net.sf.saxon.om.Validation;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.om.Validation;
 
 import java.util.Iterator;
 

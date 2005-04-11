@@ -1,13 +1,13 @@
-package net.sf.saxon.instruct;
+package org.orbeon.saxon.instruct;
 
-import net.sf.saxon.expr.Expression;
-import net.sf.saxon.expr.ExpressionTool;
-import net.sf.saxon.expr.StaticContext;
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.om.NamePool;
-import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.trans.XPathException;
-import net.sf.saxon.type.ItemType;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.ItemType;
 
 import java.io.PrintStream;
 

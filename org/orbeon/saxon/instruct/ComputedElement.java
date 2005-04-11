@@ -1,20 +1,20 @@
-package net.sf.saxon.instruct;
+package org.orbeon.saxon.instruct;
 
-import net.sf.saxon.Configuration;
-import net.sf.saxon.Controller;
-import net.sf.saxon.event.Receiver;
-import net.sf.saxon.expr.*;
-import net.sf.saxon.om.*;
-import net.sf.saxon.pattern.ContentTypeTest;
-import net.sf.saxon.pattern.NodeKindTest;
-import net.sf.saxon.style.StandardNames;
-import net.sf.saxon.trans.DynamicError;
-import net.sf.saxon.trans.StaticError;
-import net.sf.saxon.trans.XPathException;
-import net.sf.saxon.type.*;
-import net.sf.saxon.value.QNameValue;
-import net.sf.saxon.value.SequenceType;
-import net.sf.saxon.value.StringValue;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.ContentTypeTest;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.*;
+import org.orbeon.saxon.value.QNameValue;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.StringValue;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
