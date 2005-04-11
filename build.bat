@@ -1,7 +1,7 @@
 
 @setlocal enabledelayedexpansion
 
-@set this_fqn=%~f0
+@set this_fqn=%~fs0
 
 @for %%i in ( %this_fqn% ) do set bld_dir=%%~dp%i
 
