@@ -1,6 +1,6 @@
-package net.sf.saxon.pull;
-import net.sf.saxon.om.*;
-import net.sf.saxon.trans.XPathException;
+package org.orbeon.saxon.pull;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.trans.XPathException;
 
 import java.util.ArrayList;
 import java.util.Iterator;

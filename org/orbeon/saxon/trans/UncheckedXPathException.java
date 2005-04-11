@@ -1,4 +1,4 @@
-package net.sf.saxon.trans;
+package org.orbeon.saxon.trans;
 
 /**
  * When tree construction is deferred, innocuous methods such as NodeInfo#getLocalName() may

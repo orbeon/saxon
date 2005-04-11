@@ -1,10 +1,10 @@
-package net.sf.saxon.pull;
+package org.orbeon.saxon.pull;
 
-import net.sf.saxon.expr.XPathContext;
-import net.sf.saxon.instruct.DocumentInstr;
-import net.sf.saxon.om.DocumentInfo;
-import net.sf.saxon.om.NodeInfo;
-import net.sf.saxon.type.Type;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.instruct.DocumentInstr;
+import org.orbeon.saxon.om.DocumentInfo;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.type.Type;
 
 /**
  * A document node whose construction is deferred.

@@ -1,6 +1,6 @@
-package net.sf.saxon.pull;
+package org.orbeon.saxon.pull;
 
-import net.sf.saxon.trans.XPathException;
+import org.orbeon.saxon.trans.XPathException;
 
 /**
  * This is a filter that can be added to a pull pipeline to remove START_DOCUMENT and END_DOCUMENT
