@@ -101,6 +101,20 @@ public class ExecutableFunctionLibrary implements FunctionLibrary {
         return fc;
     }
 
+    /**
+     * This method creates a copy of a FunctionLibrary: if the original FunctionLibrary allows
+     * new functions to be added, then additions to this copy will not affect the original, or
+     * vice versa.
+     *
+     * @return a copy of this function library. This must be an instance of the original class.
+     */
+
+    public FunctionLibrary copy() {
+        ExecutableFunctionLibrary efl = new ExecutableFunctionLibrary(config);
+        efl.functions = new HashMap(functions);
+        return efl;
+    }
+
 }
 
 //

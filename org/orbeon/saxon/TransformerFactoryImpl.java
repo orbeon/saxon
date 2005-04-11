@@ -16,6 +16,7 @@ import javax.xml.transform.sax.*;
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
 import java.io.StringReader;
+import java.util.List;
 
 
 /**
@@ -244,6 +245,12 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
 
     //======= CONFIGURATION METHODS =======
 
+    private static final String FEATURE_SECURE_PROCESSING =
+            //javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING;
+            "http://javax.xml.XMLConstants/feature/secure-processing";
+                    // Avoid reference to this JDK 1.5 constant
+
+
     /**
      * Look up the value of a feature.
      *
@@ -255,16 +262,30 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
     public boolean getFeature(String name) {
     	if (name.equals(SAXSource.FEATURE)) return true;
     	if (name.equals(SAXResult.FEATURE)) return true;
-    	if (name.equals(DOMSource.FEATURE)) return true;
-    	if (name.equals(DOMResult.FEATURE)) return true;
+    	if (name.equals(DOMSource.FEATURE)) return isDOMAvailable();
+    	if (name.equals(DOMResult.FEATURE)) return isDOMAvailable();
     	if (name.equals(StreamSource.FEATURE)) return true;
     	if (name.equals(StreamResult.FEATURE)) return true;
         if (name.equals(SAXTransformerFactory.FEATURE)) return true;
         if (name.equals(SAXTransformerFactory.FEATURE_XMLFILTER)) return true;
-        if (name.equals(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING)) {
+        if (name.equals(FEATURE_SECURE_PROCESSING)) {
             return !config.isAllowExternalFunctions();
         }
     	throw new IllegalArgumentException("Unknown feature " + name);
+    }
+
+    /**
+     * Test whether DOM processing is available
+     */
+
+    private boolean isDOMAvailable() {
+        List models = config.getExternalObjectModels();
+        for (int i=0; i<models.size(); i++) {
+            if (models.get(i).getClass().getName().equals("net.sf.saxon.dom.DOMObjectModel")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -589,7 +610,7 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
      * It is possible for an <code>TransformerFactory</code> to expose a feature value but be unable to change its state.
      * </p>
      * <p/>
-     * <p>All implementations are required to support the {@link javax.xml.XMLConstants#FEATURE_SECURE_PROCESSING} feature.
+     * <p>All implementations are required to support the FEATURE_SECURE_PROCESSING feature.
      * When the feature is:</p>
      * <ul>
      * <li>
@@ -617,7 +638,7 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
      */
 
     public void setFeature(String name, boolean value) throws TransformerConfigurationException {
-        if (name.equals(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING)) {
+        if (name.equals(FEATURE_SECURE_PROCESSING)) {
             config.setAllowExternalFunctions(!value);
         } else {
             throw new TransformerConfigurationException("Unsupported TransformerFactory feature: " + name);

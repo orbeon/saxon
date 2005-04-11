@@ -5,8 +5,6 @@ import org.orbeon.saxon.instruct.Assign;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.trans.XPathException;
 
-import javax.xml.transform.TransformerConfigurationException;
-
 /**
 * saxon:assign element in stylesheet.
 * The saxon:assign element has mandatory attribute name and optional attribute expr.
@@ -35,7 +33,7 @@ public class SaxonAssign extends XSLGeneralVariable  {
         return false;
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
         super.validate();
         try {
@@ -55,7 +53,7 @@ public class SaxonAssign extends XSLGeneralVariable  {
         }
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         initializeInstruction(exec, instruction);
         ExpressionTool.makeParentReferences(instruction);
         return instruction;

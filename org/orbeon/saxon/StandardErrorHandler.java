@@ -1,5 +1,7 @@
 package org.orbeon.saxon;
 
+import net.sf.saxon.trans.DynamicError;
+import net.sf.saxon.trans.SaxonErrorCode;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
 
@@ -82,8 +84,9 @@ public class StandardErrorHandler implements org.xml.sax.ErrorHandler, javax.xml
                 systemId = e.getSystemId();
                 lineNumber = e.getLineNumber();
                 columnNumber = e.getColumnNumber();
-                TransformerException err =
-                    new TransformerException("Error reported by XML parser", this, e);
+                DynamicError err =
+                    new DynamicError("Error reported by XML parser", this, e);
+                err.setErrorCode(SaxonErrorCode.SXXP0003);
                 if (isFatal) {
                     errorListener.fatalError(err);
                 } else {

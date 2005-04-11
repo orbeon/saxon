@@ -7,10 +7,9 @@ import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.om.Validation;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.value.EmptySequence;
-
-import javax.xml.transform.TransformerConfigurationException;
 
 /**
 * An xsl:document instruction in the stylesheet. <BR>
@@ -41,7 +40,7 @@ public class XSLDocument extends StyleElement {
         return true;
     }
 
-    public void prepareAttributes() throws TransformerConfigurationException {
+    public void prepareAttributes() throws XPathException {
 		AttributeCollection atts = getAttributeList();
 
         String validationAtt = null;
@@ -64,29 +63,29 @@ public class XSLDocument extends StyleElement {
         } else {
             validationAction = Validation.getCode(validationAtt);
             if (validationAction != Validation.STRIP && !getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("To perform validation, a schema-aware XSLT processor is needed", "XT1660");
+                compileError("To perform validation, a schema-aware XSLT processor is needed", "XTSE1660");
             }
             if (validationAction == Validation.INVALID) {
-                compileError("Invalid value of validation attribute", "XT0020");
+                compileError("Invalid value of @validation attribute", "XTSE0020");
             }
         }
         if (typeAtt!=null) {
             if (!getConfiguration().isSchemaAware(Configuration.XSLT)) {
-                compileError("The type attribute is available only with a schema-aware XSLT processor", "XT1660");
+                compileError("The @type attribute is available only with a schema-aware XSLT processor", "XTSE1660");
             }
             schemaType = getSchemaType(typeAtt);
         }
 
         if (typeAtt != null && validationAtt != null) {
-            compileError("The validation and type attributes are mutually exclusive", "XT1505");
+            compileError("The @validation and @type attributes are mutually exclusive", "XTSE1505");
         }
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         checkWithinTemplate();
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
 
         DocumentInstr inst = new DocumentInstr(false, null, getBaseURI());
         inst.setValidationAction(validationAction);
@@ -95,7 +94,7 @@ public class XSLDocument extends StyleElement {
         if (b == null) {
             b = EmptySequence.getInstance();
         }
-        inst.setContent(b);
+        inst.setContentExpression(b);
         ExpressionTool.makeParentReferences(inst);
         return inst;
     }

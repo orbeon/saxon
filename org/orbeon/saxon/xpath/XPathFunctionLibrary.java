@@ -29,11 +29,15 @@ public class XPathFunctionLibrary implements FunctionLibrary {
       * @param resolver The XPathFunctionResolver wrapped by this FunctionLibrary
       */
 
-
     public void setXPathFunctionResolver(XPathFunctionResolver resolver) {
         this.resolver = resolver;
     }
 
+    /**
+      * Get the resolver
+      * @return the XPathFunctionResolver wrapped by this FunctionLibrary
+      */
+    
     public XPathFunctionResolver getXPathFunctionResolver() {
         return resolver;
     }
@@ -71,6 +75,9 @@ public class XPathFunctionLibrary implements FunctionLibrary {
 
     public Expression bind(int nameCode, String uri, String local, Expression[] staticArgs)
             throws XPathException {
+        if (resolver == null) {
+            return null;
+        }
         QName name = new QName(uri, local);
         XPathFunction function = resolver.resolveFunction(name, staticArgs.length);
         if (function == null) {
@@ -81,6 +88,19 @@ public class XPathFunctionLibrary implements FunctionLibrary {
         return fc;
     }
 
+    /**
+     * This method creates a copy of a FunctionLibrary: if the original FunctionLibrary allows
+     * new functions to be added, then additions to this copy will not affect the original, or
+     * vice versa.
+     *
+     * @return a copy of this function library. This must be an instance of the original class.
+     */
+
+    public FunctionLibrary copy() {
+        XPathFunctionLibrary xfl = new XPathFunctionLibrary();
+        xfl.resolver = resolver;
+        return xfl;
+    }
 
 
 }

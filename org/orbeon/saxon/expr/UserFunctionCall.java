@@ -6,18 +6,17 @@ import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trace.InstructionInfo;
 import org.orbeon.saxon.trace.InstructionInfoProvider;
 import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AnyItemType;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.value.EmptySequence;
-import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.value.*;
 
 import java.io.PrintStream;
 
 
 /**
-* This class represents a call to a function defined in the stylesheet or query.
+ * This class represents a call to a function defined in the stylesheet or query.
  * It is used for all user-defined functions in XQuery, and for a limited class of
  * user-defined functions in XSLT: those that can be reduced to the evaluation
  * of a single expression.
@@ -63,6 +62,7 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
         for (int i=0; i<n; i++) {
             RoleLocator role = new RoleLocator(
                     RoleLocator.FUNCTION, new Integer(compiledFunction.getFunctionNameCode()), i, env.getNamePool());
+            role.setSourceLocator(this);
             argument[i] = TypeChecker.staticTypeCheck(
                                 argument[i],
                                 compiledFunction.getArgumentType(i),
@@ -128,6 +128,10 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
         }
     }
 
+    public int getIntrinsicDependencies() {
+        return StaticProperty.DEPENDS_ON_USER_FUNCTIONS;
+    }
+
     /**
     * Determine the cardinality of the result
     */
@@ -168,7 +172,7 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
     // non-creative, then all calls on that function can be marked as non-creative. Note also that
     // a function is creative if one of its arguments is creative and the result of the function
     // depends on the identity of that argument.
-    
+
     /**
     * Call the function, returning the value as an item. This method will be used
     * only when the cardinality is zero or one. If the function is tail recursive,
@@ -190,7 +194,11 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
     */
 
     public SequenceIterator iterate(XPathContext c) throws XPathException {
-        return Value.getIterator(callFunction(c));
+        ValueRepresentation result = callFunction(c);
+        if (result instanceof FunctionCallPackage) {
+            return SingletonIterator.makeIterator(((FunctionCallPackage)result));
+        }
+        return Value.getIterator(result);
     }
 
     /**
@@ -204,18 +212,28 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
 
         ValueRepresentation[] actualArgs = new ValueRepresentation[numArgs];
         for (int i=0; i<numArgs; i++) {
+            // Decide what form of lazy evaluation to use based on the number of references to the argument
+            int refs = function.getParameterDefinitions()[i].getReferenceCount();
             if (argument[i] instanceof Value) {
                 actualArgs[i] = (Value)argument[i];
             } else {
-                // Decide what form of lazy evaluation to use based on the number of references to the argument
-                int refs = function.getParameterDefinitions()[i].getReferenceCount();
                 if (refs == 0) {
                     // the argument is never referenced, so don't evaluate it
                     actualArgs[i] = EmptySequence.getInstance();
+                } else if ((argument[i].getDependencies() & StaticProperty.DEPENDS_ON_USER_FUNCTIONS) != 0) {
+                    // if the argument contains a call to a user-defined function, then it might be a recursive call.
+                    // It's better to evaluate it now, rather than waiting until we are on a new stack frame, as
+                    // that can blow the stack if done repeatedly.
+                    actualArgs[i] = ExpressionTool.eagerEvaluate(argument[i], c);
                 } else {
                     boolean keep = (refs > 1);
                     actualArgs[i] = ExpressionTool.lazyEvaluate(argument[i], c, keep);
                 }
+            }
+            // If the argument has come in as a (non-memo) closure but there are multiple references to it,
+            // then we materialize it in memory now. This shouldn't really happen but it does (tour.xq)
+            if (refs > 1 && actualArgs[i] instanceof Closure && !(actualArgs[i] instanceof MemoClosure)) {
+                actualArgs[i] = ((Closure)actualArgs[i]).reduce();
             }
         }
 
@@ -225,7 +243,11 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
 
         XPathContextMajor c2 = c.newCleanContext();
         c2.setOrigin(this);
-        return function.call(actualArgs, c2, true);
+        try {
+            return function.call(actualArgs, c2, true);
+        } catch (StackOverflowError err) {
+            throw new DynamicError("Too many nested function calls. May be due to infinite recursion.", this);
+        }
     }
 
     /**
@@ -278,26 +300,25 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
     * with these arguments, avoiding the creation of an additional stack frame.
     */
 
-    public class FunctionCallPackage extends Value {
+    public class FunctionCallPackage extends ObjectValue {
 
         private UserFunction function;
         private ValueRepresentation[] actualArgs;
         private XPathContext evaluationContext;
 
         public FunctionCallPackage(UserFunction function, ValueRepresentation[] actualArgs, XPathContext c) {
+            super(function);
             this.function = function;
             this.actualArgs = actualArgs;
             this.evaluationContext = c;
         }
 
         /**
-         * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
-         * This method indicates which of these methods is provided directly. The other methods will always be available
-         * indirectly, using an implementation that relies on one of the other methods.
+         * Determine the item type of the expression
          */
 
-        public int getImplementationMethod() {
-            return ITERATE_METHOD;
+        public ItemType getItemType() {
+            return UserFunctionCall.this.getItemType();
         }
 
         public ValueRepresentation call() throws XPathException {
@@ -306,7 +327,14 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
             return function.call(actualArgs, c2, false);
         }
 
+        public SequenceIterator iterateResults(XPathContext context) throws XPathException {
+            ValueRepresentation result = call();
+            return new MappingIterator(Value.getIterator(result), new Flattener(), context);
+        }
+
+
         public ValueRepresentation appendTo(SequenceReceiver out) throws XPathException {
+            // TODO: this method could be combined with the only method that calls it
             ValueRepresentation v = call();
             SequenceIterator fv = Value.getIterator(v);
             while (true) {
@@ -320,32 +348,70 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
             }
         }
 
-        /**
-         * Determine the data type of the items in the expression, if possible
-         *
-         * @return AnyItemType (not known)
+         /**
+         * Reduce a value to its simplest form. If the value is a closure or some other form of deferred value
+         * such as a FunctionCallPackage, then it is reduced to a SequenceExtent. If it is a SequenceExtent containing
+         * a single item, then it is reduced to that item. One consequence that is exploited by class FilterExpression
+         * is that if the value is a singleton numeric value, then the result will be an instance of NumericValue
          */
 
-        public ItemType getItemType() {
-            return function.getResultType().getPrimaryType();
+        public Value reduce() throws XPathException {
+            return new SequenceExtent(iterateResults(null)).reduce();
         }
 
         /**
-         * Determine the cardinality
+         * Get the primitive value (the value in the value space). This returns an
+         * AtomicValue of a class that would be used to represent the primitive value.
+         * In effect this means that for built-in types, it returns the value itself,
+         * but for user-defined type, it returns the primitive value minus the type
+         * annotation. Note that getItemType() when applied to the result of this
+         * function does not not necessarily return a primitive type: for example, this
+         * function may return a value of type xdt:dayTimeDuration, which is not a
+         * primitive type as defined by {@link net.sf.saxon.type.Type#isPrimitiveType(int)}
          */
 
-        public int getCardinality() {
-            return function.getResultType().getCardinality();
-        }
-
-        /**
-         * Return an Iterator to iterate over the values of a sequence.
-         */
-
-        public SequenceIterator iterate(XPathContext context) throws XPathException {
-            return Value.getIterator(call());
+        public AtomicValue getPrimitiveValue() {
+            try {
+                return ((AtomicValue)reduce()).getPrimitiveValue();
+            } catch (XPathException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
+
+    /**
+     * Mapping function that converts a sequence possibly containing embedded FunctionCallPackage items into
+     * one in which any such items are fully expanded
+     */
+
+    public static class Flattener implements MappingFunction {
+
+        //TODO: make this a singleton class
+        /**
+         * Map one item to a sequence.
+         *
+         * @param item    The item to be mapped.
+         *                If context is supplied, this must be the same as context.currentItem().
+         * @param context The processing context. Some mapping functions use this because they require
+         *                context information. Some mapping functions modify the context by maintaining the context item
+         *                and position. In other cases, the context may be null.
+         * @return either (a) a SequenceIterator over the sequence of items that the supplied input
+         *         item maps to, or (b) an Item if it maps to a single item, or (c) null if it maps to an empty
+         *         sequence.
+         */
+
+        public Object map(Item item, XPathContext context) throws XPathException {
+            if (item instanceof FunctionCallPackage) {
+                return (((FunctionCallPackage)item).iterateResults(context));
+            } else {
+                return item;
+            }
+        }
+
+
+    }
+
+
 
 }
 

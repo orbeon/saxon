@@ -6,8 +6,7 @@ import org.orbeon.saxon.instruct.WithParam;
 import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.om.AxisIterator;
 import org.orbeon.saxon.om.Item;
-
-import javax.xml.transform.TransformerConfigurationException;
+import org.orbeon.saxon.trans.XPathException;
 
 /**
 * An xsl:with-param element in the stylesheet. <br>
@@ -24,17 +23,8 @@ public class XSLWithParam extends XSLGeneralVariable {
         return true;
     }
 
-    public void validate() throws TransformerConfigurationException {
+    public void validate() throws XPathException {
         super.validate();
-
-//      following check removed: it's now the responsibility of parents to check their children
-//        NodeInfo parent = getParent();
-//        if (!((parent instanceof XSLApplyTemplates) ||
-//                 (parent instanceof XSLCallTemplate) ||
-//                 (parent instanceof XSLApplyImports) ||
-//                 (parent instanceof XSLNextMatch))) {
-//            compileError("xsl:with-param cannot appear as a child of " + parent.getDisplayName(), "XT0010");
-//        }
 
         // Check for duplicate parameter names
 
@@ -46,15 +36,16 @@ public class XSLWithParam extends XSLGeneralVariable {
             }
             if (prev instanceof XSLWithParam) {
                 if (this.getVariableFingerprint() == ((XSLWithParam)prev).getVariableFingerprint()) {
-                    compileError("Duplicate parameter name", "XT0670");
+                    compileError("Duplicate parameter name", "XTSE0670");
                 }
             }
         }
 
     }
 
-    public Expression compile(Executable exec) throws TransformerConfigurationException {
+    public Expression compile(Executable exec) throws XPathException {
         WithParam inst = new WithParam();
+        inst.adoptChildExpression(select);
         initializeInstruction(exec, inst);
         ExpressionTool.makeParentReferences(inst);
         return inst;
