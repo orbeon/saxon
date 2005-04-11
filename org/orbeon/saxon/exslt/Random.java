@@ -81,6 +81,8 @@ public abstract class Random {
 
         public Item next() {
             if (position++ >= count) {
+                current = null;
+                position = -1;
                 return null;
             } else {
                 current = new DoubleValue(generator.nextDouble());

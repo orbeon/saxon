@@ -60,7 +60,7 @@ public class StylesheetFunctionLibrary implements FunctionLibrary {
      * @throws org.orbeon.saxon.trans.XPathException if a function is found with the required name and arity, but
      * the implementation of the function cannot be loaded or used; or if an error occurs
      * while searching for the function; or if this function library "owns" the namespace containing
-     * the function call, but no function was found. 
+     * the function call, but no function was found.
      */
 
     public Expression bind(int nameCode, String uri, String local, Expression[] staticArgs)
@@ -79,6 +79,18 @@ public class StylesheetFunctionLibrary implements FunctionLibrary {
         fc.setArguments(staticArgs);
         fc.setConfirmed(true);
         return fc;
+    }
+
+    /**
+     * This method creates a copy of a FunctionLibrary: if the original FunctionLibrary allows
+     * new functions to be added, then additions to this copy will not affect the original, or
+     * vice versa.
+     *
+     * @return a copy of this function library. This must be an instance of the original class.
+     */
+
+    public FunctionLibrary copy() {
+        return this;
     }
 
 }

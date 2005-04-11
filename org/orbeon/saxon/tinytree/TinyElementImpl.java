@@ -3,14 +3,16 @@ import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.om.NamespaceResolver;
 import org.orbeon.saxon.om.Navigator;
 import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.NamespaceConstant;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 
 
 /**
   * A node in the XML parse tree representing an XML element.<P>
-  * This class is an implementation of NodeInfo and also implements the
-  * DOM Element interface
+  * This class is an implementation of NodeInfo. The object is a wrapper around
+  * one entry in the arrays maintained by the TinyTree. Note that the same node
+  * might be represented by different TinyElementImpl objects at different times.
   * @author Michael H. Kay
   */
 
@@ -103,7 +105,25 @@ final class TinyElementImpl extends TinyParentNodeImpl {
         return getDeclaredNamespaces(tree, nodeNr, buffer);
     }
 
-    static int[] getDeclaredNamespaces(TinyTree tree, int nodeNr, int[] buffer) {
+    /**
+     * Static method to get all namespace undeclarations and undeclarations defined on a given element,
+     * without instantiating the node object.
+     * @param tree The tree containing the given element node
+     * @param nodeNr The node number of the given element node within the tinyTree
+     * @param buffer If this is non-null, and the result array fits in this buffer, then the result
+     *               may overwrite the contents of this array, to avoid the cost of allocating a new array on the heap.
+     * @return An array of integers representing the namespace declarations and undeclarations present on
+     *         this element. For a node other than an element, return null. Otherwise, the returned array is a
+     *         sequence of namespace codes, whose meaning may be interpreted by reference to the name pool. The
+     *         top half word of each namespace code represents the prefix, the bottom half represents the URI.
+     *         If the bottom half is zero, then this is a namespace undeclaration rather than a declaration.
+     *         The XML namespace is never included in the list. If the supplied array is larger than required,
+     *         then the first unused entry will be set to -1.
+     *         <p/>
+     *         <p>For a node other than an element, the method returns null.</p>
+     */
+
+    static final int[] getDeclaredNamespaces(TinyTree tree, int nodeNr, int[] buffer) {
         int ns = tree.beta[nodeNr]; // by convention
         if (ns>0 ) {
             int count = 0;
@@ -129,6 +149,81 @@ final class TinyElementImpl extends TinyParentNodeImpl {
             return NodeInfo.EMPTY_NAMESPACE_LIST;
         }
     }
+
+    /**
+    * Get all the inscope namespaces for an element node. This method is better than the generic method
+     * provided by {@link net.sf.saxon.om.NamespaceIterator} because it doesn't require the element node
+     * (or its ancestors) to be instantiated as objects.
+     * @param tree the TinyTree containing the element node whose in-scope namespaces are required
+     * @param nodeNr the node number of the element node within the TinyTree. The caller is responsible
+     * for ensuring that this is indeed an element node
+     * @param buffer a buffer to hold the result, assuming it is large enough
+     * @return an integer array of namespace codes representing the inscope namespaces of the given element.
+     * The returned array will either be fully used, or it will contain a -1 entry marking the effective end
+     * of the list of namespace codes. Note that only distinct declared namespaces are included in the result;
+     * it does not contain any entries for namespace undeclarations or for overridden declarations.
+     */
+
+    static final int[] getInScopeNamespaces(TinyTree tree, int nodeNr, int[] buffer) {
+
+        if (buffer == null || buffer.length == 0) {
+            buffer = new int[10];
+        }
+        buffer[0] = NamespaceConstant.XML_NAMESPACE_CODE;
+        int used = 1;
+
+        do {
+            // gather the namespaces declared for this node
+            int ns = tree.beta[nodeNr]; // by convention
+            if (ns>0 ) {
+                while (ns < tree.numberOfNamespaces &&
+                        tree.namespaceParent[ns] == nodeNr ) {
+                    int nscode = tree.namespaceCode[ns];
+
+                    // See if the prefix has already been declared; if so, this declaration is ignored
+                    short prefixCode = (short)(nscode >> 16);
+                    boolean duplicate = false;
+                    for (int i=0; i<used; i++) {
+                        if ((buffer[i] >> 16) == prefixCode) {
+                            duplicate = true;
+                            break;
+                        }
+                    }
+                    if (!duplicate) {
+                        if (used >= buffer.length) {
+                            int[] b2 = new int[used*2];
+                            System.arraycopy(buffer, 0, b2, 0, used);
+                            buffer = b2;
+                        }
+                        buffer[used++] = nscode;
+                    }
+                    ns++;
+                }
+            }
+
+            // move on to the parent of this node
+            nodeNr = getParentNodeNr(tree, nodeNr);
+        } while (nodeNr != -1);
+
+        // The list of namespaces we have built up includes undeclarations as well as declarations.
+        // We now remove the undeclarations (which have a URI code of zero)
+
+        int j = 0;
+        for (int i=0; i<used; i++) {
+            int nscode = buffer[i];
+            if ((nscode & 0xffff) != 0) {
+                buffer[j++] = nscode;
+            }
+        }
+
+        // If there are unused entries at the end of the array, add a -1 to mark the end
+        if (j < buffer.length) {
+            buffer[j] = -1;
+        }
+
+        return buffer;
+    }
+
 
     /**
     * Get the value of a given attribute of this node
