@@ -1420,7 +1420,7 @@ public class Configuration implements ConversionContext, Serializable {
                 // happen if there's more than one ClassLoader involved. We'll output a simple warning,
                 // and then continue as if the external object model wasn't on the class path
                 System.err.println("Warning: external object model " + models[i] +
-                        " has been loaded, but is not an instance of net.sf.saxon.om.ExternalObjectModel");
+                        " has been loaded, but is not an instance of org.orbeon.saxon.om.ExternalObjectModel");
             }
         }
     }
