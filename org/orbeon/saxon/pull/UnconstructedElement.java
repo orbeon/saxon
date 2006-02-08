@@ -29,8 +29,8 @@ public class UnconstructedElement extends UnconstructedParent {
      *
      * @return an integer name code, which may be used to obtain the actual node
      *         name from the name pool
-     * @see net.sf.saxon.om.NamePool#allocate allocate
-     * @see net.sf.saxon.om.NamePool#getFingerprint getFingerprint
+     * @see org.orbeon.saxon.om.NamePool#allocate allocate
+     * @see org.orbeon.saxon.om.NamePool#getFingerprint getFingerprint
      */
 
     public int getNameCode() {

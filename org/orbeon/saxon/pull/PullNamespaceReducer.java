@@ -14,7 +14,7 @@ import java.util.List;
  * <p>This class is derived from, and contains much common code with, the NamespaceReducer
  * in the push pipeline. (In the push version, however, namespace fixup is not
  * performed by the NamespaceReducer, but by the ComplexContentOutputter).</p>
- * @see net.sf.saxon.event.NamespaceReducer
+ * @see org.orbeon.saxon.event.NamespaceReducer
  */
 
 public class PullNamespaceReducer extends PullFilter implements NamespaceResolver
