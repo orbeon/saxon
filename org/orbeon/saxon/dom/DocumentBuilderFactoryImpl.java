@@ -94,7 +94,8 @@ public class DocumentBuilderFactoryImpl extends DocumentBuilderFactory {
      * @throws NullPointerException If the <code>name</code> parameter is null.
      */
     public void setFeature(String name, boolean value) throws ParserConfigurationException {
-        if (name.equals(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING) && !value) {
+//        if (name.equals(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING) && !value) {
+        if (true) {
             // no action
         } else {
             throw new ParserConfigurationException("Unsupported feature or value: " + name);
@@ -119,7 +120,8 @@ public class DocumentBuilderFactoryImpl extends DocumentBuilderFactory {
      *          or the <code>DocumentBuilder</code>s it creates cannot support this feature.
      */
     public boolean getFeature(String name) throws ParserConfigurationException {
-        if (name.equals(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING)) {
+//        if (name.equals(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING) && !value) {
+        if (true) {
             return false;
         } else {
             throw new ParserConfigurationException("Unsupported feature: " + name);
