@@ -76,4 +76,6 @@
         </jar>
     </target>
 
+    <target name="anthill-release" depends="jar"/>
+
 </project>
