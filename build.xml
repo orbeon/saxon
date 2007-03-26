@@ -1,0 +1,79 @@
+<?xml version="1.0"?>
+<!--
+    Copyright (C) 2007 Orbeon, Inc.
+
+    This program is free software; you can redistribute it and/or modify it under the terms of the
+    GNU Lesser General Public License as published by the Free Software Foundation; either version
+    2.1 of the License, or (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+    without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+    See the GNU Lesser General Public License for more details.
+
+    The full text of the license is available at http://www.gnu.org/copyleft/lesser.html
+-->
+<?xml-stylesheet type="text/xsl" href="ant2html.xsl"?>
+<project name="saxon" default="jar" basedir=".">
+
+    <dirname property="build.root" file="${ant.file}"/>
+    <property name="lib.dir" location="lib"/>
+    <property name="build.dir" value="build"/>
+    <property name="src.dir" location="org"/>
+    <property name="saxon-version" value="8_8"/>
+    <property name="jar.file" value="${build.dir}/lib/saxon-${saxon-version}_orbeon.jar"/>
+
+    <property name="build.debug" value="on"/>
+
+    <fileset id='war.libs' dir="${lib.dir}">
+        <include name="dom4j-1_6_1.jar"/>
+        <include name="jsr173_1.0_api.jar"/>
+        <include name="xml-apis-xerces_2_7_1.jar"/>
+    </fileset>
+
+    <target name="init">
+        <tstamp/>
+        <tstamp>
+            <format property='time' pattern='yyyyMMddHHmm' timezone='GMT'/>
+        </tstamp>
+        <echo message="Building Saxon"/>
+    </target>
+
+    <target name="prepare" depends="init">
+        <mkdir dir="${build.dir}/classes"/>
+        <mkdir dir="${build.dir}/lib"/>
+    </target>
+
+    <target name="classpath" depends="prepare">
+        <path id="class.path">
+            <fileset dir="${lib.dir}">
+                <include name="**/*.jar"/>
+            </fileset>
+        </path>
+    </target>
+
+    <target name="classes" depends="classpath">
+        <javac destdir="${build.dir}/classes"
+               classpathref="class.path"
+               debug="${build.debug}" optimize="off" target="1.4" source="1.4"
+               fork="true" memoryInitialSize="128m" memoryMaximumSize="256m">
+
+            <src path="${build.root}"/>
+
+            <include name="org/**/*.java"/>
+
+            <exclude name="org/orbeon/saxon/jdom/*"/>
+            <exclude name="org/orbeon/saxon/xom/*"/>
+            <exclude name="org/orbeon/saxon/dotnet/*"/>
+            <exclude name="org/orbeon/saxon/xpath/*"/>
+        </javac>
+    </target>
+
+    <target name="jar" depends="classes">
+        <jar destfile='${jar.file}' compress='false'>
+            <fileset dir="${build.dir}/classes">
+                <include name="**/*.class"/>
+            </fileset>
+        </jar>
+    </target>
+
+</project>
