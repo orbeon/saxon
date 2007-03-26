@@ -35,6 +35,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     protected short nodeKind;
     private NodeWrapper parent;     // null means unknown
     protected DocumentWrapper docWrapper;
+    // Beware: with dom4j, this is an index over the result of content(), which may contain Namespace nodes
     protected int index;            // -1 means unknown
 
     /**
@@ -48,6 +49,13 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
         this.node = node;
         this.parent = parent;
         this.index = index;
+
+//        {
+//            final Node dom4jNode = (Node) node;
+//            if (dom4jNode.getNodeType() == Type.ELEMENT && dom4jNode.getName().equals("metaMetadata") && index != -1) {
+//                System.out.println("metaMetadata node");
+//            }
+//        }
     }
 
     /**
@@ -423,7 +431,6 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     /**
      * Get the index position of this node among its siblings (starting from 0)
      */
-
     public int getSiblingPosition() {
         if (index == -1) {
             int ix = 0;
@@ -434,8 +441,25 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
                 case Type.TEXT:
                 case Type.COMMENT:
                 case Type.PROCESSING_INSTRUCTION:
-                    iter = parent.iterateAxis(Axis.CHILD);
-                    break;
+                    {
+                        final NodeWrapper parent = (NodeWrapper) getParent();
+                        final List children;
+                        if (parent.getNodeKind()==Type.DOCUMENT) {
+                            children = ((Document) parent.node).content();
+                        } else {
+                            // Beware: dom4j content() contains Namespace nodes (which is broken)!
+                            children = ((Element) parent.node).content();
+                        }
+                        for (ListIterator iterator = children.listIterator(); iterator.hasNext();) {
+                            final Object n = iterator.next();
+                            if (n == node) {
+                                index = ix;
+                                return index;
+                            }
+                            ix++;
+                        }
+                        throw new IllegalStateException("DOM4J node not linked to parent node");
+                    }
                 case Type.ATTRIBUTE:
                     iter = parent.iterateAxis(Axis.ATTRIBUTE);
                     break;
@@ -656,6 +680,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
             case Type.DOCUMENT:
                 return true;
             case Type.ELEMENT:
+                // Beware: dom4j content() contains Namespace nodes (which is broken)!
                 List content = ((Element)node).content();
                 for (int i=0; i<content.size(); i++) {
                     if (!(content.get(i) instanceof Namespace)) {
@@ -885,6 +910,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
                 if (children.hasNext()) {
                     Object nextChild = children.next();
                     if (nextChild instanceof DocumentType || nextChild instanceof Namespace) {
+                        ix++; // increment anyway so that makeWrapper() passes the correct index)
                         advance();
                         return;
                     }
@@ -904,6 +930,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
                 if (children.hasPrevious()) {
                     Object nextChild = children.previous();
                     if (nextChild instanceof DocumentType || nextChild instanceof Namespace) {
+                        ix--; // decrement anyway so that makeWrapper() passes the correct index)
                         advance();
                         return;
                     }
