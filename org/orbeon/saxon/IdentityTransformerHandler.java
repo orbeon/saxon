@@ -58,7 +58,9 @@ public class IdentityTransformerHandler extends ReceivingContentHandler implemen
     */
 
     public String getSystemId() {
-        return systemId;
+        // ORBEON: This is our patch. MK probably has a better plan to fix this.
+        String parentSystemId = super.getSystemId();
+        return (parentSystemId != null) ? parentSystemId : this.systemId;
     }
 
     /**

@@ -95,7 +95,9 @@ public class TransformerHandlerImpl extends ReceivingContentHandler implements T
     */
 
     public String getSystemId() {
-        return systemId;
+        // ORBEON: This is our patch. MK probably has a better plan to fix this.
+        String s = super.getSystemId();
+        return (s == null ? systemId : s);
     }
 
     /**
