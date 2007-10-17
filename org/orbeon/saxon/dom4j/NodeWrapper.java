@@ -49,13 +49,6 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
         this.node = node;
         this.parent = parent;
         this.index = index;
-
-//        {
-//            final Node dom4jNode = (Node) node;
-//            if (dom4jNode.getNodeType() == Type.ELEMENT && dom4jNode.getName().equals("metaMetadata") && index != -1) {
-//                System.out.println("metaMetadata node");
-//            }
-//        }
     }
 
     /**
