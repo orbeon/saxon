@@ -1,7 +1,9 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.pattern.AnyNodeTest;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.trans.XPathException;
 
 import java.io.PrintStream;
@@ -63,6 +65,12 @@ public class ParentNodeExpression extends SingleNodeExpression {
 
     public void display(int level, PrintStream out, Configuration config) {
         out.println(ExpressionTool.indent(level) + "..");
+    }
+
+    public PathMap.PathMapNode addToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
+        AxisExpression parent = new AxisExpression(Axis.PARENT, AnyNodeTest.getInstance());
+        parent.setParentExpression(getParentExpression());
+        return parent.addToPathMap(pathMap, pathMapNode);
     }
 
 }

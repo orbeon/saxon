@@ -3,7 +3,9 @@ import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.pattern.AnyNodeTest;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.TypeHierarchy;
@@ -97,6 +99,12 @@ public class RootExpression extends SingleNodeExpression {
 
     public void display(int level, PrintStream out, Configuration config) {
         out.println(ExpressionTool.indent(level) + '/');
+    }
+
+    public PathMap.PathMapNode addToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
+        AxisExpression root = new AxisExpression(Axis.ANCESTOR_OR_SELF, AnyNodeTest.getInstance());
+        root.setParentExpression(getParentExpression());
+        return root.addToPathMap(pathMap, pathMapNode);
     }
 
 }

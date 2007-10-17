@@ -7,6 +7,7 @@ import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.pattern.NodeKindTest;
 
 
 /**
@@ -142,6 +143,24 @@ public class Id extends SystemFunction {
             }
         }
     }
+
+    public PathMap.PathMapNode addToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
+        if (argument[0] instanceof ComputedExpression) {
+            ((ComputedExpression)argument[0]).addToPathMap(pathMap, pathMapNode);
+        }
+        PathMap.PathMapNode target = ((ComputedExpression)argument[1]).addToPathMap(pathMap, pathMapNode);
+        // indicate that the function navigates to all elements in the document
+        AxisExpression allElements = new AxisExpression(Axis.DESCENDANT, NodeKindTest.ELEMENT);
+        allElements.setParentExpression(getParentExpression());
+        target = target.createArc(allElements);
+        if (isStringValueUsed()) {
+            AxisExpression textAxis = new AxisExpression(Axis.DESCENDANT, NodeKindTest.TEXT);
+            textAxis.setParentExpression(getParentExpression());
+            target.createArc(textAxis);
+        }
+        return target;
+    }
+
 
 }
 

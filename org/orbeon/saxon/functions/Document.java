@@ -218,7 +218,7 @@ public class Document extends SystemFunction implements XSLTFunction {
             err.setXPathContext(c);
             err.setErrorCode("XTRE1500");
             throw err;
-        } 
+        }
 
         try {
             // Get a Source from the URIResolver
@@ -424,6 +424,10 @@ public class Document extends SystemFunction implements XSLTFunction {
         return doc.selectID(fragmentId);
     }
 
+
+    public PathMap.PathMapNode addToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
+        return addDocToPathMap(pathMap, pathMapNode);
+    }
 
 }
 

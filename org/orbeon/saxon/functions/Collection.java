@@ -84,7 +84,9 @@ public class Collection extends SystemFunction {
         }
     }
 
-
+    public PathMap.PathMapNode addToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
+        return addDocToPathMap(pathMap, pathMapNode);
+    }
 
     // TODO: provide control over error recovery (etc) through options in the catalog file.
 

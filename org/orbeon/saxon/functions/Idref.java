@@ -1,5 +1,7 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.pattern.AnyNodeTest;
+import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.*;
@@ -120,6 +122,24 @@ public class Idref extends SystemFunction {
 
         }
     }
+
+    public PathMap.PathMapNode addToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
+        if (argument[0] instanceof ComputedExpression) {
+            ((ComputedExpression)argument[0]).addToPathMap(pathMap, pathMapNode);
+        }
+        PathMap.PathMapNode target = ((ComputedExpression)argument[1]).addToPathMap(pathMap, pathMapNode);
+        // indicate that the function navigates to all nodes in the document
+        AxisExpression allElements = new AxisExpression(Axis.DESCENDANT, AnyNodeTest.getInstance());
+        allElements.setParentExpression(getParentExpression());
+        target = target.createArc(allElements);
+        if (isStringValueUsed()) {
+            AxisExpression textAxis = new AxisExpression(Axis.DESCENDANT, NodeKindTest.TEXT);
+            textAxis.setParentExpression(getParentExpression());
+            target.createArc(textAxis);
+        }
+        return target;
+    }
+
 
 }
 

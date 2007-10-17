@@ -1,5 +1,7 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.pattern.AnyNodeTest;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.expr.*;
@@ -268,6 +270,23 @@ public class KeyFn extends SystemFunction implements XSLTFunction {
             }
         }
 
+    }
+
+    public PathMap.PathMapNode addToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
+        if (argument[0] instanceof ComputedExpression) {
+            ((ComputedExpression)argument[0]).addToPathMap(pathMap, pathMapNode);
+        }
+        if (argument[1] instanceof ComputedExpression) {
+            ((ComputedExpression)argument[1]).addToPathMap(pathMap, pathMapNode);
+        }
+        PathMap.PathMapNode target = ((ComputedExpression)argument[2]).addToPathMap(pathMap, pathMapNode);
+        // indicate that the function navigates to all nodes in the containing document
+        AxisExpression root = new AxisExpression(Axis.ANCESTOR_OR_SELF, NodeKindTest.DOCUMENT);
+        root.setParentExpression(getParentExpression());
+        target = target.createArc(root);
+        AxisExpression allElements = new AxisExpression(Axis.DESCENDANT, AnyNodeTest.getInstance());
+        allElements.setParentExpression(getParentExpression());
+        return target.createArc(allElements);
     }
 
 }

@@ -33,6 +33,9 @@ public final class Atomizer extends UnaryExpression {
         } else {
             untyped = config.areAllNodesUntyped();
         }
+        if (sequence instanceof ComputedExpression) {
+            ((ComputedExpression)sequence).setStringValueIsUsed();
+        }
     }
 
     /**

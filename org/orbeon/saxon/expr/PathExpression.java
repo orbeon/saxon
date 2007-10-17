@@ -83,6 +83,17 @@ public final class PathExpression extends ComputedExpression implements ContextM
         return step;
     }
 
+
+    /**
+     * Indicate that the string value or typed value of nodes returned by this expression is used
+     */
+
+    public void setStringValueIsUsed() {
+        if (step instanceof ComputedExpression) {
+            ((ComputedExpression)step).setStringValueIsUsed();
+        }
+    }
+
     /**
      * Determine whether an operand of a PathExpression is an
      * axis step with optional filter predicates.
@@ -822,6 +833,14 @@ public final class PathExpression extends ComputedExpression implements ContextM
         out.println(ExpressionTool.indent(level) + "path /");
         start.display(level + 1, out, config);
         step.display(level + 1, out, config);
+    }
+
+    public PathMap.PathMapNode addToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
+        if (start instanceof ComputedExpression) {
+            PathMap.PathMapNode target = ((ComputedExpression)start).addToPathMap(pathMap, pathMapNode);
+            return ((ComputedExpression)step).addToPathMap(pathMap, target);
+        }
+        return pathMapNode;
     }
 
 

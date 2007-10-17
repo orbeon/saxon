@@ -43,6 +43,17 @@ public final class FilterExpression extends ComputedExpression {
     }
 
     /**
+     * Indicate that the string value or typed value of nodes returned by this expression is used
+     */
+
+    public void setStringValueIsUsed() {
+        if (start instanceof ComputedExpression) {
+            ((ComputedExpression)start).setStringValueIsUsed();
+        }
+    }
+
+
+    /**
     * Get the data type of the items returned
     * @return an integer representing the data type
      * @param th
@@ -675,6 +686,17 @@ public final class FilterExpression extends ComputedExpression {
         out.println(ExpressionTool.indent(level) + "filter []");
         start.display(level+1, out, config);
         filter.display(level+1, out, config);
+    }
+
+    public PathMap.PathMapNode addToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
+        if (start instanceof ComputedExpression) {
+            PathMap.PathMapNode target = ((ComputedExpression)start).addToPathMap(pathMap, pathMapNode);
+            if (filter instanceof ComputedExpression) {
+                ((ComputedExpression)filter).addToPathMap(pathMap, target);
+            }
+            return target;
+        }
+        return pathMapNode;
     }
 
 }

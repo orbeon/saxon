@@ -19,6 +19,9 @@ public class NumberFn extends SystemFunction implements ItemMappingFunction {
 
      public Expression simplify(StaticContext env) throws XPathException {
         useContextItemAsDefault();
+        if (argument[0] instanceof ComputedExpression) {
+            ((ComputedExpression)argument[0]).setStringValueIsUsed();
+        }
         return simplifyArguments(env);
     }
 
