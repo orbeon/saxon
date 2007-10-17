@@ -2,7 +2,9 @@ package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.pattern.AnyNodeTest;
 
 /**
 * Implement the XPath 2.0 root() function
@@ -47,6 +49,12 @@ public class Root extends SystemFunction {
             return null;
         }
         return start.getRoot();
+    }
+
+    public PathMap.PathMapNode addToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
+        AxisExpression root = new AxisExpression(Axis.ANCESTOR_OR_SELF, AnyNodeTest.getInstance());
+        root.setParentExpression(getParentExpression());
+        return root.addToPathMap(pathMap, pathMapNode);
     }
 
 }

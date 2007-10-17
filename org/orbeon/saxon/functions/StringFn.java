@@ -2,6 +2,7 @@ package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.ComputedExpression;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.StringValue;
@@ -19,6 +20,9 @@ public class StringFn extends SystemFunction {
 
      public Expression simplify(StaticContext env) throws XPathException {
         useContextItemAsDefault();
+        if (argument[0] instanceof ComputedExpression) {
+            ((ComputedExpression)argument[0]).setStringValueIsUsed();
+        }
         return simplifyArguments(env);
     }
 

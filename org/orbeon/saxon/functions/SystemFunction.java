@@ -1,8 +1,10 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AnyItemType;
@@ -230,6 +232,19 @@ public abstract class SystemFunction extends FunctionCall {
         for (int a=0; a<argument.length; a++) {
             argument[a].display(level+1, out, config);
         }
+    }
+
+    public PathMap.PathMapNode addDocToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
+        if (argument[0] instanceof ComputedExpression) {
+            ((ComputedExpression)argument[0]).addToPathMap(pathMap, pathMapNode);
+        }
+        PathMap.PathMapNode target = pathMap.makeNewRoot(this);
+        if (isStringValueUsed()) {
+            AxisExpression textAxis = new AxisExpression(Axis.DESCENDANT, NodeKindTest.TEXT);
+            textAxis.setParentExpression(getParentExpression());
+            target.createArc(textAxis);
+        }
+        return target;
     }
 
     /**

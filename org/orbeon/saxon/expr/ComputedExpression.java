@@ -3,10 +3,7 @@ package org.orbeon.saxon.expr;
 import org.orbeon.saxon.event.LocationProvider;
 import org.orbeon.saxon.event.SequenceReceiver;
 import org.orbeon.saxon.instruct.*;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.om.SingletonIterator;
-import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.sort.IntHashSet;
 import org.orbeon.saxon.sort.IntIterator;
 import org.orbeon.saxon.trace.InstructionInfo;
@@ -15,10 +12,14 @@ import org.orbeon.saxon.trace.Location;
 import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.type.TypeHierarchy;
+import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.pattern.NodeKindTest;
 
 import javax.xml.transform.SourceLocator;
 import java.io.Serializable;
@@ -53,11 +54,29 @@ public abstract class ComputedExpression
     protected int staticProperties = -1;
     protected int locationId = -1;
     private Container parentExpression;
+    private boolean stringValueIsUsed;
 
     // A list of slots containing local variables on which this expression is dependent. Calculated
     // on demand (lazily) when the expression is used in a closure.
 
     private int[] slotsUsed;
+
+    /**
+     * Indicate that the string value or typed value of nodes returned by this expression is used
+     */
+
+    public void setStringValueIsUsed() {
+        stringValueIsUsed = true;
+    }
+
+    /**
+     * Ask whether the string value or typed value of nodes returned by this expression is used
+     * @return true if the string value or typed value of nodes returned by this expression is used
+     */
+
+    public boolean isStringValueUsed() {
+        return stringValueIsUsed;
+    }
 
     /**
      * Get the expression that immediately contains this expression. This method
@@ -499,7 +518,7 @@ public abstract class ComputedExpression
      * @return true if a tail recursive call was found and if this call
      *     accounts for the whole of the value.
      */
-   
+
     public boolean markTailFunctionCalls(int nameCode, int arity) {
         return false;
     }
@@ -755,6 +774,72 @@ public abstract class ComputedExpression
             return Configuration.XSLT;
         }
         return parentExpression.getHostLanguage();
+    }
+
+    /**
+     * Add a representation of this expression to a PathMap. The PathMap captures a map of the nodes visited
+     * by an expression in a source tree.
+     *
+     * <p>The default implementation of this method assumes that an expression does no navigation other than
+     * the navigation done by evaluating its subexpressions, and that the subexpressions are evaluated in the
+     * same context as the containing expression. The method must be overridden for any expression
+     * where these assumptions do not hold. For example, implementations exist for AxisExpression, ParentExpression,
+     * and RootExpression (because they perform navigation), and for the doc(), document(), and collection()
+     * functions because they create a new navigation root. Implementations also exist for PathExpression and
+     * FilterExpression because they have subexpressions that are evaluated in a different context from the
+     * calling expression.</p>
+     *
+     * @param pathMap the PathMap to which the expression should be added
+     * @param pathMapNode the node in the PathMap representing the focus at the point where this expression
+     * is called. Set to null if this expression appears at the top level, in which case the expression, if it
+     * is registered in the path map at all, must create a new path map root.
+     * @return the pathMapNode representing the focus established by this expression, in the case where this
+     * expression is the first operand of a path expression or filter expression. For an expression that does
+     * navigation, it represents the end of the arc in the path map that describes the navigation route. For other
+     * expressions, it is the same as the input pathMapNode.
+     */
+
+    public PathMap.PathMapNode addToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
+        boolean dependsOnFocus = (getDependencies() & StaticProperty.DEPENDS_ON_FOCUS) != 0;
+
+        PathMap.PathMapNode attachmentPoint;
+        if (pathMapNode == null) {
+            if (dependsOnFocus) {
+                ContextItemExpression cie = new ContextItemExpression();
+                cie.setParentExpression(getParentExpression());
+                pathMapNode = pathMap.makeNewRoot(cie);
+            } else {
+                TypeHierarchy th = null;
+                try {
+                    th = getExecutable().getConfiguration().getTypeHierarchy();
+                } catch (Exception err) {}
+                if (th != null) {
+                    ItemType type = getItemType(th);
+                    if (type instanceof NodeTest && isStringValueUsed() &&
+                            (th.relationship(type, NodeKindTest.ELEMENT) != TypeHierarchy.DISJOINT ||
+                             th.relationship(type, NodeKindTest.DOCUMENT) != TypeHierarchy.DISJOINT)) {
+                            // If this expression returns nodes but does not depend on the focus, we include
+                            // it as a root if there is an implicit navigation to its descendant text nodes
+                            // when obtaining the string value or typed value of the node
+                        pathMapNode = pathMap.makeNewRoot(this);
+                        AxisExpression textAxis = new AxisExpression(Axis.DESCENDANT, NodeKindTest.TEXT);
+                        textAxis.setParentExpression(getParentExpression());
+                        pathMapNode.createArc(textAxis);
+                    }
+                }
+            }
+            attachmentPoint = pathMapNode;
+        } else {
+            attachmentPoint = (dependsOnFocus ? pathMapNode : null);
+        }
+        PathMap.PathMapNode node0 = attachmentPoint;
+        for (Iterator iter = iterateSubExpressions(); iter.hasNext(); ) {
+            Expression child = (Expression)iter.next();
+            if (child instanceof ComputedExpression) {
+                attachmentPoint = ((ComputedExpression)child).addToPathMap(pathMap, node0);
+            }
+        }
+        return attachmentPoint;
     }
 
 }

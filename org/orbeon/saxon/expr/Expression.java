@@ -315,6 +315,7 @@ public interface Expression extends Serializable {
      */
 
     public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException;
+
 }
 
 //

@@ -438,6 +438,22 @@ public final class AxisExpression extends ComputedExpression {
                 "::" +
                 (test==null ? "node()" : test.toString(pool));
     }
+
+    public PathMap.PathMapNode addToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
+        if (pathMapNode == null) {
+            ContextItemExpression cie = new ContextItemExpression();
+            cie.setParentExpression(getParentExpression());
+            pathMapNode = pathMap.makeNewRoot(cie);
+        }
+        PathMap.PathMapNode target = pathMapNode.createArc(this);
+        if (isStringValueUsed() &&
+                ((test.getNodeKindMask() & (1<<Type.ELEMENT | 1<<Type.DOCUMENT)) != 0)) {
+            AxisExpression textAxis = new AxisExpression(Axis.DESCENDANT, NodeKindTest.TEXT);
+            textAxis.setParentExpression(getParentExpression());
+            target.createArc(textAxis);
+        }
+        return target;
+    }
 }
 
 

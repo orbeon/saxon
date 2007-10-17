@@ -1,10 +1,7 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.event.Receiver;
-import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.expr.StaticProperty;
-import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
@@ -106,7 +103,11 @@ public class Doc extends SystemFunction {
         String href = hrefVal.getStringValue();
         Document.sendDoc(href, expressionBaseURI, context, this, out);
     }
-    
+
+    public PathMap.PathMapNode addToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
+        return addDocToPathMap(pathMap, pathMapNode);
+    }
+
 }
 
 //
