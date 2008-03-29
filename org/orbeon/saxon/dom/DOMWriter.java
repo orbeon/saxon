@@ -114,8 +114,9 @@ public class DOMWriter implements Receiver {
     		String uri = namePool.getURIFromNamespaceCode(namespaceCode);
     		Element element = (Element)currentNode;
             if (!(uri.equals(NamespaceConstant.XML))) {
-                if (prefix.equals("")) {
-                    element.setAttributeNS(null, "xmlns", uri);
+                if (prefix.length() == 0) {
+                    // ORBEON: backfixed from Saxon 9
+                    element.setAttributeNS(NamespaceConstant.XMLNS, "xmlns", uri);
                 } else {
                     element.setAttributeNS(NamespaceConstant.XMLNS, "xmlns:" + prefix, uri);
 
