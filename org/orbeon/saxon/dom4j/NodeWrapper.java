@@ -14,9 +14,7 @@ import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.value.AtomicValue;
 import org.dom4j.*;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.ListIterator;
 
 /**
@@ -438,7 +436,13 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
                         final NodeWrapper parent = (NodeWrapper) getParent();
                         final List children;
                         if (parent.getNodeKind()==Type.DOCUMENT) {
-                            children = ((Document) parent.node).content();
+                            // This is an attempt to work around a dom4j bug
+                            final Document document = (Document) parent.node;
+                            final List content = document.content();
+                            if (content.size() == 0 && document.getRootElement() != null)
+                                children = Collections.singletonList(document.getRootElement());
+                            else
+                                children = content;
                         } else {
                             // Beware: dom4j content() contains Namespace nodes (which is broken)!
                             children = ((Element) parent.node).content();
@@ -865,7 +869,13 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
             }
 
             if (commonParent.getNodeKind()==Type.DOCUMENT) {
-                children = ((Document)commonParent.node).content().listIterator();
+                // This is an attempt to work around a dom4j bug
+                final Document document = (Document)commonParent.node;
+                final List content = document.content();
+                if (content.size() == 0 && document.getRootElement() != null)
+                    children = Collections.singletonList(document.getRootElement()).listIterator();
+                else
+                    children = content.listIterator();
             } else {
                 children = ((Element)commonParent.node).content().listIterator();
             }
@@ -1032,6 +1042,38 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors) throws XPathException {
         Navigator.sendNamespaceDeclarations(this, out, includeAncestors);
     }
+
+    /**
+      * The equals() method compares nodes for identity. It is defined to give the same result
+      * as isSameNodeInfo().
+      * @param other the node to be compared with this node
+      * @return true if this NodeInfo object and the supplied NodeInfo object represent
+      *      the same node in the tree.
+      * @since 8.7 Previously, the effect of the equals() method was not defined. Callers
+      * should therefore be aware that third party implementations of the NodeInfo interface may
+      * not implement the correct semantics. It is safer to use isSameNodeInfo() for this reason.
+      * The equals() method has been defined because it is useful in contexts such as a Java Set or HashMap.
+      */
+
+     public boolean equals(Object other) {
+        if (other instanceof NodeInfo) {
+            return isSameNodeInfo((NodeInfo)other);
+        } else {
+            return false;
+}
+    }
+
+    /**
+      * The hashCode() method obeys the contract for hashCode(): that is, if two objects are equal
+      * (represent the same node) then they must have the same hashCode()
+      * @since 8.7 Previously, the effect of the equals() and hashCode() methods was not defined. Callers
+      * should therefore be aware that third party implementations of the NodeInfo interface may
+      * not implement the correct semantics.
+      */
+
+     public int hashCode() {
+         return node.hashCode();
+     }
 }
 
 //
