@@ -53,7 +53,9 @@ public class Doc extends SystemFunction {
                 Item item = doc(context);
                 controller.setErrorListener(old);
                 return BooleanValue.get(item != null);
-            } catch (XPathException err) {
+            } catch (Exception err) {
+                // Orbeon 2008-05-16: catch all exceptions
+                // This is fixed in Saxon 9
                 return BooleanValue.FALSE;
             }
         }
