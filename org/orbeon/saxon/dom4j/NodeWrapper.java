@@ -396,7 +396,10 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
                 if (((Element)node).isRootElement()) {
                     parent = makeWrapper(((Element)node).getDocument(), docWrapper);
                 } else {
-                    parent = makeWrapper(((Element)node).getParent(), docWrapper);
+                    final Node parentNode = ((Element)node).getParent();
+                    // ORBEON: This checks the case of an element detached from a Document
+                    if (parentNode != null)
+                        parent = makeWrapper(parentNode, docWrapper);
                 }
             } else if (node instanceof Text) {
                 parent = makeWrapper(((Text)node).getParent(), docWrapper);

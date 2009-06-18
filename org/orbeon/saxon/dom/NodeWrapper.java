@@ -624,7 +624,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
             case Type.ELEMENT:
             case Type.ATTRIBUTE:
             case Type.PROCESSING_INSTRUCTION:
-                return node.getNodeName();
+                return node.getNodeName() != null ? node.getNodeName() : "";// ORBEON: Not sure why in some cases the node name is null
             default:
                 return "";
 
