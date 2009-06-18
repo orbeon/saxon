@@ -665,7 +665,7 @@ public final class Navigator {
             depth1--;
         }
 
-        p2 = ow;
+        p2 = second;
         while (depth2 > depth1) {
             p2 = p2.getParent();
             if (p2.isSameNodeInfo(first)) {
@@ -682,6 +682,12 @@ public final class Navigator {
                 throw new NullPointerException("DOM/JDOM tree compare - internal error");
             }
             if (par1.isSameNodeInfo(par2)) {
+                if (p1.getNodeKind() == Type.ATTRIBUTE && p2.getNodeKind() != Type.ATTRIBUTE) {
+                    return -1;  // attributes first
+                }
+                if (p1.getNodeKind() != Type.ATTRIBUTE && p2.getNodeKind() == Type.ATTRIBUTE) {
+                    return +1;  // attributes first
+                }
                 return ((SiblingCountingNode)p1).getSiblingPosition() -
                         ((SiblingCountingNode)p2).getSiblingPosition();
             }
