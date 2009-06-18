@@ -19,7 +19,7 @@ import java.util.List;
  * by allocating memory to each item in the sequence.
  */
 
-public final class SequenceExtent extends Value {
+public final class  SequenceExtent extends Value {
     private Item[] value;
     private int start = 0;  // zero-based offset of the start
     private int end;        // the 0-based index of the first item that is NOT included
