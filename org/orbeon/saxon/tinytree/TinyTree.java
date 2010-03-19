@@ -194,7 +194,7 @@ public final class TinyTree {
     private void ensureNodeCapacity(short kind) {
         if (nodeKind.length < numberOfNodes+1) {
             //System.err.println("Number of nodes = " + numberOfNodes);
-            int k = (kind == Type.STOPPER ? numberOfNodes+1 : numberOfNodes*2);
+            int k = (kind == Type.STOPPER ? numberOfNodes+1 : numberOfNodes*3/2+1);// XXX ORBEON
 
             byte[] nodeKind2 = new byte[k];
             int[] next2 = new int[k];
@@ -227,7 +227,7 @@ public final class TinyTree {
 
     private void ensureAttributeCapacity() {
         if (attParent.length < numberOfAttributes+1) {
-            int k = numberOfAttributes*2;
+            int k = numberOfAttributes*3/2+1;// XXX ORBEON
             if (k==0) {
                 k = 10;
             }
@@ -254,7 +254,7 @@ public final class TinyTree {
 
     private void ensureNamespaceCapacity() {
         if (namespaceParent.length < numberOfNamespaces+1) {
-            int k = numberOfNamespaces*2;
+            int k = numberOfNamespaces*3/2+1;// XXX ORBEON
 
             int[] namespaceParent2 = new int[k];
             int[] namespaceCode2 = new int[k];
@@ -307,7 +307,7 @@ public final class TinyTree {
 
         if (depth == 0 && kind != Type.STOPPER) {
             if (rootIndexUsed == rootIndex.length) {
-                int[] r2 = new int[rootIndexUsed * 2];
+                int[] r2 = new int[rootIndexUsed*3/2+1];// XXX ORBEON
                 System.arraycopy(rootIndex, 0, r2, 0, rootIndexUsed);
                 rootIndex = r2;
             }
