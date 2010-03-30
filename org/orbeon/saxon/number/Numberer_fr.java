@@ -21,13 +21,13 @@ public class Numberer_fr extends AbstractNumberer {
 
 	private static String[] frenchTens = { "", "Dix", "Vingt", "Trente", "Quarante", "Cinquante", "Soixante", "Soixante", "Quatre-vingt", "Quatre-vingt" };
 
-	private static String[] frenchOrdinalUnits = { "", "Premier", "Deuxi�me", "Troisi�me", "Quatri�me", "Cinqui�me", "Sixi�me", "Septi�me", "Huiti�me", "Neuvi�me", "Dixi�me", "Onzi�me", "Douzi�me", "Treizi�me", "Quatorzi�me", "Quinzi�me", "Seizi�me", "Dix-septi�me", "Dix-huiti�me", "Dix-neuvi�me" };
+	private static String[] frenchOrdinalUnits = { "", "Premier", "Deuxième", "Troisième", "Quatrième", "Cinquième", "Sixième", "Septième", "Huitième", "Neuvième", "Dixième", "Onzième", "Douzième", "Treizième", "Quatorzième", "Quinzième", "Seizième", "Dix-septième", "Dix-huitième", "Dix-neuvième" };
 
-	private static String[] frenchOrdinalTens = { "", "Dixi�me", "Vingti�me", "Trenti�me", "Quaranti�me", "Cinquanti�me", "Soixanti�me", "Soixante", "Quatre-vingti�me", "Quatre-vingt" };
+	private static String[] frenchOrdinalTens = { "", "Dixième", "Vingtième", "Trentième", "Quarantième", "Cinquantième", "Soixantième", "Soixante", "Quatre-vingtième", "Quatre-vingt" };
 
 	private static String[] frenchDays = { "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche" };
 
-	private static String[] frenchMonths = { "Janvier", "F�vrier", "Mars", "Avril", "Mai", "Juin", "Juillet", "Ao�t", "Septembre", "Octobre", "Novembre", "D�cembre" };
+	private static String[] frenchMonths = { "Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre" };
 
 	/*
 	 * (non-Javadoc)
@@ -70,7 +70,7 @@ public class Numberer_fr extends AbstractNumberer {
 
 	private String toWords(long number, boolean terminal) {
 		if (number == 0) {
-			return "Z�ro";
+			return "Zéro";
 		} else if (number >= 1000000000000000000l) {
 			long rem = number % 1000000000000000000l;
 			long n = number / 1000000000000000000l;
@@ -141,7 +141,7 @@ public class Numberer_fr extends AbstractNumberer {
 		String ord;
 		if (number < 20) {
 			if (number == 0) {
-				ord = "Z�roi�me";
+				ord = "Zéroième";
 			} else {
 				ord = frenchOrdinalUnits[(int) number];
 			}
@@ -161,10 +161,10 @@ public class Numberer_fr extends AbstractNumberer {
 					prefix = prefix.substring(0, prefix.length() - 1);
 				}
 				String result = prefix + link;
-				ord = result + ((mod10 == 1) ? "uni�me" : toOrdinalWords("", mod10, LOWER_CASE));
+				ord = result + ((mod10 == 1) ? "unième" : toOrdinalWords("", mod10, LOWER_CASE));
 			}
 		} else {
-			String suffix = "i�me";
+			String suffix = "ième";
 			long mod100 = number % 100;
 			long int100 = number / 100;
 			if (int100 == 70 || int100 == 90) {
@@ -184,7 +184,7 @@ public class Numberer_fr extends AbstractNumberer {
 				prefix = prefix.substring(0, prefix.length() - 1);
 			}
 
-			ord = prefix + ((mod100 == 0) ? suffix : " " + ((mod100 == 1) ? "uni�me" : toOrdinalWords("", mod100, LOWER_CASE)));
+			ord = prefix + ((mod100 == 0) ? suffix : " " + ((mod100 == 1) ? "unième" : toOrdinalWords("", mod100, LOWER_CASE)));
 		}
 		if (wordCase == UPPER_CASE) {
 			return ord.toUpperCase();
@@ -255,5 +255,5 @@ public class Numberer_fr extends AbstractNumberer {
 // Rights Reserved.
 //
 // Contributor(s): 	Laurent Bourbeau, for the elaboration of JUnit tests
-//					and Jean-Gr�goire Dj�nandji, for acceptance testing.
+//					and Jean-Grégoire Djénandji, for acceptance testing.
 //
