@@ -1,9 +1,9 @@
 package org.orbeon.saxon.expr;
 
 import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.StructuredQName;
 import org.orbeon.saxon.type.ItemType;
 
-import javax.xml.transform.SourceLocator;
 import java.io.Serializable;
 
 /**
@@ -15,11 +15,9 @@ import java.io.Serializable;
 public class RoleLocator implements Serializable {
 
     private int kind;
-    private Object container;
+    private Serializable operation; // always either a String or a StructuredQName
     private int operand;
-    private NamePool namePool;
     private String errorCode = "XPTY0004";  // default error code for type errors
-    private SourceLocator sourceLocator;
 
     public static final int FUNCTION = 0;
     public static final int BINARY_EXPR = 1;
@@ -30,22 +28,26 @@ public class RoleLocator implements Serializable {
     public static final int ORDER_BY = 6;
     public static final int TEMPLATE_RESULT = 7;
     public static final int PARAM = 8;
+    public static final int UNARY_EXPR = 9;
+    public static final int UPDATING_EXPR = 10;
 
     /**
      * Create information about the role of a subexpression within its parent expression
      * @param kind the kind of parent expression, e.g. a function call or a variable reference
-     * @param container the name of the object in the parent expression, e.g. a function name or
-     * instruction name. May be expressed either as a String or as an Integer nameCode in the name pool.
+     * @param operation the name of the object in the parent expression, e.g. a function name or
+ * instruction name. May be expressed either as a String or as a {@link org.orbeon.saxon.om.StructuredQName}.
+ * For a string, the special format element/attribute is recognized, for example xsl:for-each/select,
+ * to identify the role of an XPath expression in a stylesheet.
      * @param operand Ordinal position of this subexpression, e.g. the position of an argument in
-     * @param namePool The name pool. Must be supplied if the second argument is an Integer namecode.
-     * Otherwise, may be null.
      */
 
-    public RoleLocator(int kind, Object container, int operand, NamePool namePool) {
+    public RoleLocator(int kind, Serializable operation, int operand) {
+        if (!(operation instanceof String || operation instanceof StructuredQName)) {
+            throw new IllegalArgumentException("operation");
+        }
         this.kind = kind;
-        this.container = container;
+        this.operation = operation;
         this.operand = operand;
-        this.namePool = namePool;
     }
 
     /**
@@ -72,26 +74,26 @@ public class RoleLocator implements Serializable {
      * Set the source location
      */
 
-    public void setSourceLocator(SourceLocator locator) {
-        // this is currently used only when type-checking literals,
-        // which don't have any location information of their own
-        if (locator instanceof ExpressionLocation) {
-            this.sourceLocator = locator;
-        } else {
-            this.sourceLocator = new ExpressionLocation(locator);
-        }
-        // the supplied value isn't saved because the locator may be an expression that
-        // contains links back to the containing stylesheet, which causes the stylesheet
-        // to remain in memory at run-time (and prevents stylesheet compilation)
-    }
+//    public void setSourceLocator(SourceLocator locator) {
+//        // this is currently used only when type-checking literals,
+//        // which don't have any location information of their own
+//        if (locator instanceof ExpressionLocation) {
+//            this.sourceLocator = locator;
+//        } else {
+//            this.sourceLocator = new ExpressionLocation(locator);
+//        }
+//        // the supplied value isn't saved because the locator may be an expression that
+//        // contains links back to the containing stylesheet, which causes the stylesheet
+//        // to remain in memory at run-time (and prevents stylesheet compilation)
+//    }
 
     /**
      * Get the source location (if known - return null if not known)
      */
 
-    public SourceLocator getSourceLocator() {
-        return sourceLocator;
-    }
+//    public SourceLocator getSourceLocator() {
+//        return sourceLocator;
+//    }
 
     /**
      * Construct and return the error message indicating a type error
@@ -99,14 +101,10 @@ public class RoleLocator implements Serializable {
      */
     public String getMessage() {
         String name;
-        if (container instanceof String) {
-            name = (String)container;
+        if (operation instanceof String) {
+            name = (String)operation;
         } else {
-            if (namePool == null) {
-                name = "*unknown*";
-            } else {
-                name = namePool.getDisplayName(((Integer)container).intValue());
-            }
+            name = ((StructuredQName)operation).getDisplayName();
         }
 
         switch (kind) {
@@ -114,6 +112,8 @@ public class RoleLocator implements Serializable {
                 return ordinal(operand+1) + " argument of " + name + "()";
             case BINARY_EXPR:
                 return ordinal(operand+1) + " operand of '" + name + '\'';
+            case UNARY_EXPR:
+                return "operand of '-'";    
             case TYPE_OP:
                 return "value in '" + name + "' expression";
             case VARIABLE:
@@ -134,13 +134,31 @@ public class RoleLocator implements Serializable {
                 return ordinal(operand+1) + " sort key";
             case PARAM:
                 return "value of parameter $" + name;
+            case UPDATING_EXPR:
+                return "value of " + ordinal(operand+1) + " operand of " + name + " expression";
             default:
                 return "";
         }
     }
 
     /**
+     * Construct the part of the message giving the required item type
+     * @param requiredItemType the item type required by the context of a particular expression
+     * @param pool the name pool
+     * @return a message of the form "Required item type of X is Y"
+     */
+
+    public String composeRequiredMessage(ItemType requiredItemType, NamePool pool) {
+        return "Required item type of " + getMessage() +
+                     " is " + requiredItemType.toString(pool);
+    }
+
+    /**
      * Construct a full error message
+     * @param requiredItemType the item type required by the context of a particular expression
+     * @param suppliedItemType the item type inferred by static analysis of an expression
+     * @param pool the name pool
+     * @return a message of the form "Required item type of A is R; supplied value has item type S"
      */
 
     public String composeErrorMessage(ItemType requiredItemType, ItemType suppliedItemType, NamePool pool) {

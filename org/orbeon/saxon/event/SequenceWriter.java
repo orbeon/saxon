@@ -1,8 +1,8 @@
 package org.orbeon.saxon.event;
 
-import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.tinytree.TinyBuilder;
 import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.tinytree.TinyBuilder;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.AtomicValue;
 
@@ -21,23 +21,35 @@ import org.orbeon.saxon.value.AtomicValue;
 
 public abstract class SequenceWriter extends SequenceReceiver {
     private Receiver outputter = null;
-    private TinyBuilder builder = null;
+    private Builder builder = null;
     private int level = 0;
     private boolean inStartTag = false;
+    //private boolean buildForUpdate = false;
+
+    /**
+     * Indicate whether the tree that is built needs to support update operations
+     * @param forUpdate true if update operations are to be supported
+     */
+
+//    public void setBuildForUpdate(boolean forUpdate) {
+//        buildForUpdate = forUpdate;
+//    }
+
+    /**
+     * Ask whether the tree that is built needs to support update operations
+     * @return true if update operations are to be supported
+     */
+
+//    public boolean isBuildForUpdate() {
+//        return buildForUpdate;
+//    }
 
     /**
      * Abstract method to be supplied by subclasses: output one item in the sequence.
+     * @param item the item to be written to the sequence
      */
 
     public abstract void write(Item item) throws XPathException;
-
-    /**
-     * Determine whether there are any open document or element nodes in the output
-     */
-
-    public boolean hasOpenNodes() {
-        return level != 0;
-    }
 
     /**
      * Start of a document node.
@@ -58,9 +70,11 @@ public abstract class SequenceWriter extends SequenceReceiver {
      */
 
     private void createTree() throws XPathException {
-        builder = new TinyBuilder();
-        builder.setPipelineConfiguration(getPipelineConfiguration());
+        PipelineConfiguration pipe = getPipelineConfiguration();
+        builder = pipe.getController().makeBuilder();
+        builder.setPipelineConfiguration(pipe);
         builder.setSystemId(getSystemId());
+        builder.setTiming(false);
 
         NamespaceReducer reducer = new NamespaceReducer();
         reducer.setUnderlyingReceiver(builder);
@@ -75,6 +89,15 @@ public abstract class SequenceWriter extends SequenceReceiver {
         outputter.setSystemId(systemId);
         outputter.setPipelineConfiguration(getPipelineConfiguration());
         outputter.open();
+    }
+
+    /**
+     * Decide whether reuse of the SequenceWriter is advisable
+     * @return true if reuse is considered advisable
+     */
+
+    protected boolean adviseReuse() {
+        return builder instanceof TinyBuilder && ((TinyBuilder)builder).getTree().getNumberOfNodes() < 20000;
     }
 
     /**
@@ -94,10 +117,10 @@ public abstract class SequenceWriter extends SequenceReceiver {
     /**
     * Output an element start tag.
     * @param nameCode The element name code - a code held in the Name Pool
-    * @param typeCode Integer code identifying the type of this element. Zero identifies the default
-    * type, that is xs:anyType
-    * @param properties bit-significant flags indicating any special information
-    */
+     * @param typeCode Integer code identifying the type of this element. Zero identifies the default
+* type, that is xs:anyType
+     * @param properties bit-significant flags indicating any special information
+     */
 
     public void startElement(int nameCode, int typeCode, int locationId, int properties) throws XPathException {
 
@@ -125,6 +148,7 @@ public abstract class SequenceWriter extends SequenceReceiver {
         }
         outputter.endElement();
         if (--level == 0) {
+            outputter.close();
             NodeInfo element = builder.getCurrentRoot();
             append(element, 0, NodeInfo.ALL_NAMESPACES);
         }

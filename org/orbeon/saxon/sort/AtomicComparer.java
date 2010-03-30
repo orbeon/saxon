@@ -1,8 +1,9 @@
 package org.orbeon.saxon.sort;
 
 import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.trans.NoDynamicContextException;
 
-import java.util.Comparator;
 import java.io.Serializable;
 
 /**
@@ -10,7 +11,16 @@ import java.io.Serializable;
  * for ordering.
  */
 
-public interface AtomicComparer extends Comparator, Serializable {
+public interface AtomicComparer extends Serializable {
+
+    /**
+     * Supply the dynamic context in case this is needed for the comparison
+     * @param context the dynamic evaluation context
+     * @return either the original AtomicComparer, or a new AtomicComparer in which the context
+     * is known. The original AtomicComparer is not modified
+     */
+
+    public AtomicComparer provideContext(XPathContext context);
 
     /**
     * Compare two AtomicValue objects according to the rules for their data type. UntypedAtomic
@@ -24,23 +34,24 @@ public interface AtomicComparer extends Comparator, Serializable {
     * example, if one is a string, they must both be strings.
     * @return <0 if a<b, 0 if a=b, >0 if a>b
     * @throws ClassCastException if the objects are not comparable
+     * @throws NoDynamicContextException if this comparer required access to dynamic context information,
+     * notably the implicit timezone, and this information is not available. In general this happens if a
+     * context-dependent comparison is attempted at compile-time, and it signals the compiler to generate
+     * code that tries again at run-time.
     */
 
-    public int compare(Object a, Object b);
+    public int compareAtomicValues(AtomicValue a, AtomicValue b) throws NoDynamicContextException;
 
     /**
     * Compare two AtomicValue objects for equality according to the rules for their data type. UntypedAtomic
     * values are compared by converting to the type of the other operand.
-    * @param a the first object to be compared. It is intended that this should be an instance
-    * of AtomicValue, though this restriction is not enforced. If it is a StringValue, the
-    * collator is used to compare the values, otherwise the value must implement the equals() method.
-    * @param b the second object to be compared. This must be comparable with the first object: for
-    * example, if one is a string, they must both be strings.
+    * @param a the first object to be compared.
+    * @param b the second object to be compared.
     * @return true if the values are equal, false if not
     * @throws ClassCastException if the objects are not comparable
     */
 
-    public boolean comparesEqual(AtomicValue a, AtomicValue b);
+    public boolean comparesEqual(AtomicValue a, AtomicValue b) throws NoDynamicContextException;
 
     /**
      * Get a comparison key for an object. This must satisfy the rule that if two objects are equal
@@ -49,7 +60,7 @@ public interface AtomicComparer extends Comparator, Serializable {
      * comparison keys should reflect the ordering of the underlying objects.
      */
 
-    public ComparisonKey getComparisonKey(AtomicValue a);
+    public ComparisonKey getComparisonKey(AtomicValue a) throws NoDynamicContextException;
 }
 
 

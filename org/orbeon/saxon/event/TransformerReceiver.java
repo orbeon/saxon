@@ -1,7 +1,7 @@
 package org.orbeon.saxon.event;
 import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.om.DocumentInfo;
-import org.orbeon.saxon.trans.DynamicError;
+
 import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.transform.Result;
@@ -35,15 +35,14 @@ public class TransformerReceiver extends ProxyReceiver {
      */
 
     public void open() throws XPathException {
-        setPipelineConfiguration(controller.makePipelineConfiguration());
         builder = controller.makeBuilder();
-        builder.setPipelineConfiguration(getPipelineConfiguration());
+        setPipelineConfiguration(builder.getPipelineConfiguration());
         builder.setSystemId(systemId);
         Receiver stripper = controller.makeStripper(builder);
         if (controller.getExecutable().stripsInputTypeAnnotations()) {
             stripper = controller.getConfiguration().getAnnotationStripper(stripper);
         }
-        this.setUnderlyingReceiver(stripper);
+        setUnderlyingReceiver(stripper);
         nextReceiver.open();
     }
 
@@ -102,14 +101,15 @@ public class TransformerReceiver extends ProxyReceiver {
     public void close() throws XPathException {
         nextReceiver.close();
         DocumentInfo doc = (DocumentInfo)builder.getCurrentRoot();
+        builder.reset();
         if (doc==null) {
-            throw new DynamicError("No source document has been built");
+            throw new XPathException("No source document has been built");
         }
         //doc.getNamePool().allocateDocumentNumber(doc);
         try {
             controller.transformDocument(doc, result);
         } catch (TransformerException e) {
-            throw DynamicError.makeDynamicError(e);
+            throw XPathException.makeXPathException(e);
         }
     }
 

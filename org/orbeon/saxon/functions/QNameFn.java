@@ -1,12 +1,13 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.ExpressionVisitor;
+import org.orbeon.saxon.expr.Literal;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.QNameException;
 import org.orbeon.saxon.om.NameChecker;
+import org.orbeon.saxon.om.QNameException;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.QNameValue;
 
@@ -20,32 +21,38 @@ public class QNameFn extends SystemFunction {
     /**
      * Pre-evaluate a function at compile time. Functions that do not allow
      * pre-evaluation, or that need access to context information, can override this method.
+     * @param visitor an expression visitor
      */
 
-    public Expression preEvaluate(StaticContext env) throws XPathException {
+    public Expression preEvaluate(ExpressionVisitor visitor) throws XPathException {
         try {
-            final Item item1 = argument[1].evaluateItem(env.makeEarlyEvaluationContext());
+            XPathContext early = visitor.getStaticContext().makeEarlyEvaluationContext();
+            final Item item1 = argument[1].evaluateItem(early);
             final String lex = item1.getStringValue();
-            final Item item0 = argument[0].evaluateItem(env.makeEarlyEvaluationContext());
+            final Item item0 = argument[0].evaluateItem(early);
             String uri;
             if (item0 == null) {
                 uri = "";
             } else {
                 uri = item0.getStringValue();
             }
-            final NameChecker checker = env.getConfiguration().getNameChecker();
+            final NameChecker checker = visitor.getConfiguration().getNameChecker();
             final String[] parts = checker.getQNameParts(lex);
             // The QNameValue constructor does not check the prefix
-            if (!parts[0].equals("") && !checker.isValidNCName(parts[0])) {
-                DynamicError err = new DynamicError("Malformed prefix in QName: '" + parts[0] + '\'');
-                err.setErrorCode("FORG0001");
+            if (parts[0].length() != 0 && !checker.isValidNCName(parts[0])) {
+                XPathException err = new XPathException("Malformed prefix in QName: '" + parts[0] + '\'');
+                err.setErrorCode("FOCA0002");
                 throw err;
             }
-            return new QNameValue(parts[0], uri, parts[1], checker);
+            return Literal.makeLiteral(
+                    new QNameValue(parts[0], uri, parts[1], BuiltInAtomicType.QNAME, checker));
         } catch (QNameException e) {
-            DynamicError err = new DynamicError(e.getMessage(), this);
+            XPathException err = new XPathException(e.getMessage(), this);
             err.setErrorCode("FOCA0002");
             err.setLocator(this);
+            throw err;
+        } catch (XPathException err) {
+            err.maybeSetLocation(this);
             throw err;
         }
     }
@@ -69,23 +76,22 @@ public class QNameFn extends SystemFunction {
             final NameChecker checker = context.getConfiguration().getNameChecker();
             final String[] parts = checker.getQNameParts(lex);
             // The QNameValue constructor does not check the prefix
-            if (!parts[0].equals("") && !checker.isValidNCName(parts[0])) {
-                DynamicError err = new DynamicError("Malformed prefix in QName: '" + parts[0] + '\'');
+            if (parts[0].length() != 0 && !checker.isValidNCName(parts[0])) {
+                XPathException err = new XPathException("Malformed prefix in QName: '" + parts[0] + '\'');
                 err.setErrorCode("FORG0001");
                 throw err;
             }
-            return new QNameValue(parts[0], uri, parts[1], checker);
+            return new QNameValue(parts[0], uri, parts[1], BuiltInAtomicType.QNAME, checker);
         } catch (QNameException e) {
             dynamicError(e.getMessage(), "FOCA0002", context);
             return null;
+        } catch (XPathException err) {
+            err.maybeSetLocation(this);
+            throw err;
         }
     }
 
 }
-
-
-
-
 
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");
@@ -96,11 +102,9 @@ public class QNameFn extends SystemFunction {
 // WITHOUT WARRANTY OF ANY KIND, either express or implied.
 // See the License for the specific language governing rights and limitations under the License.
 //
-// The Original Code is: all this file.
+// The Original Code is: all this file
 //
-// The Initial Developer of the Original Code is Michael H. Kay
+// The Initial Developer of the Original Code is Michael H. Kay.
 //
-// Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
-//
-// Contributor(s): none.
+// Contributor(s):
 //

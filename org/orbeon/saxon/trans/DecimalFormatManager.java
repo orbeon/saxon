@@ -1,6 +1,8 @@
 package org.orbeon.saxon.trans;
 
-import org.orbeon.saxon.functions.FormatNumber2;
+import org.orbeon.saxon.functions.FormatNumber;
+import org.orbeon.saxon.om.StructuredQName;
+import org.orbeon.saxon.om.NamespaceConstant;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -54,29 +56,32 @@ public class DecimalFormatManager implements Serializable {
     */
 
     public void setDefaultDecimalFormat(DecimalSymbols dfs, int precedence)
-    throws StaticError {
+    throws XPathException {
         if (!usingOriginalDefault) {
             if (!dfs.equals(defaultDFS)) {
-                StaticError err = new StaticError(
-                    "There are two conflicting definitions of the default decimal format");
+                XPathException err = new XPathException("There are two conflicting definitions of the default decimal format");
                 err.setErrorCode("XTSE1290");
+                err.setIsStaticError(true);
                 throw err;
             }
         }
         defaultDFS = dfs;
         usingOriginalDefault = false;
-        setNamedDecimalFormat("", "", dfs, precedence);
+        setNamedDecimalFormat(DEFAULT_NAME, dfs, precedence);
             // this is to trigger fixup of calls
     }
+
+    final public static StructuredQName DEFAULT_NAME = 
+            new StructuredQName("saxon", NamespaceConstant.SAXON, "default-decimal-format");
 
     /**
     * Method called at the end of stylesheet compilation to fix up any format-number() calls
     * to the "default default" decimal format
     */
 
-    public void fixupDefaultDefault() throws StaticError {
+    public void fixupDefaultDefault() throws XPathException {
         if (usingOriginalDefault) {
-            setNamedDecimalFormat("", "", defaultDFS, -1000);
+            setNamedDecimalFormat(DEFAULT_NAME, defaultDFS, -1000);
         }
     }
 
@@ -93,19 +98,17 @@ public class DecimalFormatManager implements Serializable {
     * Note that it is an error to register the same decimal-format twice, unless hte values are
      * equal, or unless there is another of higher precedence. This method assumes that decimal-formats
      * are registered in order of decreasing precedence
-    * @param uri The URI of the name of the decimal format
-    * @param localName The local part of the name of the decimal format
+    * @param qName the name of the decimal format
     */
 
-    public void setNamedDecimalFormat(String uri, String localName, DecimalSymbols dfs, int precedence)
-    throws StaticError {
-		String dfskey = localName + '#' + uri;
-		Object o = formatTable.get(dfskey);
+    public void setNamedDecimalFormat(StructuredQName qName, DecimalSymbols dfs, int precedence)
+    throws XPathException {
+		Object o = formatTable.get(qName);
 		if (o != null) {
     		if (o instanceof List) {
     		    // this indicates there are forwards references to this decimal format that need to be fixed up
     		    for (Iterator iter = ((List)o).iterator(); iter.hasNext(); ) {
-    		        FormatNumber2 call = (FormatNumber2)iter.next();
+    		        FormatNumber call = (FormatNumber)iter.next();
     		        call.fixup(dfs);
     		    }
     		} else {
@@ -116,8 +119,9 @@ public class DecimalFormatManager implements Serializable {
                     return;
                 }
                 if (precedence==oldPrecedence && !dfs.equals(old)) {
-                    StaticError err = new StaticError("There are two conflicting definitions of the named decimal-format");
+                    XPathException err = new XPathException("There are two conflicting definitions of the named decimal-format");
                     err.setErrorCode("XTSE1290");
+                    err.setIsStaticError(true);
                     throw err;
                 }
             }
@@ -125,7 +129,7 @@ public class DecimalFormatManager implements Serializable {
         DecimalFormatInfo dfi = new DecimalFormatInfo();
         dfi.dfs = dfs;
         dfi.precedence = precedence;
-        formatTable.put(dfskey, dfi);
+        formatTable.put(qName, dfi);
     }
 
     /**
@@ -134,14 +138,13 @@ public class DecimalFormatManager implements Serializable {
     * even in the case of a forwards reference
     */
 
-    public void registerUsage(String uri, String localName, FormatNumber2 call) {
-        String dfskey = localName + '#' + uri;
-        Object o = formatTable.get(dfskey);
+    public void registerUsage(StructuredQName qName, FormatNumber call) {
+        Object o = formatTable.get(qName);
         if (o == null) {
             // it's a forwards reference
             List list = new ArrayList(10);
             list.add(call);
-            formatTable.put(dfskey, list);
+            formatTable.put(qName, list);
         } else if (o instanceof List) {
             // it's another forwards reference
             List list = (List)o;
@@ -155,15 +158,13 @@ public class DecimalFormatManager implements Serializable {
 
     /**
     * Get a named decimal-format registered using setNamedDecimalFormat
-    * @param uri The URI of the name of the decimal format
-    * @param localName The local part of the name of the decimal format
+    * @param qName The  name of the decimal format
     * @return the DecimalFormatSymbols object corresponding to the named locale, if any
     * or null if not set.
     */
 
-    public DecimalSymbols getNamedDecimalFormat(String uri, String localName) {
-		String dfskey = localName + '#' + uri;
-        DecimalFormatInfo dfi = ((DecimalFormatInfo)formatTable.get(dfskey));
+    public DecimalSymbols getNamedDecimalFormat(StructuredQName qName) {
+        DecimalFormatInfo dfi = ((DecimalFormatInfo)formatTable.get(qName));
         if (dfi == null) {
             return null;
         }

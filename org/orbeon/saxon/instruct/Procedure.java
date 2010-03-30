@@ -1,12 +1,13 @@
 package org.orbeon.saxon.instruct;
 
-import org.orbeon.saxon.expr.ComputedExpression;
+import org.orbeon.saxon.event.LocationProvider;
 import org.orbeon.saxon.expr.Container;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.event.LocationProvider;
+import org.orbeon.saxon.trace.InstructionInfo;
 
 import java.io.Serializable;
+import java.util.Iterator;
+import java.util.Collections;
 
 /**
  * This object represents the compiled form of a user-written function, template, attribute-set, etc
@@ -19,7 +20,7 @@ import java.io.Serializable;
  * convert the supplied arguments.
  */
 
-public abstract class Procedure implements Serializable, Container, LocationProvider {
+public abstract class Procedure implements Serializable, Container, InstructionInfo, LocationProvider {
 
     protected Expression body;
     private Executable executable;
@@ -32,8 +33,7 @@ public abstract class Procedure implements Serializable, Container, LocationProv
 
     public void setBody(Expression body) {
         this.body = body;
-        ExpressionTool.makeParentReferences(body);
-        ComputedExpression.setParentExpression(body, this);
+        body.setContainer(this);
     }
 
     public void setHostLanguage(int language) {
@@ -61,7 +61,7 @@ public abstract class Procedure implements Serializable, Container, LocationProv
              body = replacement;
              found = true;
          }
-                 return found;
+         return found;
     }
 
     public void setStackFrameMap(SlotManager map) {
@@ -112,14 +112,33 @@ public abstract class Procedure implements Serializable, Container, LocationProv
         return null;
     }
 
-    public String getSystemId(int locationId) {
+    public String getSystemId(long locationId) {
         return systemId;
     }
 
-    public int getLineNumber(int locationId) {
+    public int getLineNumber(long locationId) {
         return lineNumber;
     }
 
+    public int getColumnNumber(long locationId) {
+        return getColumnNumber();
+    }
+
+    public Object getProperty(String name) {
+        return null;
+    }
+
+
+    /**
+     * Get an iterator over all the properties available. The values returned by the iterator
+     * will be of type String, and each string can be supplied as input to the getProperty()
+     * method to retrieve the value of the property. The iterator may return properties whose
+     * value is null.
+     */
+
+    public Iterator getProperties() {
+        return Collections.EMPTY_LIST.iterator();
+    }
 }
 
 

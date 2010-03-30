@@ -1,7 +1,7 @@
 package org.orbeon.saxon.event;
-import org.orbeon.saxon.Err;
+import org.orbeon.saxon.trans.Err;
 import org.orbeon.saxon.om.NameChecker;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.transform.OutputKeys;
 import java.util.StringTokenizer;
@@ -26,12 +26,35 @@ public class SaxonOutputKeys {
     private SaxonOutputKeys() {}
 
     /**
-     * indentSpaces = integer.
+     * String constant representing the saxon:xquery output method name
+     */
+
+    public static final String SAXON_XQUERY_METHOD = "{http://saxon.sf.net/}xquery";
+
+    /**
+     * saxon:indentSpaces = integer.
      *
      * <p>Defines the number of spaces used for indentation of output</p>
      */
 
     public static final String INDENT_SPACES = "{http://saxon.sf.net/}indent-spaces";
+
+    /**
+     * saxon:suppress-indentation = list of element names
+     *
+     * <p>Defines elements within which no indentation will occur</p>
+     */
+
+    public static final String SUPPRESS_INDENTATION = "{http://saxon.sf.net/}suppress-indentation";
+
+    /**
+     * saxon:double-space = list of element names
+     *
+     * <p>Defines elements that will have an extra blank line added before the start tag, in addition
+     * to normal indentation</p>
+     */
+
+    public static final String DOUBLE_SPACE = "{http://saxon.sf.net/}double-space";
 
     /**
      * stylesheet-version. This serialization parameter is set automatically by the XSLT processor
@@ -72,7 +95,7 @@ public class SaxonOutputKeys {
      * <p>Indicates whether HTML attributes of type URI are to be URI-escaped</p>
      */
 
-    public static final String ESCAPE_URI_ATTRIBUTES = "escape-uri-attibutes";
+    public static final String ESCAPE_URI_ATTRIBUTES = "escape-uri-attributes";
 
     /**
      * representation = rep1[;rep2].
@@ -118,7 +141,7 @@ public class SaxonOutputKeys {
      * location of the context node in the source document as well as the location in the stylesheet or query.</p>
      */
 
-     public static final String SUPPLY_SOURCE_LOCATOR = "supply-source-locator";
+     public static final String SUPPLY_SOURCE_LOCATOR = "{http://saxon.sf.net/}supply-source-locator";
 
     /**
     * saxon:require-well-formed = yes|no.
@@ -150,13 +173,19 @@ public class SaxonOutputKeys {
     /**
      * Check that a supplied output property is valid.
      * @param key the name of the property
-     * @param value the value of the property. This may be set to null, in which case
-     * @param checker
+     * @param value the value of the property. This may be set to null, in which case no validation takes place.
+     * The value must be in JAXP format, that is, with lexical QNames expanded to Clark names
+     * @param checker the NameChecker to be used for validating QNames
+     * @throws XPathException if the property name or value is invalid
      */
 
-    public static final void checkOutputProperty(String key, String value, NameChecker checker) throws DynamicError {
+    public static void checkOutputProperty(String key, String value, NameChecker checker) throws XPathException {
         if (!key.startsWith("{") || key.startsWith("{http://saxon.sf.net/}" )) {
-            if (key.equals(OutputKeys.CDATA_SECTION_ELEMENTS)) {
+            if (key.equals(BYTE_ORDER_MARK)) {
+                if (value != null) {
+                    checkYesOrNo(key, value);
+                }
+            } else if (key.equals(OutputKeys.CDATA_SECTION_ELEMENTS)) {
                 if (value != null) {
                     checkListOfClarkNames(key, value, checker);
                 }
@@ -166,6 +195,15 @@ public class SaxonOutputKeys {
                 // no constraints
             } else if (key.equals(OutputKeys.ENCODING)) {
                 // no constraints
+            } else if (key.equals(ESCAPE_URI_ATTRIBUTES) || key.equals("escape-uri-attibutes")) {
+                // constant was misspelled in 9.0 and earlier releases
+                if (value != null) {
+                    checkYesOrNo(key, value);
+                }
+            } else if (key.equals(INCLUDE_CONTENT_TYPE)) {
+                if (value != null) {
+                    checkYesOrNo(key, value);
+                }
             } else if (key.equals(OutputKeys.INDENT)) {
                 if (value != null) {
                     checkYesOrNo(key, value);
@@ -176,6 +214,10 @@ public class SaxonOutputKeys {
                 if (value != null) {
                     checkMethod(value, checker);
                 }
+            } else if (key.equals(NORMALIZATION_FORM)) {
+                if (value != null) {
+                    checkNormalizationForm(value);
+                }
             } else if (key.equals(OutputKeys.OMIT_XML_DECLARATION)) {
                 if (value != null) {
                     checkYesOrNo(key, value);
@@ -183,6 +225,14 @@ public class SaxonOutputKeys {
             } else if (key.equals(OutputKeys.STANDALONE)) {
                 if (value != null && !value.equals("omit")) {
                     checkYesOrNo(key, value);
+                }
+            } else if (key.equals(UNDECLARE_PREFIXES)) {
+                if (value != null) {
+                    checkYesOrNo(key, value);
+                }
+            } else if (key.equals(USE_CHARACTER_MAPS)) {
+                if (value != null) {
+                    checkListOfClarkNames(key, value, checker);
                 }
             } else if (key.equals(OutputKeys.VERSION)) {
                 // no constraints
@@ -192,36 +242,26 @@ public class SaxonOutputKeys {
                 if (value != null) {
                     checkNonNegativeInteger(key, value);
                 }
-            } else if (key.equals(INCLUDE_CONTENT_TYPE)) {
-                if (value != null) {
-                    checkYesOrNo(key, value);
-                }
-            } else if (key.equals(ESCAPE_URI_ATTRIBUTES)) {
-                if (value != null) {
-                    checkYesOrNo(key, value);
-                }
             } else if (key.equals(CHARACTER_REPRESENTATION)) {
                 // no validation performed
             } else if (key.equals(NEXT_IN_CHAIN)) {
                 // no validation performed
             } else if (key.equals(NEXT_IN_CHAIN_BASE_URI)) {
                 // no validation performed
-            } else if (key.equals(UNDECLARE_PREFIXES)) {
-                if (value != null) {
-                    checkYesOrNo(key, value);
-                }
-            } else if (key.equals(USE_CHARACTER_MAPS)) {
-                if (value != null) {
-                    checkListOfClarkNames(key, value, checker);
-                }
             } else if (key.equals(REQUIRE_WELL_FORMED)) {
                 if (value != null) {
                     checkYesOrNo(key, value);
                 }
-            } else if (key.equals(BYTE_ORDER_MARK)) {
+            } else if (key.equals(SUPPRESS_INDENTATION)) {
                 if (value != null) {
-                    checkYesOrNo(key, value);
+                    checkListOfClarkNames(key, value, checker);
                 }
+
+            } else if (key.equals(DOUBLE_SPACE)) {
+                if (value != null) {
+                    checkListOfClarkNames(key, value, checker);
+                }
+
             } else if (key.equals(WRAP)) {
                 if (value != null) {
                     checkYesOrNo(key, value);
@@ -231,60 +271,73 @@ public class SaxonOutputKeys {
                     checkYesOrNo(key, value);
                 }
             } else {
-                throw new DynamicError("Unknown serialization parameter " + Err.wrap(key));
+                throw new XPathException("Unknown serialization parameter " + Err.wrap(key));
             }
         } else {
-            return;
+            //return;
         }
     }
 
-    private static void checkYesOrNo(String key, String value) throws DynamicError {
+    private static void checkYesOrNo(String key, String value) throws XPathException {
         if ("yes".equals(value) || "no".equals(value)) {
             // OK
         } else {
-            throw new DynamicError("Serialization parameter " + Err.wrap(key) + " must have the value yes or no");
+            throw new XPathException("Serialization parameter " + Err.wrap(key) + " must have the value yes or no");
         }
     }
 
-    private static void checkMethod(String value, NameChecker checker) throws DynamicError {
+    private static void checkMethod(String value, NameChecker checker) throws XPathException {
         if ("xml".equals(value)) return;
         if ("html".equals(value)) return;
         if ("xhtml".equals(value)) return;
         if ("text".equals(value)) return;
         if (isValidClarkName(value, checker)) return;
-        throw new DynamicError("Invalid value for serialization method: " +
+        throw new XPathException("Invalid value for serialization method: " +
                 "must be xml, html, xhtml, text, or a QName in '{uri}local' form");
 
     }
 
-    private static boolean isValidClarkName(String value, NameChecker checker) {
-        if (value.charAt(0) != '{') return false;
-        int closer = value.indexOf('}');
-        if (closer < 2) return false;
-        if (closer == value.length()-1) return false;
-        if (!checker.isValidNCName(value.substring(closer+1))) return false;
-        return true;
+    private static void checkNormalizationForm(String value) throws XPathException {
+        if ("NFC".equals(value)) return;
+        if ("NFD".equals(value)) return;
+        if ("NFKC".equals(value)) return;
+        if ("NFKD".equals(value)) return;
+        if ("fully-normalized".equals(value)) return;
+        if ("none".equals(value)) return;
+        throw new XPathException("Invalid value for normalization-form: " +
+                "must be NFC, NFD, NFKC, NFKD, fully-normalized, or none");
+
     }
 
-    private static void checkNonNegativeInteger(String key, String value) throws DynamicError {
+    private static boolean isValidClarkName(String value, NameChecker checker) {
+        if (value.charAt(0) != '{') {
+            return false;
+        }
+        int closer = value.indexOf('}');
+        return closer >= 2 &&
+                closer != value.length() - 1 &&
+                checker.isValidNCName(value.substring(closer + 1));
+    }
+
+    private static void checkNonNegativeInteger(String key, String value) throws XPathException {
         try {
             int n = Integer.parseInt(value);
             if (n < 0) {
-                throw new DynamicError("Value of " +  Err.wrap(key) + " must be a non-negative integer");
+                throw new XPathException("Value of " +  Err.wrap(key) + " must be a non-negative integer");
             }
         } catch (NumberFormatException err) {
-            throw new DynamicError("Value of " +  Err.wrap(key) + " must be a non-negative integer");
+            throw new XPathException("Value of " +  Err.wrap(key) + " must be a non-negative integer");
         }
     }
 
-    private static void checkListOfClarkNames(String key, String value, NameChecker checker) throws DynamicError {
-        StringTokenizer tok = new StringTokenizer(value);
+    private static void checkListOfClarkNames(String key, String value, NameChecker checker) throws XPathException {
+        StringTokenizer tok = new StringTokenizer(value, " \t\n\r", false);
         while (tok.hasMoreTokens()) {
             String s = tok.nextToken();
             if (isValidClarkName(s, checker) || checker.isValidNCName(s)) {
                 // ok
             } else {
-                throw new DynamicError("Value of " +  Err.wrap(key) +
+                throw new XPathException("Value of " +  Err.wrap(key) +
                         " must be a list of QNames in '{uri}local' notation");
             }
         }

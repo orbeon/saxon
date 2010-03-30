@@ -1,19 +1,21 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.AugmentedSource;
 import org.orbeon.saxon.event.Builder;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.event.Sender;
-import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.om.DocumentInfo;
+import org.orbeon.saxon.expr.ExpressionVisitor;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.Whitespace;
 import org.xml.sax.InputSource;
 
 import javax.xml.transform.sax.SAXSource;
+import javax.xml.transform.Source;
 import java.io.StringReader;
 
 
@@ -32,19 +34,20 @@ public class Parse extends SystemFunction {
     * the argument expressions have been read
     */
 
-    public void checkArguments(StaticContext env) throws XPathException {
+    public void checkArguments(ExpressionVisitor visitor) throws XPathException {
         if (baseURI == null) {
-            super.checkArguments(env);
-            baseURI = env.getBaseURI();
+            super.checkArguments(visitor);
+            baseURI = visitor.getStaticContext().getBaseURI();
         }
     }
 
     /**
      * Pre-evaluate a function at compile time. Static evaluation is suppressed for
      * saxon:parse because no controller is available.
+     * @param visitor an expression visitor
      */
 
-    public Expression preEvaluate(StaticContext env) throws XPathException {
+    public Expression preEvaluate(ExpressionVisitor visitor) throws XPathException {
         return this;
     }
 
@@ -58,18 +61,22 @@ public class Parse extends SystemFunction {
         StringReader sr = new StringReader(content.getStringValue());
         InputSource is = new InputSource(sr);
         is.setSystemId(baseURI);
-        SAXSource source = new SAXSource(is);
+        Source source = new SAXSource(is);
         source.setSystemId(baseURI);
         Builder b = controller.makeBuilder();
-        Receiver s = controller.makeStripper(b);
+        Receiver s = b;
+        source = AugmentedSource.makeAugmentedSource(source);
+                ((AugmentedSource)source).setStripSpace(Whitespace.XSLT);
         if (controller.getExecutable().stripsInputTypeAnnotations()) {
             s = controller.getConfiguration().getAnnotationStripper(s);
         }
         try {
             new Sender(controller.makePipelineConfiguration()).send(source, s);
-            return (DocumentInfo)b.getCurrentRoot();
+            NodeInfo node = b.getCurrentRoot();
+            b.reset();
+            return node;
         } catch (XPathException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 

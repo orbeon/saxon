@@ -61,7 +61,7 @@ public final class LocalNameTest extends NodeTest {
      */
 
     public boolean matches(NodeInfo node) {
-        return localName.equals(node.getLocalPart());
+        return localName.equals(node.getLocalPart()) && nodeKind == node.getNodeKind();
     }
 
 

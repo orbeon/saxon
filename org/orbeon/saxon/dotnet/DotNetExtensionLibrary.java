@@ -2,13 +2,16 @@ package org.orbeon.saxon.dotnet;
 
 import cli.System.Reflection.*;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.expr.ComputedExpression;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.ExpressionVisitor;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.functions.CompileTimeFunction;
+import org.orbeon.saxon.functions.ExtensionFunctionCall;
 import org.orbeon.saxon.functions.FunctionLibrary;
-import org.orbeon.saxon.functions.JavaExtensionLibrary;
-import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.om.StructuredQName;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
@@ -31,8 +34,6 @@ import java.util.List;
  */
 
 // derived from JavaExtensionLibrary
-
-// TODO: check that parameters are not Out or InOut parameters
 
 public class DotNetExtensionLibrary implements FunctionLibrary {
 
@@ -81,22 +82,20 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
      * Test whether an extension function with a given name and arity is available. This supports
      * the function-available() function in XSLT. This method may be called either at compile time
      * or at run time.
-     * @param fingerprint The code that identifies the function name in the NamePool. This must
-     * match the supplied URI and local name.
-     * @param uri  The URI of the function name
-     * @param local  The local part of the function name
+     * @param functionName the name of the function being sought
      * @param arity The number of arguments. This is set to -1 in the case of the single-argument
      * function-available() function; in this case the method should return true if there is some
-     * matching extension function, regardless of its arity.
      */
 
-    public boolean isAvailable(int fingerprint, String uri, String local, int arity) {
+    public boolean isAvailable(StructuredQName functionName, int arity) {
         if (!config.isAllowExternalFunctions()) {
             return false;
         }
+        String uri = functionName.getNamespaceURI();
+        String local = functionName.getLocalName();
         cli.System.Type reqClass;
         try {
-            reqClass = getExternalDotNetType(uri);
+            reqClass = getExternalDotNetType(uri, null, config.isTraceExternalFunctions());
             if (reqClass == null) {
                 return false;
             }
@@ -133,7 +132,7 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
 
             // convert any hyphens in the name, camelCasing the following character
 
-            String name = JavaExtensionLibrary.toCamelCase(local, false, diag);
+            String name = ExtensionFunctionCall.toCamelCase(local, false, diag);
 
             // look through the methods of this class to find one that matches the local name
 
@@ -155,16 +154,18 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
 
                     if (significantArgs >= 0) {
 
+                        boolean usesContext = theParameterTypes.length > 0 &&
+                                theParameterTypes[0].get_ParameterType()
+                                .get_FullName().equals("org.orbeon.saxon.expr.XPathContext");
+
                         if (theParameterTypes.length == significantArgs &&
-                                (significantArgs == 0 || !theParameterTypes[0].get_Name().equals("XPathContext"))) {
-                            // TODO: XPathContext arguments won't work yet
+                                (significantArgs == 0 || !usesContext)) {
                             return true;
                         }
 
                         // we allow the method to have an extra parameter if the first parameter is XPathContext
 
-                        if (theParameterTypes.length == significantArgs + 1 &&
-                                theParameterTypes[0].get_Name().equals("XPathContext")) {
+                        if (theParameterTypes.length == significantArgs + 1 && usesContext) {
                             return true;
                         }
                     }
@@ -223,21 +224,21 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
      * Bind an extension function, given the URI and local parts of the function name,
      * and the list of expressions supplied as arguments. This method is called at compile
      * time.
-     * @param nameCode The namepool code of the function name. This must match the supplied
-     * URI and local name.
-     * @param uri  The URI of the function name
-     * @param local  The local part of the function name
-     * @param staticArgs  The expressions supplied statically in the function call. The intention is
+     * @param functionName the name of the function
+     * @param staticArgs  the expressions supplied statically in the function call. The intention is
      * that the static type of the arguments (obtainable via getItemType() and getCardinality()) may
      * be used as part of the binding algorithm.
+     * @param env the static context of the function call
      * @return An object representing the extension function to be called, if one is found;
      * null if no extension function was found matching the required name, arity, or signature.
      */
 
-    public Expression bind(int nameCode, String uri, String local, Expression[] staticArgs)
+    public Expression bind(StructuredQName functionName, Expression[] staticArgs, StaticContext env)
             throws XPathException {
 
         boolean debug = config.isTraceExternalFunctions();
+        final String uri = functionName.getNamespaceURI();
+        final String local = functionName.getLocalName();
         if (!config.isAllowExternalFunctions()) {
             if (debug) {
                 diag.println("Calls to extension functions have been disabled");
@@ -245,18 +246,21 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
             return null;
         }
 
-        cli.System.Type requiredType;
+        cli.System.Type requiredType = null;
         Exception theException = null;
         ArrayList candidateMethods = new ArrayList(10);
         cli.System.Type resultType = null;
 
         try {
-            requiredType = getExternalDotNetType(uri);
+            requiredType = getExternalDotNetType(uri, env.getBaseURI(), debug);
             if (requiredType == null) {
                 return null;
             }
         } catch (Exception err) {
-            throw new StaticError("Cannot load external .NET type", err);
+            if (debug) {
+                diag.println("Cannot load external .NET type " + requiredType + " (" + err.getMessage() + ")");
+            }
+            throw new XPathException("Cannot load external .NET type " + requiredType, err);
         }
 
         if (debug) {
@@ -278,11 +282,11 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
             }
 
             if (theType.get_IsAbstract()) {
-                theException = new StaticError("Type " + theType + " is abstract");
+                theException = new XPathException("Type " + theType + " is abstract");
             } else if (theType.get_IsInterface()) {
-                theException = new StaticError("Type " + theType + " is an interface");
+                theException = new XPathException("Type " + theType + " is an interface");
             } else if (!theType.get_IsPublic()) {
-                theException = new StaticError("Type " + theType + " is not public");
+                theException = new XPathException("Type " + theType + " is not public");
             }
 
             if (theException != null) {
@@ -302,8 +306,8 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
                     candidateMethods.add(theConstructor);
                 }
             }
-            if (candidateMethods.size() == 0) {
-                theException = new StaticError("No constructor with " + numArgs +
+            if (candidateMethods.isEmpty()) {
+                theException = new XPathException("No constructor with " + numArgs +
                         (numArgs == 1 ? " parameter" : " parameters") +
                         " found in type " + theType.get_Name());
                 if (debug) {
@@ -315,7 +319,7 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
 
             // convert any hyphens in the name, camelCasing the following character
 
-            String name = JavaExtensionLibrary.toCamelCase(local, debug, diag);
+            String name = ExtensionFunctionCall.toCamelCase(local, debug, diag);
 
             // look through the methods of this class to find one that matches the local name
 
@@ -360,29 +364,44 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
 
                     if (significantArgs >= 0) {
 
+                        boolean allParamsAreInParams = true;
+                        for (int i=0; i<theParameterTypes.length; i++) {
+                            if (!theParameterTypes[i].get_IsIn()) {
+                                allParamsAreInParams = true;
+                            }
+                        }
+
                         if (debug) {
                             diag.println("Method has " + theParameterTypes.length + " argument" +
                                     (theParameterTypes.length == 1 ? "" : "s") +
                                     "; expecting " + significantArgs);
+                            if (!allParamsAreInParams) {
+                                diag.println("Method cannot be used because not all parameters are In parameters");
+                            }
                         }
 
-                        if (theParameterTypes.length == significantArgs &&
-                                (significantArgs == 0 || !theParameterTypes[0].get_Name().equals("XPathContext"))) {
-                            if (debug) {
-                                diag.println("Found a candidate method:");
-                                diag.println("    " + theMethod);
-                            }
-                            candidateMethods.add(theMethod);
-                        }
+                        if (allParamsAreInParams) {
+                            boolean usesContext = theParameterTypes.length > 0 &&
+                                    theParameterTypes[0].get_ParameterType()
+                                    .get_FullName().equals("org.orbeon.saxon.expr.XPathContext");
 
-                        // we allow the method to have an extra parameter if the first parameter is XPathContext
-
-                        if (theParameterTypes.length == significantArgs + 1 &&
-                                theParameterTypes[0].get_Name().equals("XPathContext")) {
-                            if (debug) {
-                                diag.println("Method is a candidate because first argument is XPathContext");
+                            if (theParameterTypes.length == significantArgs &&
+                                    (significantArgs == 0 || !usesContext)) {
+                                if (debug) {
+                                    diag.println("Found a candidate method:");
+                                    diag.println("    " + theMethod);
+                                }
+                                candidateMethods.add(theMethod);
                             }
-                            candidateMethods.add(theMethod);
+
+                            // we allow the method to have an extra parameter if the first parameter is XPathContext
+
+                            if (theParameterTypes.length == significantArgs + 1 && usesContext) {
+                                if (debug) {
+                                    diag.println("Method is a candidate because first argument is XPathContext");
+                                }
+                                candidateMethods.add(theMethod);
+                            }
                         }
                     }
                 }
@@ -492,8 +511,8 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
 
             // No method found?
 
-            if (candidateMethods.size() == 0) {
-                theException = new StaticError("No method, property, or field matching " + name +
+            if (candidateMethods.isEmpty()) {
+                theException = new XPathException("No method, property, or field matching " + name +
                         " with " + numArgs +
                         (numArgs == 1 ? " parameter" : " parameters") +
                         " found in class " + theType.get_Name());
@@ -503,7 +522,7 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
                 return null;
             }
         }
-        if (candidateMethods.size() == 0) {
+        if (candidateMethods.isEmpty()) {
             if (debug) {
                 diag.println("There is no suitable method, property, or field matching the arguments of function " + local);
             }
@@ -516,13 +535,13 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
                 // This may be because insufficient type information is available at this stage.
                 // Return an UnresolvedExtensionFunction, and try to resolve it later when more
                 // type information is known.
-                return new UnresolvedExtensionFunction(nameCode, theType, candidateMethods, staticArgs);
+                return new UnresolvedExtensionFunction(functionName, theType, candidateMethods, staticArgs);
             }
             return null;
         } else {
             DotNetExtensionFunctionFactory factory =
-                    ((DotNetPlatform)config.getPlatform()).getExtensionFunctionFactory();
-            return factory.makeExtensionFunctionCall(nameCode, theType, method, staticArgs);
+                    (DotNetExtensionFunctionFactory)config.getExtensionFunctionFactory("clitype");
+            return factory.makeExtensionFunctionCall(functionName, theType, method, staticArgs);
         }
     }
 
@@ -553,8 +572,14 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
 
             if (debug) {
                 diag.println("Finding best fit method with arguments:");
-                for (int v = 0; v < args.length; v++) {
-                    args[v].display(10, diag, config);
+                try {
+                    ExpressionPresenter ep = new ExpressionPresenter(config,
+                            ExpressionPresenter.defaultDestination(config, diag));
+                    for (int v = 0; v < args.length; v++) {
+                        args[v].explain(ep);
+                    }
+                } catch (XPathException err) {
+                    // ignore the exception
                 }
             }
 
@@ -600,6 +625,7 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
                                 eliminated[j] = true;
                             } else {
                                 for (int k = 0; k < pref_j.length; k++) {
+                                    //noinspection ConstantConditions
                                     if (pref_i[k] > pref_j[k] && !eliminated[i]) { // high number means less preferred
                                         eliminated[i] = true;
                                         if (debug) {
@@ -654,8 +680,9 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
     /**
      * Get an array of integers representing the conversion distances of each "real" argument
      * to a given method
-     * @param args: the actual expressions supplied in the function call
-     * @param method: the method or constructor.
+     * @param args the actual expressions supplied in the function call
+     * @param method the method or constructor.
+     * @param containingType the class on which this method is defined
      * @return an array of integers, one for each argument, indicating the conversion
      * distances. A high number indicates low preference. If any of the arguments cannot
      * be converted to the corresponding type defined in the method signature, return null.
@@ -711,6 +738,7 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
 
     /**
      * Get the conversion preference from a given XPath type to a given .NET class
+     * @param th the type hierarchy cache
      * @param arg the supplied XPath expression (the static type of this expression
      * is used as input to the algorithm)
      * @param required the .NET class of the relevant argument of the .NET method
@@ -726,10 +754,12 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
         } else if (Cardinality.allowsMany(cardinality)) {
             if (required.IsAssignableFrom(DotNetExtensionFunctionCall.CLI_SEQUENCEITERATOR)) {
                 return 20;
+//            } else if (required.IsAssignableFrom(DotNetExtensionFunctionCall.CLI_XDMVALUE)) {
+//                return 21;
             } else if (required.IsAssignableFrom(DotNetExtensionFunctionCall.CLI_VALUE)) {
-                return 21;
-            } else if (DotNetExtensionFunctionCall.CLI_ICOLLECTION.IsAssignableFrom(required)) {
                 return 22;
+            } else if (DotNetExtensionFunctionCall.CLI_ICOLLECTION.IsAssignableFrom(required)) {
+                return 23;
             } else if (required.get_IsArray()) {
                 return 24;
                 // sort out at run-time whether the component type of the array is actually suitable
@@ -739,10 +769,11 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
         } else {
             if (Type.isNodeType(itemType)) {
                 if (required.IsAssignableFrom(DotNetExtensionFunctionCall.CLI_NODEINFO)) {
-                    // TODO: support the wrapper classes in the .NET Saxon API
                     return 20;
                 } else if (required.IsAssignableFrom(DotNetExtensionFunctionCall.CLI_DOCUMENTINFO)) {
                     return 21;
+//                } else if (required.IsAssignableFrom(DotNetExtensionFunctionCall.CLI_XDMNODE)) {
+//                    return 20;
                 } else {
                     return 80;
                 }
@@ -767,7 +798,7 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
     /**
      * Get the conversion preference from an XPath primitive atomic type to a .NET type
      * @param primitiveType integer code identifying the XPath primitive type, for example
-     * {@link org.orbeon.saxon.type.Type#INTEGER} or {@link org.orbeon.saxon.type.Type#STRING}
+     * {@link StandardNames#XS_STRING} or {@link StandardNames#XS_INTEGER}
      * @param required The .NET Class named in the method signature
      * @return an integer indicating the relative preference for converting this primitive type
      * to this .NET class. A high number indicates a low preference. All values are in the range
@@ -778,29 +809,33 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
     protected int atomicConversionPreference(int primitiveType, cli.System.Type required) {
         if (required == DotNetExtensionFunctionCall.CLI_OBJECT) {
             return 100;
+//        } else if (required == DotNetExtensionFunctionCall.CLI_XDMITEM) {
+//            return 80;
+//        } else if (required == DotNetExtensionFunctionCall.CLI_XDMATOMICVALUE) {
+//            return 80;
         }
         switch (primitiveType) {
-            case Type.STRING:
+            case StandardNames.XS_STRING:
                 if (required.IsAssignableFrom(cli.System.Type.GetType("org.orbeon.saxon.StringValue"))) return 50;
                 if (required == cli.System.Type.GetType("java.lang.String")) return 51;
                 if (required == DotNetExtensionFunctionCall.CLI_STRING) return 51;
                 return -1;
-            case Type.DOUBLE:
+            case StandardNames.XS_DOUBLE:
                 if (required.IsAssignableFrom(cli.System.Type.GetType("org.orbeon.saxon.DoubleValue"))) return 50;
                 if (required == DotNetExtensionFunctionCall.CLI_DOUBLE) return 51;
                 return -1;
-            case Type.FLOAT:
+            case StandardNames.XS_FLOAT:
                 if (required.IsAssignableFrom(cli.System.Type.GetType("org.orbeon.saxon.FloatValue"))) return 50;
                 if (required == DotNetExtensionFunctionCall.CLI_SINGLE) return 51;
                 if (required == DotNetExtensionFunctionCall.CLI_DOUBLE) return 52;
                 return -1;
-            case Type.DECIMAL:
+            case StandardNames.XS_DECIMAL:
                 if (required.IsAssignableFrom(cli.System.Type.GetType("org.orbeon.saxon.DecimalValue"))) return 50;
                 if (required == DotNetExtensionFunctionCall.CLI_DECIMAL) return 51;
                 if (required == DotNetExtensionFunctionCall.CLI_DOUBLE) return 52;
                 if (required == DotNetExtensionFunctionCall.CLI_SINGLE) return 53;
                 return -1;
-            case Type.INTEGER:
+            case StandardNames.XS_INTEGER:
                 if (required.IsAssignableFrom(cli.System.Type.GetType("org.orbeon.saxon.IntegerValue"))) return 50;
                 if (required == DotNetExtensionFunctionCall.CLI_DECIMAL) return 51;
                 if (required == DotNetExtensionFunctionCall.CLI_INT64) return 52;
@@ -810,48 +845,48 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
                 if (required == DotNetExtensionFunctionCall.CLI_SINGLE) return 56;
                 return -1;
 
-            case Type.BOOLEAN:
+            case StandardNames.XS_BOOLEAN:
                 if (required.IsAssignableFrom(cli.System.Type.GetType("org.orbeon.saxon.BooleanValue"))) return 50;
                 if (required == DotNetExtensionFunctionCall.CLI_BOOLEAN) return 51;
                 return -1;
-            case Type.DATE:
-            case Type.G_DAY:
-            case Type.G_MONTH_DAY:
-            case Type.G_MONTH:
-            case Type.G_YEAR_MONTH:
-            case Type.G_YEAR:
+            case StandardNames.XS_DATE:
+            case StandardNames.XS_G_DAY:
+            case StandardNames.XS_G_MONTH_DAY:
+            case StandardNames.XS_G_MONTH:
+            case StandardNames.XS_G_YEAR_MONTH:
+            case StandardNames.XS_G_YEAR:
                 if (required.IsAssignableFrom(cli.System.Type.GetType("org.orbeon.saxon.DateValue"))) return 50;
                 if (required == cli.System.Type.GetType("System.DateTime")) return 51;
                 return -1;
-            case Type.DATE_TIME:
+            case StandardNames.XS_DATE_TIME:
                 if (required.IsAssignableFrom(cli.System.Type.GetType("org.orbeon.saxon.DateTimeValue"))) return 50;
                 if (required == cli.System.Type.GetType("System.DateTime")) return 51;
                 return -1;
-            case Type.TIME:
+            case StandardNames.XS_TIME:
                 if (required.IsAssignableFrom(cli.System.Type.GetType("org.orbeon.saxon.TimeValue"))) return 50;
                 if (required == cli.System.Type.GetType("System.DateTime")) return 51;
                 return -1;
-            case Type.DURATION:
-            case Type.YEAR_MONTH_DURATION:
-            case Type.DAY_TIME_DURATION:
+            case StandardNames.XS_DURATION:
+            case StandardNames.XS_YEAR_MONTH_DURATION:
+            case StandardNames.XS_DAY_TIME_DURATION:
                 if (required.IsAssignableFrom(cli.System.Type.GetType("org.orbeon.saxon.DurationValue"))) return 50;
                 return -1;
-            case Type.ANY_URI:
+            case StandardNames.XS_ANY_URI:
                 if (required.IsAssignableFrom(cli.System.Type.GetType("org.orbeon.saxon.AnyURIValue"))) return 50;
                 if (required == cli.System.Type.GetType("System.Uri")) return 51;
                 if (required == DotNetExtensionFunctionCall.CLI_STRING) return 52;
                 return -1;
-            case Type.QNAME:
+            case StandardNames.XS_QNAME:
                 if (required.IsAssignableFrom(cli.System.Type.GetType("org.orbeon.saxon.QNameValue"))) return 50;
                 if (required == cli.System.Type.GetType("System.Xml.XmlQualifiedName")) return 51;
                 return -1;
-            case Type.BASE64_BINARY:
+            case StandardNames.XS_BASE64_BINARY:
                 if (required.IsAssignableFrom(cli.System.Type.GetType("org.orbeon.saxon.Base64BinaryValue"))) return 50;
                 return -1;
-            case Type.HEX_BINARY:
+            case StandardNames.XS_HEX_BINARY:
                 if (required.IsAssignableFrom(cli.System.Type.GetType("org.orbeon.saxon.HexBinaryValue"))) return 50;
                 return -1;
-            case Type.UNTYPED_ATOMIC:
+            case StandardNames.XS_UNTYPED_ATOMIC:
                 return 50;
             default:
                 return -1;
@@ -862,10 +897,12 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
      * Get an external .NET class corresponding to a given namespace URI, if there is
      * one.
      * @param uri The namespace URI corresponding to the prefix used in the function call.
+     * @param baseURI The base URI from the static context of the function call
+     * @param debug true if diagnostic messages are to be produced
      * @return the .NET type if a suitable type exists, otherwise return null.
      */
 
-    private cli.System.Type getExternalDotNetType(String uri) {
+    private cli.System.Type getExternalDotNetType(String uri, String baseURI, boolean debug) {
 
         // First see if an explicit mapping has been registered for this URI
 
@@ -878,10 +915,10 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
 
         try {
 
-            // support the URN format type:full.type.Name?assembly=name;version=ver;culture=cult...
+            // support the URN format type:full.type.Name?asm=name;ver=version;loc=culture...
 
-            if (uri.startsWith("type:")) {
-                return ((DotNetPlatform)config.getPlatform()).dynamicLoad(uri, config.isTraceExternalFunctions());
+            if (uri.startsWith("clitype:")) {
+                return ((DotNetPlatform)Configuration.getPlatform()).dynamicLoad(uri, baseURI, debug);
             }
         } catch (XPathException err) {
             return null;
@@ -898,14 +935,13 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
 
     private class UnresolvedExtensionFunction extends CompileTimeFunction {
 
-        List candidateMethods;
-        int nameCode;
-        cli.System.Type theClass;
+        private List candidateMethods;
+        private cli.System.Type theClass;
 
 
-        public UnresolvedExtensionFunction(int nameCode, cli.System.Type theClass, List candidateMethods, Expression[] staticArgs) {
+        public UnresolvedExtensionFunction(StructuredQName functionName, cli.System.Type theClass, List candidateMethods, Expression[] staticArgs) {
             setArguments(staticArgs);
-            this.nameCode = nameCode;
+            setFunctionName(functionName);
             this.theClass = theClass;
             this.candidateMethods = candidateMethods;
         }
@@ -914,9 +950,9 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
          * Type-check the expression.
          */
 
-        public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+        public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
             for (int i=0; i<argument.length; i++) {
-                Expression exp = argument[i].typeCheck(env, contextItemType);
+                Expression exp = visitor.typeCheck(argument[i], contextItemType);
                 if (exp != argument[i]) {
                     adoptChildExpression(exp);
                     argument[i] = exp;
@@ -924,19 +960,16 @@ public class DotNetExtensionLibrary implements FunctionLibrary {
             }
             MemberInfo method = getBestFit(candidateMethods, argument, theClass);
             if (method == null) {
-                StaticError err = new StaticError("There is more than one method matching the function call " +
-                        config.getNamePool().getDisplayName(nameCode) +
+                XPathException err = new XPathException("There is more than one method matching the function call " +
+                        getFunctionName().getDisplayName() +
                         ", and there is insufficient type information to determine which one should be used");
                 err.setLocator(this);
                 throw err;
             } else {
                 DotNetExtensionFunctionFactory factory =
-                        ((DotNetPlatform)config.getPlatform()).getExtensionFunctionFactory();
-                Expression call = factory.makeExtensionFunctionCall(nameCode, theClass, method, argument);
-                if (call instanceof ComputedExpression) {
-                    ((ComputedExpression)call).setLocationId(getLocationId());
-                    ((ComputedExpression)call).setParentExpression(getParentExpression());
-                }
+                        (DotNetExtensionFunctionFactory)config.getExtensionFunctionFactory("clitype");
+                Expression call = factory.makeExtensionFunctionCall(getFunctionName(), theClass, method, argument);
+                ExpressionTool.copyLocationInfo(this, call);
                 return call;
             }
         }

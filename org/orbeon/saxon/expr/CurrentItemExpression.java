@@ -7,7 +7,12 @@ package org.orbeon.saxon.expr;
 
 public class CurrentItemExpression extends ContextItemExpression {
 
-   protected String getErrorCodeForUndefinedContext() {
+    /**
+     * Get the error code for use when there is no context item
+     * @return the string "XTDE1360"
+     */
+
+    protected String getErrorCodeForUndefinedContext() {
         return "XTDE1360";
     }
 }

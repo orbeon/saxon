@@ -1,12 +1,13 @@
 package org.orbeon.saxon;
+
 import org.orbeon.saxon.instruct.TerminationException;
 import org.orbeon.saxon.trans.XPathException;
 import org.xml.sax.InputSource;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.Templates;
-import javax.xml.transform.TransformerFactoryConfigurationError;
 import javax.xml.transform.TransformerConfigurationException;
+import javax.xml.transform.TransformerFactoryConfigurationError;
 import javax.xml.transform.sax.SAXSource;
 import java.io.*;
 import java.util.Date;
@@ -72,7 +73,7 @@ public class Compile {
                     else if (args[i].equals("-t")) {
                         System.err.println(factory.getConfiguration().getProductTitle());
                         //System.err.println("Java version " + System.getProperty("java.version"));
-                        System.err.println(factory.getConfiguration().getPlatform().getPlatformVersion());
+                        System.err.println(Configuration.getPlatform().getPlatformVersion());
                         factory.setAttribute(
                             FeatureKeys.TIMING,
                             Boolean.TRUE);
@@ -136,7 +137,7 @@ public class Compile {
                 if (!sheetFile.exists()) {
                     quit("Stylesheet file " + sheetFile + " does not exist", 2);
                 }
-                InputSource eis = new InputSource(sheetFile.toURL().toString());
+                InputSource eis = new InputSource(sheetFile.toURI().toString());
                 styleSource = new SAXSource(factory.getConfiguration().getStyleParser(), eis);
             }
 
@@ -165,7 +166,8 @@ public class Compile {
                     fos = new TracingObjectOutputStream(fos);
                 }
                 ObjectOutputStream oos = new ObjectOutputStream(fos);
-                oos.writeObject(sheet);
+                //noinspection RedundantCast
+                oos.writeObject((PreparedStylesheet)sheet);
                 oos.close();
                 System.err.println("Finished serializing stylesheet");
             } catch (Exception err) {
@@ -229,6 +231,8 @@ public class Compile {
             super(oos);
             this.oos = oos;
         }
+
+
 
         public void write(byte b[]) throws IOException {
             char[] chars = new char[b.length];

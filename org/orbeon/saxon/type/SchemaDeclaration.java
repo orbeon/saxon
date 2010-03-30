@@ -24,6 +24,18 @@ public interface SchemaDeclaration {
 
     public NodeTest makeSchemaNodeTest();
 
+    /**
+     * Determine, in the case of an Element Declaration, whether it is nillable.
+     */
+
+    public boolean isNillable();
+
+    /**
+     * Determine, in the case of an Element Declaration, whether the declaration is abstract
+     */
+
+    public boolean isAbstract();
+
 }
 
 //

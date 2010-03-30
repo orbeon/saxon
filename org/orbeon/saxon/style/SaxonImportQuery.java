@@ -1,17 +1,15 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.functions.ExecutableFunctionLibrary;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.AttributeCollection;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.query.QueryReader;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.query.QueryModule;
 import org.orbeon.saxon.query.StaticQueryContext;
+import org.orbeon.saxon.query.XQueryExpression;
 import org.orbeon.saxon.query.XQueryFunction;
-import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.query.ModuleURIResolver;
+import org.orbeon.saxon.value.Whitespace;
 
-import javax.xml.transform.stream.StreamSource;
 import java.util.Iterator;
 
 
@@ -51,10 +49,10 @@ public class SaxonImportQuery extends StyleElement {
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-			if (f==StandardNames.HREF) {
-        		href = atts.getValue(a).trim();
-        	} else if (f==StandardNames.NAMESPACE) {
-        		moduleURI = atts.getValue(a).trim();
+			if (f.equals(StandardNames.HREF)) {
+        		href = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.NAMESPACE)) {
+        		moduleURI = Whitespace.trim(atts.getValue(a));
             } else {
         		checkUnknownAttribute(nc);
                 moduleURI="";   // for error recovery path
@@ -81,19 +79,15 @@ public class SaxonImportQuery extends StyleElement {
 
         try {
             XSLStylesheet top = getPrincipalStylesheet();
-            getExecutable().setFunctionLibrary(new ExecutableFunctionLibrary(getConfiguration()));
-                        // this is not actually used, but is needed to keep the XQuery processor happy
-            StaticQueryContext importedModule = loadModule();
+            QueryModule importedModule = loadModule();
 
             // Do the importing
 
-            short ns = importedModule.getModuleNamespaceCode();
-            NamePool pool = getTargetNamePool();
             Iterator it = importedModule.getGlobalFunctionLibrary().getFunctionDefinitions();
             while (it.hasNext()) {
                 XQueryFunction def = (XQueryFunction)it.next();
                 // don't import functions transitively
-                if (pool.getURICode(def.getFunctionFingerprint()) == ns) {
+                if (def.getFunctionName().getNamespaceURI().equals(moduleURI)) {
                     top.declareXQueryFunction(def);
                 }
                 // Note, we are not importing global variables at present
@@ -104,47 +98,18 @@ public class SaxonImportQuery extends StyleElement {
     }
 
     /**
-     * Load a query module
+     * Load a query library module
+     * @return the QueryModule object representing the loaded library module 
      */
 
-    private StaticQueryContext loadModule() throws XPathException {
-        // Call the module URI resolver to find the module or modules
-
-        ModuleURIResolver resolver = getConfiguration().getModuleURIResolver();
-        if (resolver == null) {
-            resolver = getConfiguration().getStandardModuleURIResolver();
-        }
-
-        String[] hints = {href};
-        StreamSource[] sources;
-        try {
-            sources = resolver.resolve(moduleURI, getBaseURI(), hints);
-            if (sources == null) {
-                resolver = getConfiguration().getStandardModuleURIResolver();
-                sources = resolver.resolve(moduleURI, getBaseURI(), hints);
-            }
-        } catch (XPathException e) {
-            throw StaticError.makeStaticError(e);
-        }
-
-        if (sources.length != 1) {
-            StaticError err = new StaticError("Query module resolver must return a single module");
-            throw err;
-        }
-
-
-        StreamSource ss = sources[0];
-        String baseURI = ss.getSystemId();
-        if (baseURI == null) {
-            ss.setSystemId(hints[0]);
-        }
-        String queryText = QueryReader.readSourceQuery(ss, getConfiguration().getNameChecker());
-        StaticQueryContext sqc = StaticQueryContext.makeStaticQueryContext(
-                baseURI, getExecutable(), null, queryText, moduleURI);
-        getExecutable().fixupQueryModules(sqc);
-        return sqc;
-
-
+    private QueryModule loadModule() throws XPathException {
+        // Create a dummy main query module and compile it
+        StaticQueryContext sqc = new StaticQueryContext(getConfiguration());
+        sqc.setExecutable(getExecutable());
+        sqc.setBaseURI(getBaseURI());
+        String mainModule = "import module namespace m = \"" + moduleURI + "\" at \"" + href + "\"; ()";
+        XQueryExpression exp = sqc.compileQuery(mainModule);
+        return exp.getStaticContext();
     }
 
 

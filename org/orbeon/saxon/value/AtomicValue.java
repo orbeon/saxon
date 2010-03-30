@@ -1,53 +1,99 @@
 package org.orbeon.saxon.value;
 
-import org.orbeon.saxon.Err;
-import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.trans.Err;
+import org.orbeon.saxon.sort.StringCollator;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.NoDynamicContextException;
 import org.orbeon.saxon.type.*;
-
-import java.io.PrintStream;
 
 
 /**
  * The AtomicValue class corresponds to the concept of an atomic value in the
  * XPath 2.0 data model. Atomic values belong to one of the 19 primitive types
- * defined in XML Schema; or they are of type xdt:untypedAtomic; or they are
+ * defined in XML Schema; or they are of type xs:untypedAtomic; or they are
  * "external objects", representing a Saxon extension to the XPath 2.0 type system.
- * <p>
+ * <p/>
  * The AtomicValue class contains some methods that are suitable for applications
  * to use, and many others that are designed for internal use by Saxon itself.
  * These have not been fully classified. At present, therefore, none of the methods on this
  * class should be considered to be part of the public Saxon API.
- * <p>
+ * <p/>
+ *
  * @author Michael H. Kay
  */
 
-public abstract class AtomicValue extends Value implements Item {
+public abstract class AtomicValue extends Value implements Item, GroundedValue, ConversionResult {
+
+    protected AtomicType typeLabel;
 
     /**
-     * Test whether the type of this atomic value is a built-in type.
-     * Default implementation returns true.
+     * Set the type label on this atomic value. Note that this modifies the value, so it must only called
+     * if the caller is confident that the value is not shared. In other cases,
+     * use {@link #copyAsSubType(org.orbeon.saxon.type.AtomicType)}
+     *
+     * @param type the type label to be set
      */
 
-    public boolean hasBuiltInType() {
-        return true;
+    public void setTypeLabel(AtomicType type) {
+        typeLabel = type;
     }
+
 
     /**
-     * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
-     * This method indicates which of these methods is prefered.
+     * Get a Comparable value that implements the XML Schema ordering comparison semantics for this value.
+     * An implementation must be provided for all atomic types.
+     * <p/>
+     * <p>In the case of data types that are partially ordered, the returned Comparable extends the standard
+     * semantics of the compareTo() method by returning the value {@link #INDETERMINATE_ORDERING} when there
+     * is no defined order relationship between two given values. This value is also returned when two values
+     * of different types are compared.</p>
+     *
+     * @return a Comparable that follows XML Schema comparison rules
      */
 
-    public int getImplementationMethod() {
-        return EVALUATE_METHOD;
-    }
+    public abstract Comparable getSchemaComparable();
+
+    /**
+     * Get an object value that implements the XPath equality and ordering comparison semantics for this value.
+     * If the ordered parameter is set to true, the result will be a Comparable and will support a compareTo()
+     * method with the semantics of the XPath lt/gt operator, provided that the other operand is also obtained
+     * using the getXPathComparable() method. In all cases the result will support equals() and hashCode() methods
+     * that support the semantics of the XPath eq operator, again provided that the other operand is also obtained
+     * using the getXPathComparable() method. A context argument is supplied for use in cases where the comparison
+     * semantics are context-sensitive, for example where they depend on the implicit timezone or the default
+     * collation.
+     * @param ordered true if an ordered comparison is required. In this case the result is null if the
+     * type is unordered; in other cases the returned value will be a Comparable.
+     * @param collator the collation to be used when comparing strings
+     * @param context the XPath dynamic evaluation context, used in cases where the comparison is context
+     * sensitive
+     * @return an Object whose equals() and hashCode() methods implement the XPath comparison semantics
+     *         with respect to this atomic value. If ordered is specified, the result will either be null if
+     *         no ordering is defined, or will be a Comparable
+     * @throws NoDynamicContextException if the comparison depends on dynamic context information that
+     * is not available, for example implicit timezone
+     */
+
+    public abstract Object getXPathComparable(boolean ordered, StringCollator collator, XPathContext context) 
+            throws NoDynamicContextException;
+
+    /**
+     * The equals() methods on atomic values is defined to follow the semantics of eq when applied
+     * to two atomic values. When the other operand is not an atomic value, the result is undefined
+     * (may be false, may be an exception). When the other operand is an atomic value that cannot be
+     * compared with this one, the method must throw a ClassCastException.
+     *
+     * <p>The hashCode() method is consistent with equals().</p>
+     * @param o the other value
+     * @return true if the other operand is an atomic value and the two values are equal as defined
+     * by the XPath eq operator
+     */
+
+    public abstract boolean equals(Object o);
 
     /**
      * Get the value of the item as a CharSequence. This is in some cases more efficient than
@@ -66,11 +112,58 @@ public abstract class AtomicValue extends Value implements Item {
      */
 
     public void process(XPathContext context) throws XPathException {
-        Item item = evaluateItem(context);
-        if (item != null) {
-            context.getReceiver().append(item, 0, NodeInfo.ALL_NAMESPACES);
-        }
+        context.getReceiver().append(this, 0, NodeInfo.ALL_NAMESPACES);
     }
+
+    /**
+     * Get the n'th item in the sequence (starting from 0). This is defined for all
+     * Values, but its real benefits come for a sequence Value stored extensionally
+     * (or for a MemoClosure, once all the values have been read)
+     *
+     * @param n position of the required item, counting from zero.
+     * @return the n'th item in the sequence, where the first item in the sequence is
+     *         numbered zero. If n is negative or >= the length of the sequence, returns null.
+     */
+
+    public final Item itemAt(int n) {
+        return (n == 0 ? this : null);
+    }
+
+
+    /**
+     * Determine the data type of the items in the expression, if possible
+     *
+     * @param th The TypeHierarchy. Can be null if the target is an AtomicValue,
+     *           except in the case where it is an external ObjectValue.
+     * @return for the default implementation: AnyItemType (not known)
+     */
+
+    public ItemType getItemType(TypeHierarchy th) {
+        return typeLabel;
+    }
+
+    /**
+     * Determine the data type of the value. This
+     * delivers the same answer as {@link #getItemType}, except in the case of external objects
+     * (instances of {@link ObjectValue}, where the method may deliver a less specific type.
+     *
+     * @return for the default implementation: AnyItemType (not known)
+     */
+
+    public AtomicType getTypeLabel() {
+        return typeLabel;
+    }
+
+    /**
+     * Determine the primitive type of the value. This delivers the same answer as
+     * getItemType().getPrimitiveItemType(). The primitive types are
+     * the 19 primitive types of XML Schema, plus xs:integer, xs:dayTimeDuration and xs:yearMonthDuration,
+     * and xs:untypedAtomic. For external objects, the result is xs:anyAtomicType.
+     *
+     * @return the primitive type
+     */
+
+    public abstract BuiltInAtomicType getPrimitiveType();
 
     /**
      * Determine the static cardinality
@@ -88,8 +181,8 @@ public abstract class AtomicValue extends Value implements Item {
      * atomic value of the required type. This method works only where the target
      * type is a built-in type.
      *
-     * @param requiredType type code of the required atomic type
-     * @param context
+     * @param schemaType the required atomic type
+     * @param context the XPath dynamic context
      * @return the result of the conversion, if conversion was possible. This
      *         will always be an instance of the class corresponding to the type
      *         of value requested
@@ -97,35 +190,29 @@ public abstract class AtomicValue extends Value implements Item {
      *                        required type, or if the particular value cannot be converted
      */
 
-    public final AtomicValue convert(int requiredType, XPathContext context) throws XPathException {
-        SchemaType schemaType = BuiltInSchemaFactory.getSchemaType(requiredType);
-        if (schemaType instanceof BuiltInAtomicType) {
-            AtomicValue val = convertPrimitive((BuiltInAtomicType)schemaType, true, context);
-            if (val instanceof ValidationErrorValue) {
-                throw ((ValidationErrorValue)val).getException();
-            }
-            return val;
-        } else {
-            throw new IllegalArgumentException(
-                    "This method can only be used for conversion to a built-in atomic type");
-        }
-    };
+    public final AtomicValue convert(AtomicType schemaType, XPathContext context) throws XPathException {
+        // Note this method is used from XQuery compiled code
+        return convert(schemaType, true, context).asAtomic();
+    }
 
     /**
-     * Convert a value to another primitive data type, with control over how validation is
+     * Convert a value to either (a) another primitive type, or (b) another built-in type derived
+     * from the current primitive type, with control over how validation is
      * handled.
      *
-     * @param requiredType type code of the required atomic type
+     * @param requiredType the required atomic type. This must either be a primitive type, or a built-in
+     *                     type derived from the same primitive type as this atomic value.
      * @param validate     true if validation is required. If set to false, the caller guarantees that
-     *                     the value is valid for the target data type, and that further validation is therefore not required.
+     *                     the value is valid for the target data type, and that further validation
+     *                     is therefore not required.
      *                     Note that a validation failure may be reported even if validation was not requested.
-     * @param context   The conversion context to be used. This is required at present only when converting to
-     *                     a date or time: it provides the implicit timezone.
+     * @param context      The conversion context to be used. This is required at present only when converting to
+     *                     xs:Name or similar types: it determines the NameChecker to be used.
      * @return the result of the conversion, if successful. If unsuccessful, the value returned
-     *         will be a ValidationErrorValue. The caller must check for this condition. No exception is thrown, instead
-     *         the exception will be encapsulated within the ValidationErrorValue.
+     *         will be a ValidationFailure. The caller must check for this condition. No exception is thrown, instead
+     *         the exception information will be encapsulated within the ValidationFailure.
      */
-    public abstract AtomicValue convertPrimitive(
+    protected abstract ConversionResult convertPrimitive(
             BuiltInAtomicType requiredType, boolean validate, XPathContext context);
 
     /**
@@ -135,28 +222,63 @@ public abstract class AtomicValue extends Value implements Item {
      * type.
      *
      * @param targetType the type to which the value is to be converted
-     * @param context    provides access to conversion context
      * @param validate   true if validation is required, false if the caller already knows that the
      *                   value is valid
-     * @return the value after conversion if successful; or a {@link ValidationErrorValue} if conversion failed. The
+     * @param context    provides access to conversion context
+     * @return the value after conversion if successful; or a {@link ValidationFailure} if conversion failed. The
      *         caller must check for this condition. Validation may fail even if validation was not requested.
      */
 
-    public AtomicValue convert(AtomicType targetType, XPathContext context, boolean validate) {
-        if (targetType instanceof BuiltInAtomicType) {
+    public final ConversionResult convert(AtomicType targetType, boolean validate, XPathContext context) {
+        if (targetType.isPrimitiveType()) {
             return convertPrimitive((BuiltInAtomicType)targetType, validate, context);
+        } else if (targetType.isAbstract()) {
+            return new ValidationFailure("Cannot convert to an abstract type");
+        } else if (targetType.isExternalType()) {
+            return new ValidationFailure("Cannot convert to an external type");
         } else {
-            CharSequence lexicalValue = getStringValueCS();
-            AtomicValue v = convertPrimitive(
-                    (BuiltInAtomicType)targetType.getPrimitiveItemType(),
-                    validate,
-                    context);
-            if (v instanceof ValidationErrorValue) {
-                // conversion has failed
-                return v;
+            BuiltInAtomicType primitiveType = (BuiltInAtomicType)targetType.getPrimitiveItemType();
+            ConversionResult cr = convertPrimitive(primitiveType, validate, context);
+            if (cr instanceof ValidationFailure) {
+                return cr;
             }
-            return targetType.makeDerivedValue(v, lexicalValue, validate);
+            CharSequence lexicalValue;
+            if (primitiveType.getFingerprint() == StandardNames.XS_STRING) {
+                int whitespaceAction = targetType.getWhitespaceAction(
+                        context == null ? null : context.getConfiguration().getTypeHierarchy());
+                CharSequence cs = Whitespace.applyWhitespaceNormalization(
+                        whitespaceAction, ((StringValue)cr).getStringValueCS());
+                cr = new StringValue(cs);
+                lexicalValue = cs;
+            } else {
+                lexicalValue = getCanonicalLexicalRepresentation();
+            }
+            ValidationFailure vf = targetType.validate((AtomicValue)cr, lexicalValue,
+                    (context == null ? Name10Checker.getInstance() : context.getConfiguration().getNameChecker()));
+            if (vf != null) {
+                return vf;
+            }
+            return ((AtomicValue)cr).copyAsSubType(targetType);
         }
+    }
+
+    /**
+     * Create a copy of this atomic value, with a different type label
+     *
+     * @param typeLabel the type label of the new copy. The caller is responsible for checking that
+     *                  the value actually conforms to this type.
+     * @return the copied value
+     */
+
+    public abstract AtomicValue copyAsSubType(AtomicType typeLabel);
+
+    /**
+     * Test whether the value is the double/float value NaN
+     * @return true if the value is float NaN or double NaN; otherwise false
+     */
+
+    public boolean isNaN() {
+        return false;
     }
 
     /**
@@ -170,35 +292,14 @@ public abstract class AtomicValue extends Value implements Item {
     }
 
     /**
-     * Evaluate the value (this simply returns the value unchanged)
-     *
-     * @param context the evaluation context (not used in this implementation)
-     * @return the value, unchanged
-     * @throws XPathException
-     */
-
-    public Item evaluateItem(XPathContext context) throws XPathException {
-        return this;
-    }
-
-    /**
      * Iterate over the (single) item in the sequence
      *
-     * @param context the evaluation context (not used in this implementation)
      * @return a SequenceIterator that iterates over the single item in this
      *         value
      */
 
-    public final SequenceIterator iterate(XPathContext context) {
+    public final SequenceIterator iterate() {
         return SingletonIterator.makeIterator(this);
-    }
-
-    /**
-     * Evaluate as a string
-     */
-
-    public final String evaluateAsString(XPathContext context) {
-        return getStringValue();
     }
 
     /**
@@ -222,40 +323,16 @@ public abstract class AtomicValue extends Value implements Item {
     }
 
     /**
-     * Get the primitive value (the value in the value space). This returns an
-     * AtomicValue of a Java class that would be used to represent the primitive value.
-     * In effect this means that for built-in types, it returns the value itself,
-     * but for user-defined type, it returns the primitive value minus the type
-     * annotation. Note that getItemType() when applied to the result of this
-     * function does not not necessarily return a primitive type: for example, this
-     * function may return a value of type xdt:dayTimeDuration, which is not a
-     * primitive type as defined by {@link org.orbeon.saxon.type.Type#isPrimitiveType(int)}
-     * It may also return a RestrictedStringValue, because that is a subclass of
-     * StringValue.
-     */
-
-    public AtomicValue getPrimitiveValue() {
-        // overridden where necessary
-        return this;
-    }
-
-    /**
      * Get the effective boolean value of the value
      *
-     * @param context the evaluation context (not used in this implementation)
      * @return true, unless the value is boolean false, numeric zero, or
      *         zero-length string
      */
-    public boolean effectiveBooleanValue(XPathContext context) throws XPathException {
-        final NamePool namePool = context.getNamePool();
-        final TypeHierarchy th = context.getConfiguration().getTypeHierarchy();
-        DynamicError err = new DynamicError("Effective boolean value is not defined for an atomic value of type " +
-                (context == null ?
-                "other than boolean, number, string, or URI" :
-                getItemType(th).toString(namePool)));
+    public boolean effectiveBooleanValue() throws XPathException {
+        XPathException err = new XPathException("Effective boolean value is not defined for an atomic value of type " +
+                Type.displayTypeName(this));
         err.setIsTypeError(true);
         err.setErrorCode("FORG0006");
-        err.setXPathContext(context);
         throw err;
         // unless otherwise specified in a subclass
     }
@@ -263,6 +340,10 @@ public abstract class AtomicValue extends Value implements Item {
     /**
      * Method to extract components of a value. Implemented by some subclasses,
      * but defined at this level for convenience
+     *
+     * @param component identifies the required component, as a constant defined in class
+     *                  {@link org.orbeon.saxon.functions.Component}, for example {@link org.orbeon.saxon.functions.Component#HOURS}
+     * @return the value of the requested component of this value
      */
 
     public AtomicValue getComponent(int component) throws XPathException {
@@ -290,10 +371,10 @@ public abstract class AtomicValue extends Value implements Item {
             }
             if (stype != null && !stype.isNamespaceSensitive()) {
                 // Can't validate namespace-sensitive content statically
-                XPathException err = stype.validateContent(
+                ValidationFailure err = stype.validateContent(
                         getStringValueCS(), null, env.getConfiguration().getNameChecker());
                 if (err != null) {
-                    throw err;
+                    throw err.makeException();
                 }
                 return;
             }
@@ -302,11 +383,49 @@ public abstract class AtomicValue extends Value implements Item {
                 !((ComplexType)parentType).isSimpleContent() &&
                 !((ComplexType)parentType).isMixedContent() &&
                 !Whitespace.isWhite(getStringValueCS())) {
-            StaticError err = new StaticError("Complex type " + parentType.getDescription() +
+            XPathException err = new XPathException("Complex type " + parentType.getDescription() +
                     " does not allow text content " +
                     Err.wrap(getStringValueCS()));
             err.setIsTypeError(true);
             throw err;
+        }
+    }
+
+
+    /**
+     * Calling this method on a ConversionResult returns the AtomicValue that results
+     * from the conversion if the conversion was successful, and throws a ValidationException
+     * explaining the conversion error otherwise.
+     * <p/>
+     * <p>Use this method if you are calling a conversion method that returns a ConversionResult,
+     * and if you want to throw an exception if the conversion fails.</p>
+     *
+     * @return the atomic value that results from the conversion if the conversion was successful
+     */
+
+    public AtomicValue asAtomic() {
+        return this;
+    }
+
+
+    /**
+     * Get a subsequence of the value
+     *
+     * @param start  the index of the first item to be included in the result, counting from zero.
+     *               A negative value is taken as zero. If the value is beyond the end of the sequence, an empty
+     *               sequence is returned
+     * @param length the number of items to be included in the result. Specify Integer.MAX_VALUE to
+     *               get the subsequence up to the end of the base sequence. If the value is negative, an empty sequence
+     *               is returned. If the value goes off the end of the sequence, the result returns items up to the end
+     *               of the sequence
+     * @return the required subsequence. If min is
+     */
+
+    public GroundedValue subsequence(int start, int length) {
+        if (start <= 0 && start + length > 0) {
+            return this;
+        } else {
+            return EmptySequence.getInstance();
         }
     }
 
@@ -317,21 +436,31 @@ public abstract class AtomicValue extends Value implements Item {
      */
 
     public String toString() {
-        return getItemType(null).toString() + " (\"" + getStringValueCS() + "\")";
+        return typeLabel.toString() + " (\"" + getStringValueCS() + "\")";
     }
+
 
     /**
-     * Diagnostic print of expression structure
+     * Convert to Java object (for passing to external functions)
      *
-     * @param level the indentation level of the output
-     @param out
-     @param config
+     * @param target  the required target class
+     * @param context the XPath dynamic evaluation context
+     * @return the (boxed) Java object that best represents the XPath value
      */
 
-    public final void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + toString());
-    }
+//    public final Object convertToJava(Class target, XPathContext context) throws XPathException {
+//        return convertAtomicToJava(target, context);
+//    }
 
+    /**
+     * Convert an atomic value to a Java object. Abstract method implemented by all subclasses
+     * @param target  the required target class
+     * @param context the XPath dynamic evaluation context
+     * @return the (boxed) Java object that best represents the XPath value
+     */
+
+    //public abstract Object convertAtomicToJava(Class target, XPathContext context) throws XPathException;
+    // TODO: delete this method and its implementations
 }
 
 //

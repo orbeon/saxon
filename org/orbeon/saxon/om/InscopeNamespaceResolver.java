@@ -1,10 +1,9 @@
 package org.orbeon.saxon.om;
 
+import org.orbeon.saxon.sort.IntIterator;
 import org.orbeon.saxon.type.Type;
 
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 
 /**
  * A NamespaceResolver that resolves namespace prefixes by reference to a node in a document for which
@@ -13,6 +12,12 @@ import java.util.List;
 public class InscopeNamespaceResolver implements NamespaceResolver {
 
     private NodeInfo node;
+
+    /**
+     * Create a NamespaceResolver that resolves according to the in-scope namespaces
+     * of a given node
+     * @param node the given node
+     */
 
     public InscopeNamespaceResolver(NodeInfo node) {
         if (node.getNodeKind() == Type.ELEMENT) {
@@ -60,20 +65,40 @@ public class InscopeNamespaceResolver implements NamespaceResolver {
      */
 
     public Iterator iteratePrefixes() {
-        List list = new ArrayList(16);
-        AxisIterator iter = node.iterateAxis(Axis.NAMESPACE);
-        while (true) {
-            NodeInfo node = (NodeInfo)iter.next();
-            if (node == null) {
-                break;
+        final NamePool pool = node.getNamePool();
+        return new Iterator() {
+            int phase = 0;
+            IntIterator iter = NamespaceCodeIterator.iterateNamespaces(node);
+
+            public boolean hasNext() {
+                if (iter.hasNext()) {
+                    return true;
+                } else if (phase == 0) {
+                    phase = 1;
+                    return true;
+                } else {
+                    return false;
+                }
             }
-            list.add(node.getLocalPart());
-        }
-        return list.iterator();
+
+            public Object next() {
+                if (phase == 1) {
+                    phase = 2;
+                    return "xml";
+                } else {
+                    return pool.getPrefixFromNamespaceCode(iter.next());
+                }
+            }
+
+            public void remove() {
+                throw new UnsupportedOperationException("remove");
+            }
+        };
     }
 
     /**
      * Get the node on which this namespace resolver is based
+     * @return the node on which this namespace resolver is based
      */
 
     public NodeInfo getNode() {

@@ -2,7 +2,6 @@ package org.orbeon.saxon.value;
 import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.expr.LastPositionFinder;
 import org.orbeon.saxon.expr.StaticProperty;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AnyItemType;
@@ -19,7 +18,7 @@ import java.util.List;
  * by allocating memory to each item in the sequence.
  */
 
-public final class  SequenceExtent extends Value {
+public final class SequenceExtent extends Value implements GroundedValue {
     private Item[] value;
     private int start = 0;  // zero-based offset of the start
     private int end;        // the 0-based index of the first item that is NOT included
@@ -36,7 +35,7 @@ public final class  SequenceExtent extends Value {
      */
 
     public SequenceExtent(Item[] items) {
-        this.value = items;
+        value = items;
         end = items.length;
     }
 
@@ -51,7 +50,7 @@ public final class  SequenceExtent extends Value {
     public SequenceExtent(Item[] value, int start, int length) {
         this.value = value;
         this.start = start;
-        this.end = this.start + length;
+        end = this.start + length;
     }
 
 
@@ -64,9 +63,9 @@ public final class  SequenceExtent extends Value {
      */
 
     public SequenceExtent(SequenceExtent ext, int start, int length) {
-        this.value = ext.value;
+        value = ext.value;
         this.start = ext.start + start;
-        this.end = this.start + length;
+        end = this.start + length;
     }
 
     /**
@@ -77,15 +76,9 @@ public final class  SequenceExtent extends Value {
      */
 
     public SequenceExtent(List list) {
-        copyList(list);
-    }
-
-    private void copyList(List list) {
-        value = new Item[list.size()];
-        for (int i=0; i<list.size(); i++) {
-            value[i] = (Item)list.get(i);
-        }
-        end = list.size();
+        Item[] array = new Item[list.size()];
+        value = (Item[])list.toArray(array);
+        end = value.length;
     }
 
     /**
@@ -108,7 +101,9 @@ public final class  SequenceExtent extends Value {
                 }
                 list.add(it);
             }
-            copyList(list);
+            Item[] array = new Item[list.size()];
+            value = (Item[])list.toArray(array);
+            end = value.length;
         } else {
             end = ((LastPositionFinder)iter).getLastPosition();
             value = new Item[end];
@@ -125,6 +120,11 @@ public final class  SequenceExtent extends Value {
 
     /**
      * Factory method to make a Value holding the contents of any SequenceIterator
+     * @param iter a Sequence iterator that will be consumed to deliver the items in the sequence
+     * @return a ValueRepresentation holding the items delivered by the SequenceIterator. If the
+     * sequence is empty the result will be an instance of {@link EmptySequence}. If it is of length
+     * one, the result will be an {@link Item}. In all other cases, it will be an instance of
+     * {@link SequenceExtent}.
      */
 
     public static ValueRepresentation makeSequenceExtent(SequenceIterator iter) throws XPathException {
@@ -143,16 +143,11 @@ public final class  SequenceExtent extends Value {
     }
 
     /**
-     * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
-     * This method indicates which of these methods is preferred.
-     */
-
-    public int getImplementationMethod() {
-        return ITERATE_METHOD;
-    }
-
-    /**
      * Simplify this SequenceExtent
+     * @return a Value holding the items delivered by the SequenceIterator. If the
+     * sequence is empty the result will be an instance of {@link EmptySequence}. If it is of length
+     * one, the result will be an {@link AtomicValue} or a {@link SingletonNode}.
+     * In all other cases, the {@link SequenceExtent} will be returned unchanged.
      */
 
     public Value simplify() {
@@ -211,7 +206,7 @@ public final class  SequenceExtent extends Value {
      *
      * @return integer identifying an item type to which all the items in this
      *      sequence conform
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
@@ -265,13 +260,11 @@ public final class  SequenceExtent extends Value {
     /**
      * Return an iterator over this sequence.
      *
-     * @param context dynamic evaluation context; not used in this
-     *     implementation of the method
      * @return the required SequenceIterator, positioned at the start of the
      *     sequence
      */
 
-    public SequenceIterator iterate(XPathContext context) {
+    public SequenceIterator iterate() {
         return new ArrayIterator(value, start, end);
     }
 
@@ -281,7 +274,7 @@ public final class  SequenceExtent extends Value {
      * @return an AxisIterator that processes the items in reverse order
      */
 
-    public AxisIterator reverseIterate() {
+    public UnfailingIterator reverseIterate() {
         return new ReverseArrayIterator(value, start, end);
     }
 
@@ -289,21 +282,55 @@ public final class  SequenceExtent extends Value {
      * Get the effective boolean value
      */
 
-    public boolean effectiveBooleanValue(XPathContext context) throws XPathException {
+    public boolean effectiveBooleanValue() throws XPathException {
         int len = getLength();
         if (len == 0) {
             return false;
-        } else if (value[0] instanceof NodeInfo) {
+        } else if (value[start] instanceof NodeInfo) {
             return true;
         } else if (len > 1) {
             // this is a type error - reuse the error messages
-            return ExpressionTool.effectiveBooleanValue(iterate(context));
+            return ExpressionTool.effectiveBooleanValue(iterate());
         } else {
-            return ((AtomicValue)value[0]).effectiveBooleanValue(context);
+            return ((AtomicValue)value[start]).effectiveBooleanValue();
         }
     }
 
 
+    /**
+     * Get a subsequence of the value
+     *
+     * @param start  the index of the first item to be included in the result, counting from zero.
+     *               A negative value is taken as zero. If the value is beyond the end of the sequence, an empty
+     *               sequence is returned
+     * @param length the number of items to be included in the result. Specify Integer.MAX_VALUE to
+     *               get the subsequence up to the end of the base sequence. If the value is negative, an empty sequence
+     *               is returned. If the value goes off the end of the sequence, the result returns items up to the end
+     *               of the sequence
+     * @return the required subsequence. If min is
+     */
+
+    public GroundedValue subsequence(int start, int length) {
+        int newStart;
+        if (start < 0) {
+            start = 0;
+        } else if (start >= end) {
+            return EmptySequence.getInstance();
+        }
+        newStart = this.start + start;
+        int newEnd;
+        if (length == Integer.MAX_VALUE) {
+            newEnd = end;
+        } else if (length < 0) {
+            return EmptySequence.getInstance();
+        } else {
+            newEnd = newStart + length;
+            if (newEnd > end) {
+                newEnd = end;
+            }
+        }
+        return new SequenceExtent(value, newStart, newEnd - newStart);
+    }
 }
 
 //

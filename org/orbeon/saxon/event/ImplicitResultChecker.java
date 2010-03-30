@@ -7,13 +7,19 @@ import org.orbeon.saxon.Controller;
  * This filter is inserted into the serializer pipeline when serializing an implicit XSLT result tree, that
  * is, one that is created without use of xsl:result-document. Its main purpose is to check, if and only if
  * the result destination is actually written to, that it does not conflict with an explicit result destination
- * with the same URI.
+ * with the same URI. It also ensures that the output destination is opened before it is first written to.
  */
 public class ImplicitResultChecker extends ProxyReceiver {
 
     private boolean clean = true;
     private boolean open = false;
     private Controller controller;
+
+    /**
+     * Create an ImplicitResultChecker. This is a filter on the output pipeline.
+     * @param next the next receiver on the pipeline
+     * @param controller the controller of the XSLT transformation
+     */
 
     public ImplicitResultChecker(Receiver next, Controller controller) {
         setUnderlyingReceiver(next);
@@ -23,6 +29,13 @@ public class ImplicitResultChecker extends ProxyReceiver {
     public void open() throws XPathException {
         super.open();
         open = true;
+    }
+
+    public void startDocument(int properties) throws XPathException {
+        if (!open) {
+            open();
+        }
+        nextReceiver.startDocument(properties);
     }
 
     public void startElement(int nameCode, int typeCode, int locationId, int properties) throws XPathException {
@@ -36,22 +49,29 @@ public class ImplicitResultChecker extends ProxyReceiver {
         if (clean) {
             firstContent();
         }
-        nextReceiver.characters(chars, locationId, properties);    //AUTO
+        nextReceiver.characters(chars, locationId, properties);
     }
 
     public void processingInstruction(String target, CharSequence data, int locationId, int properties) throws XPathException {
         if (clean) {
             firstContent();
         }
-        nextReceiver.processingInstruction(target, data, locationId, properties);    //AUTO
+        nextReceiver.processingInstruction(target, data, locationId, properties);
     }
 
     public void comment(CharSequence chars, int locationId, int properties) throws XPathException {
         if (clean) {
             firstContent();
         }
-        nextReceiver.comment(chars, locationId, properties);    //AUTO
+        nextReceiver.comment(chars, locationId, properties);
     }
+
+    /**
+     * This method does the real work. It is called when the first output is written to the implicit output
+     * destination, and checks that no explicit result document has been written to the same URI
+     * as the implicit result document
+     * @throws XPathException
+     */
 
     private void firstContent() throws XPathException {
         controller.checkImplicitResultTree();
@@ -63,9 +83,12 @@ public class ImplicitResultChecker extends ProxyReceiver {
     }
 
     public void close() throws XPathException {
-        // If we haven't written any output, don't do the close, as this would cause a file to be
-        // created and perhaps an XML declaration to be written
-        if (!clean) {
+        // If we haven't written any output, do the close only if no explicit result document has been written.
+        // This will cause a file to be created and perhaps an XML declaration to be written
+        if (!clean || !controller.hasThereBeenAnExplicitResultDocument()) {
+            if (!open) {
+                open();
+            }
             nextReceiver.close();
         }
     }

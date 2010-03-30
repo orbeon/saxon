@@ -11,7 +11,7 @@ import org.orbeon.saxon.trans.XPathException;
 public class AppendIterator implements SequenceIterator {
 
     private SequenceIterator first;
-    private Expression second;
+    private SequenceIterable second;
     private XPathContext context;
     private SequenceIterator currentIterator;
     private int position = 0;
@@ -25,7 +25,7 @@ public class AppendIterator implements SequenceIterator {
      * @param context The dynamic context for evaluation of the second operand
      */
 
-    public AppendIterator(SequenceIterator first, Expression second, XPathContext context) {
+    public AppendIterator(SequenceIterator first, SequenceIterable second, XPathContext context) {
         this.first = first;
         this.second = second;
         this.context = context;
@@ -52,6 +52,10 @@ public class AppendIterator implements SequenceIterator {
 
     public int position() {
         return position;
+    }
+
+    public void close() {
+
     }
 
     public SequenceIterator getAnother() throws XPathException {

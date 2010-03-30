@@ -1,50 +1,52 @@
 package org.orbeon.saxon.value;
 
-import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.expr.RangeIterator;
 import org.orbeon.saxon.expr.StaticProperty;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.GroundedValue;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
-
-import java.io.PrintStream;
 
 /**
  * This class represents a sequence of consecutive ascending integers, for example 1 to 50.
  * The integers must be within the range of a Java long.
  */
 
-public class IntegerRange extends Value {
+public class IntegerRange extends Value implements GroundedValue {
 
     public long start;
     public long end;
+
+    /**
+     * Construct an integer range expression
+     * @param start the first integer in the sequence (inclusive)
+     * @param end the last integer in the sequence (inclusive). Must be >= start
+     */
 
     public IntegerRange(long start, long end) {
         this.start = start;
         this.end = end;
     }
 
+    /**
+     * Get the first integer in the sequence (inclusive)
+     * @return the first integer in the sequence (inclusive)
+     */
+
     public long getStart() {
         return start;
     }
 
-    public long getEnd() {
-        return end;
-    }
-
-    /**
-     * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
-     * This method indicates which of these methods is provided directly. The other methods will always be available
-     * indirectly, using an implementation that relies on one of the other methods.
+   /**
+     * Get the last integer in the sequence (inclusive)
+     * @return the last integer in the sequence (inclusive)
      */
 
-    public int getImplementationMethod() {
-        return ITERATE_METHOD;
+    public long getEnd() {
+        return end;
     }
 
     /**
@@ -54,7 +56,6 @@ public class IntegerRange extends Value {
      * return singleton values: for non-singleton expressions, the subclass must
      * provide its own implementation.
      *
-     * @param context supplies the context for evaluation
      * @return a SequenceIterator that can be used to iterate over the result
      *         of the expression
      * @throws org.orbeon.saxon.trans.XPathException
@@ -62,7 +63,7 @@ public class IntegerRange extends Value {
      *          expression
      */
 
-    public SequenceIterator iterate(XPathContext context) throws XPathException {
+    public SequenceIterator iterate() throws XPathException {
         return new RangeIterator(start, end);
     }
 
@@ -70,11 +71,11 @@ public class IntegerRange extends Value {
      * Determine the data type of the items in the expression, if possible
      *
      * @return AnyItemType (not known)
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
-        return Type.INTEGER_TYPE;
+        return BuiltInAtomicType.INTEGER;
     }
 
     /**
@@ -91,11 +92,41 @@ public class IntegerRange extends Value {
      * (or for a MemoClosure, once all the values have been read)
      */
 
-    public Item itemAt(int n) throws XPathException {
+    public Item itemAt(int n) {
         if (n < 0 || n > (end-start)) {
             return null;
         }
-        return new IntegerValue(start + n);
+        return Int64Value.makeIntegerValue(start + n);
+    }
+
+
+    /**
+     * Get a subsequence of the value
+     *
+     * @param start  the index of the first item to be included in the result, counting from zero.
+     *               A negative value is taken as zero. If the value is beyond the end of the sequence, an empty
+     *               sequence is returned
+     * @param length the number of items to be included in the result. Specify Integer.MAX_VALUE to
+     *               get the subsequence up to the end of the base sequence. If the value is negative, an empty sequence
+     *               is returned. If the value goes off the end of the sequence, the result returns items up to the end
+     *               of the sequence
+     * @return the required subsequence. 
+     */
+
+    public GroundedValue subsequence(int start, int length) {
+        if (length <= 0) {
+            return EmptySequence.getInstance();
+        }
+        long newStart = this.start + (start > 0 ? start : 0);
+        long newEnd = newStart + length - 1;
+        if (newEnd > end) {
+            newEnd = end;
+        }
+        if (newEnd >= newStart) {
+            return new IntegerRange(newStart, newEnd);
+        } else {
+            return EmptySequence.getInstance();
+        }
     }
 
     /**
@@ -106,13 +137,6 @@ public class IntegerRange extends Value {
         return (int)(end - start + 1);
     }
 
-    /**
-     * Diagnostic display of the expression
-     */
-
-    public void display(int level, PrintStream out, Configuration config) {
-        System.err.println(ExpressionTool.indent(level) + start + " to " + end);
-    }
 }
 
 //

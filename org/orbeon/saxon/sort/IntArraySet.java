@@ -8,20 +8,21 @@ import java.util.Arrays;
 /**
  * Set of int values. This class is modelled on the java.net.Set interface, but it does
  * not implement this interface, because the set members are int's rather than Objects.
- * It does implement the same interface as IntHashSet, although this is currently not
- * defined as an explicit interface.
  * <p/>
  * This implementation of a set of integers is optimized to use very little storage
  * and to provide fast comparison of two sets. The equals() method determines whether
  * two sets contain the same integers.
  * <p/>
+ * This implementation is not efficient at adding new integers to the set. It creates a new
+ * array each time you do that.
+ * <p/>
  * Not thread safe.
  *
  * @author Michael Kay
  */
-public class IntArraySet implements Serializable {
+public class IntArraySet implements Serializable, IntSet {
 
-    private static final int[] EMPTY_INT_ARRAY = new int[0];
+    public static final int[] EMPTY_INT_ARRAY = new int[0];
 
     /**
      * The array of integers, which will always be sorted
@@ -44,16 +45,19 @@ public class IntArraySet implements Serializable {
 
     /**
      * Create a set containing integers from the specified IntHashSet
+     * @param input the set to be copied
      */
 
     public IntArraySet(IntHashSet input) {
         // exploits the fact that getValues() constructs a new array
         contents = input.getValues();
+        //System.err.println("new IntArraySet(" + contents.length + ")");
         Arrays.sort(contents);
     }
 
     /**
      * Create one IntArraySet as a copy of another
+     * @param input the set to be copied
      */
 
     public IntArraySet(IntArraySet input) {
@@ -63,6 +67,7 @@ public class IntArraySet implements Serializable {
 
     public void clear() {
         contents = EMPTY_INT_ARRAY;
+        hashCode = -1;
     }
 
     public int size() {
@@ -72,6 +77,11 @@ public class IntArraySet implements Serializable {
     public boolean isEmpty() {
         return contents.length == 0;
     }
+
+    /**
+     * Get the set of integer values as an array
+     * @return a sorted array of integers
+     */
 
     public int[] getValues() {
         return contents;
@@ -83,6 +93,7 @@ public class IntArraySet implements Serializable {
     }
 
     public boolean remove(int value) {
+        hashCode = -1;
         int pos = Arrays.binarySearch(contents, value);
         if (pos < 0) {
             return false;
@@ -107,9 +118,9 @@ public class IntArraySet implements Serializable {
      */
 
     public boolean add(int value) {
+        hashCode = -1;
         if (contents.length == 0) {
-            int[] c = {value};
-            contents=c;
+            contents = new int[] {value};
             return true;
         }
         int pos = Arrays.binarySearch(contents, value);
@@ -133,6 +144,7 @@ public class IntArraySet implements Serializable {
 
     /**
      * Get the first value in the set.
+     * @return the first value in the set, in sorted order
      * @throws ArrayIndexOutOfBoundsException if the set is empty
      */
 
@@ -142,6 +154,7 @@ public class IntArraySet implements Serializable {
 
     /**
      * Get an iterator over the values
+     * @return an iterator over the values, which will be delivered in sorted order
      */
 
     public IntIterator iterator() {
@@ -150,16 +163,18 @@ public class IntArraySet implements Serializable {
 
     /**
      * Form a new set that is the union of this set with another set.
+     * @param other the other set
+     * @return the union of the two sets
      */
 
     public IntArraySet union(IntArraySet other) {
         // Look for special cases: one set empty, or both sets equal
         if (size() == 0) {
             return new IntArraySet(other);
-        } else if (other.size() == 0) {
+        } else if (other.isEmpty()) {
             return new IntArraySet(this);
         }
-        if (this.equals(other)) {
+        if (equals(other)) {
             return this;
         }
         // Form the union by a merge of the two sorted arrays
@@ -189,6 +204,13 @@ public class IntArraySet implements Serializable {
         }
     }
 
+    /**
+     * Factory method to construct a set from an array of integers
+     * @param in the array of integers, which must be in ascending order
+     * @param size the number of elements in the array that are significant
+     * @return the constructed set
+     */
+
     public static IntArraySet make(int[] in, int size) {
         int[] out;
         if (in.length == size) {
@@ -201,13 +223,27 @@ public class IntArraySet implements Serializable {
     }
 
     private IntArraySet(int[] content) {
-        this.contents = content;
+        contents = content;
     }
 
     public String toString() {
         FastStringBuffer sb = new FastStringBuffer(contents.length*4);
         for (int i=0; i<contents.length; i++) {
-            sb.append(contents[i] + ",");
+            if (i == contents.length - 1) {
+                sb.append(contents[i] + "");
+            } else if (contents[i]+1 != contents[i+1]) {
+                sb.append(contents[i] + ",");
+            } else {
+                int j = i+1;
+                while (contents[j] == contents[j-1]+1) {
+                    j++;
+                    if (j == contents.length) {
+                        break;
+                    }
+                }
+                sb.append(contents[i] + "-" + contents[j-1] + ",");
+                i = j;
+            }
         }
         return sb.toString();
     }
@@ -244,19 +280,6 @@ public class IntArraySet implements Serializable {
 //        return n;
 //    }
 
-    /**
-     * Test if this set is a superset of another set
-     */
-
-//    public boolean containsAll(IntArraySet other) {
-//        IntIterator it = other.iterator();
-//        while (it.hasNext()) {
-//            if (!contains(it.next())) {
-//                return false;
-//            }
-//        }
-//        return true;
-//    }
 
     /**
      * Test if this set has overlapping membership with another set
@@ -279,22 +302,11 @@ public class IntArraySet implements Serializable {
     public boolean equals(Object other) {
         if (other instanceof IntArraySet) {
             IntArraySet s = (IntArraySet)other;
-            return Arrays.equals(contents, s.contents);
-//            if (size() != s.size()) {
-//                return false;
-//            }
-//            if (hashCode() != s.hashCode()) {
-//                return false;
-//            }
-//            for (int i=0; i<contents.length; i++) {
-//                if (contents[i] != s.contents[i]) {
-//                    return false;
-//                }
-//            }
-//            return true;
-        } else {
-            return false;
-        }
+            return hashCode() == other.hashCode() && Arrays.equals(contents, s.contents);
+        } else
+            return other instanceof IntSet &&
+                    contents.length == ((IntSet)other).size() &&
+                    containsAll((IntSet)other);
     }
 
     /**
@@ -312,6 +324,20 @@ public class IntArraySet implements Serializable {
             hashCode = h;
         }
         return hashCode;
+    }
+
+    /**
+     * Test if this set is a superset of another set
+     */
+
+    public boolean containsAll(IntSet other) {
+        IntIterator it = other.iterator();
+        while (it.hasNext()) {
+            if (!contains(it.next())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

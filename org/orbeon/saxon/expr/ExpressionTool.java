@@ -2,24 +2,23 @@ package org.orbeon.saxon.expr;
 
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.functions.ExtensionFunctionCall;
-import org.orbeon.saxon.event.SequenceOutputter;
 import org.orbeon.saxon.event.PipelineConfiguration;
-import org.orbeon.saxon.instruct.*;
+import org.orbeon.saxon.event.SequenceOutputter;
+import org.orbeon.saxon.functions.Current;
+import org.orbeon.saxon.functions.ExtensionFunctionCall;
+import org.orbeon.saxon.functions.Put;
+import org.orbeon.saxon.instruct.Block;
+import org.orbeon.saxon.instruct.SlotManager;
+import org.orbeon.saxon.instruct.UserFunction;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.sort.SortExpression;
-import org.orbeon.saxon.trace.InstructionInfoProvider;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AnyItemType;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.*;
 
-import javax.xml.transform.SourceLocator;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.ArrayList;
 
 /**
  * This class, ExpressionTool, contains a number of useful static methods
@@ -41,6 +40,8 @@ public class ExpressionTool {
     public static final int PROCESS = 9;
     public static final int LAZY_TAIL_EXPRESSION = 10;
     public static final int SHARED_APPEND_EXPRESSION = 11;
+    public static final int MAKE_INDEXED_VARIABLE = 12;
+    public static final int MAKE_SINGLETON_CLOSURE = 13;
 
     private ExpressionTool() {}
 
@@ -50,140 +51,63 @@ public class ExpressionTool {
      * function definitions, and it performs context-independent expression rewriting for
      * optimization purposes.
      *
-     * @exception org.orbeon.saxon.trans.XPathException if the expression contains a static error
      * @param expression The expression (as a character string)
      * @param env An object giving information about the compile-time
      *     context of the expression
+     * @param start position of the first significant character in the expression
      * @param terminator The token that marks the end of this expression; typically
      * Tokenizer.EOF, but may for example be a right curly brace
      * @param lineNumber the line number of the start of the expression
+     * @param compileWithTracing true if diagnostic tracing during expression parsing is required
      * @return an object of type Expression
+     * @throws XPathException if the expression contains a static error
      */
 
     public static Expression make(String expression, StaticContext env,
-                                  int start, int terminator, int lineNumber) throws XPathException {
+                                  int start, int terminator, int lineNumber, boolean compileWithTracing) throws XPathException {
         ExpressionParser parser = new ExpressionParser();
+        parser.setCompileWithTracing(compileWithTracing);
         if (terminator == -1) {
             terminator = Token.EOF;
         }
         Expression exp = parser.parse(expression, start, terminator, lineNumber, env);
-        exp = exp.simplify(env);
-        makeParentReferences(exp);
+        exp = ExpressionVisitor.make(env).simplify(exp);
         return exp;
     }
 
     /**
-     * Copy location information (the line number) from one expression
+     * Copy location information (the line number and reference to the container) from one expression
      * to another
+     * @param from the expression containing the location information
+     * @param to the expression to which the information is to be copied
      */
 
     public static void copyLocationInfo(Expression from, Expression to) {
-        if (from instanceof ComputedExpression && to instanceof ComputedExpression) {
-            ((ComputedExpression)to).setLocationId(((ComputedExpression)from).getLocationId());
+        if (from != null && to != null) {
+            to.setLocationId(from.getLocationId());
+            to.setContainer(from.getContainer());
         }
     }
 
-    /**
-     * Establish the links from subexpressions to their parent expressions,
-     * by means of a recursive tree walk.
-     */
-
-    public static void makeParentReferences(Expression top) {
-        // This costly method is now unnecessary; we are setting the parent expression
-        // as the tree is built. But it can be put back in if needed.
-//        if (top==null) {
-//            return;
-//        }
-//        for (Iterator children = top.iterateSubExpressions(); children.hasNext();) {
-//            Expression child = (Expression)children.next();
-//            if (child instanceof ComputedExpression) {
-//                ((ComputedExpression)child).setParentExpression((ComputedExpression)top);
-//                makeParentReferences(child);
-//            }
-//        }
-    }
-
-    /**
-     * Get location information for an expression in the form of a SourceLocator
-     */
-
-    public static SourceLocator getLocator(Expression exp) {
-        if (exp instanceof ComputedExpression) {
-            return (ComputedExpression)exp;
-        } else {
-            return null;
-        }
-    }
-
-    /**
-     * Determine whether an expression is a repeatedly-evaluated subexpression
-     * of a parent expression. For example, the predicate in a filter expression is
-     * a repeatedly-evaluated subexpression of the filter expression.
-     */
-
-    public static boolean isRepeatedSubexpression(Expression parent, Expression child, StaticContext env) {
-        if (parent instanceof PathExpression) {
-            return child == ((PathExpression)parent).getStepExpression();
-        }
-        if (parent instanceof FilterExpression) {
-            final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
-            return child == ((FilterExpression)parent).getFilter() &&
-                    !th.isSubType(child.getItemType(th), Type.NUMBER_TYPE);
-        }
-        if (parent instanceof ForExpression) {
-            return child == ((ForExpression)parent).getAction();
-        }
-        if (parent instanceof QuantifiedExpression) {
-            return child == ((QuantifiedExpression)parent).getAction();
-        }
-        if (parent instanceof SimpleMappingExpression) {
-            return child == ((SimpleMappingExpression)parent).getStepExpression();
-        }
-        if (parent instanceof SortExpression) {
-            return ((SortExpression)parent).isSortKey(child);
-        }
-        if (parent instanceof AnalyzeString) {
-            return child == ((AnalyzeString)parent).getMatchingExpression() ||
-                    child == ((AnalyzeString)parent).getNonMatchingExpression();
-        }
-        if (parent instanceof ForEach) {
-            return child == ((ForEach)parent).getActionExpression();
-        }
-        if (parent instanceof ForEachGroup) {
-            return child == ((ForEachGroup)parent).getActionExpression();
-        }
-        if (parent instanceof While) {
-            return child == ((While)parent).getActionExpression();
-        }
-        if (parent instanceof GeneralComparison) {
-            return child == ((GeneralComparison)parent).getOperands()[1];
-        }
-        if (parent instanceof GeneralComparison10) {
-            Expression[] ops = ((GeneralComparison10)parent).getOperands();
-            return child == ops[0] || child == ops[1];
-        }
-        if (parent instanceof ApplyTemplates) {
-            // treat the expressions within xsl:with-param as repeated
-            return child instanceof WithParam;
-        }
-        return false;
-    }
     /**
      * Remove unwanted sorting from an expression, at compile time
+     * @param opt the expression optimizer
+     * @param exp the expression to be optimized
+     * @param retainAllNodes true if there is a need to retain exactly those nodes returned by exp
+     * even if there are duplicates; false if the caller doesn't mind whether duplicate nodes
+     * are retained or eliminated
+     * @return the expression after rewriting
      */
 
-    public static Expression unsorted(Optimizer opt, Expression exp, boolean eliminateDuplicates)
+    public static Expression unsorted(Optimizer opt, Expression exp, boolean retainAllNodes)
     throws XPathException {
-        if (exp instanceof Value) return exp;   // fast exit
+        if (exp instanceof Literal) {
+            return exp;   // fast exit
+        }
         PromotionOffer offer = new PromotionOffer(opt);
         offer.action = PromotionOffer.UNORDERED;
-        offer.mustEliminateDuplicates = eliminateDuplicates;
-        Expression exp2 = exp.promote(offer);
-        if (exp2 != exp) {
-            ComputedExpression.setParentExpression(exp2, exp.getParentExpression());
-            return exp2;
-        }
-        return exp;
+        offer.retainAllNodes = retainAllNodes;
+        return exp.promote(offer);
     }
 
     /**
@@ -192,11 +116,14 @@ public class ExpressionTool {
      * This is done when we need the effective boolean value of a sequence: the EBV of a
      * homogenous sequence does not depend on its order, but this is not true when atomic
      * values and nodes are mixed: (N, AV) is true, but (AV, N) is an error.
+     * @param opt the expression optimizer
+     * @param exp the expression to be optimized
+     * @return the expression after rewriting
      */
 
-    public static Expression unsortedIfHomogeneous(Optimizer opt, Expression exp, boolean eliminateDuplicates)
+    public static Expression unsortedIfHomogeneous(Optimizer opt, Expression exp)
     throws XPathException {
-        if (exp instanceof Value) {
+        if (exp instanceof Literal) {
             return exp;   // fast exit
         }
         if (exp.getItemType(opt.getConfiguration().getTypeHierarchy()) instanceof AnyItemType) {
@@ -204,7 +131,8 @@ public class ExpressionTool {
         } else {
             PromotionOffer offer = new PromotionOffer(opt);
             offer.action = PromotionOffer.UNORDERED;
-            offer.mustEliminateDuplicates = eliminateDuplicates;
+            offer.retainAllNodes = false;
+                // TODO: redundant code. All callers set this to false
             return exp.promote(offer);
         }
     }
@@ -219,8 +147,7 @@ public class ExpressionTool {
      */
 
     public static int lazyEvaluationMode(Expression exp) {
-        // this sequence of tests rearranged 7 Apr 2005 because opt017 was failing.
-        if (exp instanceof Value) {
+        if (exp instanceof Literal) {
             return NO_EVALUATION_NEEDED;
 
         } else if (exp instanceof VariableReference) {
@@ -243,7 +170,11 @@ public class ExpressionTool {
         } else if (exp instanceof LazyExpression) {
             // A LazyExpression is always evaluated lazily (if at all possible) to
             // prevent spurious errors (see opt017)
-            return MAKE_MEMO_CLOSURE;
+            if (Cardinality.allowsMany(exp.getCardinality())) {
+                return MAKE_MEMO_CLOSURE;
+            } else {
+                return MAKE_SINGLETON_CLOSURE;
+            }
 
         } else if (!Cardinality.allowsMany(exp.getCardinality())) {
             // singleton expressions are always evaluated eagerly
@@ -265,7 +196,7 @@ public class ExpressionTool {
         } else if (exp instanceof Block &&
                     ((Block)exp).getChildren().length == 2 &&
                     (((Block)exp).getChildren()[0] instanceof VariableReference ||
-                        ((Block)exp).getChildren()[0] instanceof Value)) {
+                        ((Block)exp).getChildren()[0] instanceof Literal)) {
                     // If the expression is a Block, that is, it is appending a value to a sequence,
                     // then we have the opportunity to use a shared list underpinning the old value and
                     // the new. This takes precedence over lazy evaluation (it would be possible to do this
@@ -292,7 +223,7 @@ public class ExpressionTool {
      */
 
     public static int eagerEvaluationMode(Expression exp) {
-        if (exp instanceof Value && !(exp instanceof Closure)) {
+        if (exp instanceof Literal && !(((Literal)exp).getValue() instanceof Closure)) {
             return NO_EVALUATION_NEEDED;
         }
         if (exp instanceof VariableReference) {
@@ -312,7 +243,8 @@ public class ExpressionTool {
     /**
      * Do lazy evaluation of an expression. This will return a value, which may optionally
      * be a SequenceIntent, which is a wrapper around an iterator over the value of the expression.
-     *
+     * @param exp the expression to be evaluated
+     * @param evaluationMode the evaluation mode for this expression
      * @param context the run-time evaluation context for the expression. If
      *     the expression is not evaluated immediately, then parts of the
      *     context on which the expression depends need to be saved as part of
@@ -334,16 +266,20 @@ public class ExpressionTool {
         switch (evaluationMode) {
 
             case NO_EVALUATION_NEEDED:
-                return (Value)exp;
+                return ((Literal)exp).getValue();
 
             case EVALUATE_VARIABLE:
                 return ((VariableReference)exp).evaluateVariable(context);
 
             case MAKE_CLOSURE:
                 return Closure.make(exp, context, ref);
+                //return new SequenceExtent(exp.iterate(context));
 
             case MAKE_MEMO_CLOSURE:
                 return Closure.make(exp, context, (ref==1 ? 10 : ref));
+
+            case MAKE_SINGLETON_CLOSURE:
+                return new SingletonClosure(exp, context);
 
             case RETURN_EMPTY_SEQUENCE:
                 return EmptySequence.getInstance();
@@ -351,7 +287,7 @@ public class ExpressionTool {
             case EVALUATE_AND_MATERIALIZE_VARIABLE:
                 ValueRepresentation v = ((VariableReference)exp).evaluateVariable(context);
                 if (v instanceof Closure) {
-                    return SequenceExtent.makeSequenceExtent(((Closure)v).iterate(context));
+                    return SequenceExtent.makeSequenceExtent(((Closure)v).iterate());
                 } else {
                     return v;
                 }
@@ -366,17 +302,19 @@ public class ExpressionTool {
 
             case UNDECIDED:
             case ITERATE_AND_MATERIALIZE:
-                return SequenceExtent.makeSequenceExtent(exp.iterate(context));
+                if (ref == FilterExpression.FILTERED) {
+                    return context.getConfiguration().getOptimizer().makeSequenceExtent(exp, ref, context);
+                } else {
+                    return SequenceExtent.makeSequenceExtent(exp.iterate(context));
+                }
 
             case PROCESS:
                 Controller controller = context.getController();
                 XPathContext c2 = context.newMinorContext();
-                c2.setOrigin((InstructionInfoProvider)exp);
+                c2.setOrigin(exp);
                 SequenceOutputter seq = controller.allocateSequenceOutputter(20);
-                final PipelineConfiguration pipe = controller.makePipelineConfiguration();
-                pipe.setHostLanguage((exp instanceof ComputedExpression ?
-                        ((ComputedExpression)exp).getHostLanguage() :
-                        controller.getExecutable().getHostLanguage()));
+                PipelineConfiguration pipe = controller.makePipelineConfiguration();
+                pipe.setHostLanguage(exp.getHostLanguage());
                 seq.setPipelineConfiguration(pipe);
                 c2.setTemporaryReceiver(seq);
                 seq.open();
@@ -391,14 +329,14 @@ public class ExpressionTool {
                 VariableReference vr = (VariableReference)tail.getBaseExpression();
                 ValueRepresentation base = evaluate(vr, EVALUATE_VARIABLE, context, ref);
                 if (base instanceof MemoClosure) {
-                    SequenceIterator it = ((MemoClosure)base).iterate(null);
+                    SequenceIterator it = ((MemoClosure)base).iterate();
                     base = ((GroundedIterator)it).materialize();
                 }
                 if (base instanceof IntegerRange) {
                     long start = ((IntegerRange)base).getStart() + 1;
                     long end = ((IntegerRange)base).getEnd();
                     if (start == end) {
-                        return new IntegerValue(end);
+                        return Int64Value.makeIntegerValue(end);
                     } else {
                         return new IntegerRange(start, end);
                     }
@@ -414,46 +352,59 @@ public class ExpressionTool {
             }
 
             case SHARED_APPEND_EXPRESSION: {
-                Block block = (Block)exp;
-                Expression base = block.getChildren()[0];
-                if (base instanceof VariableReference) {
-                    base = Value.asValue(evaluate(base, EVALUATE_VARIABLE, context, ref));
-                    if (base instanceof MemoClosure && ((MemoClosure)base).isFullyRead()) {
-                        base = ((MemoClosure)base).materialize();
-                    }
-                }
-                if (base instanceof ShareableSequence && ((ShareableSequence)base).isShareable()) {
-                    List list = ((ShareableSequence)base).getList();
-                    SequenceIterator iter = block.getChildren()[1].iterate(context);
-                    while (true) {
-                        Item i = iter.next();
-                        if (i == null) {
-                            break;
+                if (exp instanceof Block) {
+                    Block block = (Block)exp;
+                    Expression base = block.getChildren()[0];
+                    Value baseVal;
+                    if (base instanceof Literal) {
+                        baseVal = ((Literal)base).getValue();
+                    } else if (base instanceof VariableReference) {
+                        baseVal = Value.asValue(evaluate(base, EVALUATE_VARIABLE, context, ref));
+                        if (baseVal instanceof MemoClosure && ((MemoClosure)baseVal).isFullyRead()) {
+                            baseVal = ((MemoClosure)baseVal).materialize();
                         }
-                        list.add(i);
+                    } else {
+                        throw new AssertionError("base of shared append expression is of class " + base.getClass());
                     }
-                    return new ShareableSequence(list);
-                } else if (base instanceof Value) {
-                    List list = new ArrayList(20);
-                    SequenceIterator iter = base.iterate(context);
-                    while (true) {
-                        Item i = iter.next();
-                        if (i == null) {
-                            break;
+                    if (baseVal instanceof ShareableSequence && ((ShareableSequence)baseVal).isShareable()) {
+                        List list = ((ShareableSequence)baseVal).getList();
+                        SequenceIterator iter = block.getChildren()[1].iterate(context);
+                        while (true) {
+                            Item i = iter.next();
+                            if (i == null) {
+                                break;
+                            }
+                            list.add(i);
                         }
-                        list.add(i);
-                    }
-                    iter = block.getChildren()[1].iterate(context);
-                    while (true) {
-                        Item i = iter.next();
-                        if (i == null) {
-                            break;
+                        return new ShareableSequence(list);
+                    } else {
+                        List list = new ArrayList(20);
+                        SequenceIterator iter = baseVal.iterate();
+                        while (true) {
+                            Item i = iter.next();
+                            if (i == null) {
+                                break;
+                            }
+                            list.add(i);
                         }
-                        list.add(i);
+                        iter = block.getChildren()[1].iterate(context);
+                        while (true) {
+                            Item i = iter.next();
+                            if (i == null) {
+                                break;
+                            }
+                            list.add(i);
+                        }
+                        return new ShareableSequence(list);
                     }
-                    return new ShareableSequence(list);
+                } else {
+                    // it's not a Block: it must have been rewritten after deciding to use this evaluation mode
+                    return SequenceExtent.makeSequenceExtent(exp.iterate(context));
                 }
             }
+
+            case MAKE_INDEXED_VARIABLE:
+                return context.getConfiguration().getOptimizer().makeIndexedValue(exp.iterate(context));
 
             default:
                 throw new IllegalArgumentException("Unknown evaluation mode " + evaluationMode);
@@ -464,7 +415,7 @@ public class ExpressionTool {
     /**
      * Do lazy evaluation of an expression. This will return a value, which may optionally
      * be a SequenceIntent, which is a wrapper around an iterator over the value of the expression.
-     *
+     * @param exp the expression to be evaluated
      * @param context the run-time evaluation context for the expression. If
      *     the expression is not evaluated immediately, then parts of the
      *     context on which the expression depends need to be saved as part of
@@ -474,11 +425,11 @@ public class ExpressionTool {
      *     indicates multiple references, so the value will be saved when first evaluated. The special value
      *     FILTERED indicates a reference within a loop of the form $x[predicate], indicating that the value
      *     should be saved in a way that permits indexing.
-     * @exception XPathException if any error occurs in evaluating the
-     *     expression
      * @return a value: either the actual value obtained by evaluating the
      *     expression, or a Closure containing all the information needed to
      *     evaluate it later
+     * @throws XPathException if any error occurs in evaluating the
+     *     expression
      */
 
     public static ValueRepresentation lazyEvaluate(Expression exp, XPathContext context, int ref) throws XPathException {
@@ -503,19 +454,16 @@ public class ExpressionTool {
     /**
      * Scan an expression to find and mark any recursive tail function calls
      * @param exp the expression to be analyzed
-     * @param nameCode the name of the containing function
+     * @param qName the name of the containing function
      * @param arity the arity of the containing function
-     * @return true if a tail function call to the specified function was found. In this case the
+     * @return 0 if no tail call was found; 1 if a tail call to a different function was found;
+     * 2 if a tail call to the specified function was found. In this case the
      * UserFunctionCall object representing the tail function call will also have been marked as
-     * tail-recursive.
+     * a tail call.
      */
 
-    public static boolean markTailFunctionCalls(Expression exp, int nameCode, int arity) {
-        if (exp instanceof ComputedExpression) {
-            return ((ComputedExpression)exp).markTailFunctionCalls(nameCode, arity);
-        } else {
-            return false;
-        }
+    public static int markTailFunctionCalls(Expression exp, StructuredQName qName, int arity) {
+        return exp.markTailFunctionCalls(qName, arity);
     }
 
     /**
@@ -552,39 +500,43 @@ public class ExpressionTool {
             int count = ((Assignation)exp).getRequiredSlots();
             nextFree += count;
             if (frame != null) {
-                frame.allocateSlotNumber(((Assignation)exp).getVariableFingerprint());
+                frame.allocateSlotNumber(((Assignation)exp).getVariableQName());
                 if (count == 2) {
-                    frame.allocateSlotNumber(((ForExpression)exp).getPositionVariableNameCode() & NamePool.FP_MASK);
+                    frame.allocateSlotNumber(((ForExpression)exp).getPositionVariableName());
                 }
             }
+        }
+        if (exp instanceof VariableReference) {
+            VariableReference var = (VariableReference)exp;
+            Binding binding = var.getBinding();
+            if (exp instanceof LocalVariableReference) {
+                ((LocalVariableReference)var).setSlotNumber(binding.getLocalSlotNumber());
+            }
+            if (binding instanceof Assignation && binding.getLocalSlotNumber() < 0) {
+                // This indicates something badly wrong: we've found a variable reference on the tree, that's
+                // bound to a variable declaration that is no longer on the tree. All we can do is print diagnostics.
+                Assignation decl = (Assignation)binding;
+                String msg = "*** Internal Saxon error: local variable encountered whose binding has been deleted";
+                System.err.println(msg);
+                System.err.println("Variable name: " + decl.getVariableName());
+                System.err.println("Line number of reference: " + var.getLocationId());
+                System.err.println("Line number of declaration: " + decl.getLocationId());
+                System.err.println("DECLARATION:");
+                decl.explain(System.err);
+                throw new IllegalStateException(msg);
+            }
+
         }
         for (Iterator children = exp.iterateSubExpressions(); children.hasNext();) {
             Expression child = (Expression)children.next();
             nextFree = allocateSlots(child, nextFree, frame, false);
         }
 
-        if (topLevel) {
-            for (Iterator children = exp.iterateSubExpressions(); children.hasNext();) {
-                Expression child = (Expression)children.next();
-                refineVariableReference(child);
-            }
-        }
         return nextFree;
 
         // Note, we allocate a distinct slot to each range variable, even if the
         // scopes don't overlap. This isn't strictly necessary, but might help
         // debugging.
-    }
-
-    private static void refineVariableReference(Expression exp) {
-        if (exp instanceof VariableReference) {
-            ((VariableReference)exp).refineVariableReference();
-        } else {
-            for (Iterator children = exp.iterateSubExpressions(); children.hasNext();) {
-                Expression child = (Expression)children.next();
-                refineVariableReference(child);
-            }
-        }
     }
 
     /**
@@ -599,9 +551,10 @@ public class ExpressionTool {
             return false;
         }
         if (first instanceof NodeInfo) {
+            iterator.close();
             return true;
         } else {
-            first = ((AtomicValue)first).getPrimitiveValue();
+            //first = ((AtomicValue)first).getPrimitiveValue();
             if (first instanceof BooleanValue) {
                 if (iterator.next() != null) {
                     ebvError("sequence of two or more items starting with a boolean");
@@ -620,7 +573,7 @@ public class ExpressionTool {
                 return (n.compareTo(0) != 0) && !n.isNaN();
             } else if (first instanceof ObjectValue) {
                 if (iterator.next() != null) {
-                    ebvError("sequence of two or more items starting with a numeric value");
+                    ebvError("sequence of two or more items starting with an external object value");
                 }
                 // return true if external object reference is not null
                 return (((ObjectValue)first).getObject() != null);
@@ -631,8 +584,14 @@ public class ExpressionTool {
         }
     }
 
+    /**
+     * Report an error in computing the effective boolean value of an expression
+     * @param reason the nature of the error
+     * @throws XPathException
+     */
+
     public static void ebvError(String reason) throws XPathException {
-        DynamicError err = new DynamicError("Effective boolean value is not defined for a " + reason);
+        XPathException err = new XPathException("Effective boolean value is not defined for a " + reason);
         err.setErrorCode("FORG0006");
         err.setIsTypeError(true);
         throw err;
@@ -647,6 +606,9 @@ public class ExpressionTool {
      */
 
     public static boolean dependsOnVariable(Expression e, Binding[] bindingList) {
+        if (bindingList == null || bindingList.length == 0) {
+            return false;
+        }
         if (e instanceof VariableReference) {
             for (int i=0; i<bindingList.length; i++) {
                 if (((VariableReference)e).getBinding() == bindingList[i]) {
@@ -689,18 +651,18 @@ public class ExpressionTool {
     /**
      * Determine whether an expression contains a call on the function with a given fingerprint
      * @param exp The expression being tested
-     * @param fp The fingerprint of the name of the function
+     * @param qName The name of the function
      * @return true if the expression contains a call on the function
      */
 
-    public static boolean callsFunction(Expression exp, int fp) {
-        if (exp instanceof FunctionCall && (((FunctionCall)exp).getFunctionNameCode() & NamePool.FP_MASK) == fp) {
+    public static boolean callsFunction(Expression exp, StructuredQName qName) {
+        if (exp instanceof FunctionCall && (((FunctionCall)exp).getFunctionName().equals(qName))) {
             return true;
         }
         Iterator iter = exp.iterateSubExpressions();
         while (iter.hasNext()) {
             Expression e = (Expression)iter.next();
-            if (callsFunction(e, fp)) {
+            if (callsFunction(e, qName)) {
                 return true;
             }
         }
@@ -729,23 +691,58 @@ public class ExpressionTool {
     }
 
     /**
-     * Resolve calls to the current() function within an expression
+     * Gather a list of the names of the user-defined functions which a given expression calls directly
+     * @param e the expression being tested
+     * @param list a list of the functions that are called. The items in this list are strings in the format
+     * "{uri}local/arity"
      */
 
-    public static Expression resolveCallsToCurrentFunction(Expression exp, Configuration config) throws XPathException {
-        int current = config.getNamePool().getFingerprint(NamespaceConstant.FN, "current");
-        if (current == -1) {
-            return exp;
-            // if the name fn:current is not in the name pool, then the expression can't contain any calls to it!
+    public static void gatherCalledFunctionNames(Expression e, List list) {
+        if (e instanceof UserFunctionCall) {
+            StructuredQName name = ((UserFunctionCall)e).getFunctionName();
+            int arity = ((UserFunctionCall)e).getNumberOfArguments();
+            String key = name.getClarkName() + "/" + arity;
+            if (!list.contains(key)) {
+                list.add(key);
+            }
+        } else {
+            for (Iterator children = e.iterateSubExpressions(); children.hasNext();) {
+                Expression child = (Expression)children.next();
+                gatherCalledFunctionNames(child, list);
+            }
         }
-        if (callsFunction(exp, current)) {
-            RangeVariableDeclaration decl = new RangeVariableDeclaration();
-            decl.setNameCode(config.getNamePool().allocate("saxon", NamespaceConstant.SAXON, "current" + exp.hashCode()));
-            decl.setVariableName("saxon:current");
-            decl.setRequiredType(SequenceType.SINGLE_ITEM);
+    }
+
+
+    /**
+     * Reset cached static properties within a subtree, meaning that they have to be
+     * recalulated next time they are required
+     * @param exp the root of the subtree within which static properties should be reset
+     */
+
+    public static void resetPropertiesWithinSubtree(Expression exp) {
+        exp.resetLocalStaticProperties();
+        for (Iterator children = exp.iterateSubExpressions(); children.hasNext();) {
+            Expression child = (Expression)children.next();
+            resetPropertiesWithinSubtree(child);
+        }
+    }
+
+    /**
+     * Resolve calls to the XSLT current() function within an expression
+     * @param exp the expression within which calls to current() should be resolved
+     * @param config the Saxon configuration
+     * @return the expression after resolving calls to current()
+     */
+
+    public static Expression resolveCallsToCurrentFunction(Expression exp, Configuration config)
+            throws XPathException {
+        if (callsFunction(exp, Current.FN_CURRENT)) {
             LetExpression let = new LetExpression();
+            let.setVariableQName(
+                    new StructuredQName("saxon", NamespaceConstant.SAXON, "current" + exp.hashCode()));
+            let.setRequiredType(SequenceType.SINGLE_ITEM);
             let.setSequence(new CurrentItemExpression());
-            let.setVariableDeclaration(decl);
             PromotionOffer offer = new PromotionOffer(config.getOptimizer());
             offer.action = PromotionOffer.REPLACE_CURRENT;
             offer.containingExpression = let;
@@ -757,29 +754,35 @@ public class ExpressionTool {
         }
     }
 
+
+
     /**
-     * Determine whether it is possible to rearrange an expression so that all references to a given
-     * variable are replaced by a reference to ".". This is true of there are no references to the variable
-     * within a filter predicate or on the rhs of a "/" operator.
+     * Determine whether an expression can be evaluated without reference to the part of the context
+     * document outside the subtree rooted at the context node.
+     * @param exp the expression in question
+     * @return true if the expression has no dependencies on the context node, or if the only dependencies
+     * on the context node are downward selections using the self, child, descendant, attribute, and namespace
+     * axes.
      */
 
-    public static boolean isVariableReplaceableByDot(Expression exp, Binding[] binding) {
-        if (exp instanceof ComputedExpression) {
-            if (exp instanceof FilterExpression) {
-                Expression start = ((FilterExpression)exp).getBaseExpression();
-                Expression filter = ((FilterExpression)exp).getFilter();
-                return isVariableReplaceableByDot(start, binding) &&
-                        !dependsOnVariable(filter, binding);
-            } else if (exp instanceof PathExpression) {
-                Expression start = ((PathExpression)exp).getFirstStep();
-                Expression rest = ((PathExpression)exp).getRemainingSteps();
-                return isVariableReplaceableByDot(start, binding) &&
-                        !dependsOnVariable(rest, binding);
+    public static boolean isSubtreeExpression(Expression exp) {
+        if (exp instanceof Literal) {
+            return true;
+        }
+        if ((exp.getDependencies() & StaticProperty.DEPENDS_ON_FOCUS) != 0) {
+            if (exp instanceof ContextItemExpression) {
+                return true;
+            } else if (exp instanceof AxisExpression) {
+                return Axis.isSubtreeAxis[((AxisExpression)exp).getAxis()];
+            } else if ((exp.getIntrinsicDependencies() & StaticProperty.DEPENDS_ON_FOCUS) != 0) {
+                return false;
+            } else if (exp instanceof ExtensionFunctionCall) {
+                return false;
             } else {
-                Iterator iter = exp.iterateSubExpressions();
-                while (iter.hasNext()) {
-                    Expression sub = (Expression)iter.next();
-                    if (!isVariableReplaceableByDot(sub, binding)) {
+                Iterator sub = exp.iterateSubExpressions();
+                while (sub.hasNext()) {
+                    Expression s = (Expression)sub.next();
+                    if (!isSubtreeExpression(s)) {
                         return false;
                     }
                 }
@@ -791,45 +794,130 @@ public class ExpressionTool {
     }
 
     /**
-     * Determine whether an expression can be evaluated without reference to the part of the context
-     * document outside the subtree rooted at the context node.
-     * @return true if the expression has no dependencies on the context node, or if the only dependencies
-     * on the context node are downward selections using the self, child, descendant, attribute, and namespace
-     * axes.
+     * Get a list of all references to a particular variable within a subtree
+     * @param exp the expression at the root of the subtree
+     * @param binding the variable binding whose references are sought
+     * @param list a list to be populated with the references to this variable
      */
 
-    public static boolean isSubtreeExpression(Expression exp) {
-        if (exp instanceof Value) {
-            return true;
-        }
-        if ((exp.getDependencies() & StaticProperty.DEPENDS_ON_FOCUS) != 0) {
-            if (exp instanceof ComputedExpression) {
-                if (exp instanceof ContextItemExpression) {
-                    return true;
-                } else if (exp instanceof AxisExpression) {
-                    return Axis.isSubtreeAxis[((AxisExpression)exp).getAxis()];
-                } else if ((((ComputedExpression)exp).getIntrinsicDependencies() & StaticProperty.DEPENDS_ON_FOCUS) != 0) {
-                    return false;
-                } else if (exp instanceof ExtensionFunctionCall) {
-                    return false;
-                } else {
-                    Iterator sub = exp.iterateSubExpressions();
-                    while (sub.hasNext()) {
-                        Expression s = (Expression)sub.next();
-                        if (!isSubtreeExpression(s)) {
-                            return false;
-                        }
-                    }
-                    return true;
-                }
-            } else {
-                return false;
-            }
+    public static void gatherVariableReferences(Expression exp, Binding binding, List list) {
+        if (exp instanceof VariableReference &&
+                ((VariableReference)exp).getBinding() == binding) {
+            list.add(exp);
         } else {
-            return true;
+            for (Iterator iter = exp.iterateSubExpressions(); iter.hasNext(); ) {
+                gatherVariableReferences((Expression)iter.next(), binding, list);
+            }
         }
     }
 
+    /**
+     * Determine how often a variable is referenced. This is the number of times
+     * it is referenced at run-time: so a reference in a loop counts as "many". This code
+     * currently handles local variables (Let expressions) and function parameters. It is
+     * not currently used for XSLT template parameters. It's not the end of the world if
+     * the answer is wrong (unless it's wrongly given as zero), but if wrongly returned as
+     * 1 then the variable will be repeatedly evaluated.
+     * @param exp the expression within which variable references are to be counted
+     * @param binding identifies the variable of interest
+     * @param inLoop true if the expression is within a loop, in which case a reference counts as many.
+     * This should be set to false on the initial call, it may be set to true on an internal recursive
+     * call 
+     * @return the number of references. The interesting values are 0, 1,  "many" (represented
+     * by any value >1), and the special value FILTERED, which indicates that there are
+     * multiple references and one or more of them is of the form $x[....] indicating that an
+     * index might be useful.
+     */
+
+    public static int getReferenceCount(Expression exp, Binding binding, boolean inLoop) {
+        int rcount = 0;
+        if (exp instanceof VariableReference && ((VariableReference)exp).getBinding() == binding) {
+            if (((VariableReference)exp).isFiltered()) {
+                return FilterExpression.FILTERED;
+            } else {
+                rcount += (inLoop ? 10 : 1);
+            }
+        } else {
+            for (Iterator iter = exp.iterateSubExpressions(); iter.hasNext(); ) {
+                Expression child = (Expression)iter.next();
+                boolean childLoop = inLoop || (exp.hasLoopingSubexpression(child));
+                rcount += getReferenceCount(child, binding, childLoop);
+                if (rcount >= FilterExpression.FILTERED) {
+                    break;
+                }
+            }
+        }
+        return rcount;
+    }
+
+    /**
+     * Gather the set of all the subexpressions of an expression (the transitive closure)
+     * @param exp the parent expression
+     * @param set the set to be populated; on return it will contain all the subexpressions.
+     * Beware that testing for membership of a set of expressions relies on the equals() comparison,
+     * which does not test identity.
+     */
+
+    public static void gatherAllSubExpressions(Expression exp, HashSet set) {
+        set.add(exp);
+        for (Iterator iter = exp.iterateSubExpressions(); iter.hasNext(); ) {
+            gatherAllSubExpressions((Expression)iter.next(), set);
+        }
+    }
+
+    /**
+     * Get the size of an expression tree (the number of subexpressions it contains)
+     * @param exp the expression whose size is required
+     * @return the size of the expression tree, as the number of nodes
+     */
+
+    public static int expressionSize(Expression exp) {
+        int total = 1;
+        for (Iterator iter = exp.iterateSubExpressions(); iter.hasNext(); ) {
+            total += expressionSize((Expression)iter.next());
+        }
+        return total;
+    }
+
+
+    /**
+     * Rebind all variable references to a binding
+     * @param exp the expression whose contained variable references are to be rebound
+     * @param oldBinding the old binding for the variable references
+     * @param newBinding the new binding to which the variables should be rebound
+     */
+
+    public static void rebindVariableReferences(
+            Expression exp, Binding oldBinding, Binding newBinding) {
+        if (exp instanceof VariableReference) {
+            if (((VariableReference)exp).getBinding() == oldBinding) {
+                ((VariableReference)exp).fixup(newBinding);
+            }
+        } else {
+            Iterator iter = exp.iterateSubExpressions();
+            while (iter.hasNext()) {
+                Expression e = (Expression)iter.next();
+                rebindVariableReferences(e, oldBinding, newBinding);
+            }
+        }
+    }
+
+    /**
+     * Determine whether the expression is either an updating expression, or an expression that is permitted
+     * in a context where updating expressions are allowed
+     * @param exp the expression under test
+     * @return true if the expression is an updating expression, or an empty sequence, or a call on error()
+     */
+
+    public static boolean isAllowedInUpdatingContext(Expression exp) {
+        return Literal.isEmptySequence(exp) ||
+                exp instanceof org.orbeon.saxon.functions.Error ||
+                exp.isUpdatingExpression() ||
+                exp instanceof Put ||
+                (exp instanceof LetExpression && isAllowedInUpdatingContext(((LetExpression)exp).getAction()));
+        // The last condition is stretching the rules in the XQuery update specification. We need the rule because
+        // the branches of a typeswitch get turned into let expressions before we can check them.
+    }
 }
 
 //

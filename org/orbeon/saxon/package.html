@@ -1,0 +1,38 @@
+<html>
+
+<head>
+<title>Package overview for org.orbeon.saxon</title>
+</head>
+
+<body>
+
+<p>This package provides the core classes of the SAXON XSLT library. </p>
+
+<p>Some of the more important classes are listed below: </p>
+
+<p><b>Transform</b>:<br>
+This is the XSLT processor. It has a command-line interface allowing you to
+apply a given style sheet to a given source document.</p>
+
+<p><b>PreparedStylesheet</b>:<br>
+This represents a compiled XSLT stylesheet in memory. It is Saxon's implementation of the
+<tt>javax.xml.transform.Templates</tt> interface defined in JAXP 1.1</p>
+
+<p><b>Controller</b>:<br>
+This class represents the context information for a single execution of an XSLT stylesheet,
+and allows the application to process the tree navigationally. It is Saxon's implementation
+of the javax.xml.transform.Transformer interface defined in JAXP 1.1. It calls
+user-supplied handlers registered with the RuleManager.
+If you want to write your own Java application to process a document navigationally, you
+can write it as a subclass of Controller, or you can instantiate Controller
+directly. </p>
+
+
+
+
+<hr>
+
+<p align="center"><i>Michael H. Kay<br>
+25 April 2002</i></p>
+</body>
+</html>

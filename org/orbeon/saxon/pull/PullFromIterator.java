@@ -27,6 +27,11 @@ public class PullFromIterator implements PullProvider {
     private PipelineConfiguration pipe;
     private int currentEvent = START_OF_INPUT;
 
+    /**
+     * Create a PullProvider that wraps a supplied SequenceIterator
+     * @param base the sequence iterator to be wrapped
+     */
+
     public PullFromIterator(SequenceIterator base) {
         this.base = base;
     }
@@ -64,7 +69,7 @@ public class PullFromIterator implements PullProvider {
             } else if (item instanceof UnconstructedParent) {
                 // this represents a lazily-evaluated element or document node constructor
                 treeWalker = ((UnconstructedParent)item).getPuller();
-                treeWalker.setPipelineConfiguration(pipe);
+                //treeWalker.setPipelineConfiguration(pipe);
                 currentEvent = treeWalker.next();
                 return currentEvent;
             } else if (item instanceof AtomicValue) {

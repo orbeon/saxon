@@ -27,7 +27,8 @@ public interface SourceResolver {
      * configuration information; it also allows the SourceResolver to invoke the
      * resolveSource() method on the Configuration object as a fallback implementation.
      * @return a source object that Saxon knows how to process. This must be an instance of one
-     * of the classes  StreamSource, SAXSource, DOMSource {@link org.orbeon.saxon.om.NodeInfo},
+     * of the classes  StreamSource, SAXSource, DOMSource, {@link org.orbeon.saxon.AugmentedSource},
+     *  {@link org.orbeon.saxon.om.NodeInfo},
      * or {@link org.orbeon.saxon.pull.PullSource}. Return null if the Source object is not
      * recognized
      * @throws XPathException if the Source object is recognized but cannot be processed

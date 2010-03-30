@@ -1,0 +1,42 @@
+<html>
+
+<head>
+<title>Package overview for org.orbeon.saxon.number</title>
+</head>
+
+<body>
+
+<p>This package provides classes associated with numbering and the <code>xsl:number</code> element. </p>
+
+<p>It is possible to extend the range of numberings available by providing a Numberer
+for a specific language. This should be named Numberer_xx where xx is the language code,
+corresponding to the value of the lang attribute in <code>xsl:number</code>.</p>
+
+<p>The class <code>Numberer_de</code> is provided as an illustration of how to do this;
+it is invoked when the stylesheet specifies <code>&lt;xsl:number lang="de"&gt;, and a format
+token of "eins" is used: it allows numbers up to ten to be output as "eins", "zwei", "drei", etc.</code>
+
+<p>The class <code>Numberer_en</code> provides the standard numbering options. As well as the
+format tokens defined in the XSLT 1.0 specification (for example, "1", "001", "a", "i") it supports
+other numbering options including:</p>
+
+<li>
+<ul>Greek upper and lower case letters</ul>
+<ul>Cyrillic upper and lower case letters</ul>
+<ul>Hebrew letters</ul>
+<ul>Japanese: Hiragana-A, Hiragana-B, Katakana-A, or Katakana-B letters, and Kanji digits</ul>
+<ul>English words: the format token "one" produces numbers such as "twenty five"</ul>
+</li>
+
+<p>These classes also include code to support the localization of dates as defined
+in the XSLT <code>format-dateTime()</code> group of functions.</p>
+
+
+
+<hr>
+
+<p align="center"><i>Michael H. Kay<br/>
+Saxonica Limited<br/>
+9 February 2005</i></p>
+</body>
+</html>

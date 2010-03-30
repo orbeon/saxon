@@ -4,7 +4,7 @@ import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.AnyNodeTest;
 import org.orbeon.saxon.pattern.NodeTest;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.UntypedAtomicValue;
@@ -169,9 +169,9 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 
     public int getTypeAnnotation() {
         if (getNodeKind() == Type.ATTRIBUTE) {
-            return StandardNames.XDT_UNTYPED_ATOMIC;
+            return StandardNames.XS_UNTYPED_ATOMIC;
         }
-        return StandardNames.XDT_UNTYPED;
+        return StandardNames.XS_UNTYPED;
     }
 
     /**
@@ -202,11 +202,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
       */
 
      public boolean equals(Object other) {
-        if (other instanceof NodeInfo) {
-            return isSameNodeInfo((NodeInfo)other);
-        } else {
-            return false;
-        }
+        return other instanceof NodeInfo && isSameNodeInfo((NodeInfo)other);
     }
 
      /**
@@ -272,6 +268,15 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
         return -1;
     }
 
+   /**
+     * Get column number
+     * @return the column number of the node in its original source document; or -1 if not available
+     */
+
+    public int getColumnNumber() {
+        return -1;
+    }        
+
     /**
     * Determine the relative position of this node and another node, in document order.
     * The other node will always be in the same document.
@@ -323,6 +328,8 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 
     /**
      * Supporting method to get the string value of a node
+     * @param node the JDOM node
+     * @return the XPath string value of the node
      */
 
     private static String getStringValue(Object node) {
@@ -660,7 +667,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
                  if (nodeKind!=Type.ELEMENT) {
                      return EmptyIterator.getInstance();
                  }
-                 return new NamespaceIterator(this, nodeTest);
+                 return NamespaceIterator.makeIterator(this, nodeTest);
 
             case Axis.PARENT:
                  getParent();
@@ -780,18 +787,6 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     }
 
     /**
-    * Output all namespace nodes associated with this element. Does nothing if
-    * the node is not an element.
-    * @param out The relevant outputter
-     * @param includeAncestors True if namespaces declared on ancestor elements must
-     */
-
-    public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors)
-        throws XPathException {
-        Navigator.sendNamespaceDeclarations(this, out, includeAncestors);
-    }
-
-    /**
      * Get all namespace undeclarations and undeclarations defined on this element.
      *
      * @param buffer If this is non-null, and the result array fits in this buffer, then the result
@@ -812,21 +807,21 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
             Element elem = (Element)node;
             List addl = elem.getAdditionalNamespaces();
             int size = addl.size() + 1;
-            int[] result = (size <= buffer.length ? buffer : new int[size]);
+            int[] result = (buffer == null || size > buffer.length ? new int[size] : buffer);
             NamePool pool = getNamePool();
             Namespace ns = elem.getNamespace();
             String prefix = ns.getPrefix();
             String uri = ns.getURI();
             result[0] = pool.allocateNamespaceCode(prefix, uri);
             int i = 1;
-            if (addl.size() > 0) {
+            if (!addl.isEmpty()) {
                 Iterator itr = addl.iterator();
                 while (itr.hasNext()) {
                     ns = (Namespace) itr.next();
                     result[i++] = pool.allocateNamespaceCode(ns.getPrefix(), ns.getURI());
                 }
             }
-            if (size < buffer.length) {
+            if (size < result.length) {
                 result[size] = -1;
             }
             return result;
@@ -834,6 +829,39 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
             return null;
         }
     }
+
+    /**
+     * Determine whether this node has the is-id property
+     *
+     * @return true if the node is an ID
+     */
+
+    public boolean isId() {
+        return false;
+    }
+
+    /**
+     * Determine whether this node has the is-idref property
+     *
+     * @return true if the node is an IDREF or IDREFS element or attribute
+     */
+
+    public boolean isIdref() {
+        return false;
+    }
+
+    /**
+     * Determine whether the node has the is-nilled property
+     *
+     * @return true if the node has the is-nilled property
+     */
+
+    public boolean isNilled() {
+        return false;
+    }    
+
+
+
     ///////////////////////////////////////////////////////////////////////////////
     // Axis enumeration classes
     ///////////////////////////////////////////////////////////////////////////////
@@ -954,22 +982,22 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
                         throw new IllegalStateException("Unexpanded entity in JDOM tree");
                     } else if (nextChild instanceof Text) {
                         // handle possible adjacent text nodes
-                        if (isAtomizing()) {
-                            FastStringBuffer fsb = new FastStringBuffer(100);
-                            fsb.append(getStringValue(node));
-                            while (children.hasNext()) {
-                                Object n = children.next();
-                                if (n instanceof Text) {
-                                    fsb.append(getStringValue(n));
-                                    ix++;
-                                } else {
-                                    // we've looked ahead too far
-                                    children.previous();
-                                    break;
-                                }
-                            }
-                            current = new UntypedAtomicValue(fsb);
-                        } else {
+//                        if (isAtomizing()) {
+//                            FastStringBuffer fsb = new FastStringBuffer(100);
+//                            fsb.append(getStringValue(node));
+//                            while (children.hasNext()) {
+//                                Object n = children.next();
+//                                if (n instanceof Text) {
+//                                    fsb.append(getStringValue(n));
+//                                    ix++;
+//                                } else {
+//                                    // we've looked ahead too far
+//                                    children.previous();
+//                                    break;
+//                                }
+//                            }
+//                            current = new UntypedAtomicValue(fsb);
+//                        } else {
                             current = makeWrapper(nextChild, docWrapper, commonParent, ix++);
                             List list = null;
                             while (children.hasNext()) {
@@ -990,13 +1018,13 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
                             if (list != null) {
                                 ((NodeWrapper)current).node = list;
                             }
-                        }
+//                        }
                     } else {
-                        if (isAtomizing()) {
-                            current = new UntypedAtomicValue(getStringValue(node));
-                        } else {
+//                        if (isAtomizing()) {
+//                            current = new UntypedAtomicValue(getStringValue(node));
+//                        } else {
                             current = makeWrapper(nextChild, docWrapper, commonParent, ix++);
-                        }
+//                        }
                     }
                 } else {
                     current = null;
@@ -1012,22 +1040,22 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
                         throw new IllegalStateException("Unexpanded entity in JDOM tree");
                     } else if (nextChild instanceof Text) {
                         // handle possible adjacent text nodes
-                        if (isAtomizing()) {
-                            StringBuffer sb = new StringBuffer(100);
-                            sb.insert(0, getStringValue(nextChild));
-                            while (children.hasPrevious()) {
-                                Object n = children.previous();
-                                if (n instanceof Text) {
-                                    sb.insert(0, getStringValue(n));
-                                    ix--;
-                                } else {
-                                    // we've looked ahead too far
-                                    children.next();
-                                    break;
-                                }
-                            }
-                            current = new UntypedAtomicValue(sb);
-                        } else {
+//                        if (isAtomizing()) {
+//                            StringBuffer sb = new StringBuffer(100);
+//                            sb.insert(0, getStringValue(nextChild));
+//                            while (children.hasPrevious()) {
+//                                Object n = children.previous();
+//                                if (n instanceof Text) {
+//                                    sb.insert(0, getStringValue(n));
+//                                    ix--;
+//                                } else {
+//                                    // we've looked ahead too far
+//                                    children.next();
+//                                    break;
+//                                }
+//                            }
+//                            current = new UntypedAtomicValue(sb);
+//                        } else {
                             current = makeWrapper(nextChild, docWrapper, commonParent, ix--);
                             List list = null;
                             while (children.hasPrevious()) {
@@ -1048,13 +1076,13 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
                             if (list != null) {
                                 ((NodeWrapper)current).node = list;
                             }
-                        }
+//                        }
                     } else {
-                        if (isAtomizing()) {
-                            current = new UntypedAtomicValue(getStringValue(node));
-                        } else {
+//                        if (isAtomizing()) {
+//                            current = new UntypedAtomicValue(getStringValue(node));
+//                        } else {
                             current = makeWrapper(nextChild, docWrapper, commonParent, ix--);
-                        }
+//                        }
                     }
                 } else {
                     current = null;

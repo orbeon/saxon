@@ -1,17 +1,17 @@
 package org.orbeon.saxon.sort;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Platform;
+import org.orbeon.saxon.trans.NoDynamicContextException;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.om.StructuredQName;
+import org.orbeon.saxon.type.AtomicType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.*;
 
-import java.util.Comparator;
-
 /**
- * A Comparator used for comparing atomic values of arbitrary item types. It encapsulates
- * a Collator that is used when the values to be compared are strings. It also supports
+ * An AtomicComparer used for comparing atomic values of arbitrary item types. It encapsulates
+ * a collator that is used when the values to be compared are strings. It also supports
  * a separate method for testing equality of items, which can be used for data types that
  * are not ordered.
  *
@@ -24,52 +24,87 @@ import java.util.Comparator;
 
 public class AtomicSortComparer implements AtomicComparer {
 
-    private Comparator collator;
-    private XPathContext conversionContext;
+    private StringCollator collator;
+    private XPathContext context;
+    private int itemType;
 
     /**
      * Factory method to get an atomic comparer suitable for sorting or for grouping (operations in which
      * NaN is considered equal to NaN)
-     * @param collator Collating comparer to be used when comparing strings
-     * @param itemType Primitive item type of the values to be compared
+     * @param collator Collating comparer to be used when comparing strings. This argument may be null
+     * if the itemType excludes the possibility of comparing strings. If the method is called at compile
+     * time, this should be a NamedCollation so that it can be cloned at run-time.
+     * @param itemType the primitive item type of the values to be compared
      * @param context Dynamic context (may be an EarlyEvaluationContext)
      * @return a suitable AtomicComparer
      */
 
-    public static AtomicComparer makeSortComparer(Comparator collator, int itemType, XPathContext context) {
+    public static AtomicComparer makeSortComparer(StringCollator collator, int itemType, XPathContext context) {
         switch (itemType) {
-            case Type.STRING:
-            case Type.UNTYPED_ATOMIC:
-            case Type.ANY_URI:
+            case StandardNames.XS_STRING:
+            case StandardNames.XS_UNTYPED_ATOMIC:
+            case StandardNames.XS_ANY_URI:
                 if (collator instanceof CodepointCollator) {
                     return CodepointCollatingComparer.getInstance();
                 } else {
-                    return new CollatingAtomicComparer(collator, context.getConfiguration().getPlatform());
+                    return new CollatingAtomicComparer(collator, Configuration.getPlatform());
                 }
-            case Type.INTEGER:
-            case Type.DECIMAL:
-                return DecimalSortComparer.getInstance();
-            case Type.DOUBLE:
-            case Type.FLOAT:
-            case Type.NUMBER:
+            case StandardNames.XS_INTEGER:
+            case StandardNames.XS_DECIMAL:
+                return DecimalSortComparer.getDecimalSortComparerInstance();
+            case StandardNames.XS_DOUBLE:
+            case StandardNames.XS_FLOAT:
+            case StandardNames.XS_NUMERIC:
                 return DoubleSortComparer.getInstance();
-            case Type.DATE_TIME:
-            case Type.DATE:
-            case Type.TIME:
-                return new CalendarValueComparer(context.getConfiguration());
+            case StandardNames.XS_DATE_TIME:
+            case StandardNames.XS_DATE:
+            case StandardNames.XS_TIME:
+                return new CalendarValueComparer(context);
             default:
             // use the general-purpose comparer that handles all types
-                return new AtomicSortComparer(collator, context);
+                return new AtomicSortComparer(collator, itemType, context);
         }
 
     }
 
-    private AtomicSortComparer(Comparator collator, XPathContext context) {
+    private AtomicSortComparer(StringCollator collator, int itemType, XPathContext context) {
         this.collator = collator;
         if (collator == null) {
             this.collator = CodepointCollator.getInstance();
         }
-        this.conversionContext = context;
+        this.context = context;
+        this.itemType = itemType;
+    }
+
+
+    /**
+     * Supply the dynamic context in case this is needed for the comparison
+     *
+     * @param context the dynamic evaluation context
+     * @return either the original AtomicComparer, or a new AtomicComparer in which the context
+     *         is known. The original AtomicComparer is not modified
+     */
+
+    public AtomicComparer provideContext(XPathContext context) {
+        return new AtomicSortComparer(collator, itemType, context);
+    }
+
+    /**
+     * Get the underlying StringCollator
+     * @return the underlying collator
+     */
+
+    public StringCollator getStringCollator() {
+        return collator;
+    }
+
+    /**
+     * Get the requested item type
+     * @return the item type
+     */
+
+    public int getItemType() {
+        return itemType;
     }
 
     /**
@@ -86,7 +121,7 @@ public class AtomicSortComparer implements AtomicComparer {
     * @throws ClassCastException if the objects are not comparable
     */
 
-    public int compare(Object a, Object b) {
+    public int compareAtomicValues(AtomicValue a, AtomicValue b) throws NoDynamicContextException {
 
         if (a == null) {
             if (b == null) {
@@ -99,40 +134,30 @@ public class AtomicSortComparer implements AtomicComparer {
         }
 
         // System.err.println("Comparing " + a.getClass() + "(" + a + ") with " + b.getClass() + "(" + b + ") using " + collator);
-        if (a instanceof AtomicValue && !((AtomicValue)a).hasBuiltInType()) {
-            a = ((AtomicValue)a).getPrimitiveValue();
-        }
-        if (b instanceof AtomicValue && !((AtomicValue)b).hasBuiltInType()) {
-            b = ((AtomicValue)b).getPrimitiveValue();
-        }
+
         if (a instanceof UntypedAtomicValue) {
-            return ((UntypedAtomicValue)a).compareTo(b, collator, conversionContext);
+            return ((UntypedAtomicValue)a).compareTo(b, collator, context);
         } else if (b instanceof UntypedAtomicValue) {
-            return -((UntypedAtomicValue)b).compareTo(a, collator, conversionContext);
-        } else if (a instanceof NumericValue && ((NumericValue)a).isNaN()) {
-            if (b instanceof NumericValue && ((NumericValue)b).isNaN()) {
-                return 0;
-            } else {
-                return -1;
-            }
-        } else if (b instanceof NumericValue && ((NumericValue)b).isNaN()) {
+            return -((UntypedAtomicValue)b).compareTo(a, collator, context);
+        } else if (a.isNaN()) {
+            return (b.isNaN() ? 0 : -1);
+        } else if (b.isNaN()) {
             return +1;
-        } else if (a instanceof CalendarValue && b instanceof CalendarValue) {
-            return ((CalendarValue)a).compareTo((CalendarValue)b, conversionContext.getConfiguration());
-        } else if (a instanceof Comparable) {
-            return ((Comparable)a).compareTo(b);
         } else if (a instanceof StringValue && b instanceof StringValue) {
             if (collator instanceof CodepointCollator) {
-                return ((CodepointCollator)collator).compareCS(((StringValue)a).getStringValueCS(), ((StringValue)b).getStringValueCS());
+                return ((CodepointCollator)collator).compareCS(a.getStringValueCS(), b.getStringValueCS());
             } else {
-                return collator.compare(((StringValue)a).getStringValue(), ((StringValue)b).getStringValue());
+                return collator.compareStrings(a.getStringValue(), b.getStringValue());
             }
-        } else if (a instanceof AtomicValue && b instanceof AtomicValue) {
-            throw new ClassCastException("Objects are not comparable (" +
-                    ((AtomicValue)a).getItemType(null) + ", " + ((AtomicValue)b).getItemType(null) + ')');
         } else {
-            throw new ClassCastException("Objects are not comparable (" +
-                    a.getClass() + ", " + b.getClass() + ')');
+            Comparable ac = (Comparable)a.getXPathComparable(true, collator, context);
+            Comparable bc = (Comparable)b.getXPathComparable(true, collator, context);
+            if (ac == null || bc == null) {
+                throw new ClassCastException("Values are not comparable (" +
+                        Type.displayTypeName(a) + ", " + Type.displayTypeName(b) + ')');
+            } else {
+                return ac.compareTo(bc);
+            }
         }
     }
 
@@ -149,8 +174,8 @@ public class AtomicSortComparer implements AtomicComparer {
      * @throws ClassCastException if the objects are not comparable
      */
 
-    public boolean comparesEqual(AtomicValue a, AtomicValue b) {
-        return compare(a, b) == 0;
+    public boolean comparesEqual(AtomicValue a, AtomicValue b) throws NoDynamicContextException {
+        return compareAtomicValues(a, b) == 0;
     }
 
     /**
@@ -159,43 +184,43 @@ public class AtomicSortComparer implements AtomicComparer {
     * comparison keys should reflect the ordering of the underlying objects.
     */
 
-    public ComparisonKey getComparisonKey(AtomicValue a) {
-        AtomicValue prim = a.getPrimitiveValue();
-        final Configuration config = conversionContext.getConfiguration();
-        final TypeHierarchy th = config.getTypeHierarchy();
-        if (prim instanceof NumericValue) {
-            if (((NumericValue)prim).isNaN()) {
+    public ComparisonKey getComparisonKey(AtomicValue a) throws NoDynamicContextException {
+        if (a instanceof NumericValue) {
+            if (((NumericValue)a).isNaN()) {
                 // Deal with NaN specially. For this function, NaN is considered equal to itself
-                return new ComparisonKey(StandardNames.XDT_NUMERIC, COLLATION_KEY_NaN);
+                return new ComparisonKey(StandardNames.XS_NUMERIC, COLLATION_KEY_NaN);
             } else {
-                return new ComparisonKey(StandardNames.XDT_NUMERIC, prim);
+                return new ComparisonKey(StandardNames.XS_NUMERIC, a);
             }
-        } else if (prim instanceof StringValue) {
-            final Platform platform = config.getPlatform();
+        } else if (a instanceof StringValue) {
+            final Platform platform = Configuration.getPlatform();
             if (platform.canReturnCollationKeys(collator)) {
-                return new ComparisonKey(Type.STRING,
-                        platform.getCollationKey(collator, ((StringValue)prim).getStringValue()));
+                return new ComparisonKey(StandardNames.XS_STRING,
+                        collator.getCollationKey(a.getStringValue()));
             } else {
-                return new ComparisonKey(Type.STRING, prim);
+                return new ComparisonKey(StandardNames.XS_STRING, a);
             }
-        } else if (prim instanceof CalendarValue) {
-            CalendarValue cv = (CalendarValue)prim;
+        } else if (a instanceof CalendarValue) {
+            CalendarValue cv = (CalendarValue)a;
             if (cv.hasTimezone()) {
-                return new ComparisonKey(prim.getItemType(th).getPrimitiveType(), prim);
+                return new ComparisonKey(a.getTypeLabel().getPrimitiveType(), a);
             } else {
-                cv = cv.copy();
-                cv.setTimezoneInMinutes(config.getImplicitTimezone());
-                return new ComparisonKey(cv.getItemType(th).getPrimitiveType(), cv);
+                cv = (CalendarValue)cv.copyAsSubType((AtomicType)cv.getTypeLabel());
+                cv.setTimezoneInMinutes(context.getImplicitTimezone());
+                return new ComparisonKey(cv.getTypeLabel().getPrimitiveType(), cv);
             }
-        } else if (prim instanceof DurationValue) {
+        } else if (a instanceof DurationValue) {
             // dayTimeDuration and yearMonthDuration are comparable in the special case of the zero duration
-            return new ComparisonKey(Type.DURATION, prim);
+            return new ComparisonKey(StandardNames.XS_DURATION, a);
         } else {
-            return new ComparisonKey(prim.getItemType(th).getPrimitiveType(), prim);
+            return new ComparisonKey(a.getTypeLabel().getPrimitiveType(), a);
         }
     }
 
-    public static StringValue COLLATION_KEY_NaN = new StringValue("NaN");
+    protected static StructuredQName COLLATION_KEY_NaN =
+            new StructuredQName("saxon", "http://saxon.sf.net/collation-key", "NaN");
+        // The logic here is to choose a value that compares equal to itself but not equal to any other
+        // number. We use StructuredQName because it has a simple equals() method.
 
 }
 

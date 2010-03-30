@@ -1,5 +1,7 @@
 package org.orbeon.saxon.om;
 
+import org.orbeon.saxon.charcode.XMLCharacterData;
+
 /**
  * The class checks names against the rules of the XML 1.1 and XML Namespaces 1.1 specification
  */
@@ -8,19 +10,13 @@ public final class Name11Checker extends NameChecker {
 
     public static final Name11Checker theInstance = new Name11Checker();
 
-    public static final Name11Checker getInstance() {
-        return theInstance;
-    }
-
     /**
-     * Validate whether a given string constitutes a valid NCName, as defined in XML Namespaces.
-     *
-     * @param name the name to be tested
-     * @return true if the name is a lexically-valid NCName
+     * Get the singular instance of this class
+     * @return the singular instance of this class
      */
 
-    public boolean isValidNCName(String name) {
-        return XML11Char.isXML11ValidNCName(name);
+    public static Name11Checker getInstance() {
+        return theInstance;
     }
 
     /**
@@ -31,8 +27,33 @@ public final class Name11Checker extends NameChecker {
      */
 
     public boolean isValidChar(int ch) {
-        return XML11Char.isXML11Valid(ch);
+        //return XMLChar.isValid(ch);
+        return XMLCharacterData.isValid11(ch);
     }
+
+
+    /**
+     * Test whether a character can appear in an NCName
+     *
+     * @param ch the character to be tested
+     * @return true if this is a valid character in an NCName the selected version of XML
+     */
+
+    public boolean isNCNameChar(int ch) {
+        return XMLCharacterData.isNCName11(ch);
+    }
+
+    /**
+     * Test whether a character can appear at the start of an NCName
+     *
+     * @param ch the character to be tested
+     * @return true if this is a valid character at the start of an NCName the selected version of XML
+     */
+
+    public boolean isNCNameStartChar(int ch) {
+        return XMLCharacterData.isNCNameStart11(ch);
+    }
+
 
     /**
      * Return the XML version supported by this NameChecker

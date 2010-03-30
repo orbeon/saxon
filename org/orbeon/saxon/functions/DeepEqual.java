@@ -1,21 +1,21 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionVisitor;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.NameTest;
 import org.orbeon.saxon.sort.GenericAtomicComparer;
 import org.orbeon.saxon.sort.IntHashSet;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.type.ComplexType;
 import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.*;
 
 import javax.xml.transform.TransformerException;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.List;
 
 /**
 * XSLT 2.0 deep-equal() function.
@@ -80,11 +80,12 @@ public class DeepEqual extends CollatingFunction {
 
     /**
     * preEvaluate: if all arguments are known statically, evaluate early
-    */
+     * @param visitor an expression visitor
+     */
 
-    public Expression preEvaluate(StaticContext env) throws XPathException {
-        config = env.getConfiguration();
-        return super.preEvaluate(env);
+    public Expression preEvaluate(ExpressionVisitor visitor) throws XPathException {
+        config = visitor.getConfiguration();
+        return super.preEvaluate(visitor);
     }
 
     /**
@@ -157,10 +158,9 @@ public class DeepEqual extends CollatingFunction {
                         reason = "comparing an atomic value to a node at position " + op1.position();
                         break;
                     } else {
-                        AtomicValue av1 = ((AtomicValue)item1).getPrimitiveValue();
-                        AtomicValue av2 = ((AtomicValue)item2).getPrimitiveValue();
-                        if (av1 instanceof NumericValue && ((NumericValue)av1).isNaN() &&
-                                av2 instanceof NumericValue && ((NumericValue)av2).isNaN()) {
+                        AtomicValue av1 = ((AtomicValue)item1);
+                        AtomicValue av2 = ((AtomicValue)item2);
+                        if (av1.isNaN() && av2.isNaN()) {
                             // treat as equal, no action
                         } else if (!collator.comparesEqual(av1, av2)) {
                             result = false;
@@ -185,7 +185,7 @@ public class DeepEqual extends CollatingFunction {
         if (!result) {
             explain(config, reason, flags);
 //                config.getErrorListener().warning(
-//                        new DynamicError("deep-equal(): " + reason)
+//                        new XPathException("deep-equal(): " + reason)
 //                );
         }
 
@@ -285,11 +285,11 @@ public class DeepEqual extends CollatingFunction {
                     int ann2 = n2.getTypeAnnotation();
                     if (ann1 == -1) {
                         // defensive programming
-                        ann1 = StandardNames.XDT_UNTYPED;
+                        ann1 = StandardNames.XS_UNTYPED;
                     }
                     if (ann2 == -1) {
                         // defensive programming
-                        ann2 = StandardNames.XDT_UNTYPED;
+                        ann2 = StandardNames.XS_UNTYPED;
                     }
                     final SchemaType type1 = config.getSchemaType(ann1);
                     final SchemaType type2 = config.getSchemaType(ann2);
@@ -352,7 +352,9 @@ public class DeepEqual extends CollatingFunction {
                 if ((flags & COMPARE_STRING_VALUES) == 0) {
                     ar = deepEquals(n1.getTypedValue(), n2.getTypedValue(), collator, config, 0);
                 } else {
-                    ar = collator.compare(n1.getStringValue(), n2.getStringValue()) == 0;
+                    ar = collator.comparesEqual(
+                            new StringValue(n1.getStringValueCS()), 
+                            new StringValue(n2.getStringValueCS()));
                 }
                 if (!ar) {
                     explain(config, "attribute values differ", flags);
@@ -371,7 +373,12 @@ public class DeepEqual extends CollatingFunction {
             case Type.COMMENT:
                 boolean vr = (collator.comparesEqual((AtomicValue)n1.atomize(), (AtomicValue)n2.atomize()));
                 if (!vr) {
-                    explain(config, Type.displayTypeName(n1) + " values differ", flags);
+                    AtomicValue av1 = (AtomicValue)n1.atomize();
+                    AtomicValue av2 = (AtomicValue)n2.atomize();
+                    explain(config, Type.displayTypeName(n1) + " values differ (\"" +
+                            Navigator.getPath(n1) + ", " + Navigator.getPath(n2) + ": " +
+                            StringValue.diagnosticDisplay(av1.getStringValue()) + "\", \"" +
+                            StringValue.diagnosticDisplay(av2.getStringValue()) + "\")", flags);
                 }
                 return vr;
 
@@ -396,7 +403,7 @@ public class DeepEqual extends CollatingFunction {
     private static void explain(Configuration config, String message, int flags) {
         try {
             if ((flags & WARNING_IF_FALSE) != 0) {
-                config.getErrorListener().warning(new DynamicError("deep-equal(): " + message));
+                config.getErrorListener().warning(new XPathException("deep-equal(): " + message));
             }
         } catch (TransformerException e) {
             //
@@ -436,7 +443,7 @@ public class DeepEqual extends CollatingFunction {
             items.add(textNode);
         }
         SequenceExtent extent = new SequenceExtent(items);
-        return extent.iterate(null);
+        return extent.iterate();
     }
 }
 

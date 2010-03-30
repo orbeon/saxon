@@ -10,6 +10,12 @@ import org.orbeon.saxon.type.Type;
 
 public final class TinyTextImpl extends TinyNodeImpl {
 
+    /**
+     * Create a text node
+     * @param tree the tree to contain the node
+     * @param nodeNr the internal node number
+     */
+
     public TinyTextImpl(TinyTree tree, int nodeNr) {
         this.tree = tree;
         this.nodeNr = nodeNr;
@@ -35,7 +41,6 @@ public final class TinyTextImpl extends TinyNodeImpl {
     public CharSequence getStringValueCS() {
         int start = tree.alpha[nodeNr];
         int len = tree.beta[nodeNr];
-        //return new CharSlice(tree.charBuffer, start, len);
         return tree.charBuffer.subSequence(start, start+len);
     }
 

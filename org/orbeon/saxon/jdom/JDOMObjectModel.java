@@ -3,13 +3,15 @@ package org.orbeon.saxon.jdom;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.event.PipelineConfiguration;
 import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.expr.JPConverter;
+import org.orbeon.saxon.expr.PJConverter;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.om.DocumentInfo;
-import org.orbeon.saxon.om.ExternalObjectModel;
-import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.AnyNodeTest;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.value.SingletonNode;
 import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.value.SequenceExtent;
 import org.jdom.*;
 
 import javax.xml.transform.Result;
@@ -27,7 +29,16 @@ public class JDOMObjectModel implements ExternalObjectModel, Serializable {
 
     public JDOMObjectModel() {}
 
-     /**
+    /**
+     * Get the URI of the external object model as used in the JAXP factory interfaces for obtaining
+     * an XPath implementation
+     */
+
+    public String getIdentifyingURI() {
+        return NamespaceConstant.OBJECT_MODEL_JDOM;
+    }
+
+    /**
      * Test whether this object model recognizes a given node as one of its own
      */
 
@@ -40,6 +51,47 @@ public class JDOMObjectModel implements ExternalObjectModel, Serializable {
                  object instanceof Comment ||
                  object instanceof ProcessingInstruction ||
                  object instanceof Namespace;
+    }
+
+    public PJConverter getPJConverter(Class targetClass) {
+        if (isRecognizedNodeClass(targetClass)) {
+            return new PJConverter() {
+                public Object convert(ValueRepresentation value, Class targetClass, XPathContext context) throws XPathException {
+                    return convertXPathValueToObject(Value.asValue(value), targetClass, context);
+                }
+            };
+        } else {
+            return null;
+        }
+    }
+
+
+    public JPConverter getJPConverter(Class targetClass) {
+        if (isRecognizedNodeClass(targetClass)) {
+            return new JPConverter() {
+                public ValueRepresentation convert(Object object, XPathContext context) throws XPathException {
+                    return convertObjectToXPathValue(object, context.getConfiguration());
+                }
+                public ItemType getItemType() {
+                    return AnyNodeTest.getInstance();
+                }
+            };
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Get a converter that converts a sequence of XPath nodes to this model's representation
+     * of a node list.
+     * @param node an example of the kind of node used in this model
+     * @return if the model does not recognize this node as one of its own, return null. Otherwise
+     *         return a PJConverter that takes a list of XPath nodes (represented as NodeInfo objects) and
+     *         returns a collection of nodes in this object model
+     */
+
+    public PJConverter getNodeListCreator(Object node) {
+        return null;
     }
 
     /**
@@ -109,8 +161,18 @@ public class JDOMObjectModel implements ExternalObjectModel, Serializable {
      * be converted, an exception should be thrown
      */
 
-    public Value convertObjectToXPathValue(Object object, Configuration config) throws XPathException {
-        return null;
+    public ValueRepresentation convertObjectToXPathValue(Object object, Configuration config) throws XPathException {
+        if (isRecognizedNode(object)) {
+            if (object instanceof Document) {
+                return wrapDocument(object, ((Document)object).getBaseURI(), config);
+            } else {
+                Document root = getDocumentRoot(object);
+                DocumentInfo docInfo = wrapDocument(root, root.getBaseURI(), config);
+                return wrapNode(docInfo, object);
+            } 
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -119,9 +181,20 @@ public class JDOMObjectModel implements ExternalObjectModel, Serializable {
      * resulting object returned. If the value cannot be converted, the method should return null. Note
      * that the supplied class might be a List, in which case the method should inspect the contents of the
      * Value to see whether they belong to this object model.
+     * @return the object that results from conversion if conversion is possible, or null otherwise
      */
 
-    public Object convertXPathValueToObject(Value value, Class targetClass, XPathContext context) {
+    public Object convertXPathValueToObject(Value value, Object targetClass, XPathContext context) {
+        Class target = (Class)targetClass;
+        if (value instanceof SingletonNode) {
+            NodeInfo node = ((SingletonNode)value).getNode();
+            if (node instanceof VirtualNode) {
+                Object u = ((VirtualNode)node).getUnderlyingNode();
+                if (target.isAssignableFrom(u.getClass())) {
+                    return u;
+                }
+            }
+        }
         return null;
     }
 
@@ -183,17 +256,6 @@ public class JDOMObjectModel implements ExternalObjectModel, Serializable {
         return (Document)node;
     }
 
-    /**
-     * Convert a sequence of values to a NODELIST, as defined in the JAXP XPath API spec. This method
-     * is used when the evaluate() request specifies the return type as NODELIST, regardless of the
-     * actual results of the expression. If the sequence contains things other than nodes, the fallback
-     * is to return the sequence as a Java List object. The method can return null to invoke fallback
-     * behaviour.
-     */
-
-    public Object convertToNodeList(SequenceExtent extent) {
-        return null;
-    }
 }
 
 

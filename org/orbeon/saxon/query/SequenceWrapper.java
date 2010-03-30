@@ -2,14 +2,10 @@ package org.orbeon.saxon.query;
 
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.event.SequenceReceiver;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.om.NamespaceConstant;
-import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AtomicType;
 import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.style.StandardNames;
 
 /**
  * This class can be used in a push pipeline: it accepts any sequence as input, and generates
@@ -24,6 +20,7 @@ public class SequenceWrapper extends SequenceReceiver {
     private Receiver out;
     private int depth = 0;
 
+    //@SuppressWarnings({"FieldCanBeLocal"})
     private int resultSequence;
     private int resultDocument;
     private int resultElement;
@@ -35,8 +32,15 @@ public class SequenceWrapper extends SequenceReceiver {
     private int resultAtomicValue;
     private int xsiType;
 
+    /**
+     * Create a sequence wrapper. This creates an XML representation of the items sent to destination
+     * in which the types of all items are made explicit
+     * @param destination the sequence being wrapped
+     */
+
     public SequenceWrapper(Receiver destination) {
-        this.out = destination;
+        out = destination;
+        // out = new TracingFilter(out);
         setPipelineConfiguration(destination.getPipelineConfiguration());
     }
 
@@ -58,7 +62,7 @@ public class SequenceWrapper extends SequenceReceiver {
         out.open();
         out.startDocument(0);
 
-        out.startElement(resultSequence, StandardNames.XDT_UNTYPED, 0, 0);
+        out.startElement(resultSequence, StandardNames.XS_UNTYPED, 0, 0);
         out.namespace(pool.allocateNamespaceCode("result", RESULT_NS), 0);
         out.namespace(pool.allocateNamespaceCode("xs", NamespaceConstant.SCHEMA), 0);
         out.namespace(pool.allocateNamespaceCode("xsi", NamespaceConstant.SCHEMA_INSTANCE), 0);
@@ -71,7 +75,7 @@ public class SequenceWrapper extends SequenceReceiver {
      */
 
     public void startDocument(int properties) throws XPathException {
-        out.startElement(resultDocument, StandardNames.XDT_UNTYPED, 0, 0);
+        out.startElement(resultDocument, StandardNames.XS_UNTYPED, 0, 0);
         out.startContent();
         depth++;
     }
@@ -95,7 +99,7 @@ public class SequenceWrapper extends SequenceReceiver {
 
     public void startElement(int nameCode, int typeCode, int locationId, int properties) throws XPathException {
         if (depth++ == 0) {
-            out.startElement(resultElement, StandardNames.XDT_UNTYPED, 0, 0);
+            out.startElement(resultElement, StandardNames.XS_UNTYPED, 0, 0);
             out.startContent();
         }
         out.startElement(nameCode, typeCode, locationId, properties);
@@ -127,7 +131,10 @@ public class SequenceWrapper extends SequenceReceiver {
 
     public void attribute(int nameCode, int typeCode, CharSequence value, int locationId, int properties) throws XPathException {
         if (depth==0) {
-            out.startElement(resultAttribute, StandardNames.XDT_UNTYPED, 0, 0);
+            out.startElement(resultAttribute, StandardNames.XS_UNTYPED, 0, 0);
+            if ((nameCode &~ NamePool.FP_MASK) != 0) {
+                out.namespace(getNamePool().allocateNamespaceCode(nameCode), 0);
+            }
             out.attribute(nameCode, typeCode, value, locationId, properties);
             out.startContent();
             out.endElement();
@@ -152,7 +159,7 @@ public class SequenceWrapper extends SequenceReceiver {
 
     public void namespace(int namespaceCode, int properties) throws XPathException {
         if (depth == 0) {
-            out.startElement(resultNamespace, StandardNames.XDT_UNTYPED, 0, 0);
+            out.startElement(resultNamespace, StandardNames.XS_UNTYPED, 0, 0);
             out.namespace(namespaceCode, properties);
             out.startContent();
             out.endElement();
@@ -167,7 +174,7 @@ public class SequenceWrapper extends SequenceReceiver {
 
     public void characters(CharSequence chars, int locationId, int properties) throws XPathException {
         if (depth==0) {
-            out.startElement(resultText, StandardNames.XDT_UNTYPED, 0, 0);
+            out.startElement(resultText, StandardNames.XS_UNTYPED, 0, 0);
             out.startContent();
             out.characters(chars, locationId, properties);
             out.endElement();
@@ -182,7 +189,7 @@ public class SequenceWrapper extends SequenceReceiver {
 
     public void comment(CharSequence chars, int locationId, int properties) throws XPathException {
         if (depth==0) {
-            out.startElement(resultComment, StandardNames.XDT_UNTYPED, 0, 0);
+            out.startElement(resultComment, StandardNames.XS_UNTYPED, 0, 0);
             out.startContent();
             out.comment(chars, locationId, properties);
             out.endElement();
@@ -197,7 +204,7 @@ public class SequenceWrapper extends SequenceReceiver {
 
     public void processingInstruction(String target, CharSequence data, int locationId, int properties) throws XPathException {
         if (depth==0) {
-            out.startElement(resultPI, StandardNames.XDT_UNTYPED, 0, 0);
+            out.startElement(resultPI, StandardNames.XS_UNTYPED, 0, 0);
             out.startContent();
             out.processingInstruction(target, data, locationId, properties);
             out.endElement();
@@ -213,13 +220,13 @@ public class SequenceWrapper extends SequenceReceiver {
     public void append(Item item, int locationId, int copyNamespaces) throws XPathException {
         if (item instanceof AtomicValue) {
             final NamePool pool = getNamePool();
-            out.startElement(resultAtomicValue, StandardNames.XDT_UNTYPED, 0, 0);
+            out.startElement(resultAtomicValue, StandardNames.XS_UNTYPED, 0, 0);
             AtomicType type = (AtomicType)((AtomicValue)item).getItemType(getConfiguration().getTypeHierarchy());
             int nameCode = type.getNameCode();
             String prefix = pool.getPrefix(nameCode);
             String localName = pool.getLocalName(nameCode);
             String uri = pool.getURI(nameCode);
-            if (prefix.equals("")) {
+            if (prefix.length() == 0) {
                 prefix = pool.suggestPrefixForURI(uri);
                 if (prefix == null) {
                     prefix = "p" + uri.hashCode();
@@ -228,7 +235,7 @@ public class SequenceWrapper extends SequenceReceiver {
             int nscode = pool.allocateNamespaceCode(prefix, uri);
             String displayName = prefix + ':' + localName;
             out.namespace(nscode, 0);
-            out.attribute(xsiType, StandardNames.XDT_UNTYPED_ATOMIC, displayName, 0, 0);
+            out.attribute(xsiType, StandardNames.XS_UNTYPED_ATOMIC, displayName, 0, 0);
             out.startContent();
             out.characters(item.getStringValue(), 0, 0);
             out.endElement();

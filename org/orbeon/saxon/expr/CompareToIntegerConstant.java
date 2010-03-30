@@ -1,18 +1,17 @@
 package org.orbeon.saxon.expr;
 
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.sort.AtomicComparer;
 import org.orbeon.saxon.sort.DoubleSortComparer;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.BooleanValue;
+import org.orbeon.saxon.value.Int64Value;
 import org.orbeon.saxon.value.NumericValue;
-import org.orbeon.saxon.value.IntegerValue;
 
-import java.io.PrintStream;
 import java.util.Iterator;
 
 /**
@@ -21,22 +20,61 @@ import java.util.Iterator;
  * important common case.
  */
 
-public class CompareToIntegerConstant extends ComputedExpression implements ComparisonExpression {
+public class CompareToIntegerConstant extends Expression implements ComparisonExpression {
 
     private Expression operand;
     private long comparand;
     private int operator;
 
+    /**
+     * Create the expression
+     * @param operand the operand to be compared with an integer constant
+     * @param operator the comparison operator,
+     *         one of {@link Token#FEQ}, {@link Token#FNE}, {@link Token#FGE},
+     *                {@link Token#FGT}, {@link Token#FLE}, {@link Token#FLT}
+     * @param comparand the integer constant
+     */
+
     public CompareToIntegerConstant(Expression operand, int operator, long comparand) {
         this.operand = operand;
         this.operator = operator;
         this.comparand = comparand;
+        adoptChildExpression(operand);
+    }
+
+    /**
+     * Get the expression on the lhs of the comparison
+     * @return the left hand operand
+     */
+
+    public Expression getOperand() {
+        return operand;
+    }
+
+    /**
+     * Get the integer value on the rhs of the expression
+     * @return the integer constant
+     */
+
+    public long getComparand() {
+        return comparand;
+    }
+
+    /**
+     * Get the comparison operator
+     * @return one of {@link Token#FEQ}, {@link Token#FNE}, {@link Token#FGE},
+     *                {@link Token#FGT}, {@link Token#FLE}, {@link Token#FLT}
+     */
+
+    public int getComparisonOperator() {
+        return operator;
     }
 
     /**
      * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
      * This method indicates which of these methods is provided directly. The other methods will always be available
      * indirectly, using an implementation that relies on one of the other methods.
+     * @return the value {@link #EVALUATE_METHOD}
      */
 
     public int getImplementationMethod() {
@@ -46,15 +84,15 @@ public class CompareToIntegerConstant extends ComputedExpression implements Comp
     /**
      * Simplify an expression. This performs any static optimization (by rewriting the expression
      * as a different expression). The default implementation does nothing.
-     *
+     * @param visitor the expression visitor
      * @return the simplified expression
-     * @throws org.orbeon.saxon.trans.XPathException
+     * @throws XPathException
      *          if an error is discovered during expression
      *          rewriting
      */
 
-    public Expression simplify(StaticContext env) throws XPathException {
-        operand = operand.simplify(env);
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        operand = visitor.simplify(operand);
         return this;
     }
 
@@ -86,7 +124,7 @@ public class CompareToIntegerConstant extends ComputedExpression implements Comp
     }
 
     public int computeSpecialProperties() {
-        return 0;
+        return StaticProperty.NON_CREATIVE;
     }
 
     /**
@@ -101,6 +139,16 @@ public class CompareToIntegerConstant extends ComputedExpression implements Comp
 
     public int computeDependencies() {
         return operand.getDependencies();
+    }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new CompareToIntegerConstant(operand.copy(), operator, comparand);
     }
 
     /**
@@ -208,19 +256,19 @@ public class CompareToIntegerConstant extends ComputedExpression implements Comp
      * the parent pointer and location information in the returned expression have been set up correctly.
      * It should not rely on the caller to do this, although for historical reasons many callers do so.</p>
      *
-     * @param env             the static context of the expression
+     * @param visitor the expession visitor
      * @param contextItemType the static type of "." at the point where this expression is invoked.
      *                        The parameter is set to null if it is known statically that the context item will be undefined.
      *                        If the type of the context item is not known statically, the argument is set to
      *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
      * @return the original expression, rewritten to perform necessary run-time type checks,
      *         and to perform other type-related optimizations
-     * @throws org.orbeon.saxon.trans.StaticError if an error is discovered during this phase
+     * @throws XPathException if an error is discovered during this phase
      *                                        (typically a type error)
      */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        operand = operand.typeCheck(env, contextItemType);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.typeCheck(operand, contextItemType);
         return this;
     }
 
@@ -231,20 +279,18 @@ public class CompareToIntegerConstant extends ComputedExpression implements Comp
      * <p>This method is called after all references to functions and variables have been resolved
      * to the declaration of the function or variable, and after all type checking has been done.</p>
      *
-     * @param opt             the optimizer in use. This provides access to supporting functions; it also allows
-     *                        different optimization strategies to be used in different circumstances.
-     * @param env             the static context of the expression
+     * @param visitor the expression visitor
      * @param contextItemType the static type of "." at the point where this expression is invoked.
      *                        The parameter is set to null if it is known statically that the context item will be undefined.
      *                        If the type of the context item is not known statically, the argument is set to
      *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
      * @return the original expression, rewritten if appropriate to optimize execution
-     * @throws org.orbeon.saxon.trans.StaticError if an error is discovered during this phase
+     * @throws XPathException if an error is discovered during this phase
      *                                        (typically a type error)
      */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        operand = operand.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.optimize(operand, contextItemType);
         return this;
     }
 
@@ -257,27 +303,26 @@ public class CompareToIntegerConstant extends ComputedExpression implements Comp
      * <p>This method should always return a result, though it may be the best approximation
      * that is available at the time.</p>
      *
-     * @param th
+     * @param th the type hierarchy cache
      * @return a value such as Type.STRING, Type.BOOLEAN, Type.NUMBER,
      *         Type.NODE, or Type.ITEM (meaning not known at compile time)
      */
 
     public ItemType getItemType(TypeHierarchy th) {
-        return Type.BOOLEAN_TYPE;
+        return BuiltInAtomicType.BOOLEAN;
     }
 
     /**
      * Diagnostic print of expression structure. The abstract expression tree
      * is written to the supplied output destination.
-     *
-     * @param level  indentation level for this expression
-     * @param out    Output destination
-     * @param config
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "compareToInteger " + Token.tokens[operator] + " " + comparand);
-        operand.display(level+1, out, config);
+    public void explain(ExpressionPresenter destination) {
+        destination.startElement("compareToInteger");
+        destination.emitAttribute("op", Token.tokens[operator]);
+        destination.emitAttribute("value", comparand+"");
+        operand.explain(destination);
+        destination.endElement();
     }
 
     /**
@@ -285,7 +330,8 @@ public class CompareToIntegerConstant extends ComputedExpression implements Comp
      */
 
     public AtomicComparer getAtomicComparer() {
-        return DoubleSortComparer.getInstance(); // TODO: this treats NaN=NaN as true
+        return DoubleSortComparer.getInstance();
+        // Note: this treats NaN=NaN as true, but it doesn't matter, because the rhs will never be NaN.
     }
 
     /**
@@ -299,11 +345,11 @@ public class CompareToIntegerConstant extends ComputedExpression implements Comp
 
     /**
      * Get the two operands of the comparison
+     * @return the two operands
      */
 
     public Expression[] getOperands() {
-        Expression[] e = {operand, new IntegerValue(comparand)};
-        return e;
+        return new Expression[] {operand, Literal.makeLiteral(Int64Value.makeIntegerValue(comparand))};
     }
 
     /**

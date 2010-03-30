@@ -4,13 +4,17 @@ import org.orbeon.saxon.event.CommentStripper;
 import org.orbeon.saxon.event.PipelineConfiguration;
 import org.orbeon.saxon.event.Sender;
 import org.orbeon.saxon.event.StartTagBuffer;
+import org.orbeon.saxon.functions.ExecutableFunctionLibrary;
+import org.orbeon.saxon.functions.FunctionLibrary;
+import org.orbeon.saxon.functions.FunctionLibraryList;
 import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.instruct.UserFunction;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.Validation;
 import org.orbeon.saxon.style.*;
-import org.orbeon.saxon.trans.StaticError;
-import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.CompilerInfo;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.tree.DocumentImpl;
 import org.orbeon.saxon.tree.TreeBuilder;
 import org.xml.sax.XMLReader;
@@ -21,10 +25,12 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.util.Properties;
-import java.util.HashMap;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Properties;
 
 /**
  * This <B>PreparedStylesheet</B> class represents a Stylesheet that has been
@@ -41,19 +47,37 @@ public class PreparedStylesheet implements Templates, Serializable {
     private int errorCount = 0;
     private HashMap nextStylesheetCache;    // cache for stylesheets named as "saxon:next-in-chain"
 
-    private ErrorListener errorListener;
-    private URIResolver uriResolver;
+    private transient ErrorListener errorListener;
+    private transient URIResolver uriResolver;
+    private boolean compileWithTracing;
 
     /**
-     * Constructor: deliberately protected
+     * Constructor - deliberately protected
      *
      * @param config The Configuration set up by the TransformerFactory
+     * @param info Compilation options
      */
 
     protected PreparedStylesheet(Configuration config, CompilerInfo info) {
         this.config = config;
-        this.errorListener = info.getErrorListener();
-        this.uriResolver = info.getURIResolver();
+        errorListener = info.getErrorListener();
+        uriResolver = info.getURIResolver();
+        compileWithTracing = info.isCompileWithTracing();
+    }
+
+    /**
+     * Factory method to make a PreparedStylesheet
+     * @param source the source of this principal stylesheet module
+     * @param config the Saxon configuration
+     * @param info compile-time options for this stylesheet compilation
+     * @return the prepared stylesheet
+     */
+    
+    public static PreparedStylesheet compile(Source source, Configuration config, CompilerInfo info)
+    throws TransformerConfigurationException {
+        PreparedStylesheet pss = new PreparedStylesheet(config, info);
+        pss.prepare(source);
+        return pss;
     }
 
     /**
@@ -69,9 +93,20 @@ public class PreparedStylesheet implements Templates, Serializable {
         return c;
     }
 
+    /**
+     * Set the configuration in which this stylesheet is compiled.
+     * Intended for internal use.
+     * @param config the configuration to be used.
+     */
+
     public void setConfiguration(Configuration config) {
         this.config = config;
     }
+
+    /**
+     * Get the configuration in which this stylesheet is compiled
+     * @return the configuration in which this stylesheet is compiled
+     */
 
     public Configuration getConfiguration() {
         return config;
@@ -79,6 +114,7 @@ public class PreparedStylesheet implements Templates, Serializable {
 
     /**
      * Set the name pool
+     * @param pool the name pool
      */
 
     public void setTargetNamePool(NamePool pool) {
@@ -123,7 +159,7 @@ public class PreparedStylesheet implements Templates, Serializable {
         nodeFactory = new StyleNodeFactory(config, errorListener);
         DocumentImpl doc;
         try {
-            doc = loadStylesheetModule(styleSource, config, config.getNamePool(), nodeFactory);
+            doc = loadStylesheetModule(styleSource, nodeFactory);
             setStylesheetDocument(doc, nodeFactory);
         } catch (XPathException e) {
             try {
@@ -149,8 +185,6 @@ public class PreparedStylesheet implements Templates, Serializable {
      * Build the tree representation of a stylesheet module
      *
      * @param styleSource the source of the module
-     * @param config the Configuration of the transformation factory
-     * @param localNamePool the namepool used during compilation
      * @param nodeFactory the StyleNodeFactory used for creating
      *     element nodes in the tree
      * @exception XPathException if XML parsing or tree
@@ -158,15 +192,12 @@ public class PreparedStylesheet implements Templates, Serializable {
      * @return the root Document node of the tree containing the stylesheet
      *     module
      */
-    public static DocumentImpl loadStylesheetModule(
-                                    Source styleSource,
-                                    Configuration config,
-                                    NamePool localNamePool,
-                                    StyleNodeFactory nodeFactory)
+    public DocumentImpl loadStylesheetModule(Source styleSource, StyleNodeFactory nodeFactory)
     throws XPathException {
 
         TreeBuilder styleBuilder = new TreeBuilder();
         PipelineConfiguration pipe = config.makePipelineConfiguration();
+        pipe.setURIResolver(uriResolver);
         styleBuilder.setPipelineConfiguration(pipe);
         styleBuilder.setSystemId(styleSource.getSystemId());
         styleBuilder.setNodeFactory(nodeFactory);
@@ -180,7 +211,6 @@ public class PreparedStylesheet implements Templates, Serializable {
         startTagBuffer.setUnderlyingReceiver(useWhenFilter);
 
         StylesheetStripper styleStripper = new StylesheetStripper();
-        styleStripper.setStylesheetRules(localNamePool);
         styleStripper.setUnderlyingReceiver(startTagBuffer);
 
         CommentStripper commentStripper = new CommentStripper();
@@ -195,7 +225,7 @@ public class PreparedStylesheet implements Templates, Serializable {
         aug.setSchemaValidationMode(Validation.STRIP);
         aug.setDTDValidationMode(Validation.STRIP);
         aug.setLineNumbering(true);
-        if (aug.getXMLReader() == null && config.getPlatform() instanceof JavaPlatform) {
+        if (aug.getXMLReader() == null && Configuration.getPlatform().isJava()) {
             XMLReader styleParser = config.getStyleParser();
             aug.setXMLReader(styleParser);
             sender.send(aug, commentStripper);
@@ -204,6 +234,7 @@ public class PreparedStylesheet implements Templates, Serializable {
             sender.send(aug, commentStripper);
         }
         doc = (DocumentImpl)styleBuilder.getCurrentRoot();
+        styleBuilder.reset();
 
         if (aug.isPleaseCloseAfterUse()) {
             aug.close();
@@ -277,7 +308,7 @@ public class PreparedStylesheet implements Templates, Serializable {
         }
 
         if (!(styleDoc.getDocumentElement() instanceof XSLStylesheet)) {
-            throw new StaticError(
+            throw new XPathException(
                         "Outermost element of stylesheet is not xsl:stylesheet or xsl:transform or literal result element");
         }
 
@@ -289,7 +320,7 @@ public class PreparedStylesheet implements Templates, Serializable {
                 w.setLocator(topnode);
                 config.getErrorListener().warning(w);
             } catch (TransformerException e) {
-                throw StaticError.makeStaticError(e);
+                throw XPathException.makeXPathException(e);
             }
         }
 
@@ -324,6 +355,17 @@ public class PreparedStylesheet implements Templates, Serializable {
     public Executable getExecutable() {
         return executable;
     }
+
+    /**
+     * Determine whether trace hooks are included in the compiled code.
+     * @return true if trace hooks are included, false if not.
+     * @since 8.9
+     */
+
+    public boolean isCompileWithTracing() {
+        return compileWithTracing;
+    }
+
 
     /**
      * Get the properties for xsl:output.  JAXP method. The object returned will
@@ -395,13 +437,17 @@ public class PreparedStylesheet implements Templates, Serializable {
      */
 
     public void reportWarning(TransformerException err) {
+        //noinspection EmptyCatchBlock
         try {
             errorListener.warning(err);
         } catch (TransformerException err2) {}
     }
 
     /**
-     * Get a "next in chain" stylesheet
+     * Get a "next in chain" stylesheet. This method is intended for internal use.
+     * @param href the relative URI of the next-in-chain stylesheet
+     * @param baseURI the baseURI against which this relativeURI is to be resolved
+     * @return the cached stylesheet if present in the cache, or null if not
      */
 
     public PreparedStylesheet getCachedStylesheet(String href, String baseURI) {
@@ -418,6 +464,14 @@ public class PreparedStylesheet implements Templates, Serializable {
         return result;
     }
 
+    /**
+     * Save a "next in chain" stylesheet in compiled form, so that it can be reused repeatedly.
+     * This method is intended for internal use.
+     * @param href the relative URI of the stylesheet
+     * @param baseURI the base URI against which the relative URI is resolved
+     * @param pss the prepared stylesheet object to be cached
+     */
+
     public void putCachedStylesheet(String href, String baseURI, PreparedStylesheet pss) {
         URI abs = null;
         try {
@@ -432,12 +486,55 @@ public class PreparedStylesheet implements Templates, Serializable {
             nextStylesheetCache.put(abs, pss);
         }
     }
+
+    /**
+     * Get the URIResolver used at compile time for resolving URIs in xsl:include and xsl:import
+     * @return the compile-time URIResolver
+     */
+
     public URIResolver getURIResolver() {
         return uriResolver;
     }
 
+    /**
+     * Get the ErrorListener used at compile time for reporting static errors in the stylesheet
+     * @return the compile time ErrorListener
+     */
+
     public ErrorListener getErrorListener() {
         return errorListener;
+    }
+
+    /**
+     * Produce an XML representation of the compiled and optimized stylesheet
+     * @param presenter defines the destination and format of the output
+     */
+
+    public void explain(ExpressionPresenter presenter) {
+        presenter.startElement("stylesheet");
+        getExecutable().getKeyManager().explainKeys(presenter);
+        getExecutable().explainGlobalVariables(presenter);
+        getExecutable().getRuleManager().explainTemplateRules(presenter);
+        getExecutable().explainNamedTemplates(presenter);
+        FunctionLibraryList libList = (FunctionLibraryList)getExecutable().getFunctionLibrary();
+        List libraryList = libList.getLibraryList();
+        presenter.startElement("functions");
+        for (int i=0; i<libraryList.size(); i++) {
+            FunctionLibrary lib = (FunctionLibrary)libraryList.get(i);
+            if (lib instanceof ExecutableFunctionLibrary) {
+                for (Iterator f = ((ExecutableFunctionLibrary)lib).iterateFunctions(); f.hasNext();) {
+                    UserFunction func = (UserFunction)f.next();
+                    presenter.startElement("function");
+                    presenter.emitAttribute("name", func.getFunctionName().getDisplayName());
+                    presenter.emitAttribute("line", func.getLineNumber()+"");
+                    presenter.emitAttribute("module", func.getSystemId());
+                    func.getBody().explain(presenter);
+                    presenter.endElement();
+                }
+            }
+        }
+        presenter.endElement();
+        presenter.endElement();
     }
 
 }

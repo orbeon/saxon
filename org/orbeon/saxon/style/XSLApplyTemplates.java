@@ -1,5 +1,5 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.Err;
+import org.orbeon.saxon.trans.Err;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.instruct.ApplyTemplates;
 import org.orbeon.saxon.instruct.Executable;
@@ -20,7 +20,7 @@ import org.orbeon.saxon.value.Whitespace;
 public class XSLApplyTemplates extends StyleElement {
 
     private Expression select;
-    private int modeNameCode = -1;            // -1 if no mode specified
+    private StructuredQName modeName;   // null if no name specified or if conventional values such as #current used
     private boolean useCurrentMode = false;
     private boolean useTailRecursion = false;
     private Mode mode;
@@ -46,9 +46,9 @@ public class XSLApplyTemplates extends StyleElement {
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-			if (f==StandardNames.MODE) {
-        		modeAttribute = atts.getValue(a).trim();
-        	} else if (f==StandardNames.SELECT) {
+			if (f.equals(StandardNames.MODE)) {
+        		modeAttribute = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.SELECT)) {
         		selectAtt = atts.getValue(a);
         	} else {
         		checkUnknownAttribute(nc);
@@ -62,13 +62,14 @@ public class XSLApplyTemplates extends StyleElement {
                 // do nothing;
             } else {
                 try {
-                    modeNameCode = makeNameCode(modeAttribute.trim());
+                    modeName = makeQName(modeAttribute);
                 } catch (NamespaceException err) {
                     compileError(err.getMessage(), "XTSE0280");
-                    modeNameCode = -1;
+                    modeName = null;
                 } catch (XPathException err) {
-                    compileError("Mode name " + Err.wrap(modeAttribute) + " is not a valid QName", "XTSE0280");
-                    modeNameCode = -1;
+                    compileError("Mode name " + Err.wrap(modeAttribute) + " is not a valid QName",
+                            err.getErrorCodeLocalPart());
+                    modeName = null;
                 }
             }
         }
@@ -80,11 +81,11 @@ public class XSLApplyTemplates extends StyleElement {
 
     public void validate() throws XPathException {
 
-        checkWithinTemplate();
+        //checkWithinTemplate();
 
         // get the Mode object
         if (!useCurrentMode) {
-            mode = getPrincipalStylesheet().getRuleManager().getMode(modeNameCode);
+            mode = getPrincipalStylesheet().getRuleManager().getMode(modeName, true);
         }
 
         // handle sorting if requested
@@ -117,12 +118,12 @@ public class XSLApplyTemplates extends StyleElement {
         select = typeCheck("select", select);
         try {
             RoleLocator role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:apply-templates/select", 0, null);
-            role.setSourceLocator(new ExpressionLocation(this));
+                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:apply-templates/select", 0);
+            //role.setSourceLocator(new ExpressionLocation(this));
             role.setErrorCode("XTTE0520");
             select = TypeChecker.staticTypeCheck(select,
                                         SequenceType.NODE_SEQUENCE,
-                                        false, role, getStaticContext());
+                                        false, role, makeExpressionVisitor());
         } catch (XPathException err) {
             compileError(err);
         }
@@ -134,8 +135,9 @@ public class XSLApplyTemplates extends StyleElement {
      * For most instructions, this does nothing.
     */
 
-    public void markTailCalls() {
+    public boolean markTailCalls() {
         useTailRecursion = true;
+        return true;
     }
 
 
@@ -147,7 +149,6 @@ public class XSLApplyTemplates extends StyleElement {
         Expression sortedSequence = select;
         if (sortKeys != null) {
             sortedSequence = new SortExpression(select, sortKeys);
-            ExpressionTool.makeParentReferences(sortedSequence);
         }
         compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
         ApplyTemplates app = new ApplyTemplates(
@@ -159,7 +160,6 @@ public class XSLApplyTemplates extends StyleElement {
                                     implicitSelect);
         app.setActualParameters(getWithParamInstructions(exec, false, app),
                                  getWithParamInstructions(exec, true, app));
-        ExpressionTool.makeParentReferences(app);
         return app;
     }
 

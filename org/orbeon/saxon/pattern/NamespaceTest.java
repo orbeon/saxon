@@ -88,7 +88,7 @@ public final class NamespaceTest extends NodeTest {
     /**
      * Get the type from which this item type is derived by restriction. This
      * is the supertype in the XPath type heirarchy, as distinct from the Schema
-     * base type: this means that the supertype of xs:boolean is xdt:anyAtomicType,
+     * base type: this means that the supertype of xs:boolean is xs:anyAtomicType,
      * whose supertype is item() (rather than xs:anySimpleType).
      * <p>
      * In fact the concept of "supertype" is not really well-defined, because the types
@@ -96,7 +96,7 @@ public final class NamespaceTest extends NodeTest {
      * is that it returns a type that strictly subsumes this type, ideally as narrowly
      * as possible.
      * @return the supertype, or null if this type is item()
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getSuperType(TypeHierarchy th) {

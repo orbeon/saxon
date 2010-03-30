@@ -1,15 +1,14 @@
 package org.orbeon.saxon.xpath;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.om.ValueRepresentation;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.om.EmptyIterator;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
-import org.orbeon.saxon.value.SequenceType;
 import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.Configuration;
 
 import javax.xml.xpath.XPathFunction;
 import javax.xml.xpath.XPathFunctionException;
@@ -37,9 +36,10 @@ public class XPathFunctionCall extends FunctionCall {
     /**
     * preEvaluate: this method suppresses compile-time evaluation by doing nothing
     * (because the external function might have side-effects and might use the context)
-    */
+     * @param visitor an expression visitor
+     */
 
-    public Expression preEvaluate(StaticContext env) {
+    public Expression preEvaluate(ExpressionVisitor visitor) {
         return this;
     }
 
@@ -48,7 +48,7 @@ public class XPathFunctionCall extends FunctionCall {
     * Method called by the expression parser when all arguments have been supplied
     */
 
-    public void checkArguments(StaticContext env) throws XPathException {
+    public void checkArguments(ExpressionVisitor visitor) throws XPathException {
     }
 
 
@@ -62,6 +62,42 @@ public class XPathFunctionCall extends FunctionCall {
         return 0;
     }
 
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        throw new UnsupportedOperationException("copy");
+    }
+
+
+    /**
+     * Add a representation of this expression to a PathMap. The PathMap captures a map of the nodes visited
+     * by an expression in a source tree.
+     * <p/>
+     * <p>The default implementation of this method assumes that an expression does no navigation other than
+     * the navigation done by evaluating its subexpressions, and that the subexpressions are evaluated in the
+     * same context as the containing expression. The method must be overridden for any expression
+     * where these assumptions do not hold. For example, implementations exist for AxisExpression, ParentExpression,
+     * and RootExpression (because they perform navigation), and for the doc(), document(), and collection()
+     * functions because they create a new navigation root. Implementations also exist for PathExpression and
+     * FilterExpression because they have subexpressions that are evaluated in a different context from the
+     * calling expression.</p>
+     *
+     * @param pathMap     the PathMap to which the expression should be added
+     * @param pathMapNodeSet
+     * @return the pathMapNode representing the focus established by this expression, in the case where this
+     *         expression is the first operand of a path expression or filter expression. For an expression that does
+     *         navigation, it represents the end of the arc in the path map that describes the navigation route. For other
+     *         expressions, it is the same as the input pathMapNode.
+     */
+
+    public PathMap.PathMapNodeSet addToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodeSet) {
+        return addExternalFunctionCallToPathMap(pathMap, pathMapNodeSet);
+    }
 
     /**
     * Evaluate the function. <br>
@@ -83,20 +119,29 @@ public class XPathFunctionCall extends FunctionCall {
      * Call an extension function previously identified using the bind() method. A subclass
      * can override this method.
      * @param argValues  The values of the arguments
+     * @param context The XPath dynamic context
      * @return  The value returned by the extension function
      */
 
-    public SequenceIterator call(ValueRepresentation[] argValues, XPathContext context) throws XPathException {
+    protected SequenceIterator call(ValueRepresentation[] argValues, XPathContext context) throws XPathException {
         List convertedArgs = new ArrayList(argValues.length);
+        Configuration config = context.getConfiguration();
         for (int i=0; i<argValues.length; i++) {
-            convertedArgs.add(Value.asValue(argValues[i]).convertToJava(Object.class, context));
+            Value actual = Value.asValue(argValues[i]).reduce();
+            PJConverter converter = PJConverter.allocate(
+                    config, actual.getItemType(config.getTypeHierarchy()), actual.getCardinality(), Object.class);
+            convertedArgs.add(converter.convert(actual, Object.class, context));
         }
         try {
             Object result = function.evaluate(convertedArgs);
-            Configuration config = context.getConfiguration();
-            return Value.convertJavaObjectToXPath(result, SequenceType.ANY_SEQUENCE, config).iterate(context);
+            if (result == null) {
+                return EmptyIterator.getInstance();
+            }
+            JPConverter converter = JPConverter.allocate(result.getClass(), config);
+            return Value.asIterator(converter.convert(result, context));
+            //return Value.convertJavaObjectToXPath(result, SequenceType.ANY_SEQUENCE, context).iterate();
         } catch (XPathFunctionException e) {
-            throw new DynamicError(e);
+            throw new XPathException(e);
         }
     }
 
@@ -110,7 +155,7 @@ public class XPathFunctionCall extends FunctionCall {
      * that is available at the time.</p>
      *
      * @return the item type
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {

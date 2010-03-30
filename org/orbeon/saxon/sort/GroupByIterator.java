@@ -5,14 +5,13 @@ import org.orbeon.saxon.expr.LastPositionFinder;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.ListIterator;
-import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.om.LookaheadIterator;
+import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.trace.Location;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 
@@ -42,7 +41,7 @@ public class GroupByIterator implements GroupIterator, LastPositionFinder, Looka
 
     private SequenceIterator population;
     private Expression keyExpression;
-    private Comparator collator;
+    private StringCollator collator;
     private XPathContext keyContext;
     private int position = 0;
 
@@ -73,7 +72,7 @@ public class GroupByIterator implements GroupIterator, LastPositionFinder, Looka
      */
 
     public GroupByIterator(SequenceIterator population, Expression keyExpression,
-                                 XPathContext keyContext, Comparator collator)
+                                 XPathContext keyContext, StringCollator collator)
     throws XPathException {
         this.population = population;
         this.keyExpression = keyExpression;
@@ -166,7 +165,7 @@ public class GroupByIterator implements GroupIterator, LastPositionFinder, Looka
     }
 
     public Item next() throws XPathException {
-        if (position < groups.size()) {
+        if (position >=0 && position < groups.size()) {
             position++;
             return current();
         } else {
@@ -185,6 +184,9 @@ public class GroupByIterator implements GroupIterator, LastPositionFinder, Looka
 
     public int position() {
         return position;
+    }
+
+    public void close() {
     }
 
     public SequenceIterator getAnother() throws XPathException {

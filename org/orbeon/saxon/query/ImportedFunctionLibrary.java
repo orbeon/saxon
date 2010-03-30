@@ -1,9 +1,10 @@
 package org.orbeon.saxon.query;
 
-import org.orbeon.saxon.functions.FunctionLibrary;
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.functions.FunctionLibrary;
+import org.orbeon.saxon.om.StructuredQName;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.value.SequenceType;
 
 import java.util.HashSet;
 import java.util.Iterator;
@@ -16,14 +17,25 @@ import java.util.Iterator;
 
 public class ImportedFunctionLibrary implements FunctionLibrary, XQueryFunctionBinder {
 
-    StaticQueryContext importingModule;
+    QueryModule importingModule;
     XQueryFunctionLibrary baseLibrary;
     HashSet namespaces = new HashSet(5);
 
-    public ImportedFunctionLibrary(StaticQueryContext importingModule, XQueryFunctionLibrary baseLibrary) {
+    /**
+     * Create an imported function library
+     * @param importingModule the module importing the library
+     * @param baseLibrary the function library of which this is a subset view
+     */
+
+    public ImportedFunctionLibrary(QueryModule importingModule, XQueryFunctionLibrary baseLibrary) {
         this.importingModule = importingModule;
         this.baseLibrary = baseLibrary;
     }
+
+    /**
+     * Add an imported namespace
+     * @param namespace the imported namespace
+     */
 
     public void addImportedNamespace(String namespace) {
         namespaces.add(namespace);
@@ -34,10 +46,7 @@ public class ImportedFunctionLibrary implements FunctionLibrary, XQueryFunctionB
      * and the list of expressions supplied as arguments. This method is called at compile
      * time.
      *
-     * @param nameCode   The namepool nameCode of the function name. The uri and local name are also
-     *                   supplied (redundantly) to avoid fetching them from the name pool.
-     * @param uri        The URI of the function name
-     * @param local      The local part of the function name
+     * @param functionName the name of the function to be bound
      * @param staticArgs The expressions supplied statically in arguments to the function call.
      *                   The length of this array represents the arity of the function. The intention is
      *                   that the static type of the arguments (obtainable via getItemType() and getCardinality()) may
@@ -49,6 +58,7 @@ public class ImportedFunctionLibrary implements FunctionLibrary, XQueryFunctionB
      *                   example, the result of f(4) is expected to be the same as f(2+2). The actual expression is supplied
      *                   here to enable the binding mechanism to select the most efficient possible implementation (including
      *                   compile-time pre-evaluation where appropriate).
+     * @param env
      * @return An object representing the function to be called, if one is found;
      *         null if no function was found matching the required name and arity.
      * @throws org.orbeon.saxon.trans.XPathException
@@ -57,18 +67,15 @@ public class ImportedFunctionLibrary implements FunctionLibrary, XQueryFunctionB
      *          while searching for the function.
      */
 
-    public Expression bind(int nameCode, String uri, String local, Expression[] staticArgs) throws XPathException {
+    public Expression bind(StructuredQName functionName, Expression[] staticArgs, StaticContext env) throws XPathException {
+        final String uri = functionName.getNamespaceURI();
         if (namespaces.contains(uri)) {
-            Expression call = baseLibrary.bind(nameCode, uri, local, staticArgs);
+            Expression call = baseLibrary.bind(functionName, staticArgs, env);
             if (call != null) {
                 // Check that the result type and all the argument types are in the static context of the
                 // calling module
-                XQueryFunction def = baseLibrary.getDeclaration(nameCode, uri, local, staticArgs);
-                importingModule.checkImportedType(def.getResultType(), def);
-                for (int i=0; i<def.getNumberOfArguments(); i++) {
-                    SequenceType argType = def.getArgumentTypes()[i];
-                    importingModule.checkImportedType(argType, def);
-                }
+                XQueryFunction def = baseLibrary.getDeclaration(functionName, staticArgs);
+                importingModule.checkImportedFunctionSignature(def);
             }
             return call;
         } else {
@@ -81,9 +88,9 @@ public class ImportedFunctionLibrary implements FunctionLibrary, XQueryFunctionB
      * @return the XQueryFunction if there is one, or null if not.
      */
 
-    public XQueryFunction getDeclaration(int nameCode, String uri, String local, Expression[] staticArgs) {
-        if (namespaces.contains(uri)) {
-            return baseLibrary.getDeclaration(nameCode, uri, local, staticArgs);
+    public XQueryFunction getDeclaration(StructuredQName functionName, Expression[] staticArgs) {
+        if (namespaces.contains(functionName.getNamespaceURI())) {
+            return baseLibrary.getDeclaration(functionName, staticArgs);
         } else {
             return null;
         }
@@ -107,7 +114,12 @@ public class ImportedFunctionLibrary implements FunctionLibrary, XQueryFunctionB
         return lib;
     }
 
-    public void setImportingModule(StaticQueryContext importingModule) {
+    /**
+     * Set the module that imports this function libary
+     * @param importingModule the importing module
+     */
+
+    public void setImportingModule(QueryModule importingModule) {
         this.importingModule = importingModule;
     }
 
@@ -117,21 +129,14 @@ public class ImportedFunctionLibrary implements FunctionLibrary, XQueryFunctionB
      * or at run time. If the function library is to be used only in an XQuery or free-standing XPath
      * environment, this method may throw an UnsupportedOperationException.
      *
-     * @param fingerprint The namepool fingerprint of the function name. This must match the
-     *                    uri and localName; the information is provided redundantly to avoid repeated lookups in the name pool.
-     * @param uri         The URI of the function name
-     * @param local       The local part of the function name
+     * @param functionName the name of the function in question
      * @param arity       The number of arguments. This is set to -1 in the case of the single-argument
      *                    function-available() function; in this case the method should return true if there is some
-     *                    matching extension function, regardless of its arity.
      */
 
-    public boolean isAvailable(int fingerprint, String uri, String local, int arity) {
-        if (namespaces.contains(uri)) {
-            return baseLibrary.isAvailable(fingerprint, uri, local, arity);
-        } else {
-            return false;
-        }
+    public boolean isAvailable(StructuredQName functionName, int arity) {
+        return namespaces.contains(functionName.getNamespaceURI()) &&
+                baseLibrary.isAvailable(functionName, arity);
     }
 }
 

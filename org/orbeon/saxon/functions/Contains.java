@@ -2,14 +2,15 @@ package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.sort.RuleBasedSubstringMatcher;
+import org.orbeon.saxon.sort.StringCollator;
 import org.orbeon.saxon.sort.SubstringMatcher;
+import org.orbeon.saxon.sort.NamedCollation;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.BooleanValue;
 import org.orbeon.saxon.value.StringValue;
 
 import java.text.RuleBasedCollator;
-import java.util.Comparator;
 
 
 /**
@@ -31,7 +32,7 @@ public class Contains extends CollatingFunction {
 
     public Item evaluateItem(XPathContext context) throws XPathException {
 
-        Comparator collator = getCollator(2, context);
+        StringCollator collator = getCollator(2, context);
 
         AtomicValue arg0 = (AtomicValue)argument[0].evaluateItem(context);
         if (arg0==null) {
@@ -41,13 +42,14 @@ public class Contains extends CollatingFunction {
         AtomicValue arg1 = (AtomicValue)argument[1].evaluateItem(context);
         if (arg1==null) {
             arg1 = StringValue.EMPTY_STRING;
-        };
+        }
 
         String s0 = arg0.getStringValue();
         String s1 = arg1.getStringValue();
 
-        if (collator instanceof RuleBasedCollator) {
-            collator = new RuleBasedSubstringMatcher((RuleBasedCollator)collator);
+        if (collator instanceof NamedCollation &&
+                ((NamedCollation)collator).getCollation() instanceof RuleBasedCollator) {
+            collator = new RuleBasedSubstringMatcher((RuleBasedCollator)((NamedCollation)collator).getCollation());
         }
 
         if (collator instanceof SubstringMatcher) {
@@ -67,7 +69,7 @@ public class Contains extends CollatingFunction {
             }
         } else {
 
-            dynamicError("The collation requested for " + getDisplayName(context.getNamePool()) +
+            dynamicError("The collation requested for " + getDisplayName() +
                     " does not support substring matching", "FOCH0004", context);
             return null;
         }

@@ -1,8 +1,8 @@
 package org.orbeon.saxon;
 
+import javax.xml.transform.TransformerException;
 import javax.xml.transform.URIResolver;
 import javax.xml.transform.Source;
-import javax.xml.transform.TransformerException;
 
 /**
  * The standard JAXP URIResolver is given a relative URI and a base URI and returns the resource
@@ -21,26 +21,6 @@ import javax.xml.transform.TransformerException;
 
 public interface RelativeURIResolver extends URIResolver {
 
-     /**
-     * Called by the processor when it encounters
-     * an xsl:include, xsl:import, or document() function.
-     *
-     * Despite the name, the main purpose of this method is to dereference the URI, not merely
-     * to resolve it.
-     *
-     * @param href An href attribute, which may be relative or absolute. 
-     * @param base The base URI against which the first argument will be made
-     * absolute if the absolute URI is required.
-     *
-     * @return A Source object, or null if the href cannot be resolved,
-     * and the processor should try to resolve the URI itself.
-     *
-     * @throws javax.xml.transform.TransformerException if an error occurs when trying to
-     * resolve the URI.
-     */
-    public Source resolve(String href, String base)
-        throws TransformerException;
-
     /**
      * Create an absolute URI from a relative URI and a base URI. This method performs the
      * process which is correctly called "URI resolution": this is purely a syntactic operation
@@ -56,14 +36,55 @@ public interface RelativeURIResolver extends URIResolver {
     public String makeAbsolute(String href, String base)
         throws TransformerException;
 
+     /**
+      * Called by the processor when it encounters
+      * an xsl:include, xsl:import, or document() function.
+      *
+      * @param uri The absolute URI to be dereferenced
+      *
+      * @return A Source object, or null if the href cannot be dereferenced,
+      * and the processor should try to resolve the URI itself.
+      *
+      * @throws javax.xml.transform.TransformerException if an error occurs when trying to
+      * resolve the URI.
+     */
+    public Source dereference(String uri)
+        throws TransformerException;
+
+     /**
+      * Called by the processor when it encounters
+      * an xsl:include, xsl:import, or document() function.
+      *
+      * <p>Despite the name, the main purpose of this method is to dereference the URI, not merely
+      * to resolve it.</p>
+      *
+      * <p>This method is provided because it is required by the interface. When using a RelativeURIResolver,
+      * the single-argument dereference() method is preferred. The result of calling this method should be the
+      * same as the result of calling <code>dereference(makeAbsolute(href, base))</code></p>
+      *
+      * @param href An href attribute, which may be relative or absolute.
+      * @param base The base URI against which the first argument will be made
+      * absolute if the absolute URI is required.
+      *
+      * @return A Source object, or null if the href cannot be resolved,
+      * and the processor should try to resolve the URI itself.
+      *
+      * @throws javax.xml.transform.TransformerException if an error occurs when trying to
+      * resolve the URI.
+     */
+    public Source resolve(String href, String base)
+        throws TransformerException;
+
     /**
      * Specify the media type of the resource that is expected to be delivered. This information is
      * supplied by the processor primarily to indicate whether the URIResolver is allowed to return
      * an XML tree already parsed. If the value is "text/plain" then the Source returned by the
      * resolve() method should be a StreamSource.
+     * @param mediaType the expected media type
      */
 
     public void setExpectedMediaType(String mediaType);
+    // TODO: method is not currently used
 
 }
 

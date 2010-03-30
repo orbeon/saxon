@@ -1,8 +1,8 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.ExpressionVisitor;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.expr.ComputedExpression;
+import org.orbeon.saxon.expr.PathMap;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.StringValue;
@@ -16,14 +16,34 @@ public class StringFn extends SystemFunction {
     /**
     * Simplify and validate.
     * This is a pure function so it can be simplified in advance if the arguments are known
-    */
+     * @param visitor an expression visitor
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
         useContextItemAsDefault();
-        if (argument[0] instanceof ComputedExpression) {
-            ((ComputedExpression)argument[0]).setStringValueIsUsed();
+        argument[0].setFlattened(true);
+        return simplifyArguments(visitor);
+    }
+
+
+    /**
+     * Add a representation of a doc() call or similar function to a PathMap.
+     * This is a convenience method called by the addToPathMap() methods for doc(), document(), collection()
+     * and similar functions. These all create a new root expression in the path map.
+     *
+     * @param pathMap      the PathMap to which the expression should be added
+     * @param pathMapNodes the node in the PathMap representing the focus at the point where this expression
+     *                     is called. Set to null if this expression appears at the top level.
+     * @return the pathMapNode representing the focus established by this expression, in the case where this
+     *         expression is the first operand of a path expression or filter expression
+     */
+
+    public PathMap.PathMapNodeSet addDocToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodes) {
+        PathMap.PathMapNodeSet result = argument[0].addToPathMap(pathMap, pathMapNodes);
+        if (result != null) {
+            result.setAtomized();
         }
-        return simplifyArguments(env);
+        return null;
     }
 
     /**

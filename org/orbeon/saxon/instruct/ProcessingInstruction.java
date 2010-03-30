@@ -1,24 +1,23 @@
 package org.orbeon.saxon.instruct;
 
-import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.Err;
+import org.orbeon.saxon.trans.Err;
 import org.orbeon.saxon.event.SequenceReceiver;
 import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.pattern.NodeKindTest;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.SequenceType;
 import org.orbeon.saxon.value.Whitespace;
 
-import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 
 /**
- * An xsl:processing-instruction element in the stylesheet.
+ * An xsl:processing-instruction element in the stylesheet, or a processing-instruction
+ * constructor in a query
  */
 
 public class ProcessingInstruction extends SimpleNodeConstructor {
@@ -45,6 +44,15 @@ public class ProcessingInstruction extends SimpleNodeConstructor {
         return StandardNames.XSL_PROCESSING_INSTRUCTION;
     }
 
+    /**
+     * Get the expression that defines the processing instruction name
+     * @return the expression that defines the processing instruction name
+     */
+
+    public Expression getNameExpression() {
+        return name;
+    }
+
     public ItemType getItemType(TypeHierarchy th) {
         return NodeKindTest.PROCESSING_INSTRUCTION;
     }
@@ -53,19 +61,53 @@ public class ProcessingInstruction extends SimpleNodeConstructor {
         return StaticProperty.EXACTLY_ONE;
     }
 
-    public Expression simplify(StaticContext env) throws XPathException {
-        name = name.simplify(env);
-        return super.simplify(env);
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        name = visitor.simplify(name);
+        return super.simplify(visitor);
     }
 
-    public void localTypeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        name = name.typeCheck(env, contextItemType);
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        ProcessingInstruction exp = new ProcessingInstruction(name.copy());
+        try {
+            exp.setSelect(select.copy(), getExecutable().getConfiguration());
+        } catch (XPathException err) {
+            throw new UnsupportedOperationException(err.getMessage());
+        }
+        return exp;
+    }
+
+    public void localTypeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        StaticContext env = visitor.getStaticContext();
+        name = visitor.typeCheck(name, contextItemType);
         adoptChildExpression(name);
 
-        RoleLocator role = new RoleLocator(RoleLocator.INSTRUCTION, "processing-instruction:name", 0, null);
-        role.setSourceLocator(this);
-        name = TypeChecker.staticTypeCheck(name, SequenceType.SINGLE_STRING, false, role, env);
+        RoleLocator role = new RoleLocator(RoleLocator.INSTRUCTION, "processing-instruction/name", 0);
+        //role.setSourceLocator(this);
+        name = TypeChecker.staticTypeCheck(name, SequenceType.SINGLE_STRING, false, role, visitor);
         adoptChildExpression(name);
+
+        // Do early checking of name if known statically
+
+        if (name instanceof Literal) {
+            String s = ((Literal)name).getValue().getStringValue();
+            checkName(Whitespace.trim(s), env.makeEarlyEvaluationContext());
+        }
+
+        // Do early checking of content if known statically
+
+        if (select instanceof Literal) {
+            String s = ((Literal)select).getValue().getStringValue();
+            String s2 = checkContent(s, env.makeEarlyEvaluationContext());
+            if (!s2.equals(s)) {
+                setSelect(new StringLiteral(s2), env.getConfiguration());
+            }
+        }
     }
 
     public int getDependencies() {
@@ -98,7 +140,7 @@ public class ProcessingInstruction extends SimpleNodeConstructor {
             name = replacement;
             found = true;
         }
-                return found;
+        return found;
     }
 
 
@@ -145,20 +187,20 @@ public class ProcessingInstruction extends SimpleNodeConstructor {
      *
      * @param data the supplied content
      * @return the original content, unless adjustments are needed
-     * @throws org.orbeon.saxon.trans.DynamicError
-     *          if the content is invalid
+     * @throws XPathException if the content is invalid
      */
 
-    protected String checkContent(String data, XPathContext context) throws DynamicError {
+    protected String checkContent(String data, XPathContext context) throws XPathException {
         int hh;
         while ((hh = data.indexOf("?>")) >= 0) {
             if (isXSLT()) {
                 data = data.substring(0, hh + 1) + ' ' + data.substring(hh + 1);
             } else {
-                DynamicError err = new DynamicError("Invalid characters (?>) in processing instruction", this);
+                XPathException err = new XPathException("Invalid characters (?>) in processing instruction", this);
                 err.setErrorCode("XQDY0026");
                 err.setXPathContext(context);
-                context.getController().recoverableError(err);
+                throw dynamicError(this, err, context);
+                //context.getController().recoverableError(err);
             }
         }
         data = Whitespace.removeLeadingWhitespace(data).toString();
@@ -178,28 +220,40 @@ public class ProcessingInstruction extends SimpleNodeConstructor {
      * @throws XPathException if evaluation fails, or if the recoverable error is treated as fatal
      */
     private String evaluateName(XPathContext context) throws XPathException {
-        String expandedName = name.evaluateAsString(context).trim();
+        String expandedName = Whitespace.trim(name.evaluateAsString(context));
+        checkName(expandedName, context);
+        return expandedName;
+    }
+
+    private void checkName(String expandedName, XPathContext context) throws XPathException {
         if (!(context.getConfiguration().getNameChecker().isValidNCName(expandedName))) {
-            DynamicError e = new DynamicError(
-                    "Processing instruction name " + Err.wrap(expandedName) + " is not a valid NCName");
+            XPathException e = new XPathException("Processing instruction name " + Err.wrap(expandedName) + " is not a valid NCName");
             e.setXPathContext(context);
             e.setErrorCode((isXSLT() ? "XTDE0890" : "XQDY0041"));
             throw dynamicError(this, e, context);
         }
         if (expandedName.equalsIgnoreCase("xml")) {
-            DynamicError e = new DynamicError(
-                    "Processing instructions cannot be named 'xml' in any combination of upper/lower case");
+            XPathException e = new XPathException("Processing instructions cannot be named 'xml' in any combination of upper/lower case");
             e.setXPathContext(context);
             e.setErrorCode((isXSLT() ? "XTDE0890" : "XQDY0064"));
             throw dynamicError(this, e, context);
         }
-        return expandedName;
     }
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "processing-instruction");
-        name.display(level + 1, out, config);
-        super.display(level + 1, out, config);
+    /**
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     */
+
+    public void explain(ExpressionPresenter out) {
+        out.startElement("processingInstruction");
+        out.startSubsidiaryElement("name");
+        name.explain(out);
+        out.endSubsidiaryElement();
+        out.startSubsidiaryElement("select");
+        getSelect().explain(out);
+        out.endSubsidiaryElement();
+        out.endElement();
     }
 
 }

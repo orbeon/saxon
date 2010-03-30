@@ -1,15 +1,11 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.Literal;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.om.AttributeCollection;
-import org.orbeon.saxon.om.Axis;
-import org.orbeon.saxon.om.AxisIterator;
-import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.TypeHierarchy;
-import org.orbeon.saxon.value.EmptySequence;
 
 
 /**
@@ -70,7 +66,7 @@ public final class XSLSequence extends StyleElement {
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-			if (f==StandardNames.SELECT) {
+			if (f.equals(StandardNames.SELECT)) {
         		selectAtt = atts.getValue(a);
         	} else {
         		checkUnknownAttribute(nc);
@@ -81,12 +77,11 @@ public final class XSLSequence extends StyleElement {
             select = makeExpression(selectAtt);
         } else {
             reportAbsence(StandardNames.SELECT);
-            select = EmptySequence.getInstance();
+            select = Literal.makeEmptySequence();
         }
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
         AxisIterator kids = iterateAxis(Axis.CHILD);
         while (true) {
             NodeInfo child = (NodeInfo)kids.next();
@@ -98,20 +93,6 @@ public final class XSLSequence extends StyleElement {
         }
         select = typeCheck("select", select);
     }
-
-    /**
-    * Mark tail-recursive calls on templates and functions.
-    */
-
-    public void markTailCalls(int nameCode, int arity) {
-        StyleElement last = getLastChildInstruction();
-        if (last != null) {
-            last.markTailCalls();
-        } else if (select != null) {
-            ExpressionTool.markTailFunctionCalls(select, nameCode, arity);
-        }
-    }
-
 
     public Expression compile(Executable exec) {
         return select;

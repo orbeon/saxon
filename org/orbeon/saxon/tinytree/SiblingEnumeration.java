@@ -1,13 +1,14 @@
 package org.orbeon.saxon.tinytree;
-import org.orbeon.saxon.om.AxisIteratorImpl;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.om.LookaheadIterator;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.NodeTest;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.AtomicType;
+import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.value.UntypedAtomicValue;
 import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.UntypedAtomicValue;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.Configuration;
 
 /**
 * This class supports both the child:: and following-sibling:: axes, which are
@@ -19,6 +20,9 @@ import org.orbeon.saxon.value.StringValue;
 */
 
 final class SiblingEnumeration extends AxisIteratorImpl implements LookaheadIterator {
+
+    // NOTE: have experimented with a dedicated iterator for the child axis matching against
+    // elements only, by fingerprint - no measurable improvement obtained.
 
     private TinyTree tree;
     private int nextNodeNr;
@@ -76,8 +80,9 @@ final class SiblingEnumeration extends AxisIteratorImpl implements LookaheadIter
         }
     }
 
-    public Item next() {
-         // if needToAdvance == false, we are already on the correct node.
+    public boolean moveNext() {
+         // if needToAdvance == false, nextNodeNr already identifies the correct node.
+        current = null;
         if (needToAdvance) {
             final int thisNode = nextNodeNr;
             if (test==null) {
@@ -87,8 +92,42 @@ final class SiblingEnumeration extends AxisIteratorImpl implements LookaheadIter
             } else {
                 do {
                     nextNodeNr = tree.next[nextNodeNr];
-                } while ( nextNodeNr >= thisNode &&
-                        !test.matches(tree, nextNodeNr));
+                } while ( nextNodeNr >= thisNode && !test.matches(tree, nextNodeNr));
+            }
+
+            if (nextNodeNr < thisNode) {    // indicates we've got to the last sibling
+                nextNodeNr = -1;
+                needToAdvance = false;
+                current = null;
+                position = -1;
+                return false;
+            }
+        }
+
+        if (nextNodeNr == -1) {
+            return false;
+        }
+        needToAdvance = true;
+        position++;
+        return true;
+    }
+    
+    /**
+     * Return the next node in the sequence
+     * @return the next node, or null if the end of the sequence is reached
+     */
+
+    public Item next() {
+        if (needToAdvance) {
+            final int thisNode = nextNodeNr;
+            if (test==null) {
+                do {
+                    nextNodeNr = tree.next[nextNodeNr];
+                } while (tree.nodeKind[nextNodeNr] == Type.PARENT_POINTER);
+            } else {
+                do {
+                    nextNodeNr = tree.next[nextNodeNr];
+                } while ( nextNodeNr >= thisNode && !test.matches(tree, nextNodeNr));
             }
 
             if (nextNodeNr < thisNode) {    // indicates we've got to the last sibling
@@ -105,39 +144,27 @@ final class SiblingEnumeration extends AxisIteratorImpl implements LookaheadIter
         }
         needToAdvance = true;
         position++;
-
-        // if the caller only wants the atomized value, get it directly, to avoid creating the Node object
-
-        if (isAtomizing()) {
-            int kind = tree.nodeKind[nextNodeNr];
-            switch (kind) {
-                case Type.TEXT: {
-                    return new UntypedAtomicValue(TinyTextImpl.getStringValue(tree, nextNodeNr));
-                }
-                case Type.WHITESPACE_TEXT: {
-                    return new UntypedAtomicValue(WhitespaceTextImpl.getStringValue(tree, nextNodeNr));
-                }
-                case Type.ELEMENT: {
-                    int type = tree.getTypeAnnotation(nextNodeNr);
-                    switch (type) {
-                        case StandardNames.XDT_UNTYPED:
-                        case StandardNames.XDT_UNTYPED_ATOMIC:
-                            current = tree.getAtomizedValueOfUntypedNode(nextNodeNr);
-                            return current;
-                        case StandardNames.XS_STRING:
-                            current = new StringValue(TinyParentNodeImpl.getStringValue(tree, nextNodeNr));
-                            return current;
-                            // TODO:PERF support fast path for other simple types
-                    }
-                }
-                default:
-                    break;
-            }
-        }
         current = tree.getNode(nextNodeNr);
         ((TinyNodeImpl)current).setParentNode(parentNode);
         return current;
+    }
 
+    /**
+     * Get the current node in the sequence.
+     * @return the node returned by the most recent call on next(), or the one on which we have positioned
+     * using moveNext().
+     */
+
+    public Item current() {
+        if (current == null) {
+            if (nextNodeNr == -1) {
+                return null;
+            } else {
+                current = tree.getNode(nextNodeNr);
+                ((TinyNodeImpl)current).setParentNode(parentNode);
+            }
+        }
+        return current;
     }
 
     /**
@@ -167,6 +194,87 @@ final class SiblingEnumeration extends AxisIteratorImpl implements LookaheadIter
         }
 
         return (n != -1);
+    }
+
+    /**
+     * Return the atomized value of the current node. This is achieved in common cases without
+     * actually instantiating the NodeInfo object
+     *
+     * @return the atomized value.
+     * @throws NullPointerException if there is no current node
+     */
+
+    public Value atomize() throws XPathException {
+        int kind;
+        try {
+            kind = tree.nodeKind[nextNodeNr];
+        } catch (ArrayIndexOutOfBoundsException err) {
+            throw new NullPointerException();
+        }
+        switch (kind) {
+            case Type.TEXT: {
+                return new UntypedAtomicValue(TinyTextImpl.getStringValue(tree, nextNodeNr));
+            }
+            case Type.WHITESPACE_TEXT: {
+                return new UntypedAtomicValue(WhitespaceTextImpl.getStringValue(tree, nextNodeNr));
+            }
+            case Type.ELEMENT: {
+                int type = tree.getTypeAnnotation(nextNodeNr);
+                switch (type) {
+                    case StandardNames.XS_UNTYPED:
+                    case StandardNames.XS_UNTYPED_ATOMIC:
+                        return tree.getAtomizedValueOfUntypedNode(nextNodeNr);
+                    case StandardNames.XS_STRING:
+                        return new StringValue(TinyParentNodeImpl.getStringValue(tree, nextNodeNr));
+                    default:
+                        Configuration config = tree.getConfiguration();
+                        SchemaType stype = config.getSchemaType(type);
+                        if (stype instanceof AtomicType && !((AtomicType)stype).isNamespaceSensitive()) {
+                            CharSequence value = TinyParentNodeImpl.getStringValue(tree, nextNodeNr);
+                            return StringValue.convertStringToAtomicType(
+                                    value, (AtomicType)stype, config.getNameChecker()
+                            ).asAtomic();
+                        } else {
+                            // do it the slow way: create the node
+                            return ((NodeInfo)current()).atomize();
+                        }
+                }
+            }
+            case Type.COMMENT:
+            case Type.PROCESSING_INSTRUCTION:
+                return tree.getAtomizedValueOfUntypedNode(nextNodeNr);
+            default:
+                return ((NodeInfo)current()).atomize();
+        }
+    }
+
+    /**
+     * Return the string value of the current node.
+     *
+     * @return the string value, as an instance of CharSequence.
+     * @throws NullPointerException if there is no current node
+     */
+
+    public CharSequence getStringValue() {
+        int kind;
+        try {
+            kind = tree.nodeKind[nextNodeNr];
+        } catch (ArrayIndexOutOfBoundsException err) {
+            throw new NullPointerException();
+        }
+        switch (kind) {
+            case Type.TEXT: {
+                return TinyTextImpl.getStringValue(tree, nextNodeNr);
+            }
+            case Type.WHITESPACE_TEXT: {
+                return WhitespaceTextImpl.getStringValue(tree, nextNodeNr);
+            }
+            case Type.ELEMENT: {
+                return TinyParentNodeImpl.getStringValue(tree, nextNodeNr);
+            }
+            default:
+                return current().getStringValueCS();
+        }
     }
 
     /**

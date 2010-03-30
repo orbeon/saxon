@@ -2,14 +2,11 @@ package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.expr.*;
-import org.orbeon.saxon.om.AxisIterator;
 import org.orbeon.saxon.om.SingletonIterator;
+import org.orbeon.saxon.om.UnfailingIterator;
 import org.orbeon.saxon.om.ValueRepresentation;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.trace.InstructionInfo;
-import org.orbeon.saxon.trans.DynamicError;
-import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.query.XQueryFunction;
+import org.orbeon.saxon.query.XQueryFunctionLibrary;
 import org.orbeon.saxon.trans.XPathException;
 
 import java.util.ArrayList;
@@ -20,25 +17,49 @@ import java.util.Stack;
 * A compiled global variable in a stylesheet or query. <br>
 */
 
-public class GlobalVariable extends GeneralVariable {
+public class GlobalVariable extends GeneralVariable implements Container {
 
     private Executable executable;
     private SlotManager stackFrameMap = null;
     private int hostLanguage;
 
+    /**
+     * Create a global variable
+     */
+
     public GlobalVariable(){}
+
+    /**
+     * Get the executable containing this global variable
+     * @return the containing executable
+     */
 
     public Executable getExecutable() {
         return executable;
     }
 
+    /**
+     * Set the containing executable
+     * @param executable the executable that contains this global variable
+     */
+
     public void setExecutable(Executable executable) {
         this.executable = executable;
     }
 
+    /**
+     * Set the host language for this declaration
+     * @param language the host language (for example XSLT, XQuery)
+     */
+
     public void setHostLanguage(int language) {
         hostLanguage = language;
     }
+
+    /**
+     * Get the host language for this declaration
+     * @return the host language (for example XSLT, XQuery)
+     */
 
     public int getHostLanguage() {
         return hostLanguage;
@@ -70,30 +91,32 @@ public class GlobalVariable extends GeneralVariable {
      * stack, because that means it calls itself directly or indirectly. The stack may contain
      * variable definitions (GlobalVariable objects) and user-defined functions (UserFunction objects).
      * It will never contain the same object more than once.
+     * @param globalFunctionLibrary the library containing all global functions
      */
 
-    public void lookForCycles(Stack referees) throws StaticError {
+    public void lookForCycles(Stack referees, XQueryFunctionLibrary globalFunctionLibrary) throws XPathException {
         if (referees.contains(this)) {
             int s = referees.indexOf(this);
             referees.push(this);
-            String message = "Circular definition of global variable. ";
-            NamePool pool = executable.getConfiguration().getNamePool();
-            for (int i=s; i<referees.size()-1; i++) {
-                if (referees.get(i+1) instanceof GlobalVariable) {
-                    GlobalVariable next = (GlobalVariable)referees.get(i+1);
-                    if (i==s) {
-                        message += '$' + getVariableName() + " uses $" + next.getVariableName();
-                    } else {
-                        message += ", which uses $" + next.getVariableName();
-                    }
-                } else if (referees.get(i+1) instanceof UserFunction) {
-                    UserFunction next = (UserFunction)referees.get(i+1);
-                    message += ", which calls " + pool.getDisplayName(next.getFunctionNameCode()) + "()";
+            String message = "Circular definition of global variable. $" +
+                    getVariableQName().getDisplayName();
+            for (int i = s; i < referees.size() - 1; i++) {
+                if (i != s) {
+                    message += ", which";
+                }
+                if (referees.get(i + 1) instanceof GlobalVariable) {
+                    GlobalVariable next = (GlobalVariable)referees.get(i + 1);
+                    message += " uses $" + next.getVariableQName().getDisplayName();
+                } else if (referees.get(i + 1) instanceof XQueryFunction) {
+                    XQueryFunction next = (XQueryFunction)referees.get(i + 1);
+                    message += " calls " + next.getFunctionName().getDisplayName() +
+                            "#" + next.getNumberOfArguments() + "()";
                 }
             }
             message += '.';
-            StaticError err = new StaticError(message);
+            XPathException err = new XPathException(message);
             err.setErrorCode("XQST0054");
+            err.setIsStaticError(true);
             err.setLocator(this);
             throw err;
         }
@@ -104,16 +127,16 @@ public class GlobalVariable extends GeneralVariable {
             for (int i=0; i<list.size(); i++) {
                 Binding b = (Binding)list.get(i);
                 if (b instanceof GlobalVariable) {
-                    ((GlobalVariable)b).lookForCycles(referees);
+                    ((GlobalVariable)b).lookForCycles(referees, globalFunctionLibrary);
                 }
             }
             list.clear();
-            ExpressionTool.gatherCalledFunctions(select, list);
+            ExpressionTool.gatherCalledFunctionNames(select, list);
             for (int i=0; i<list.size(); i++) {
-                UserFunction f = (UserFunction)list.get(i);
+                XQueryFunction f = globalFunctionLibrary.getDeclarationByKey((String)list.get(i));
                 if (!referees.contains(f)) {
                     // recursive function calls are allowed
-                    lookForFunctionCycles(f, referees);
+                    lookForFunctionCycles(f, referees, globalFunctionLibrary);
                 }
             }
             referees.pop();
@@ -122,9 +145,13 @@ public class GlobalVariable extends GeneralVariable {
 
     /**
      * Look for cyclic variable references that go via one or more function calls
+     * @param f a used-defined function
+     * @param referees a list of variables and functions that refer directly or indirectly to this variable
+     * @param globalFunctionLibrary the library containing all global functions
      */
 
-    private static void lookForFunctionCycles(UserFunction f, Stack referees) throws StaticError {
+    private static void lookForFunctionCycles(
+            XQueryFunction f, Stack referees, XQueryFunctionLibrary globalFunctionLibrary) throws XPathException {
         Expression body = f.getBody();
         referees.push(f);
         List list = new ArrayList(10);
@@ -132,16 +159,16 @@ public class GlobalVariable extends GeneralVariable {
         for (int i=0; i<list.size(); i++) {
             Binding b = (Binding)list.get(i);
             if (b instanceof GlobalVariable) {
-                ((GlobalVariable)b).lookForCycles(referees);
+                ((GlobalVariable)b).lookForCycles(referees, globalFunctionLibrary);
             }
         }
         list.clear();
-        ExpressionTool.gatherCalledFunctions(body, list);
+        ExpressionTool.gatherCalledFunctionNames(body, list);
         for (int i=0; i<list.size(); i++) {
-            UserFunction fn = (UserFunction)list.get(i);
-            if (!referees.contains(fn)) {
+            XQueryFunction qf = globalFunctionLibrary.getDeclarationByKey((String)list.get(i));
+            if (!referees.contains(qf)) {
                 // recursive function calls are allowed
-                lookForFunctionCycles(fn, referees);
+                lookForFunctionCycles(qf, referees, globalFunctionLibrary);
             }
         }
         referees.pop();
@@ -167,11 +194,13 @@ public class GlobalVariable extends GeneralVariable {
 
     public ValueRepresentation getSelectValue(XPathContext context) throws XPathException {
         if (select==null) {
-            throw new AssertionError("*** No select expression for global variable $" + getVariableName() + "!!");
+            throw new AssertionError("*** No select expression for global variable $" +
+                    getVariableQName().getDisplayName() + "!!");
         } else {
             XPathContextMajor c2 = context.newCleanContext();
             c2.setOrigin(this);
-            AxisIterator initialNode = SingletonIterator.makeIterator(c2.getController().getContextForGlobalVariables());
+            UnfailingIterator initialNode =
+                    SingletonIterator.makeIterator(c2.getController().getContextForGlobalVariables());
             initialNode.next();
             c2.setCurrentIterator(initialNode);
             if (stackFrameMap != null) {
@@ -209,7 +238,8 @@ public class GlobalVariable extends GeneralVariable {
             } catch (XPathException err) {
                 b.setExecuting(this, false);
                 if (err instanceof XPathException.Circularity) {
-                    DynamicError e = new DynamicError("Circular definition of variable " + getVariableName());
+                    XPathException e = new XPathException("Circular definition of variable " +
+                            getVariableQName().getDisplayName());
                     int lang = getHostLanguage();
                     e.setErrorCode(lang == Configuration.XQUERY ? "XQST0054" : "XTDE0640");
                     e.setXPathContext(context);
@@ -228,16 +258,16 @@ public class GlobalVariable extends GeneralVariable {
      * Get InstructionInfo for this expression
      */
 
-    public InstructionInfo getInstructionInfo() {
-        InstructionDetails details = new InstructionDetails();
-        details.setConstructType(StandardNames.XSL_VARIABLE);
-        details.setObjectNameCode(getVariableFingerprint());
-        details.setProperty("expression", this);
-        details.setSystemId(getSystemId());
-        details.setLineNumber(getLineNumber());
-        details.setColumnNumber(getColumnNumber());
-        return details;
-    }
+//    public InstructionInfo getInstructionInfo() {
+//        InstructionDetails details = new InstructionDetails();
+//        details.setConstructType(getInstructionNameCode());
+//        details.setObjectName(getVariableQName());
+//        details.setProperty("expression", this);
+//        details.setSystemId(getSystemId());
+//        details.setLineAndColumn(getLineNumber());
+//        details.setColumnNumber(getColumnNumber());
+//        return details;
+//    }
 
 
 }

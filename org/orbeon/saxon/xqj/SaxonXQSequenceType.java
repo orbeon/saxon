@@ -4,18 +4,10 @@ import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.value.SequenceType;
 
-import org.orbeon.saxon.javax.xml.xquery.XQItemType;
-import org.orbeon.saxon.javax.xml.xquery.XQSequenceType;
+import javax.xml.xquery.XQItemType;
+import javax.xml.xquery.XQSequenceType;
 
-import org.orbeon.saxon.javax.xml.xquery.XQSequenceType;
 
-/**
- * Created by IntelliJ IDEA.
- * User: Mike
- * Date: 14-May-2006
- * Time: 20:36:38
- * To change this template use File | Settings | File Templates.
- */
 public class SaxonXQSequenceType implements XQSequenceType {
 
     SequenceType sequenceType;

@@ -1,0 +1,56 @@
+<html>
+
+<head>
+<title>Package overview for org.orbeon.saxon.dom</title>
+</head>
+
+<body>
+
+<p>This package provides glue classes that enable Saxon to process a source
+document supplied as a DOM tree in the form of a DOMSource object; it also provides
+classes that present a DOM view of Saxon's native tree structures.</p>
+
+<p>Because of incompatibilities between the DOM interfaces in JDK 1.4 and JDK 1.5,
+the native Saxon tree structures (the standard tree and tiny tree) no longer
+implements DOM interfaces directly. In addition, to reduce installation problems
+for users who dont require DOM interfaces, this package is delivered in a JAR file
+of its own, <code>saxon8-dom.jar</code>, and not with the main <code>saxon8.jar</code>
+JAR file. However, Saxon continues to support the DOM at two levels:</p>
+
+<ul>
+<li><p>The input to a transformation or query may be supplied in the form of
+a <code>DOMSource</code> (which contains a DOM document). Saxon performs the
+query or transformation on the DOM <i>in situ</i>, by wrapping the DOM nodes in
+a layer that make them appear to be Saxon nodes.</p></li>
+<li><p>It is possible for a transformation or query to call extension functions
+that use DOM interfaces to access a Saxon tree. If the Saxon tree is in fact a wrapper
+around the DOM, then extension functions will be presented with the underlying
+DOM nodes. In other cases, Saxon adds a wrapper to the native Saxon nodes to make
+them implement the DOM interfaces.</p>
+<p>Note, however, that Saxon's tree structures are immutable. Updating interfaces
+in the DOM API are therefore not supported.</p></li></ul>
+
+<p>The classes NodeWrapper and DocumentWrapper implement the Saxon interfaces
+NodeInfo and DocumentInfo on top of an underlying DOM Node or Document object
+respectively. This enables XPath expressions to be executed directly against
+the DOM.</p>
+
+<p>The classes NodeOverNodeInfo, DocumentOverNodeInfo, and the like do the converse:
+they provide a DOM wrapper over a native Saxon node.</p>
+
+<p>Note that using the DOM with Saxon is considerably less efficient than using
+Saxon's native tree implementations, the Tiny Tree and the (so-called) Standard Tree.
+The DOM should be used only where there is some good reason, e.g. where other parts
+of the application have to use DOM interfaces.</p>
+
+<p>Saxon doesn't stop you modifying the contents of the DOM in the course of a
+transformation (for example, from an extension function, or in a different thread)
+but the consequences of doing so are unpredictable.</p>
+
+<hr>
+
+<p align="center"><i>Michael H. Kay<br/>
+Saxonica Limited<br/>
+9 February 2005</i></p>
+</body>
+</html>

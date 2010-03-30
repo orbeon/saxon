@@ -2,23 +2,26 @@ package org.orbeon.saxon.expr;
 
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.value.DateTimeValue;
 import org.orbeon.saxon.event.SequenceReceiver;
 import org.orbeon.saxon.instruct.LocalParam;
 import org.orbeon.saxon.instruct.ParameterSet;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.regex.RegexIterator;
 import org.orbeon.saxon.sort.GroupIterator;
-import org.orbeon.saxon.trace.InstructionInfoProvider;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.sort.StringCollator;
 import org.orbeon.saxon.trans.Mode;
 import org.orbeon.saxon.trans.Rule;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.trans.NoDynamicContextException;
 import org.orbeon.saxon.type.SchemaType;
 
 import javax.xml.transform.Result;
 import java.io.Serializable;
-import java.util.Comparator;
 import java.util.Properties;
+import java.util.Iterator;
+import java.util.Collections;
 
 /**
  * This class is an implementation of XPathContext used when evaluating constant sub-expressions at
@@ -30,10 +33,15 @@ public class EarlyEvaluationContext implements XPathContext, Serializable {
     private CollationMap collationMap;
     private Configuration config;
 
+    /**
+     * Create an early evaluation context, used for evaluating constant expressions at compile time
+     * @param config the Saxon configuration
+     * @param map the available collations
+     */
 
     public EarlyEvaluationContext(Configuration config, CollationMap map) {
         this.config = config;
-        this.collationMap = map;
+        collationMap = map;
     }
 
     /**
@@ -45,7 +53,7 @@ public class EarlyEvaluationContext implements XPathContext, Serializable {
      * @param isFinal true if the destination is a final result tree
      *                (either the principal output or a secondary result tree); false if
      *                it is a temporary tree, xsl:attribute, etc.
-     * @param hostLanguage
+     * @param hostLanguage the host language (XSLT, XQuery, XPath)
      * @throws org.orbeon.saxon.trans.XPathException
      *          if any dynamic error occurs; and
      *          specifically, if an attempt is made to switch to a final output
@@ -79,7 +87,7 @@ public class EarlyEvaluationContext implements XPathContext, Serializable {
      * Get a named collation
      */
 
-    public Comparator getCollation(String name) throws XPathException {
+    public StringCollator getCollation(String name) throws XPathException {
         return collationMap.getNamedCollation(name);
     }
 
@@ -105,12 +113,12 @@ public class EarlyEvaluationContext implements XPathContext, Serializable {
      * Get the context position (the position of the context item)
      *
      * @return the context position (starting at one)
-     * @throws org.orbeon.saxon.trans.DynamicError
+     * @throws XPathException
      *          if the context position is undefined
      */
 
-    public int getContextPosition() throws DynamicError {
-        DynamicError err = new DynamicError("The context position is undefined");
+    public int getContextPosition() throws XPathException {
+        XPathException err = new XPathException("The context position is undefined");
         err.setErrorCode("FONC0001");
         throw err;
     }
@@ -183,7 +191,7 @@ public class EarlyEvaluationContext implements XPathContext, Serializable {
      * Get the default collation
      */
 
-    public Comparator getDefaultCollation() {
+    public StringCollator getDefaultCollation() {
         return collationMap.getDefaultCollation();
     }
 
@@ -196,7 +204,7 @@ public class EarlyEvaluationContext implements XPathContext, Serializable {
      */
 
     public int getLast() throws XPathException {
-        DynamicError err = new DynamicError("The context item is undefined");
+        XPathException err = new XPathException("The context item is undefined");
         err.setErrorCode("XPDY0002");
         throw err;
     }
@@ -224,7 +232,7 @@ public class EarlyEvaluationContext implements XPathContext, Serializable {
      * Get information about the creating expression or other construct.
      */
 
-    public InstructionInfoProvider getOrigin() {
+    public InstructionInfo getOrigin() {
         return null;
     }
 
@@ -272,21 +280,12 @@ public class EarlyEvaluationContext implements XPathContext, Serializable {
     }
 
     /**
-     * Get the XSLT-specific part of the context
-     */
-
-    public XPathContextMajor.XSLTContext getXSLTContext() {
-        notAllowed();
-        return null;
-    }
-
-    /**
      * Determine whether the context position is the same as the context size
      * that is, whether position()=last()
      */
 
     public boolean isAtLast() throws XPathException {
-        DynamicError err = new DynamicError("The context item is undefined");
+        XPathException err = new XPathException("The context item is undefined");
         err.setErrorCode("XPDY0002");
         throw err;
     }
@@ -306,8 +305,10 @@ public class EarlyEvaluationContext implements XPathContext, Serializable {
      */
 
     public XPathContextMajor newContext() {
-        notAllowed();
-        return null;
+        Controller controller = new Controller(config);
+        return controller.newXPathContext();
+//        notAllowed();
+//        return null;
     }
 
     /**
@@ -316,8 +317,9 @@ public class EarlyEvaluationContext implements XPathContext, Serializable {
      */
 
     public XPathContextMinor newMinorContext() {
-        notAllowed();
-        return null;
+        return newContext().newMinorContext();
+//        notAllowed();
+//        return null;
     }
 
     /**
@@ -347,17 +349,17 @@ public class EarlyEvaluationContext implements XPathContext, Serializable {
     /**
      * Set the creating expression (for use in diagnostics). The origin is generally set to "this" by the
      * object that creates the new context. It's up to the debugger to determine whether this information
-     * is useful. Where possible, the object will be an {@link org.orbeon.saxon.trace.InstructionInfoProvider}, allowing information
+     * is useful. Where possible, the object will be an {@link Expression}, allowing information
      * about the calling instruction to be obtained.
      */
 
-    public void setOrigin(InstructionInfoProvider expr) {
+    public void setOrigin(InstructionInfo expr) {
         // no-op
     }
 
     /**
      * Set the type of creating expression (for use in diagnostics). When a new context is created, either
-     * this method or {@link #setOrigin} should be called.
+     * this method or {@link XPathContext#setOrigin} should be called.
      *
      * @param loc The originating location: the argument must be one of the integer constants in class
      *            {@link org.orbeon.saxon.trace.Location}
@@ -391,30 +393,49 @@ public class EarlyEvaluationContext implements XPathContext, Serializable {
      * If a parameter of the relevant name was supplied, it is bound to the xsl:param element.
      * Otherwise the method returns false, so the xsl:param default will be evaluated
      *
-     * @param fingerprint The fingerprint of the parameter name
+     * @param qName The fingerprint of the parameter name
      * @param binding     The XSLParam element to bind its value to
      * @param isTunnel    True if a tunnel parameter is required, else false
      * @return true if a parameter of this name was supplied, false if not
      */
 
-    public boolean useLocalParameter(int fingerprint, LocalParam binding, boolean isTunnel) throws XPathException {
+    public boolean useLocalParameter(StructuredQName qName, LocalParam binding, boolean isTunnel) throws XPathException {
         return false;
     }
 
     /**
-     * Get the implicit timezone, as a positive or negative offset from UTC in minutes.
-     * The range is -14hours to +14hours
+     * Get the current date and time. This implementation always throws a
+     * NoDynamicContextException.
+     * @return the current date and time. All calls within a single query or transformation
+     * will return the same value
      */
-    public int getImplicitTimezone() {
-        return config.getImplicitTimezone();
+
+    public DateTimeValue getCurrentDateTime() throws NoDynamicContextException {
+        throw new NoDynamicContextException("current-dateTime");
     }
 
     /**
-     * Get a NameChecker for checking names against the XML 1.0 or XML 1.1 specification as appropriate
+     * Get the implicit timezone, as a positive or negative offset from UTC in minutes.
+     * The range is -14hours to +14hours. This implementation always throws a
+     * NoDynamicContextException.
+     * @return the implicit timezone, as an offset from UTC in minutes
      */
 
-    public NameChecker getNameChecker() {
-        return config.getNameChecker();
+    public int getImplicitTimezone() throws NoDynamicContextException{
+        throw new NoDynamicContextException("implicit-timezone");
+    }
+
+
+    /**
+     * Get the context stack. This method returns an iterator whose items are instances of
+     * {@link org.orbeon.saxon.trace.ContextStackFrame}, starting with the top-most stackframe and
+     * ending at the point the query or transformation was invoked by a calling application.
+     *
+     * @return an iterator over a copy of the run-time call stack
+     */
+
+    public Iterator iterateStackFrames() {
+        return Collections.EMPTY_LIST.iterator();
     }
 
     /**

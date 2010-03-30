@@ -54,7 +54,7 @@ public class TreeWalker implements PullProvider, SourceLocator {
 
     /**
      * Private constructor: the class should be instantiated using the static factory method
-     * @param startNode
+     * @param startNode the root node of the subtree to be walked
      */
 
     private TreeWalker(NodeInfo startNode) {
@@ -166,46 +166,45 @@ public class TreeWalker implements PullProvider, SourceLocator {
                     }
                     return currentEvent;
                 }
-                do {
-                    AxisIterator siblings = (AxisIterator)iteratorStack.peek();
-                    currentNode = (NodeInfo)siblings.next();
-                    if (currentNode == null) {
-                        iteratorStack.pop();
-                        if (iteratorStack.isEmpty()) {
-                            currentNode = startNode;
-                            if (currentNode.getNodeKind() == Type.ELEMENT) {
-                                currentEvent = END_ELEMENT;
-                            } else {
-                                currentEvent = END_DOCUMENT;
-                            }
-                            return currentEvent;
-                        }
-                        AxisIterator uncles = (AxisIterator)iteratorStack.peek();
-                        currentNode = (NodeInfo)uncles.current();
-                        if (currentNode.getNodeKind() == Type.DOCUMENT) {
-                            currentEvent = END_DOCUMENT;
-                        } else {
+
+                AxisIterator siblings = (AxisIterator)iteratorStack.peek();
+                currentNode = (NodeInfo)siblings.next();
+                if (currentNode == null) {
+                    iteratorStack.pop();
+                    if (iteratorStack.isEmpty()) {
+                        currentNode = startNode;
+                        if (currentNode.getNodeKind() == Type.ELEMENT) {
                             currentEvent = END_ELEMENT;
-                        }
-                        return currentEvent;
-                    } else {
-                        switch (currentNode.getNodeKind()) {
-                            case Type.ELEMENT:
-                                currentEvent = START_ELEMENT;
-                                break;
-                            case Type.TEXT:
-                                currentEvent = TEXT;
-                                break;
-                            case Type.COMMENT:
-                                currentEvent = COMMENT;
-                                break;
-                            case Type.PROCESSING_INSTRUCTION:
-                                currentEvent = PROCESSING_INSTRUCTION;
-                                break;
+                        } else {
+                            currentEvent = END_DOCUMENT;
                         }
                         return currentEvent;
                     }
-                } while (true);
+                    AxisIterator uncles = (AxisIterator)iteratorStack.peek();
+                    currentNode = (NodeInfo)uncles.current();
+                    if (currentNode.getNodeKind() == Type.DOCUMENT) {
+                        currentEvent = END_DOCUMENT;
+                    } else {
+                        currentEvent = END_ELEMENT;
+                    }
+                    return currentEvent;
+                } else {
+                    switch (currentNode.getNodeKind()) {
+                        case Type.ELEMENT:
+                            currentEvent = START_ELEMENT;
+                            break;
+                        case Type.TEXT:
+                            currentEvent = TEXT;
+                            break;
+                        case Type.COMMENT:
+                            currentEvent = COMMENT;
+                            break;
+                        case Type.PROCESSING_INSTRUCTION:
+                            currentEvent = PROCESSING_INSTRUCTION;
+                            break;
+                    }
+                    return currentEvent;
+                }
 
             case ATTRIBUTE:
             case NAMESPACE:
@@ -251,7 +250,7 @@ public class TreeWalker implements PullProvider, SourceLocator {
 
     public AttributeCollection getAttributes() throws XPathException {
         if (currentNode.getNodeKind() == Type.ELEMENT) {
-            AttributeCollectionImpl atts = new AttributeCollectionImpl(getNamePool());
+            AttributeCollectionImpl atts = new AttributeCollectionImpl(startNode.getConfiguration());
             SequenceIterator iter = currentNode.iterateAxis(Axis.ATTRIBUTE);
             while (true) {
                 NodeInfo node = (NodeInfo)iter.next();
@@ -288,9 +287,9 @@ public class TreeWalker implements PullProvider, SourceLocator {
 
     public NamespaceDeclarations getNamespaceDeclarations() throws XPathException {
         if (currentNode.getNodeKind() == Type.ELEMENT) {
-            if (iteratorStack.size() == 0) {
+            if (iteratorStack.isEmpty()) {
                 // get all inscope namespaces for a top-level element in the sequence.
-                int[] codes = new NamespaceIterator(currentNode, null).getInScopeNamespaceCodes();
+                int[] codes = NamespaceIterator.getInScopeNamespaceCodes(currentNode);
                 return new NamespaceDeclarationsImpl(getNamePool(), codes);
             } else {
                 // only namespace declarations (and undeclarations) on this element are required

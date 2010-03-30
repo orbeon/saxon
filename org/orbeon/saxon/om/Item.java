@@ -1,5 +1,6 @@
 package org.orbeon.saxon.om;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.evpull.PullEvent;
 
 /**
  * An Item is an object that can occur as a member of a sequence.
@@ -17,7 +18,7 @@ import org.orbeon.saxon.trans.XPathException;
  * @since 8.4
  */
 
-public interface Item extends ValueRepresentation {
+public interface Item extends ValueRepresentation, PullEvent {
 
     /**
      * Get the value of the item as a string. For nodes, this is the string value of the
@@ -63,7 +64,7 @@ public interface Item extends ValueRepresentation {
      * <p>
      * If the node has not been validated against a schema, the typed value
      * will be the same as the string value, either as an instance of xs:string or as an instance
-     * of xdt:untypedAtomic, depending on the node kind.
+     * of xs:untypedAtomic, depending on the node kind.
      * <p>
      * For an atomic value, this method returns an iterator over a singleton sequence containing
      * the atomic value itself.

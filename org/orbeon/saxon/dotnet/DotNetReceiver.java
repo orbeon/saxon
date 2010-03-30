@@ -1,6 +1,6 @@
 package org.orbeon.saxon.dotnet;
 
-import cli.System.Xml.XmlTextWriter;
+import cli.System.Xml.XmlWriter;
 import org.orbeon.saxon.event.PipelineConfiguration;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.om.NamePool;
@@ -12,15 +12,20 @@ import org.orbeon.saxon.trans.XPathException;
 
 public class DotNetReceiver implements Receiver {
 
-    private XmlTextWriter writer;
+    private XmlWriter writer;
     private PipelineConfiguration pipe;
     private NamePool pool;
     private String systemId;
 
-    public DotNetReceiver(XmlTextWriter writer) {
+    /**
+     * Create a Receiver that directs output to a .NET XmlTextWriter
+     * @param writer the .NET XmlTextWriter
+     */
+
+    public DotNetReceiver(XmlWriter writer) {
         this.writer = writer;
     }
-
+                                                
     /**
      * Notify an attribute. Attributes are notified after the startElement event, and before any
      * children. Namespaces and attributes may be intermingled.
@@ -53,13 +58,11 @@ public class DotNetReceiver implements Receiver {
      *
      * @param chars      The characters
      * @param locationId an integer which can be interpreted using a LocationMap to return
-     *                   information such as line number and system ID. If no location information is available,
-     *                   the value zero is supplied.
+*                   information such as line number and system ID. If no location information is available,
+*                   the value zero is supplied.
      * @param properties Bit significant value. The following bits are defined:
-     *                   <dt>DISABLE_ESCAPING</dt>           <dd>Disable escaping for this text node</dd>
-     *                   <dt>USE_CDATA</dt>                  <dd>Output as a CDATA section</dd>
-     *                   <dt>NO_SPECIAL_CHARACTERS</dt>      <dd>Value contains no special characters</dd>
-     *                   <dt>WHITESPACE</dt>                 <dd>Text is all whitespace</dd>
+*                   <dt>DISABLE_ESCAPING</dt>           <dd>Disable escaping for this text node</dd>
+*                   <dt>USE_CDATA</dt>                  <dd>Output as a CDATA section</dd>
      */
 
     public void characters(CharSequence chars, int locationId, int properties) throws XPathException {
@@ -141,7 +144,7 @@ public class DotNetReceiver implements Receiver {
     public void namespace(int namespaceCode, int properties) throws XPathException {
         String prefix = pool.getPrefixFromNamespaceCode(namespaceCode);
         String uri = pool.getURIFromNamespaceCode(namespaceCode);
-        if (prefix == "") {
+        if (prefix.length() == 0) {
             writer.WriteAttributeString("", "xmlns", null, uri);
         } else {
             writer.WriteAttributeString("xmlns", prefix, null, uri);
@@ -180,7 +183,7 @@ public class DotNetReceiver implements Receiver {
 
     public void setPipelineConfiguration(PipelineConfiguration pipe) {
         this.pipe = pipe;
-        this.pool = pipe.getConfiguration().getNamePool();
+        pool = pipe.getConfiguration().getNamePool();
     }
 
     /**
@@ -227,12 +230,11 @@ public class DotNetReceiver implements Receiver {
      *
      * @param nameCode   integer code identifying the name of the element within the name pool.
      * @param typeCode   integer code identifying the element's type within the name pool. The value -1
-     *                   indicates the default type, xdt:untyped.
+*                   indicates the default type, xs:untyped.
      * @param locationId an integer which can be interpreted using a LocationMap to return
-     *                   information such as line number and system ID. If no location information is available,
-     *                   the value zero is supplied.
+*                   information such as line number and system ID. If no location information is available,
+*                   the value zero is supplied.
      * @param properties bit-significant properties of the element node. If there are no revelant
-     *                   properties, zero is supplied.
      */
 
     public void startElement(int nameCode, int typeCode, int locationId, int properties) throws XPathException {

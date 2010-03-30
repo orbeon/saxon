@@ -1,30 +1,24 @@
 package org.orbeon.saxon.instruct;
 
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.Err;
+import org.orbeon.saxon.trans.Err;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.pattern.PatternSponsor;
 import org.orbeon.saxon.sort.*;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trace.TraceListener;
-import org.orbeon.saxon.trans.DynamicError;
-import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.type.TypeHierarchy;
-import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.value.Value;
 
-import java.io.PrintStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Iterator;
 
 /**
@@ -32,7 +26,8 @@ import java.util.Iterator;
  * defined in XSLT 2.0
  */
 
-public class ForEachGroup extends Instruction implements ContextMappingFunction {
+public class ForEachGroup extends Instruction
+        implements ContextMappingFunction, SortKeyEvaluator {
 
     public static final int GROUP_BY = 0;
     public static final int GROUP_ADJACENT = 1;
@@ -44,18 +39,30 @@ public class ForEachGroup extends Instruction implements ContextMappingFunction 
     private Expression action;
     private byte algorithm;
     private Expression key;     // for group-starting and group-ending, this is a PatternSponsor
-    private Expression collationName;
+    private Expression collationNameExpression;
     private String baseURI;
-    private Comparator collator = null;             // comparator used for the grouping comparisons
+    private StringCollator collator = null;             // collation used for the grouping comparisons
     private SortKeyDefinition[] sortKeys = null;
-    private transient Comparator[] sortComparators = null;    // comparators used for sorting the groups
+    private transient AtomicComparer[] sortComparators = null;    // comparators used for sorting the groups
+
+    /**
+     * Create a for-each-group instruction
+     * @param select the select expression (selects the population to be grouped)
+     * @param action the body of the for-each-group (applied to each group in turn)
+     * @param algorithm one of group-by, group-adjacent, group-starting-with, group-ending-with
+     * @param key expression to evaluate the grouping key
+     * @param collator user for comparing strings
+     * @param collationNameExpression expression that yields the name of the collation to be used
+     * @param baseURI static base URI of the expression
+     * @param sortKeys list of xsl:sort keys for sorting the groups
+     */
 
     public ForEachGroup(Expression select,
                         Expression action,
                         byte algorithm,
                         Expression key,
-                        Comparator collator,
-                        Expression collationName,
+                        StringCollator collator,
+                        Expression collationNameExpression,
                         String baseURI,
                         SortKeyDefinition[] sortKeys) {
         this.select = select;
@@ -63,7 +70,7 @@ public class ForEachGroup extends Instruction implements ContextMappingFunction 
         this.algorithm = algorithm;
         this.key = key;
         this.collator = collator;
-        this.collationName = collationName;
+        this.collationNameExpression = collationNameExpression;
         this.baseURI = baseURI;
         this.sortKeys = sortKeys;
         Iterator kids = iterateSubExpressions();
@@ -75,6 +82,7 @@ public class ForEachGroup extends Instruction implements ContextMappingFunction 
 
     /**
      * Get the name of this instruction for diagnostic and tracing purposes
+     * @return the name of the instruction
      */
 
     public int getInstructionNameCode() {
@@ -82,11 +90,22 @@ public class ForEachGroup extends Instruction implements ContextMappingFunction 
     }
 
     /**
-     * Get the action expression (the content of the for-each)
+     * Get the action expression (the content of the for-each-group)
+     * @return the body of the xsl:for-each-group instruction
      */
 
     public Expression getActionExpression() {
         return action;
+    }
+
+    /**
+     * Get the grouping key expression expression (the group-by or group-adjacent expression, or a
+     * PatternSponsor containing the group-starting-with or group-ending-with expression)
+     * @return the expression used to calculate grouping keys
+     */
+
+    public Expression getGroupingKey() {
+        return key;
     }
 
     /**
@@ -96,97 +115,105 @@ public class ForEachGroup extends Instruction implements ContextMappingFunction 
      * @return the simplified expression
      * @throws XPathException if an error is discovered during expression
      *                        rewriting
+     * @param visitor an expression visitor
      */
 
-    public Expression simplify(StaticContext env) throws XPathException {
-        select = select.simplify(env);
-        action = action.simplify(env);
-        key = key.simplify(env);
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        select = visitor.simplify(select);
+        action = visitor.simplify(action);
+        key = visitor.simplify(key);
         return this;
     }
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
-        select = select.typeCheck(env, contextItemType);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
+        select = visitor.typeCheck(select, contextItemType);
         ItemType selectedItemType = select.getItemType(th);
-        action = action.typeCheck(env, selectedItemType);
-        key = key.typeCheck(env, selectedItemType);
-//        adoptChildExpression(select);
-//        adoptChildExpression(action);
-//        adoptChildExpression(key);
-        if (select instanceof EmptySequence) {
-            return EmptySequence.getInstance();
+        action = visitor.typeCheck(action, selectedItemType);
+        key = visitor.typeCheck(key, selectedItemType);
+        if (Literal.isEmptySequence(select)) {
+            return select;
         }
-        if (action instanceof EmptySequence) {
-            return EmptySequence.getInstance();
+        if (Literal.isEmptySequence(action)) {
+            return action;
         }
         if (sortKeys != null) {
 
             boolean allFixed = true;
             for (int i=0; i<sortKeys.length; i++) {
                 Expression sortKey = sortKeys[i].getSortKey();
-                sortKey = sortKey.typeCheck(env, selectedItemType);
-                if (env.isInBackwardsCompatibleMode()) {
+                sortKey = visitor.typeCheck(sortKey, selectedItemType);
+                if (visitor.getStaticContext().isInBackwardsCompatibleMode()) {
                     sortKey = new FirstItemExpression(sortKey);
                 } else {
                     RoleLocator role =
-                        new RoleLocator(RoleLocator.INSTRUCTION, "xsl:sort/select", 0, null);
+                        new RoleLocator(RoleLocator.INSTRUCTION, "xsl:sort/select", 0);
                     role.setErrorCode("XTTE1020");
                     sortKey = CardinalityChecker.makeCardinalityChecker(sortKey, StaticProperty.ALLOWS_ZERO_OR_ONE, role);
                 }
                 sortKeys[i].setSortKey(sortKey);
 
                 if (sortKeys[i].isFixed()) {
-                    Comparator comp = sortKeys[i].makeComparator(env.makeEarlyEvaluationContext());
-                    sortKeys[i].setComparer(comp);
+                    AtomicComparer comp = sortKeys[i].makeComparator(
+                            visitor.getStaticContext().makeEarlyEvaluationContext());
+                    sortKeys[i].setFinalComparator(comp);
                 } else {
                     allFixed = false;
                 }
             }
             if (allFixed) {
-                sortComparators = new Comparator[sortKeys.length];
+                sortComparators = new AtomicComparer[sortKeys.length];
                 for (int i=0; i<sortKeys.length; i++) {
-                    sortComparators[i] = sortKeys[i].getComparer();
+                    sortComparators[i] = sortKeys[i].getFinalComparator();
                 }
             }
         }
         return this;
     }
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
-        select = select.optimize(opt, env, contextItemType);
-        action = action.optimize(opt, env, select.getItemType(th));
-        key = key.optimize(opt, env, select.getItemType(th));
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
+        select = visitor.optimize(select, contextItemType);
+        action = action.optimize(visitor, select.getItemType(th));
+        key = key.optimize(visitor, select.getItemType(th));
         adoptChildExpression(select);
         adoptChildExpression(action);
         adoptChildExpression(key);
-        if (select instanceof EmptySequence) {
-            return EmptySequence.getInstance();
+        if (Literal.isEmptySequence(select)) {
+            return select;
         }
-        if (action instanceof EmptySequence) {
-            return EmptySequence.getInstance();
+        if (Literal.isEmptySequence(action)) {
+            return action;
         }
-        // TODO: optimize the sort key definitions
-        if (collator == null && (collationName instanceof StringValue)) {
-            String collation = ((StringValue)collationName).getStringValue();
+        // Optimize the sort key definitions
+        ItemType selectedItemType = select.getItemType(th);
+        if (sortKeys != null) {
+            for (int i=0; i<sortKeys.length; i++) {
+                Expression sortKey = sortKeys[i].getSortKey();
+                sortKey = visitor.optimize(sortKey, selectedItemType);
+                sortKeys[i].setSortKey(sortKey);
+            }
+        }
+        if (collator == null && (collationNameExpression instanceof StringLiteral)) {
+            String collation = ((StringLiteral)collationNameExpression).getStringValue();
             URI collationURI;
             try {
                 collationURI = new URI(collation);
                 if (!collationURI.isAbsolute()) {
                     URI base = new URI(baseURI);
                     collationURI = base.resolve(collationURI);
-                    collationName = new StringValue(collationURI.toString());
-                    collator = env.getCollation(collationURI.toString());
+                    final String collationNameString = collationURI.toString();
+                    collationNameExpression = new StringLiteral(collationNameString);
+                    collator = visitor.getStaticContext().getCollation(collationNameString);
                     if (collator == null) {
-                        StaticError err = new StaticError("Unknown collation " + Err.wrap(collationURI.toString(), Err.URI));
+                        XPathException err = new XPathException("Unknown collation " + Err.wrap(collationURI.toString(), Err.URI));
                         err.setErrorCode("XTDE1110");
                         err.setLocator(this);
                         throw err;
                     }
                 }
             } catch (URISyntaxException err) {
-                StaticError e = new StaticError("Collation name '" + collationName + "' is not a valid URI");
+                XPathException e = new XPathException("Collation name '" + collationNameExpression + "' is not a valid URI");
                 e.setErrorCode("XTDE1110");
                 e.setLocator(this);
                 throw e;
@@ -196,10 +223,21 @@ public class ForEachGroup extends Instruction implements ContextMappingFunction 
     }
 
     /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        throw new UnsupportedOperationException("copy");
+    }
+    
+
+    /**
      * Get the item type of the items returned by evaluating this instruction
      *
      * @return the static item type of the instruction
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
@@ -228,21 +266,21 @@ public class ForEachGroup extends Instruction implements ContextMappingFunction 
             for (int i = 0; i < sortKeys.length; i++) {
                 dependencies |= (sortKeys[i].getSortKey().getDependencies() &~ StaticProperty.DEPENDS_ON_FOCUS);
                 Expression e = sortKeys[i].getCaseOrder();
-                if (e != null && !(e instanceof Value)) {
+                if (e != null && !(e instanceof Literal)) {
                     dependencies |= (e.getDependencies());
                 }
                 e = sortKeys[i].getDataTypeExpression();
-                if (e != null && !(e instanceof Value)) {
+                if (e != null && !(e instanceof Literal)) {
                     dependencies |= (e.getDependencies());
                 }
                 e = sortKeys[i].getLanguage();
-                if (e != null && !(e instanceof Value)) {
+                if (e != null && !(e instanceof Literal)) {
                     dependencies |= (e.getDependencies());
                 }
             }
         }
-        if (collationName != null) {
-            dependencies |= collationName.getDependencies();
+        if (collationNameExpression != null) {
+            dependencies |= collationNameExpression.getDependencies();
         }
         return dependencies;
     }
@@ -283,31 +321,102 @@ public class ForEachGroup extends Instruction implements ContextMappingFunction 
         list.add(select);
         list.add(action);
         list.add(key);
-        if (collationName != null) {
-            list.add(collationName);
+        if (collationNameExpression != null) {
+            list.add(collationNameExpression);
         }
         if (sortKeys != null) {
             for (int i = 0; i < sortKeys.length; i++) {
                 list.add(sortKeys[i].getSortKey());
                 Expression e = sortKeys[i].getOrder();
-                if (e != null && !(e instanceof Value)) {
+                if (e != null) {
                     list.add(e);
                 }
                 e = sortKeys[i].getCaseOrder();
-                if (e != null && !(e instanceof Value)) {
+                if (e != null) {
                     list.add(e);
                 }
                 e = sortKeys[i].getDataTypeExpression();
-                if (e != null && !(e instanceof Value)) {
+                if (e != null) {
                     list.add(e);
                 }
                 e = sortKeys[i].getLanguage();
-                if (e != null && !(e instanceof Value)) {
+                if (e != null) {
+                    list.add(e);
+                }
+                e = sortKeys[i].getCollationNameExpression();
+                if (e != null) {
                     list.add(e);
                 }
             }
         }
         return list.iterator();
+    }
+
+
+    /**
+     * Add a representation of this expression to a PathMap. The PathMap captures a map of the nodes visited
+     * by an expression in a source tree.
+     * <p/>
+     * <p>The default implementation of this method assumes that an expression does no navigation other than
+     * the navigation done by evaluating its subexpressions, and that the subexpressions are evaluated in the
+     * same context as the containing expression. The method must be overridden for any expression
+     * where these assumptions do not hold. For example, implementations exist for AxisExpression, ParentExpression,
+     * and RootExpression (because they perform navigation), and for the doc(), document(), and collection()
+     * functions because they create a new navigation root. Implementations also exist for PathExpression and
+     * FilterExpression because they have subexpressions that are evaluated in a different context from the
+     * calling expression.</p>
+     *
+     * @param pathMap     the PathMap to which the expression should be added
+     * @param pathMapNodeSet
+     * @return the pathMapNode representing the focus established by this expression, in the case where this
+     *         expression is the first operand of a path expression or filter expression. For an expression that does
+     *         navigation, it represents the end of the arc in the path map that describes the navigation route. For other
+     *         expressions, it is the same as the input pathMapNode.
+     */
+
+    public PathMap.PathMapNodeSet addToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodeSet) {
+        PathMap.PathMapNodeSet target = select.addToPathMap(pathMap, pathMapNodeSet);
+        if (collationNameExpression != null) {
+            collationNameExpression.addToPathMap(pathMap, pathMapNodeSet);
+        }
+        if (sortKeys != null) {
+            for (int i = 0; i < sortKeys.length; i++) {
+                sortKeys[i].getSortKey().addToPathMap(pathMap, target);
+                Expression e = sortKeys[i].getOrder();
+                if (e != null) {
+                    e.addToPathMap(pathMap, pathMapNodeSet);
+                }
+                e = sortKeys[i].getCaseOrder();
+                if (e != null) {
+                    e.addToPathMap(pathMap, pathMapNodeSet);
+                }
+                e = sortKeys[i].getDataTypeExpression();
+                if (e != null) {
+                    e.addToPathMap(pathMap, pathMapNodeSet);
+                }
+                e = sortKeys[i].getLanguage();
+                if (e != null) {
+                    e.addToPathMap(pathMap, pathMapNodeSet);
+                }
+                e = sortKeys[i].getCollationNameExpression();
+                if (e != null) {
+                    e.addToPathMap(pathMap, pathMapNodeSet);
+                }
+            }
+        }
+        return action.addToPathMap(pathMap, target);
+    }
+
+    /**
+     * Given an expression that is an immediate child of this expression, test whether
+     * the evaluation of the parent expression causes the child expression to be
+     * evaluated repeatedly
+     * @param child the immediate subexpression
+     * @return true if the child expression is evaluated repeatedly
+     */
+
+    public boolean hasLoopingSubexpression(Expression child) {
+        return child == action || child == key;
     }
 
     /**
@@ -327,8 +436,8 @@ public class ForEachGroup extends Instruction implements ContextMappingFunction 
             action = replacement;
             found = true;
         }
-        if (collationName == original) {
-            collationName = replacement;
+        if (collationNameExpression == original) {
+            collationNameExpression = replacement;
             found = true;
         }
         if (key == original) {
@@ -344,19 +453,19 @@ public class ForEachGroup extends Instruction implements ContextMappingFunction 
                 if (sortKeys[i].getOrder() == original) {
                     sortKeys[i].setOrder(replacement);
                     found = true;
-                };
+                }
                 if (sortKeys[i].getCaseOrder() == original) {
                     sortKeys[i].setCaseOrder(replacement);
                     found = true;
-                };
+                }
                 if (sortKeys[i].getDataTypeExpression() == original) {
                     sortKeys[i].setDataTypeExpression(replacement);
                     found = true;
-                };
+                }
                 if (sortKeys[i].getLanguage() == original) {
                     sortKeys[i].setLanguage(replacement);
                     found = true;
-                };
+                }
             }
         }
         return found;
@@ -413,22 +522,21 @@ public class ForEachGroup extends Instruction implements ContextMappingFunction 
 
     /**
      * Get (and if necessary, create) the comparator used for comparing grouping key values
-     * @param context
-     * @return
+     * @param context XPath dynamic context
+     * @return a StringCollator suitable for comparing the values of grouping keys
      * @throws XPathException
      */
 
-    private Comparator getCollator(XPathContext context) throws XPathException {
-        if (collationName != null) {
-            StringValue collationValue = (StringValue)collationName.evaluateItem(context);
+    private StringCollator getCollator(XPathContext context) throws XPathException {
+        if (collationNameExpression != null) {
+            StringValue collationValue = (StringValue)collationNameExpression.evaluateItem(context);
             String cname = collationValue.getStringValue();
             URI collationURI;
             try {
                 collationURI = new URI(cname);
                 if (!collationURI.isAbsolute()) {
                     if (baseURI == null) {
-                        DynamicError err = new DynamicError(
-                                "Cannot resolve relative collation URI '" + cname +
+                        XPathException err = new XPathException("Cannot resolve relative collation URI '" + cname +
                                 "': unknown or invalid base URI");
                         err.setErrorCode("XTDE1110");
                         err.setXPathContext(context);
@@ -439,7 +547,7 @@ public class ForEachGroup extends Instruction implements ContextMappingFunction 
                     cname = collationURI.toString();
                 }
             } catch (URISyntaxException e) {
-                DynamicError err = new DynamicError("Collation name '" + cname + "' is not a valid URI");
+                XPathException err = new XPathException("Collation name '" + cname + "' is not a valid URI");
                 err.setErrorCode("XTDE1110");
                 err.setXPathContext(context);
                 err.setLocator(this);
@@ -447,7 +555,7 @@ public class ForEachGroup extends Instruction implements ContextMappingFunction 
             }
             return context.getCollation(cname);
         } else {
-            Comparator collator = context.getDefaultCollation();
+            StringCollator collator = context.getDefaultCollation();
             return (collator==null ? CodepointCollator.getInstance() : collator);
         }
     }
@@ -460,7 +568,7 @@ public class ForEachGroup extends Instruction implements ContextMappingFunction 
         GroupIterator groupIterator;
         switch (algorithm) {
             case GROUP_BY: {
-                Comparator coll = collator;
+                StringCollator coll = collator;
                 if (coll==null) {
                     // The collation is determined at run-time
                     coll = getCollator(context);
@@ -472,7 +580,7 @@ public class ForEachGroup extends Instruction implements ContextMappingFunction 
                 break;
             }
             case GROUP_ADJACENT: {
-                Comparator coll = collator;
+                StringCollator coll = collator;
                 if (coll==null) {
                     // The collation is determined at run-time
                     coll = getCollator(context);
@@ -498,15 +606,15 @@ public class ForEachGroup extends Instruction implements ContextMappingFunction 
         // now iterate over the leading nodes of the groups
 
         if (sortKeys != null) {
-            Comparator[] comps = sortComparators;
+            AtomicComparer[] comps = sortComparators;
             XPathContext xpc = context.newMinorContext();
             if (comps == null) {
-                comps = new Comparator[sortKeys.length];
+                comps = new AtomicComparer[sortKeys.length];
                 for (int s = 0; s < sortKeys.length; s++) {
                     comps[s] = sortKeys[s].makeComparator(xpc);
                 }
             }
-            groupIterator = new SortedGroupIterator(xpc, groupIterator, sortKeys, comps, this);
+            groupIterator = new SortedGroupIterator(xpc, groupIterator, this, comps, this);
         }
         return groupIterator;
     }
@@ -553,20 +661,46 @@ public class ForEachGroup extends Instruction implements ContextMappingFunction 
     }
 
     /**
-     * Diagnostic print of expression structure. The expression is written to the System.err
-     * output stream
-     *
-     * @param level indentation level for this expression
-     @param out
-     @param config
+     * Callback for evaluating the sort keys
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "for-each-group");
-        out.println(ExpressionTool.indent(level) + "select");
-        select.display(level + 1, out, config);
-        out.println(ExpressionTool.indent(level) + "return");
-        action.display(level + 1, out, config);
+    public Item evaluateSortKey(int n, XPathContext c) throws XPathException {
+        return sortKeys[n].getSortKey().evaluateItem(c);
+    }
+
+    /**
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     */
+
+    public void explain(ExpressionPresenter out) {
+        out.startElement("forEachGroup");
+        out.emitAttribute("algorithm", getAlgorithmName(algorithm));
+        out.startSubsidiaryElement("select");
+        select.explain(out);
+        out.endSubsidiaryElement();
+        out.startSubsidiaryElement("key");
+        key.explain(out);
+        out.endSubsidiaryElement();
+        out.startSubsidiaryElement("return");
+        action.explain(out);
+        out.endSubsidiaryElement();
+        out.endElement();
+    }
+
+    private String getAlgorithmName(byte algorithm) {
+        switch (algorithm) {
+            case GROUP_BY:
+                return "group-by";
+            case GROUP_ADJACENT:
+                return "group-adjacent";
+            case GROUP_STARTING:
+                return "group-starting-with";
+            case GROUP_ENDING:
+                return "group-ending-with";
+            default:
+                return "** unknown algorithm **";
+        }
     }
 }
 

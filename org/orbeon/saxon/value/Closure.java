@@ -1,16 +1,13 @@
 package org.orbeon.saxon.value;
-import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.instruct.SlotManager;
 import org.orbeon.saxon.event.SequenceReceiver;
 import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.instruct.SlotManager;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trace.Location;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AnyItemType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.TypeHierarchy;
-
-import java.io.PrintStream;
 
 /**
  * A Closure represents a value that has not yet been evaluated: the value is represented
@@ -61,6 +58,8 @@ public class Closure extends Value {
      * purpose). There is no known expression in this case. Note that the caller must
      * ensure this is a "clean" iterator: it must be positioned at the start, and must
      * not be shared by anyone else.
+     * @param iterator the supplied iterator
+     * @return the Closure over this iterator
      */
 
     public static Closure makeIteratorClosure(SequenceIterator iterator) {
@@ -70,7 +69,13 @@ public class Closure extends Value {
     }
 
     /**
-    * Construct a Closure by supplying the expression and the set of context variables.
+     * Construct a Closure by supplying the expression and the set of context variables.
+     * @param expression the expression to be lazily evaluated
+     * @param context the dynamic context of the expression including for example the variables
+     * on which it depends
+     * @param ref the number of references to the value being lazily evaluated; this affects
+     * the kind of Closure that is created
+     * @return the Closure, a virtual value that can later be materialized when its content is required
     */
 
     public static Value make(Expression expression, XPathContext context, int ref) throws XPathException {
@@ -78,11 +83,20 @@ public class Closure extends Value {
         // special cases such as TailExpressions and shared append expressions are now picked up before
         // this method is called (where possible, at compile time)
 
-        Closure c = context.getConfiguration().getOptimizer().makeClosure(expression, ref);
-        c.expression = expression;
-        c.savedXPathContext = context.newContext();
-        c.savedXPathContext.setOriginatingConstructType(Location.LAZY_EVALUATION);
+        Value v = context.getConfiguration().getOptimizer().makeClosure(expression, ref, context);
+        if (v instanceof Closure) {
+            Closure c = (Closure)v;
+            c.expression = expression;
+            c.savedXPathContext = context.newContext();
+            c.savedXPathContext.setOriginatingConstructType(Location.LAZY_EVALUATION);
+            c.saveContext(expression, context);
+            return c;
+        } else {
+            return v;
+        }
+    }
 
+    protected void saveContext(Expression expression, XPathContext context) throws XPathException {
         // Make a copy of all local variables. If the value of any local variable is a closure
         // whose depth exceeds a certain threshold, we evaluate the closure eagerly to avoid
         // creating deeply nested lists of Closures, which consume memory unnecessarily
@@ -93,25 +107,25 @@ public class Closure extends Value {
         if ((expression.getDependencies() & StaticProperty.DEPENDS_ON_LOCAL_VARIABLES) != 0) {
             StackFrame localStackFrame = context.getStackFrame();
             ValueRepresentation[] local = localStackFrame.getStackFrameValues();
-            int[] slotsUsed = ((ComputedExpression)expression).getSlotsUsed();  // computed on first call
+            int[] slotsUsed = expression.getSlotsUsed();  // computed on first call
             if (local != null) {
                 final SlotManager stackFrameMap = localStackFrame.getStackFrameMap();
-                final ValueRepresentation[] savedStackFrame = 
+                final ValueRepresentation[] savedStackFrame =
                         new ValueRepresentation[stackFrameMap.getNumberOfVariables()];
                 for (int s=0; s<slotsUsed.length; s++) {
                     int i = slotsUsed[s];
                     if (local[i] instanceof Closure) {
                         int cdepth = ((Closure)local[i]).depth;
                         if (cdepth >= 10) {
-                            local[i] = SequenceExtent.makeSequenceExtent(((Closure)local[i]).iterate(context));
-                        } else if (cdepth + 1 > c.depth) {
-                            c.depth = cdepth + 1;
+                            local[i] = SequenceExtent.makeSequenceExtent(((Closure)local[i]).iterate());
+                        } else if (cdepth + 1 > depth) {
+                            depth = cdepth + 1;
                         }
                     }
                     savedStackFrame[i] = local[i];
                 }
 
-                c.savedXPathContext.setStackFrame(stackFrameMap, savedStackFrame);
+                savedXPathContext.setStackFrame(stackFrameMap, savedStackFrame);
             }
         }
 
@@ -119,21 +133,20 @@ public class Closure extends Value {
         SequenceIterator currentIterator = context.getCurrentIterator();
         if (currentIterator != null) {
             Item contextItem = currentIterator.current();
-            AxisIterator single = SingletonIterator.makeIterator(contextItem);
+            UnfailingIterator single = SingletonIterator.makeIterator(contextItem);
             single.next();
-            c.savedXPathContext.setCurrentIterator(single);
+            savedXPathContext.setCurrentIterator(single);
             // we don't save position() and last() because we have no way
             // of restoring them. So the caller must ensure that a Closure is not
             // created if the expression depends on position() or last()
         }
 
-        c.savedXPathContext.setReceiver(null);
-        return c;
+        savedXPathContext.setReceiver(null);
     }
 
     /**
-    * Get the static item type
-     * @param th
+     * Get the static item type
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
@@ -147,8 +160,8 @@ public class Closure extends Value {
     }
 
     /**
-    * Get the cardinality
-    */
+     * Get the cardinality
+     */
 
     public int getCardinality() {
         if (expression == null) {
@@ -159,36 +172,10 @@ public class Closure extends Value {
     }
 
     /**
-    * Get the static properties of this expression (other than its type). The result is
-    * bit-signficant. These properties are used for optimizations. In general, if
-    * property bit is set, it is true, but if it is unset, the value is unknown.
-    */
-
-    public int getSpecialProperties() {
-        if (expression == null) {
-            return StaticProperty.ALLOWS_ZERO_OR_MORE;
-        } else {
-            return expression.getSpecialProperties();
-        }
-    }
-
-    /**
-     * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
-     * This method indicates which of these methods is provided. This implementation provides both iterate() and
-     * process() methods natively.
+     * Evaluate the expression in a given context to return an iterator over a sequence
      */
 
-    public int getImplementationMethod() {
-        return ITERATE_METHOD | PROCESS_METHOD;
-    }
-
-    /**
-     * Evaluate the expression in a given context to return an iterator over a sequence
-     * @param context the evaluation context. This is ignored; we use the context saved
-     * as part of the Closure instead.
-    */
-
-    public SequenceIterator iterate(XPathContext context) throws XPathException {
+    public SequenceIterator iterate() throws XPathException {
 
         if (inputIterator == null) {
             inputIterator = expression.iterate(savedXPathContext);
@@ -202,7 +189,6 @@ public class Closure extends Value {
             // all local variables were saved, rather than only those that the expression depends on.
             return inputIterator.getAnother();
         }
-
     }
 
     /**
@@ -212,12 +198,25 @@ public class Closure extends Value {
      */
 
     public void process(XPathContext context) throws XPathException {
-        // To evaluate the closure in push mode, we need to use the original context of the
-        // expression for everything except the current output destination, which is newly created
-        XPathContext c2 = savedXPathContext.newContext();
-        SequenceReceiver out = context.getReceiver();
-        c2.setTemporaryReceiver(out);
-        expression.process(c2);
+        if (expression == null) {
+            // This is a Closure that simply wraps a SequenceIterator supplied from the Java level
+            SequenceReceiver out = context.getReceiver();
+            while (true) {
+                Item item = inputIterator.next();
+                if (item == null) {
+                    break;
+                }
+                out.append(item, 0, NodeInfo.ALL_NAMESPACES);
+            }
+            inputIterator = inputIterator.getAnother();
+        } else {
+            // To evaluate the closure in push mode, we need to use the original context of the
+            // expression for everything except the current output destination, which is newly created
+            XPathContext c2 = savedXPathContext.newContext();
+            SequenceReceiver out = context.getReceiver();
+            c2.setTemporaryReceiver(out);
+            expression.process(c2);
+        }
     }
 
     /**
@@ -228,20 +227,7 @@ public class Closure extends Value {
      */
 
     public Value reduce() throws XPathException {
-        return new SequenceExtent(iterate(null)).reduce();
-    }
-
-    /**
-     * Determine whether this Closure is indexable
-     */
-
-    public boolean isIndexable() {
-        return false;
-    }
-
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "Closure of expression:");
-        expression.display(level+1, out, config);
+        return new SequenceExtent(iterate()).reduce();
     }
 
 }

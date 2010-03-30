@@ -1,12 +1,10 @@
 package org.orbeon.saxon.expr;
-import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.Value;
 
-import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -16,7 +14,7 @@ import java.util.List;
 * two operands and an operator
 */
 
-public abstract class BinaryExpression extends ComputedExpression {
+public abstract class BinaryExpression extends Expression {
 
     protected Expression operand0;
     protected Expression operand1;
@@ -30,7 +28,7 @@ public abstract class BinaryExpression extends ComputedExpression {
     */
 
     public BinaryExpression(Expression p0, int op, Expression p1) {
-        this.operator = op;
+        operator = op;
         operand0 = p0;
         operand1 = p1;
         adoptChildExpression(p0);
@@ -38,13 +36,14 @@ public abstract class BinaryExpression extends ComputedExpression {
     }
 
     /**
-    * Simplify an expression
-    * @return the simplified expression
-    */
+     * Simplify an expression
+     * @return the simplified expression
+     * @param visitor an expression visitor
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
-        operand0 = operand0.simplify(env);
-        operand1 = operand1.simplify(env);
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        operand0 = visitor.simplify(operand0);
+        operand1 = visitor.simplify(operand1);
         return this;
     }
 
@@ -53,15 +52,16 @@ public abstract class BinaryExpression extends ComputedExpression {
     * any kind of operand
     */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        operand0 = operand0.typeCheck(env, contextItemType);
-        operand1 = operand1.typeCheck(env, contextItemType);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand0 = visitor.typeCheck(operand0, contextItemType);
+        operand1 = visitor.typeCheck(operand1, contextItemType);
         // if both operands are known, pre-evaluate the expression
         try {
-            if ((operand0 instanceof Value) && (operand1 instanceof Value)) {
-                return Value.asValue(evaluateItem(env.makeEarlyEvaluationContext()));
+            if ((operand0 instanceof Literal) && (operand1 instanceof Literal)) {
+                Value v = Value.asValue(evaluateItem(visitor.getStaticContext().makeEarlyEvaluationContext()));
+                return Literal.makeLiteral(v);
             }
-        } catch (DynamicError err) {
+        } catch (XPathException err) {
             // if early evaluation fails, suppress the error: the value might
             // not be needed at run-time
         }
@@ -74,33 +74,48 @@ public abstract class BinaryExpression extends ComputedExpression {
      * <p>This method is called after all references to functions and variables have been resolved
      * to the declaration of the function or variable, and after all type checking has been done.</p>
      *
-     * @param opt             the optimizer in use. This provides access to supporting functions; it also allows
-     *                        different optimization strategies to be used in different circumstances.
-     * @param env             the static context of the expression
+     * @param visitor an expression visitor
      * @param contextItemType the static type of "." at the point where this expression is invoked.
      *                        The parameter is set to null if it is known statically that the context item will be undefined.
      *                        If the type of the context item is not known statically, the argument is set to
      *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
      * @return the original expression, rewritten if appropriate to optimize execution
-     * @throws org.orbeon.saxon.trans.StaticError if an error is discovered during this phase
+     * @throws XPathException if an error is discovered during this phase
      *                                        (typically a type error)
      */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        operand0 = operand0.optimize(opt, env, contextItemType);
-        operand1 = operand1.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand0 = visitor.optimize(operand0, contextItemType);
+        operand1 = visitor.optimize(operand1, contextItemType);
         // if both operands are known, pre-evaluate the expression
         try {
-            if ((operand0 instanceof Value) && (operand1 instanceof Value)) {
-                return Value.asValue(evaluateItem(env.makeEarlyEvaluationContext()));
+            if ((operand0 instanceof Literal) && (operand1 instanceof Literal)) {
+                Value v = Value.asValue(evaluateItem(visitor.getStaticContext().makeEarlyEvaluationContext()));
+                return Literal.makeLiteral(v);
             }
-        } catch (DynamicError err) {
+        } catch (XPathException err) {
             // if early evaluation fails, suppress the error: the value might
             // not be needed at run-time
         }
         return this;
     }
 
+
+    /**
+     * Mark an expression as being "flattened". This is a collective term that includes extracting the
+     * string value or typed value, or operations such as simple value construction that concatenate text
+     * nodes before atomizing. The implication of all of these is that although the expression might
+     * return nodes, the identity of the nodes has no significance. This is called during type checking
+     * of the parent expression.
+     *
+     * @param flattened set to true if the result of the expression is atomized or otherwise turned into
+     *                  an atomic value
+     */
+
+    public void setFlattened(boolean flattened) {
+        operand0.setFlattened(flattened);
+        operand1.setFlattened(flattened);
+    }
 
     /**
     * Promote this expression if possible
@@ -150,6 +165,7 @@ public abstract class BinaryExpression extends ComputedExpression {
 
     /**
      * Get the operator
+     * @return the operator, for example {@link Token#PLUS}
      */
 
     public int getOperator() {
@@ -158,11 +174,11 @@ public abstract class BinaryExpression extends ComputedExpression {
 
     /**
      * Get the operands
+     * @return the two operands of the binary expression, as an array of length 2
      */
 
     public Expression[] getOperands() {
-        Expression[] ops = {operand0, operand1};
-        return ops;
+        return new Expression[] {operand0, operand1};
     }
 
     /**
@@ -192,7 +208,7 @@ public abstract class BinaryExpression extends ComputedExpression {
 
     /**
      * Determine whether a binary operator is commutative, that is, A op B = B op A.
-     * @param operator
+     * @param operator the operator, for example {@link Token#PLUS}
      * @return true if the operator is commutative
      */
 
@@ -212,6 +228,8 @@ public abstract class BinaryExpression extends ComputedExpression {
 
     /**
      * Determine whether an operator is associative, that is, ((a^b)^c) = (a^(b^c))
+     * @param operator the operator, for example {@link Token#PLUS}
+     * @return true if the operator is associative
      */
 
     protected static boolean isAssociative(int operator) {
@@ -271,6 +289,8 @@ public abstract class BinaryExpression extends ComputedExpression {
      * Flatten an expression with respect to an associative operator: for example
      * the expression (a+b) + (c+d) becomes list(a,b,c,d), with the list in canonical
      * order (sorted by hashCode)
+     * @param list a list provided by the caller to contain the result
+     * @return the list of expressions
      */
 
     private List flattenExpression(List list) {
@@ -305,6 +325,9 @@ public abstract class BinaryExpression extends ComputedExpression {
 
     /**
      * Compare whether two lists of expressions are pairwise equal
+     * @param a the first list of expressions
+     * @param b the second list of expressions
+     * @return true if the two lists are equal
      */
 
     private boolean pairwiseEqual(List a, List b) {
@@ -334,14 +357,26 @@ public abstract class BinaryExpression extends ComputedExpression {
     }
 
     /**
-    * Diagnostic print of expression structure
-    */
+     * The toString() method for an expression attempts to give a representation of the expression
+     * in an XPath-like form, but there is no guarantee that the syntax will actually be true XPath.
+     * In the case of XSLT instructions, the toString() method gives an abstracted view of the syntax
+     */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "operator " + displayOperator());
-                //+ " [" + hashCode() + "]")
-        operand0.display(level+1, out, config);
-        operand1.display(level+1, out, config);
+    public String toString() {
+        return "(" + operand0.toString() + " " + displayOperator() + " " + operand1.toString() + ")";
+    }
+
+    /**
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     */
+
+    public void explain(ExpressionPresenter out) {
+        out.startElement("operator");
+        out.emitAttribute("op", displayOperator());
+        operand0.explain(out);
+        operand1.explain(out);
+        out.endElement();
     }
 
     protected String displayOperator() {

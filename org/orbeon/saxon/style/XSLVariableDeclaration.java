@@ -39,17 +39,27 @@ public abstract class XSLVariableDeclaration
         return slotManager;
     }
 
+    /**
+     * Get the slot number allocated to this variable (its position in the stackframe)
+     * @return the allocated slot number
+     */
 
     public int getSlotNumber() {
         return slotNumber;
     }
+
+    /**
+     * Allocate a slot number to this variable
+     * @param slot the position of the variable on the local stack frame
+     */
 
     public void setSlotNumber(int slot) {
         slotNumber = slot;
     }
 
     /**
-    * Get the static type of the variable.
+     * Get the static type of the variable.
+     * @return the static type declared for the variable
     */
 
     public abstract SequenceType getRequiredType();
@@ -64,29 +74,12 @@ public abstract class XSLVariableDeclaration
     }
 
     /**
-     * Get the list of references to this variable or parameter. The items in the list are
-     * of class BindingReference.
-     */
-
-    public List getReferences() {
-        return references;
-    }
-
-    /**
     * Determine whether this node is an instruction.
     * @return true - it is an instruction (well, it can be, anyway)
     */
 
     public boolean isInstruction() {
         return true;
-    }
-
-    /**
-     * Get the list of references
-     */
-
-    public List getReferenceList() {
-        return references;
     }
 
     /**
@@ -101,13 +94,13 @@ public abstract class XSLVariableDeclaration
             Value constantValue = null;
             int properties = 0;
             if (this instanceof XSLVariable && !isAssignable()) {
-                if (select instanceof Value) {
+                if (select instanceof Literal) {
                     // we can't rely on the constant value because it hasn't yet been type-checked,
                     // which could change it (eg by numeric promotion). Rather than attempt all the type-checking
                     // now, we do a quick check. See test bug64
                     int relation = th.relationship(select.getItemType(th), type.getPrimaryType());
                     if (relation == TypeHierarchy.SAME_TYPE || relation == TypeHierarchy.SUBSUMED_BY) {
-                        constantValue = (Value)select;
+                        constantValue = ((Literal)select).getValue();
                     }
                 }
                 if (select != null) {
@@ -127,15 +120,14 @@ public abstract class XSLVariableDeclaration
         super.validate();
         if (global) {
             if (!redundant) {
-                slotNumber = getPrincipalStylesheet().allocateGlobalSlot(getVariableFingerprint());
+                slotNumber = getPrincipalStylesheet().allocateGlobalSlot(getVariableQName());
             }
-        } else {
-            checkWithinTemplate();
-        }
+        } 
     }
 
     /**
-    * Notify all variable references of the Binding instruction
+     * Notify all variable references of the Binding instruction
+     * @param binding the Binding that represents this variable declaration in the executable code tree
     */
 
     protected void fixupBinding(Binding binding) {
@@ -148,17 +140,18 @@ public abstract class XSLVariableDeclaration
     /**
      * Set the number of references to this variable. This code is invoked only for a global variable,
      * and only if there is at least one reference.
-     * @param var
+     * @param var the variable
      */
 
     protected void setReferenceCount(GeneralVariable var) {
-        int referenceCount = RangeVariableDeclaration.getReferenceCount(
-                references, var, getStaticContext(), false);
-        if (referenceCount < 10) {
-            // allow for the fact that the references may be in functions that are executed repeatedly
-            referenceCount = 10;
-        }
-        var.setReferenceCount(referenceCount);
+//        int referenceCount = RangeVariable.getReferenceCount(
+//                references, false);
+//        if (referenceCount < 10) {
+//            // allow for the fact that the references may be in functions that are executed repeatedly
+//            referenceCount = 10;
+//        }
+//        var.setReferenceCount(referenceCount);
+        var.setReferenceCount(10);  // TODO: temporary
     }
 
 

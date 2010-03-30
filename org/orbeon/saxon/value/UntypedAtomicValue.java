@@ -1,10 +1,10 @@
 package org.orbeon.saxon.value;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.sort.CodepointCollator;
+import org.orbeon.saxon.sort.StringCollator;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
-import org.orbeon.saxon.sort.CodepointCollator;
-
-import java.util.Comparator;
 
 /**
 * An Untyped Atomic value. This inherits from StringValue for implementation convenience, even
@@ -28,47 +28,72 @@ public class UntypedAtomicValue extends StringValue {
 
     public UntypedAtomicValue(CharSequence value) {
         this.value = (value==null ? "" : value);
+        typeLabel = BuiltInAtomicType.UNTYPED_ATOMIC;
     }
 
     /**
-    * Return the type of the expression
-    * @return Type.UNTYPED_ATOMIC (always)
-     * @param th
+     * Create a copy of this atomic value, with a different type label
+     *
+     * @param typeLabel the type label of the new copy. The caller is responsible for checking that
+     *                  the value actually conforms to this type.
      */
 
-    public ItemType getItemType(TypeHierarchy th) {
-        return Type.UNTYPED_ATOMIC_TYPE;
+    public AtomicValue copyAsSubType(AtomicType typeLabel) {
+        UntypedAtomicValue v = new UntypedAtomicValue(value);
+        v.length = length;
+        v.doubleValue = doubleValue;
+        v.typeLabel = typeLabel;
+        return v;
     }
+
+    /**
+     * Determine the primitive type of the value. This delivers the same answer as
+     * getItemType().getPrimitiveItemType(). The primitive types are
+     * the 19 primitive types of XML Schema, plus xs:integer, xs:dayTimeDuration and xs:yearMonthDuration,
+     * and xs:untypedAtomic. For external objects, the result is AnyAtomicType.
+     */
+
+    public BuiltInAtomicType getPrimitiveType() {
+        return BuiltInAtomicType.UNTYPED_ATOMIC;
+    }
+
 
     /**
     * Convert to target data type
     */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, XPathContext context) {
+    public ConversionResult convertPrimitive(BuiltInAtomicType requiredType, boolean validate, XPathContext context) {
         int req = requiredType.getFingerprint();
-        if (req==Type.STRING) {
+        if (req== StandardNames.XS_STRING) {
             if (value.length() == 0) {
                 // this case is common!
                 return StringValue.EMPTY_STRING;
             } else {
                 return new StringValue(value);
             }
-        } else if (req==Type.UNTYPED_ATOMIC) {
+        } else if (req== StandardNames.XS_UNTYPED_ATOMIC) {
             return this;
-        } else if (req==Type.DOUBLE || req==Type.NUMBER) {
+        } else if (req== StandardNames.XS_DOUBLE || req== StandardNames.XS_NUMERIC) {
             // for conversion to double (common in 1.0 mode), cache the result
-            if (doubleValue==null) {
-                AtomicValue v = super.convertPrimitive(requiredType, validate, context);
-                if (v instanceof DoubleValue) {
-                    // the alternative is that it's an ErrorValue
-                    doubleValue = (DoubleValue)v;
-                }
-                return v;
+            try {
+                return toDouble();
+            } catch (ValidationException e) {
+                return new ValidationFailure(e);
             }
-            return doubleValue;
         } else {
             return super.convertPrimitive(requiredType, validate, context);
         }
+    }
+
+    /**
+     * Convert the value to a double, returning a DoubleValue
+     */
+
+    private AtomicValue toDouble() throws ValidationException {
+        if (doubleValue == null) {
+            doubleValue = new DoubleValue(value);
+        }
+        return doubleValue;
     }
 
     /**
@@ -82,11 +107,11 @@ public class UntypedAtomicValue extends StringValue {
      * @throws ClassCastException if the value cannot be cast to the type of the other operand
     */
 
-    public int compareTo(Object other, Comparator collator, XPathContext context) {
+    public int compareTo(AtomicValue other, StringCollator collator, XPathContext context) {
         if (other instanceof NumericValue) {
             if (doubleValue == null) {
                 try {
-                    doubleValue = (DoubleValue)convert(Type.DOUBLE, context);
+                    doubleValue = (DoubleValue)convertPrimitive(BuiltInAtomicType.DOUBLE, true, context).asAtomic();
                 } catch (XPathException err) {
                     throw new ClassCastException("Cannot convert untyped value " +
                         '\"' + getStringValueCS() + "\" to a double");
@@ -97,28 +122,96 @@ public class UntypedAtomicValue extends StringValue {
             if (collator instanceof CodepointCollator) {
                 // This optimization avoids creating String objects for the purpose of the comparison
                 return ((CodepointCollator)collator).compareCS(getStringValueCS(),
-                                                              ((StringValue)other).getStringValueCS());
+                                                              other.getStringValueCS());
             } else {
-                return collator.compare(getStringValue(), ((StringValue)other).getStringValue());
+                return collator.compareStrings(getStringValue(), other.getStringValue());
             }
-        } else if (other instanceof AtomicValue) {
-            final TypeHierarchy th = context.getConfiguration().getTypeHierarchy();
-            AtomicValue conv =
-                    convert((AtomicType)((Value)other).getItemType(th), context, true);
-            if (conv instanceof ValidationErrorValue) {
-                throw new ClassCastException("Cannot convert untyped atomic value '" + getStringValue()
-                        + "' to type " + ((Value)other).getItemType(th));
-            }
-            if (!(conv instanceof Comparable)) {
-                throw new ClassCastException("Type " + ((Value)other).getItemType(th) + " is not ordered");
-            }
-            return ((Comparable)conv).compareTo(other);
-
         } else {
-            // I'm not sure if we need this, but it does no harm
-            return collator.compare(getStringValue(), other.toString());
-        }
+            final TypeHierarchy th = context.getConfiguration().getTypeHierarchy();
+            ConversionResult result =
+                    convert((AtomicType)other.getItemType(th), true, context);
+            if (result instanceof ValidationFailure) {
+                throw new ClassCastException("Cannot convert untyped atomic value '" + getStringValue()
+                        + "' to type " + other.getItemType(th));
+            }
+            return ((Comparable)((AtomicValue)result)).compareTo(other);
+
+        } 
     }
+
+    /**
+     * Convert to Java object (for passing to external functions)
+     */
+
+//    public Object convertAtomicToJava(Class target, XPathContext context) throws XPathException {
+//        if (target == Object.class) {
+//            return getStringValue();
+//        } else if (target.isAssignableFrom(StringValue.class)) {
+//            return this;
+//        } else if (target == String.class || target == CharSequence.class) {
+//            return getStringValue();
+//        } else if (target == boolean.class) {
+//            BooleanValue bval = (BooleanValue)convertPrimitive(BuiltInAtomicType.BOOLEAN, true, context).asAtomic();
+//            return Boolean.valueOf(bval.getBooleanValue());
+//        } else if (target == Boolean.class) {
+//            BooleanValue bval = (BooleanValue)convertPrimitive(BuiltInAtomicType.BOOLEAN, true, context).asAtomic();
+//            return Boolean.valueOf(bval.getBooleanValue());
+//        } else if (target == double.class) {
+//            DoubleValue dval = (DoubleValue)convertPrimitive(BuiltInAtomicType.DOUBLE, true, context).asAtomic();
+//            return new Double(dval.getDoubleValue());
+//        } else if (target == Double.class) {
+//            DoubleValue dval = (DoubleValue)convertPrimitive(BuiltInAtomicType.DOUBLE, true, context).asAtomic();
+//            return new Double(dval.getDoubleValue());
+//        } else if (target == float.class) {
+//            DoubleValue dval = (DoubleValue)convertPrimitive(BuiltInAtomicType.DOUBLE, true, context).asAtomic();
+//            return new Float(dval.getDoubleValue());
+//        } else if (target == Float.class) {
+//            DoubleValue dval = (DoubleValue)convertPrimitive(BuiltInAtomicType.DOUBLE, true, context).asAtomic();
+//            return new Float(dval.getDoubleValue());
+//        } else if (target == long.class) {
+//            Int64Value dval = (Int64Value)convertPrimitive(BuiltInAtomicType.INTEGER, true, context).asAtomic();
+//            return new Long(dval.longValue());
+//        } else if (target == Long.class) {
+//            Int64Value dval = (Int64Value)convertPrimitive(BuiltInAtomicType.INTEGER, true, context).asAtomic();
+//            return new Long(dval.longValue());
+//        } else if (target == int.class) {
+//            Int64Value dval = (Int64Value)convertPrimitive(BuiltInAtomicType.INTEGER, true, context).asAtomic();
+//            return new Integer((int) dval.longValue());
+//        } else if (target == Integer.class) {
+//            Int64Value dval = (Int64Value)convertPrimitive(BuiltInAtomicType.INTEGER, true, context).asAtomic();
+//            return new Integer((int) dval.longValue());
+//        } else if (target == short.class) {
+//            Int64Value dval = (Int64Value)convertPrimitive(BuiltInAtomicType.INTEGER, true, context).asAtomic();
+//            return new Short((short) dval.longValue());
+//        } else if (target == Short.class) {
+//            Int64Value dval = (Int64Value)convertPrimitive(BuiltInAtomicType.INTEGER, true, context).asAtomic();
+//            return new Short((short) dval.longValue());
+//        } else if (target == byte.class) {
+//            Int64Value dval = (Int64Value)convertPrimitive(BuiltInAtomicType.INTEGER, true, context).asAtomic();
+//            return new Byte((byte) dval.longValue());
+//        } else if (target == Byte.class) {
+//            Int64Value dval = (Int64Value)convertPrimitive(BuiltInAtomicType.INTEGER, true, context).asAtomic();
+//            return new Byte((byte) dval.longValue());
+//        } else if (target == char.class || target == Character.class) {
+//            if (value.length() == 1) {
+//                return new Character(value.charAt(0));
+//            } else {
+//                XPathException de = new XPathException("Cannot convert xs:string to Java char unless length is 1");
+//                de.setXPathContext(context);
+//                de.setErrorCode(SaxonErrorCode.SXJE0005);
+//                throw de;
+//            }
+//        } else {
+//            Object o = super.convertSequenceToJava(target, context);
+//            if (o == null) {
+//                XPathException err = new XPathException("Conversion of xs:untypedAtomic to " + target.getName() + " is not supported");
+//                err.setXPathContext(context);
+//                err.setErrorCode(SaxonErrorCode.SXJE0006);
+//                throw err;
+//            }
+//            return o;
+//        }
+//    }
 
 }
 

@@ -1,11 +1,16 @@
 package org.orbeon.saxon.trans;
 
 import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.instruct.Template;
+import org.orbeon.saxon.trace.ExpressionPresenter;
+import org.orbeon.saxon.trace.Location;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.XPathContextMajor;
 import org.orbeon.saxon.om.Navigator;
 import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.pattern.NoNodeTest;
+import org.orbeon.saxon.om.StructuredQName;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.pattern.EmptySequenceTest;
 import org.orbeon.saxon.pattern.Pattern;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.Whitespace;
@@ -21,31 +26,36 @@ import java.io.Serializable;
 
 public class Mode implements Serializable {
 
-    // TODO: the data structure does not cater well for a stylesheet making heavy use of
+    // TODO:PERF the data structure does not cater well for a stylesheet making heavy use of
     // match="schema-element(X)". We should probably expand the substitution group.
 
     public static final int DEFAULT_MODE = -1;
-    public static final int ALL_MODES = -2;
     public static final int NAMED_MODE = -3;
     public static final int STRIPPER_MODE = -4;
 
+    public static final StructuredQName ALL_MODES =
+            new StructuredQName("saxon", NamespaceConstant.SAXON, "_omniMode");
+    public static final StructuredQName DEFAULT_MODE_NAME =
+            new StructuredQName("saxon", NamespaceConstant.SAXON, "_defaultMode");
+
 
     private Rule[] ruleDict = new Rule[101 + Type.MAX_NODE_TYPE];
-    //private int sequence = 0;   // sequence number for the rules in this Mode
     private Rule mostRecentRule;
     private boolean isDefault;
     private boolean isStripper;
-    private int modeNameCode;
+    private boolean hasRules = false;
+    private StructuredQName modeName;
 
     /**
      * Default constructor - creates a Mode containing no rules
      * @param usage one of {@link #DEFAULT_MODE}, {@link #NAMED_MODE}, {@link #STRIPPER_MODE}
+     * @param modeName the name of the mode
      */
 
-    public Mode(int usage, int nameCode) {
-        this.isDefault = (usage == DEFAULT_MODE);
-        this.isStripper = (usage == STRIPPER_MODE);
-        this.modeNameCode = nameCode;
+    public Mode(int usage, StructuredQName modeName) {
+        isDefault = (usage == DEFAULT_MODE);
+        isStripper = (usage == STRIPPER_MODE);
+        this.modeName = modeName;
     }
 
 
@@ -54,24 +64,26 @@ public class Mode implements Serializable {
      * Construct a new Mode, copying the contents of an existing Mode
      *
      * @param omniMode the existing mode. May be null, in which case it is not copied
+     * @param modeName the name of the new mode to be created
      */
 
-    public Mode(Mode omniMode, int modeNameCode) {
+    public Mode(Mode omniMode, StructuredQName modeName) {
         isDefault = false;
         isStripper = false;
-        this.modeNameCode = modeNameCode;
+        this.modeName = modeName;
         if (omniMode != null) {
-            for (int i = 0; i < this.ruleDict.length; i++) {
+            for (int i = 0; i < ruleDict.length; i++) {
                 if (omniMode.ruleDict[i] != null) {
-                    this.ruleDict[i] = new Rule(omniMode.ruleDict[i]);
+                    ruleDict[i] = new Rule(omniMode.ruleDict[i]);
                 }
             }
-            this.mostRecentRule = omniMode.mostRecentRule;
+            mostRecentRule = omniMode.mostRecentRule;
         }
     }
 
     /**
      * Determine if this is the default mode
+     * @return true if this is the default (unnamed) mode
      */
 
     public boolean isDefaultMode() {
@@ -80,10 +92,21 @@ public class Mode implements Serializable {
 
     /**
      * Get the name of the mode (for diagnostics only)
+     * @return the mode name. Null for the default (unnamed) mode
      */
 
-    public int getModeNameCode() {
-        return modeNameCode;
+    public StructuredQName getModeName() {
+        return modeName;
+    }
+
+    /**
+     * Ask whether there are any template rules in this mode
+     * (a mode could exist merely because it is referenced in apply-templates)
+     * @return true if no template rules exist in this mode
+     */
+
+    public boolean isEmpty() {
+        return !hasRules;
     }
 
     /**
@@ -93,13 +116,19 @@ public class Mode implements Serializable {
      * @param action     the Object to return from getRule() when the supplied node matches this Pattern
      * @param precedence the import precedence of the rule
      * @param priority   the explicit or implicit priority of the rule
+     * @param explicitMode  true if adding a template rule for a specific (default or named) mode;
+     *      false if adding a rule because it applies to all modes
      */
 
-    public void addRule(Pattern p, Object action, int precedence, double priority) {
+    public void addRule(Pattern p, Object action, int precedence, double priority, boolean explicitMode) {
+
+        if (explicitMode) {
+            hasRules = true;
+        }
 
         // Ignore a pattern that will never match, e.g. "@comment"
 
-        if (p.getNodeTest() instanceof NoNodeTest) {
+        if (p.getNodeTest() instanceof EmptySequenceTest) {
             return;
         }
 
@@ -159,11 +188,14 @@ public class Mode implements Serializable {
 
     /**
      * Determine which list to use for a given pattern (we must also search the generic list)
+     * @param fingerprint the name of the node being matched
+     * @param kind the node kind of the node being matched
+     * @return an index in the hash array for this node name and kind
      */
 
-    public int getList(int fingerprint, int type) {
+    public int getList(int fingerprint, int kind) {
 
-        if (type == Type.ELEMENT) {
+        if (kind == Type.ELEMENT) {
             if (fingerprint == -1) {
                 return Type.NODE;   // the generic list
             } else {
@@ -171,7 +203,7 @@ public class Mode implements Serializable {
                         (fingerprint % 101);
             }
         } else {
-            return type;
+            return kind;
         }
     }
 
@@ -179,6 +211,7 @@ public class Mode implements Serializable {
      * Get the rule corresponding to a given Node, by finding the best Pattern match.
      *
      * @param node the NodeInfo referring to the node to be matched
+     * @param context the XPath dynamic evaluation context
      * @return the best matching rule, if any (otherwise null).
      */
 
@@ -267,7 +300,7 @@ public class Mode implements Serializable {
         if (specificRule == null && generalRule != null) {
             return generalRule;
         }
-        if (specificRule != null && generalRule != null) {
+        if (specificRule != null) {
             if (specificRule.getPrecedence() == generalRule.getPrecedence() &&
                     specificRule.getPriority() == generalRule.getPriority()) {
                 // This situation is exceptional: we have a "specific" pattern and
@@ -306,7 +339,7 @@ public class Mode implements Serializable {
         int patternLocals = context.getController().getExecutable().getLargestPatternStackFrame();
         if (patternLocals > 0) {
             context = context.newContext();
-            context.setOrigin(context.getController());
+            context.setOriginatingConstructType(Location.CONTROLLER);
             ((XPathContextMajor)context).openStackFrame(patternLocals);
         }
         return context;
@@ -317,7 +350,10 @@ public class Mode implements Serializable {
      * and maximum precedence. (This supports xsl:apply-imports)
      *
      * @param node the NodeInfo referring to the node to be matched
-     * @return the object (e.g. a NodeHandler) registered for that element, if any (otherwise null).
+     * @param min the minimum import precedence
+     * @param max the maximum import precedence
+     * @param context the XPath dynamic evaluation context
+     * @return the Rule registered for that node, if any (otherwise null).
      */
 
     public Rule getRule(NodeInfo node, int min, int max, XPathContext context) throws XPathException {
@@ -360,7 +396,7 @@ public class Mode implements Serializable {
         if (specificRule == null && generalRule != null) {
             return generalRule;
         }
-        if (specificRule != null && generalRule != null) {
+        if (specificRule != null) {
             if (specificRule.getPrecedence() > generalRule.getPrecedence() ||
                     (specificRule.getPrecedence() == generalRule.getPrecedence() &&
                     specificRule.getPriority() >= generalRule.getPriority())) {
@@ -377,6 +413,8 @@ public class Mode implements Serializable {
      * after the specified object.
      *
      * @param node the NodeInfo referring to the node to be matched
+     * @param currentRule the current rule; we are looking for the next match after the current rule
+     * @param context the XPath dynamic evaluation context
      * @return the object (e.g. a NodeHandler) registered for that element, if any (otherwise null).
      */
 
@@ -547,17 +585,47 @@ public class Mode implements Serializable {
         Pattern pat1 = r1.getPattern();
         Pattern pat2 = r2.getPattern();
 
-        DynamicError err = new DynamicError("Ambiguous rule match for " + path + '\n' +
+        XPathException err = new XPathException("Ambiguous rule match for " + path + '\n' +
                 "Matches both \"" + showPattern(pat1) + "\" on line " + pat1.getLineNumber() + " of " + pat1.getSystemId() +
                 "\nand \"" + showPattern(pat2) + "\" on line " + pat2.getLineNumber() + " of " + pat2.getSystemId());
         err.setErrorCode(errorCode);
-        err.setLocator(c.getOrigin().getInstructionInfo());
+        //err.setLocator(pat1.getL);
         c.getController().recoverableError(err);
     }
 
     private static String showPattern(Pattern p) {
         // Complex patterns can be laid out with lots of whitespace, which looks messy in the error message
         return Whitespace.collapseWhitespace(p.toString()).toString();
+    }
+
+    /**
+     * Explain all template rules in this mode by showing their
+     * expression tree represented in XML.
+     * @param presenter used to display the expression tree
+     */
+
+    public void explainTemplateRules(ExpressionPresenter presenter) {
+        for (int i=0; i<ruleDict.length; i++) {
+            Rule r = ruleDict[i];
+            while (r != null) {
+                Template t = (Template)r.getAction();
+                int s = presenter.startElement("templateRule");
+                presenter.emitAttribute("match", r.getPattern().toString());
+                presenter.emitAttribute("precedence", r.getPrecedence()+"");
+                presenter.emitAttribute("priority", r.getPriority()+"");
+                presenter.emitAttribute("line", t.getLineNumber()+"");
+                presenter.emitAttribute("module", t.getSystemId());
+                if (t.getBody() != null) {
+                    t.getBody().explain(presenter);
+                }
+                int e = presenter.endElement();
+                if (s != e) {
+                    throw new IllegalStateException(
+                            "tree unbalanced in template at line " + t.getLineNumber() + " of " + t.getSystemId());
+                }
+                r = r.getNext();
+            }
+        }
     }
 
 

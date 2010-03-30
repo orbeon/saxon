@@ -1,15 +1,15 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.pattern.AnyNodeTest;
-import org.orbeon.saxon.pattern.NodeKindTest;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.AnyNodeTest;
 import org.orbeon.saxon.sort.DocumentOrderIterator;
 import org.orbeon.saxon.sort.LocalOrderComparer;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.trans.KeyDefinitionSet;
 import org.orbeon.saxon.trans.KeyManager;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.StringValue;
@@ -17,19 +17,36 @@ import org.orbeon.saxon.value.StringValue;
 
 public class Idref extends SystemFunction {
 
+    private KeyDefinitionSet idRefKey;
+
     /**
     * Simplify: add a second implicit argument, the context document
-    */
+     * @param visitor an expression visitor
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
-        Idref f = (Idref)super.simplify(env);
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        Idref f = (Idref)super.simplify(visitor);
         f.addContextDocumentArgument(1, "idref");
         return f;
     }
 
-    public void checkArguments(StaticContext env) throws XPathException {
-        super.checkArguments(env);
-        Optimizer opt = env.getConfiguration().getOptimizer();
+
+    /**
+     * Type-check the expression. This also calls preEvaluate() to evaluate the function
+     * if all the arguments are constant; functions that do not require this behavior
+     * can override the preEvaluate method.
+     */
+
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression e = super.typeCheck(visitor, contextItemType);
+        idRefKey = visitor.getExecutable().getKeyManager().getKeyDefinitionSet(
+                    StandardNames.getStructuredQName(StandardNames.XS_IDREFS));
+        return e;
+    }
+
+    public void checkArguments(ExpressionVisitor visitor) throws XPathException {
+        super.checkArguments(visitor);
+        Optimizer opt = visitor.getConfiguration().getOptimizer();
         argument[0] = ExpressionTool.unsorted(opt, argument[0], false);
     }
 
@@ -52,11 +69,50 @@ public class Idref extends SystemFunction {
 
     /**
     * preEvaluate: this method suppresses compile-time evaluation by doing nothing
-    */
+     * @param visitor an expression visitor
+     */
 
-    public Expression preEvaluate(StaticContext env) {
+    public Expression preEvaluate(ExpressionVisitor visitor) {
         return this;
     }
+
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        Idref i2 = (Idref)super.copy();
+        i2.idRefKey = idRefKey;
+        return i2;
+    }
+
+    /**
+     * Add a representation of a doc() call or similar function to a PathMap.
+     * This is a convenience method called by the addToPathMap() methods for doc(), document(), collection()
+     * and similar functions. These all create a new root expression in the path map.
+     *
+     * @param pathMap     the PathMap to which the expression should be added
+     * @param pathMapNodeSet
+     * @return the pathMapNode representing the focus established by this expression, in the case where this
+     *         expression is the first operand of a path expression or filter expression
+     */
+
+    public PathMap.PathMapNodeSet addToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodeSet) {
+        argument[0].addToPathMap(pathMap, pathMapNodeSet);
+        PathMap.PathMapNodeSet target = argument[1].addToPathMap(pathMap, pathMapNodeSet);
+        // indicate that the function navigates to all nodes in the document
+        AxisExpression allElements = new AxisExpression(Axis.DESCENDANT, AnyNodeTest.getInstance());
+        allElements.setContainer(getContainer());
+        target = target.createArc(allElements);
+//        if (isStringValueUsed()) {
+//            target.setAtomized();
+//        }
+        return target;
+    }
+
 
     /**
     * Enumerate the results of the expression
@@ -75,41 +131,58 @@ public class Idref extends SystemFunction {
         }
         DocumentInfo doc = (DocumentInfo)arg2;
 
-        int fprint = StandardNames.XS_IDREFS;
-
         // If the argument is a singleton, we evaluate the function
         // directly; otherwise we recurse to evaluate it once for each Item
         // in the sequence.
 
         Expression expression = argument[0];
         if (Cardinality.allowsMany(expression.getCardinality())) {
-            IdrefMappingFunction map = new IdrefMappingFunction();
-            map.document = doc;
-            map.keyContext = context;
-
             SequenceIterator keys = argument[0].iterate(context);
-            SequenceIterator allValues = new MappingIterator(keys, map);
-            return new DocumentOrderIterator(allValues, LocalOrderComparer.getInstance());
+            return getIdrefMultiple(doc, keys, context);
+
         } else {
             AtomicValue keyValue = (AtomicValue)argument[0].evaluateItem(context);
             if (keyValue == null) {
                 return EmptyIterator.getInstance();
             }
             KeyManager keyManager = controller.getKeyManager();
-            return keyManager.selectByKey(fprint, doc, keyValue, context);
+            return keyManager.selectByKey(idRefKey, doc, keyValue, context);
 
         }
+    }
+
+    /**
+     * Get the result when multiple idref values are supplied. Note this is also called from
+     * compiled XQuery code.
+     * @param doc the document to be searched
+     * @param keys the idref values supplied
+     * @param context the dynamic execution context
+     * @return iterator over the result of the function
+     * @throws XPathException
+     */
+
+    public static SequenceIterator getIdrefMultiple(DocumentInfo doc, SequenceIterator keys, XPathContext context)
+    throws XPathException {
+        IdrefMappingFunction map = new IdrefMappingFunction();
+        map.document = doc;
+        map.keyContext = context;
+        map.keyManager =  context.getController().getKeyManager();
+        map.keySet = map.keyManager.getKeyDefinitionSet(StandardNames.getStructuredQName(StandardNames.XS_IDREFS));
+        SequenceIterator allValues = new MappingIterator(keys, map);
+        return new DocumentOrderIterator(allValues, LocalOrderComparer.getInstance());
     }
 
     private static class IdrefMappingFunction implements MappingFunction {
         public DocumentInfo document;
         public XPathContext keyContext;
+        public KeyManager keyManager;
+        public KeyDefinitionSet keySet;
 
         /**
         * Implement the MappingFunction interface
         */
 
-        public Object map(Item item) throws XPathException {
+        public SequenceIterator map(Item item) throws XPathException {
             KeyManager keyManager = keyContext.getController().getKeyManager();
             AtomicValue keyValue;
             if (item instanceof AtomicValue) {
@@ -117,29 +190,10 @@ public class Idref extends SystemFunction {
             } else {
                 keyValue = new StringValue(item.getStringValue());
             }
-            return keyManager.selectByKey(
-                    StandardNames.XS_IDREFS, document, keyValue, keyContext);
+            return keyManager.selectByKey(keySet, document, keyValue, keyContext);
 
         }
     }
-
-    public PathMap.PathMapNode addToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
-        if (argument[0] instanceof ComputedExpression) {
-            ((ComputedExpression)argument[0]).addToPathMap(pathMap, pathMapNode);
-        }
-        PathMap.PathMapNode target = ((ComputedExpression)argument[1]).addToPathMap(pathMap, pathMapNode);
-        // indicate that the function navigates to all nodes in the document
-        AxisExpression allElements = new AxisExpression(Axis.DESCENDANT, AnyNodeTest.getInstance());
-        allElements.setParentExpression(getParentExpression());
-        target = target.createArc(allElements);
-        if (isStringValueUsed()) {
-            AxisExpression textAxis = new AxisExpression(Axis.DESCENDANT, NodeKindTest.TEXT);
-            textAxis.setParentExpression(getParentExpression());
-            target.createArc(textAxis);
-        }
-        return target;
-    }
-
 
 }
 

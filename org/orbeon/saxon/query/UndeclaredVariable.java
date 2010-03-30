@@ -3,6 +3,7 @@ package org.orbeon.saxon.query;
 import org.orbeon.saxon.expr.BindingReference;
 import org.orbeon.saxon.expr.VariableDeclaration;
 import org.orbeon.saxon.instruct.GlobalVariable;
+import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.trans.XPathException;
 
 import java.util.Collections;
@@ -27,7 +28,7 @@ public class UndeclaredVariable extends GlobalVariableDefinition {
         references = Collections.EMPTY_LIST;
     }
 
-    public GlobalVariable compile(StaticQueryContext env, int slot) throws XPathException {
+    public GlobalVariable compile(Executable exec, int slot) throws XPathException {
         throw new UnsupportedOperationException("Attempt to compile a place-holder for an undeclared variable");
     }
 }

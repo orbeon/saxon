@@ -1,11 +1,11 @@
 package org.orbeon.saxon.query;
 
-import org.orbeon.saxon.Err;
+import org.orbeon.saxon.trans.Err;
+import org.orbeon.saxon.charcode.UTF16;
 import org.orbeon.saxon.om.FastStringBuffer;
 import org.orbeon.saxon.om.NameChecker;
-import org.orbeon.saxon.om.NamespaceConstant;
-import org.orbeon.saxon.om.XMLChar;
-import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.value.Whitespace;
 
 import javax.xml.transform.stream.StreamSource;
 import java.io.*;
@@ -28,9 +28,14 @@ public class QueryReader {
      * URI of the query module, and either an InputStream or a Reader containing the query text. In the
      * case of an InputStream the method attempts to infer the encoding; in the case of a Reader, this has
      * already been done, and the encoding specified within the query itself is ignored.
+     * <p>The method reads from the InputStream or Reader contained in the StreamSource up to the end
+     * of file unless a fatal error occurs. It does not close the InputStream or Reader; this is the caller's
+     * responsibility.</p>
+     * @param nameChecker this checks XML names against either the XML 1.0 or XML 1.1 rules
+     * @return the text of the query
      */
 
-    public static String readSourceQuery(StreamSource ss, NameChecker nameChecker) throws StaticError {
+    public static String readSourceQuery(StreamSource ss, NameChecker nameChecker) throws XPathException {
         CharSequence queryText;
         if (ss.getInputStream() != null) {
             InputStream is = ss.getInputStream();
@@ -42,7 +47,7 @@ public class QueryReader {
         } else if (ss.getReader() != null) {
             queryText = readQueryFromReader(ss.getReader(), nameChecker);
         } else {
-            throw new StaticError("Module URI Resolver must supply either an InputSource or a Reader");
+            throw new XPathException("Module URI Resolver must supply either an InputSource or a Reader");
         }
         return queryText.toString();
     }
@@ -52,10 +57,10 @@ public class QueryReader {
      * @param is the input stream: this must satisfy the precondition is.markSupported() = true.
      * @return the encoding to be used: defaults to UTF-8 if no encoding was specified explicitly
      * in the query prolog
-     * @throws StaticError if the input stream cannot be read
+     * @throws XPathException if the input stream cannot be read
      */
 
-    public static String readEncoding(InputStream is) throws StaticError {
+    public static String readEncoding(InputStream is) throws XPathException {
         try {
             if (!is.markSupported()) {
                 throw new IllegalArgumentException("InputStream must have markSupported() = true");
@@ -64,14 +69,12 @@ public class QueryReader {
             byte[] start = new byte[100];
             int read = is.read(start, 0, 100);
             if (read == -1) {
-                StaticError se = new StaticError("Query source file is empty");
-                throw se;
+                throw new XPathException("Query source file is empty");
             }
             is.reset();
             return inferEncoding(start, read);
         } catch (IOException e) {
-            StaticError se = new StaticError("Failed to read query source file", e);
-            throw se;
+            throw new XPathException("Failed to read query source file", e);
         }
     }
 
@@ -84,7 +87,7 @@ public class QueryReader {
      * @return the content of the InputStream as a string
      */
 
-    public static String readInputStream(InputStream is, String encoding, NameChecker nameChecker) throws StaticError {
+    public static String readInputStream(InputStream is, String encoding, NameChecker nameChecker) throws XPathException {
         if (encoding == null) {
             if (!is.markSupported()) {
                 is = new BufferedInputStream(is);
@@ -95,8 +98,7 @@ public class QueryReader {
             Reader reader = new BufferedReader(new InputStreamReader(is, encoding));
             return readQueryFromReader(reader, nameChecker);
         } catch (UnsupportedEncodingException encErr) {
-            StaticError e = new StaticError("Unknown encoding " + Err.wrap(encoding), encErr);
-            throw e;
+            throw new XPathException("Unknown encoding " + Err.wrap(encoding), encErr);
         }
     }
 
@@ -106,10 +108,10 @@ public class QueryReader {
      * @param reader The Reader supplying the input
      * @param nameChecker the NameChecker to be used
      * @return the text of the query module, as a string
-     * @throws StaticError if the file cannot be read or contains illegal characters
+     * @throws XPathException if the file cannot be read or contains illegal characters
      */
 
-    private static String readQueryFromReader(Reader reader, NameChecker nameChecker) throws StaticError {
+    private static String readQueryFromReader(Reader reader, NameChecker nameChecker) throws XPathException {
         try {
             FastStringBuffer sb = new FastStringBuffer(2048);
             char[] buffer = new char[2048];
@@ -129,18 +131,18 @@ public class QueryReader {
                         column = 0;
                     }
                     column++;
-                    if (XMLChar.isHighSurrogate(ch32)) {
+                    if (UTF16.isHighSurrogate(ch32)) {
                         char low = buffer[c++];
-                        ch32 = XMLChar.supplemental((char)ch32, low);
+                        ch32 = UTF16.combinePair((char)ch32, low);
                     }
                     if (!nameChecker.isValidChar(ch32)) {
-                        StaticError err = new StaticError(
-                                "The query file contains a character illegal in XML " +
+                        XPathException err = new XPathException("The query file contains a character illegal in XML " +
                                 nameChecker.getXMLVersion() +
                                 " (line=" + line +
                                 " column=" + column +
                                 " value=x" + Integer.toHexString(ch32) + ')');
                         err.setErrorCode("XPST0003");
+                        err.setIsStaticError(true);
                         throw err;
                     }
                 }
@@ -157,8 +159,7 @@ public class QueryReader {
             }
             return sb.condense().toString();
         } catch (IOException ioErr) {
-            StaticError e = new StaticError("Failed to read input file", ioErr);
-            throw e;
+            throw new XPathException("Failed to read input file", ioErr);
         }
     }
 
@@ -168,10 +169,10 @@ public class QueryReader {
      * @param start the bytes appearing at the start of the file
      * @param read the number of bytes supplied
      * @return the inferred encoding
-     * @throws StaticError
+     * @throws XPathException
      */
 
-    private static String inferEncoding(byte[] start, int read) throws StaticError {
+    private static String inferEncoding(byte[] start, int read) throws XPathException {
         // Debugging code
 //        StringBuffer sb = new StringBuffer(read*5);
 //        for (int i=0; i<read; i++) sb.append(Integer.toHexString(start[i]&255) + ", ");
@@ -205,13 +206,13 @@ public class QueryReader {
         // establish the encoding.
         int i=0;
         String tok = readToken(start, i, read);
-        if (tok.trim().equals("xquery")) {
+        if (Whitespace.trim(tok).equals("xquery")) {
             i += tok.length();
         } else {
             return "UTF-8";
         }
         tok = readToken(start, i, read);
-        if (tok.trim().equals("version")) {
+        if (Whitespace.trim(tok).equals("version")) {
             i += tok.length();
         } else {
             return "UTF-8";
@@ -222,18 +223,18 @@ public class QueryReader {
         }
         i += tok.length();
         tok = readToken(start, i, read);
-        if (tok.trim().equals("encoding")) {
+        if (Whitespace.trim(tok).equals("encoding")) {
             i += tok.length();
         } else {
             return "UTF-8";
         }
-        tok = readToken(start, i, read).trim();
+        tok = Whitespace.trim(readToken(start, i, read));
         if (tok.startsWith("\"") && tok.endsWith("\"") && tok.length()>2) {
             return tok.substring(1, tok.length()-1);
         } else if (tok.startsWith("'") && tok.endsWith("'") && tok.length()>2) {
             return tok.substring(1, tok.length()-1);
         } else {
-            throw new StaticError("Unrecognized encoding " + Err.wrap(tok) + " in query prolog");
+            throw new XPathException("Unrecognized encoding " + Err.wrap(tok) + " in query prolog");
         }
 
     }
@@ -288,41 +289,6 @@ public class QueryReader {
         return ((int)b) & 0xff;
     }
 
-    /**
-     * Check that the namespace of a given name is the namespace of an imported schema
-     */
-
-    static void checkSchemaNamespaceImported(StaticQueryContext env, int fingerprint, Declaration declaration)
-            throws StaticError {
-        String uri = env.getNamePool().getURI(fingerprint);
-        if (uri.equals(NamespaceConstant.SCHEMA)) {
-            return;
-        } else if (NamespaceConstant.isXDTNamespace(uri)) {
-            return;
-        } if (env.isImportedSchema(uri)) {
-            return;   // schema namespace is imported in this module
-        } else {
-            String msg = "Schema component " + env.getNamePool().getDisplayName(fingerprint) + " used in ";
-            if (declaration instanceof GlobalVariableDefinition) {
-                msg += "declaration of imported variable " +
-                        env.getNamePool().getDisplayName(((GlobalVariableDefinition)declaration).getNameCode());
-            } else {
-                msg += "signature of imported function " +
-                        env.getNamePool().getDisplayName(((XQueryFunction)declaration).getNameCode());
-            }
-            msg += " is not declared in any schema imported by ";
-            String module = env.getModuleNamespace();
-            if (module == null) {
-                msg += "the main query module";
-            } else {
-                msg += "query module " + module;
-            }
-            StaticError err = new StaticError(msg);
-            err.setErrorCode("XQST0036");
-            err.setLocator(declaration);
-            throw err;
-        }
-    }
 }
 
 //

@@ -2,14 +2,12 @@ package org.orbeon.saxon.dom;
 
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.pattern.ContentTypeTest;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.type.BuiltInSchemaFactory;
-import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.Type;
-import org.w3c.dom.Attr;
-import org.w3c.dom.DOMException;
-import org.w3c.dom.Element;
-import org.w3c.dom.TypeInfo;
+import org.w3c.dom.*;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * This class is an implementation of the DOM Attr class that wraps a Saxon NodeInfo
@@ -44,6 +42,47 @@ public class AttrOverNodeInfo extends NodeOverNodeInfo implements Attr {
     }
 
     /**
+    * Determine whether the node has any children.
+    * @return <code>true</code>: a DOM Attribute has a text node as a child.
+    */
+
+    public boolean hasChildNodes() {
+        return true;
+    }
+
+    /**
+     * Get first child
+     * @return the first child node of this node. In this model an attribute node always has a single text
+     * node as its child.
+     */
+
+    public Node getFirstChild() {
+        return new TextOverAttrInfo(this);
+    }
+
+    /**
+     * Get last child
+     *
+     * @return last child of this node, or null if it has no children
+     */
+
+    public Node getLastChild() {
+        return getFirstChild();
+    }
+
+    /**
+     * Return a <code>NodeList</code> that contains all children of this node. If
+     * there are no children, this is a <code>NodeList</code> containing no
+     * nodes.
+     */
+
+    public NodeList getChildNodes() {
+        List list = new ArrayList(1);
+        list.add(getFirstChild());
+        return new DOMNodeList(list);
+    }
+
+    /**
      * If this attribute was explicitly given a value in the original
      * document, this is <code>true</code> ; otherwise, it is
      * <code>false</code>. (DOM method)
@@ -69,8 +108,8 @@ public class AttrOverNodeInfo extends NodeOverNodeInfo implements Attr {
      */
 
     public boolean isId() {
-        SchemaType id = BuiltInSchemaFactory.getSchemaType(StandardNames.XS_ID);
-        ContentTypeTest idTest = new ContentTypeTest(Type.ATTRIBUTE, id, node.getConfiguration());
+        ContentTypeTest idTest =
+                new ContentTypeTest(Type.ATTRIBUTE, BuiltInAtomicType.ID, node.getConfiguration());
         idTest.setMatchDTDTypes(true);
         return idTest.matches(node);
     }

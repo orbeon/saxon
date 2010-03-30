@@ -1,9 +1,9 @@
 package org.orbeon.saxon.trans;
 import javax.xml.transform.SourceLocator;
-import javax.xml.transform.TransformerException;
 
 /**
-* Exception used for static errors in XPath, XSLT, or XQuery
+ * Exception used for static errors in XPath, XSLT, or XQuery
+ * @deprecated since 9.0: use the superclass, {@link XPathException}
 */
 
 public class StaticError extends XPathException {
@@ -24,23 +24,7 @@ public class StaticError extends XPathException {
         super(message, loc);
     }
 
-    /**
-     * Force an exception to a static error
-     */
 
-    public StaticError makeStatic() {
-        return this;
-    }
-
-    public static StaticError makeStaticError(TransformerException err) {
-        if (err instanceof XPathException) {
-            return ((XPathException)err).makeStatic();
-        } else if (err.getException() instanceof XPathException) {
-            return ((XPathException)err.getException()).makeStatic();
-        } else {
-            return new StaticError(err);
-        }
-    }
 
 }
 

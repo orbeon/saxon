@@ -2,10 +2,9 @@ package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.AttributeCollection;
-import org.orbeon.saxon.om.XMLChar;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
-
-import javax.xml.transform.TransformerConfigurationException;
+import org.orbeon.saxon.charcode.UTF16;
 
 
 /**
@@ -36,9 +35,9 @@ public class XSLOutputCharacter extends StyleElement {
                         codepoint = s.charAt(0);
                         break;
                     case 2:
-                        if (XMLChar.isHighSurrogate(s.charAt(0)) &&
-                                XMLChar.isLowSurrogate(s.charAt(1))) {
-                            codepoint = XMLChar.supplemental(s.charAt(0), s.charAt(1));
+                        if (UTF16.isHighSurrogate(s.charAt(0)) &&
+                                UTF16.isLowSurrogate(s.charAt(1))) {
+                            codepoint = UTF16.combinePair(s.charAt(0), s.charAt(1));
                         } else {
                             compileError("character attribute must be a single XML character", "XTSE0020");
                             codepoint = 256; // for error recovery

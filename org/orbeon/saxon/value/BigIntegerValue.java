@@ -1,74 +1,119 @@
 package org.orbeon.saxon.value;
-import org.orbeon.saxon.expr.Token;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.expr.Calculator;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
+import org.orbeon.saxon.om.StandardNames;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 
 /**
  * An integer value: note this is a subtype of decimal in XML Schema, not a primitive type.
- * The class IntegerValue is used to represent xs:integer values that fit comfortably
- * in a Java long; this class is used to represent xs:integer values outside this range,
- * including the built-in subtype xs:unsignedLong
+ * The abstract class IntegerValue is used to represent any xs:integer value; this implementation
+ * is used for values that do not fit comfortably in a Java long; including the built-in subtype xs:unsignedLong
  */
 
-public final class BigIntegerValue extends NumericValue {
+public final class BigIntegerValue extends IntegerValue {
 
     private BigInteger value;
-    private ItemType type;
 
     private static final BigInteger MAX_INT = BigInteger.valueOf(Integer.MAX_VALUE);
     private static final BigInteger MIN_INT = BigInteger.valueOf(Integer.MIN_VALUE);
-    private static final BigInteger MAX_LONG = BigInteger.valueOf(Long.MAX_VALUE);
-    private static final BigInteger MIN_LONG = BigInteger.valueOf(Long.MIN_VALUE);
+    public static final BigInteger MAX_LONG = BigInteger.valueOf(Long.MAX_VALUE);
+    public static final BigInteger MIN_LONG = BigInteger.valueOf(Long.MIN_VALUE);
     public static final BigInteger MAX_UNSIGNED_LONG = new BigInteger("18446744073709551615");
     public static final BigIntegerValue ZERO = new BigIntegerValue(BigInteger.ZERO);
 
+    /**
+     * Construct an xs:integer value from a Java BigInteger
+     * @param value the supplied BigInteger
+     */
+
     public BigIntegerValue(BigInteger value) {
         this.value = value;
-        this.type = Type.INTEGER_TYPE;
+        typeLabel = BuiltInAtomicType.INTEGER;
     }
+
+    /**
+     * Construct an xs:integer value from a Java BigInteger, supplying a type label.
+     * It is the caller's responsibility to ensure that the supplied value conforms
+     * with the rules for the specified type.
+     * @param value the value of the integer
+     * @param typeLabel the type, which must represent a type derived from xs:integer
+     */
+
+    public BigIntegerValue(BigInteger value, AtomicType typeLabel) {
+        this.value = value;
+        this.typeLabel = typeLabel;
+    }
+
+    /**
+     * Construct an xs:integer value from a Java long. Note: normally, if the value fits in a long,
+     * then an Int64Value should be used. This constructor is largely for internal use, when operations
+     * are required that require two integers to use the same implementation class to be used.
+     * @param value the supplied Java long
+     */
 
     public BigIntegerValue(long value) {
         this.value = BigInteger.valueOf(value);
-        this.type = Type.INTEGER_TYPE;
+        typeLabel = BuiltInAtomicType.INTEGER;
+    }
+
+    /**
+     * Create a copy of this atomic value, with a different type label
+     *
+     * @param typeLabel the type label of the new copy. The caller is responsible for checking that
+     *                  the value actually conforms to this type.
+     */
+
+    public AtomicValue copyAsSubType(AtomicType typeLabel) {
+        BigIntegerValue v = new BigIntegerValue(value);
+        v.typeLabel = typeLabel;
+        return v;
     }
 
     /**
      * This class allows subtypes of xs:integer to be held, as well as xs:integer values.
-     * This method sets the required type label.
+     * This method sets the required type label. Note that this method modifies the value in situ.
      * @param type the subtype of integer required
      * @return null if the operation succeeds, or a ValidationException if the value is out of range
      */
 
-    public ValidationException convertToSubType(AtomicType type, boolean validate) {
+    public ValidationFailure convertToSubType(BuiltInAtomicType type, boolean validate) {
         if (!validate) {
-            this.type = type;
+            typeLabel = type;
             return null;
         }
         if (IntegerValue.checkBigRange(value, type)) {
-            this.type = type;
+            typeLabel = type;
             return null;
         } else {
-            ValidationException err = new ValidationException(
+            ValidationFailure err = new ValidationFailure(
                     "Integer value is out of range for subtype " + type.getDisplayName());
             err.setErrorCode("FORG0001");
             return err;
         }
     }
 
+
     /**
-     * Factory method: makes either an IntegerValue or a BigIntegerValue depending on the value supplied
+     * This class allows subtypes of xs:integer to be held, as well as xs:integer values.
+     * This method checks that the value is valid against the rules for a given subtype.
+     *
+     * @param type the subtype of integer required
+     * @return null if the operation succeeds, or a ValidationException if the value is out of range
      */
 
-    public static NumericValue makeValue(BigInteger value) {
-        if (value.compareTo(MAX_LONG) > 0 || value.compareTo(MIN_LONG) < 0) {
-            return new BigIntegerValue(value);
+    public ValidationFailure validateAgainstSubType(BuiltInAtomicType type) {
+        if (IntegerValue.checkBigRange(value, type)) {
+            typeLabel = type;
+            return null;
         } else {
-            return new IntegerValue(value.longValue());
+            ValidationFailure err = new ValidationFailure(
+                    "Integer value is out of range for subtype " + type.getDisplayName());
+            err.setErrorCode("FORG0001");
+            return err;
         }
     }
 
@@ -81,7 +126,7 @@ public final class BigIntegerValue extends NumericValue {
         if (value.compareTo(MIN_INT) >= 0 && value.compareTo(MAX_INT) <= 0) {
             return value.intValue();
         } else {
-            return new Double(this.getDoubleValue()).hashCode();
+            return new Double(getDoubleValue()).hashCode();
         }
     }
 
@@ -97,16 +142,26 @@ public final class BigIntegerValue extends NumericValue {
 
     /**
      * Get the value as a BigInteger
-     * @return teh value of the xs:integer as a Java BigInteger
+     * @return the value of the xs:integer as a Java BigInteger
      */
 
-    public BigInteger getBigInteger() {
+    public BigInteger asBigInteger() {
         return value;
     }
+
+    /**
+     * Test whether the value is within the range that can be held in a 64-bit signed integer
+     * @return true if the value is within range for a long
+     */
 
     public boolean isWithinLongRange() {
         return value.compareTo(MIN_LONG) >= 0 && value.compareTo(MAX_LONG) <= 0;
     }
+
+    /**
+     * Convert the value to a BigDecimal
+     * @return the resulting BigDecimal
+     */
 
     public BigDecimal asDecimal() {
         return new BigDecimal(value);
@@ -115,11 +170,9 @@ public final class BigIntegerValue extends NumericValue {
     /**
      * Return the effective boolean value of this integer
      *
-     * @param context The dynamic evaluation context; ignored in this
-     *     implementation of the method
      * @return false if the integer is zero, otherwise true
      */
-    public boolean effectiveBooleanValue(XPathContext context) {
+    public boolean effectiveBooleanValue() {
         return value.compareTo(BigInteger.ZERO) != 0;
     }
 
@@ -135,7 +188,7 @@ public final class BigIntegerValue extends NumericValue {
         if (other instanceof BigIntegerValue) {
             return value.compareTo(((BigIntegerValue)other).value);
         } else if (other instanceof DecimalValue) {
-            return asDecimal().compareTo(((DecimalValue)other).getValue());
+            return asDecimal().compareTo(((DecimalValue)other).getDecimalValue());
         } else {
             return super.compareTo(other);
         }
@@ -158,95 +211,92 @@ public final class BigIntegerValue extends NumericValue {
     /**
      * Convert to target data type
      *
-     * @param requiredType an integer identifying the required atomic type
-     * @param context
+     * @param requiredType identifies the required atomic type
+     * @param context the XPath dynamic evaluation context
      * @return an AtomicValue, a value of the required type; or an ErrorValue
      */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, XPathContext context) {
+    public ConversionResult convertPrimitive(BuiltInAtomicType requiredType, boolean validate, XPathContext context) {
         switch (requiredType.getFingerprint()) {
-            case Type.BOOLEAN:
-                return BooleanValue.get(effectiveBooleanValue(null));
+            case StandardNames.XS_BOOLEAN:
+                return BooleanValue.get(effectiveBooleanValue());
 
-            case Type.NUMBER:
-            case Type.INTEGER:
-            case Type.ANY_ATOMIC:
-            case Type.ITEM:
+            case StandardNames.XS_NUMERIC:
+            case StandardNames.XS_INTEGER:
+            case StandardNames.XS_ANY_ATOMIC_TYPE:
                 return this;
 
-            case Type.NON_POSITIVE_INTEGER:
-            case Type.NEGATIVE_INTEGER:
-            case Type.LONG:
-            case Type.INT:
-            case Type.SHORT:
-            case Type.BYTE:
-            case Type.NON_NEGATIVE_INTEGER:
-            case Type.POSITIVE_INTEGER:
-            case Type.UNSIGNED_INT:
-            case Type.UNSIGNED_SHORT:
-            case Type.UNSIGNED_BYTE:
+            case StandardNames.XS_NON_POSITIVE_INTEGER:
+            case StandardNames.XS_NEGATIVE_INTEGER:
+            case StandardNames.XS_LONG:
+            case StandardNames.XS_INT:
+            case StandardNames.XS_SHORT:
+            case StandardNames.XS_BYTE:
+            case StandardNames.XS_NON_NEGATIVE_INTEGER:
+            case StandardNames.XS_POSITIVE_INTEGER:
+            case StandardNames.XS_UNSIGNED_INT:
+            case StandardNames.XS_UNSIGNED_SHORT:
+            case StandardNames.XS_UNSIGNED_BYTE:
                 if (isWithinLongRange()) {
-                    IntegerValue val = new IntegerValue(longValue());
-                    ValidationException err = val.convertToSubtype(requiredType, validate);
+                    Int64Value val = Int64Value.makeIntegerValue(longValue());
+                    ValidationFailure err = val.convertToSubType(requiredType, validate);
                     if (err == null) {
                         return val;
                     } else {
-                        return new ValidationErrorValue(err);
+                        return err;
                     }
                 } else {
                     BigIntegerValue val = new BigIntegerValue(value);
-                    ValidationException err = val.convertToSubType(requiredType, validate);
+                    ValidationFailure err = val.convertToSubType(requiredType, validate);
                     if (err == null) {
                         return val;
                     } else {
-                        return new ValidationErrorValue(err);
+                        return err;
                     }
                 }
 
-            case Type.UNSIGNED_LONG:
+            case StandardNames.XS_UNSIGNED_LONG:
                 if (value.signum() < 0 || value.bitLength() > 64) {
-                    ValidationException err = new ValidationException("Integer value is out of range for type " +
+                    ValidationFailure err = new ValidationFailure("Integer value is out of range for type " +
                             requiredType.getDisplayName());
                     err.setErrorCode("FORG0001");
-                    //err.setXPathContext(context);
-                    return new ValidationErrorValue(err);
+                    return err;
                 } else if (isWithinLongRange()) {
-                    IntegerValue val = new IntegerValue(longValue());
-                    ValidationException err = val.convertToSubtype(requiredType, validate);
+                    Int64Value val = Int64Value.makeIntegerValue(longValue());
+                    ValidationFailure err = val.convertToSubType(requiredType, validate);
                     if (err != null) {
-                        return new ValidationErrorValue(err);
+                        return err;
                     }
                     return val;
                 } else {
                     BigIntegerValue nv = new BigIntegerValue(value);
-                    ValidationException err = nv.convertToSubType(requiredType, validate);
+                    ValidationFailure err = nv.convertToSubType(requiredType, validate);
                     if (err != null) {
-                        return new ValidationErrorValue(err);
+                        return err;
                     }
                     return nv;
                 }
 
-            case Type.DOUBLE:
+            case StandardNames.XS_DOUBLE:
                 return new DoubleValue(value.doubleValue());
 
-            case Type.FLOAT:
+            case StandardNames.XS_FLOAT:
                 return new FloatValue(value.floatValue());
 
-            case Type.DECIMAL:
+            case StandardNames.XS_DECIMAL:
                 return new DecimalValue(new BigDecimal(value));
 
-            case Type.STRING:
+            case StandardNames.XS_STRING:
                 return new StringValue(getStringValueCS());
 
-            case Type.UNTYPED_ATOMIC:
+            case StandardNames.XS_UNTYPED_ATOMIC:
                 return new UntypedAtomicValue(getStringValueCS());
 
             default:
-                ValidationException err = new ValidationException("Cannot convert integer to " +
+                ValidationFailure err = new ValidationFailure("Cannot convert integer to " +
                                          requiredType.getDisplayName());
                 err.setErrorCode("XPTY0004");
-                err.setIsTypeError(true);
-                return new ValidationErrorValue(err);
+                return err;
         }
     }
 
@@ -257,6 +307,26 @@ public final class BigIntegerValue extends NumericValue {
 
     public String getStringValue() {
         return value.toString();
+    }
+
+    /**
+     * Get the numeric value as a double
+     *
+     * @return A double representing this numeric value; NaN if it cannot be
+     *         converted
+     */
+    public double getDoubleValue() {
+        return value.doubleValue();
+    }
+
+    /**
+     * Get the numeric value converted to a decimal
+     *
+     * @return a decimal representing this numeric value;
+     */
+
+    public BigDecimal getDecimalValue() {
+        return new BigDecimal(value);
     }
 
     /**
@@ -321,7 +391,7 @@ public final class BigIntegerValue extends NumericValue {
                     pair[0] = pair[0].add(BigInteger.valueOf(1));
                 }
             }
-            return makeValue(pair[0].multiply(factor));
+            return makeIntegerValue(pair[0].multiply(factor));
         }
     }
 
@@ -346,69 +416,172 @@ public final class BigIntegerValue extends NumericValue {
     }
 
     /**
-     * Evaluate a binary arithmetic operator.
-     *
-     * @param operator the operator to be applied, identified by a constant in
-     *      the Tokenizer class
-     * @param other the other operand of the arithmetic expression
-     * @exception XPathException if an arithmetic failure occurs, e.g. divide
-     *     by zero
-     * @return the result of performing the arithmetic operation
+     * Add another integer
      */
 
-    public NumericValue arithmetic(int operator, NumericValue other, XPathContext context) throws XPathException {
+    public IntegerValue plus(IntegerValue other) {
         if (other instanceof BigIntegerValue) {
-            BigInteger that = ((BigIntegerValue)other).value;
-            switch(operator) {
-                case Token.PLUS:
-                    return makeValue(value.add(that));
-                case Token.MINUS:
-                    return makeValue(value.subtract(that));
-                case Token.MULT:
-                    return makeValue(value.multiply(that));
-                case Token.IDIV:
-                    try {
-                        return makeValue(value.divide(that));
-                    } catch (ArithmeticException err) {
-                        DynamicError e;
-                        if ("/ by zero".equals(err.getMessage())) {
-                            e = new DynamicError("Integer division by zero");
-                            e.setErrorCode("FOAR0001");
-                        } else {
-                            e = new DynamicError("Integer division failure", err);
-                        }
-                        e.setXPathContext(context);
-                        throw e;
-                    }
-                case Token.DIV:
-                    DecimalValue a = new DecimalValue(new BigDecimal(value));
-                    DecimalValue b = new DecimalValue(new BigDecimal(that));
-                    return a.arithmetic(operator, b, context);
-                case Token.MOD:
-                    return makeValue(value.remainder(that));
-                default:
-                    throw new UnsupportedOperationException("Unknown operator");
-            }
-        } else if (other instanceof IntegerValue) {
-            final BigIntegerValue val = new BigIntegerValue(other.longValue());
-            return arithmetic(operator, val, context);
+            return makeIntegerValue(value.add(((BigIntegerValue)other).value));
         } else {
-            final TypeHierarchy th = context.getConfiguration().getTypeHierarchy();
-            final NumericValue v = (NumericValue)convert(other.getItemType(th).getPrimitiveType(), context);
-            return v.arithmetic(operator, other, context);
+            //noinspection RedundantCast
+            return makeIntegerValue(value.add(BigInteger.valueOf(((Int64Value)other).longValue())));
         }
     }
 
-
     /**
-     * Determine the data type of the expression
-     *
-     * @return the actual data type
-     * @param th
+     * Subtract another integer
      */
 
-    public ItemType getItemType(TypeHierarchy th) {
-        return type;
+    public IntegerValue minus(IntegerValue other) {
+        if (other instanceof BigIntegerValue) {
+            return makeIntegerValue(value.subtract(((BigIntegerValue)other).value));
+        } else {
+            //noinspection RedundantCast
+            return makeIntegerValue(value.subtract(BigInteger.valueOf(((Int64Value)other).longValue())));
+        }
+    }
+
+    /**
+     * Multiply by another integer
+     */
+
+    public IntegerValue times(IntegerValue other) {
+        if (other instanceof BigIntegerValue) {
+            return makeIntegerValue(value.multiply(((BigIntegerValue)other).value));
+        } else {
+            //noinspection RedundantCast
+            return makeIntegerValue(value.multiply(BigInteger.valueOf(((Int64Value)other).longValue())));
+        }
+    }
+
+    /**
+     * Divide by another integer
+     *
+     * @throws org.orbeon.saxon.trans.XPathException
+     *          if the other integer is zero
+     */
+
+    public NumericValue div(IntegerValue other) throws XPathException {
+        BigInteger oi;
+        if (other instanceof BigIntegerValue) {
+            oi = ((BigIntegerValue)other).value;
+        } else {
+            oi = BigInteger.valueOf(other.longValue());
+        }
+        DecimalValue a = new DecimalValue(new BigDecimal(value));
+        DecimalValue b = new DecimalValue(new BigDecimal(oi));
+        return (NumericValue)Calculator.DECIMAL_DECIMAL[Calculator.DIV].compute(a, b, null);
+    }
+
+    /**
+     * Take modulo another integer
+     *
+     * @throws org.orbeon.saxon.trans.XPathException
+     *          if the other integer is zero
+     */
+
+    public IntegerValue mod(IntegerValue other) throws XPathException {
+        try {
+            if (other instanceof BigIntegerValue) {
+                return makeIntegerValue(value.remainder(((BigIntegerValue)other).value));
+            } else {
+                return makeIntegerValue(value.remainder(BigInteger.valueOf(other.longValue())));
+            }
+        } catch (ArithmeticException err) {
+            XPathException e;
+            if (BigInteger.valueOf(other.longValue()).signum() == 0) {
+                e = new XPathException("Integer modulo zero", "FOAR0001");
+            } else {
+                e = new XPathException("Integer mod operation failure", err);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Integer divide by another integer
+     *
+     * @throws org.orbeon.saxon.trans.XPathException
+     *          if the other integer is zero
+     */
+
+    public IntegerValue idiv(IntegerValue other) throws XPathException {
+        BigInteger oi;
+        if (other instanceof BigIntegerValue) {
+            oi = ((BigIntegerValue)other).value;
+        } else {
+            oi = BigInteger.valueOf(other.longValue());
+        }
+        try {
+            return makeIntegerValue(value.divide(oi));
+        } catch (ArithmeticException err) {
+            XPathException e;
+            if ("/ by zero".equals(err.getMessage())) {
+                e = new XPathException("Integer division by zero", "FOAR0001");
+            } else {
+                e = new XPathException("Integer division failure", err);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Get an object that implements XML Schema comparison semantics
+     */
+
+    public Comparable getSchemaComparable() {
+        return new BigIntegerComparable(this);
+    }
+
+    protected static class BigIntegerComparable implements Comparable {
+
+        protected BigIntegerValue value;
+
+        public BigIntegerComparable(BigIntegerValue value) {
+            this.value = value;
+        }
+
+        public BigInteger asBigInteger() {
+            return value.asBigInteger();
+        }
+
+        public int compareTo(Object o) {
+            if (o instanceof Int64Value.Int64Comparable) {
+                return asBigInteger().compareTo(BigInteger.valueOf(((Int64Value.Int64Comparable)o).asLong()));
+            } else if (o instanceof BigIntegerComparable) {
+                return asBigInteger().compareTo(((BigIntegerComparable)o).asBigInteger());
+            } else if (o instanceof DecimalValue.DecimalComparable) {
+                return value.getDecimalValue().compareTo(((DecimalValue.DecimalComparable)o).asBigDecimal());
+            } else {
+                return INDETERMINATE_ORDERING;
+            }
+        }
+
+        public boolean equals(Object o) {
+            return compareTo(o) == 0;
+        }
+        public int hashCode() {
+            // Must align with hashCodes for other subtypes of xs:decimal
+            BigInteger big = value.asBigInteger();
+            if (big.compareTo(MAX_LONG) < 0 && big.compareTo(MIN_LONG) > 0) {
+                Int64Value iv = new Int64Value(big.longValue());
+                return iv.hashCode();
+            }
+            return big.hashCode();
+        }
+    }
+
+    /**
+     * Reduce a value to its simplest form.
+     */
+
+    public Value reduce() throws XPathException {
+        if (compareTo(Long.MAX_VALUE) < 0 && compareTo(Long.MIN_VALUE) > 0) {
+            Int64Value iv = new Int64Value(longValue());
+            iv.setTypeLabel(typeLabel);
+            return iv;
+        }
+        return this;
     }
 
     /**
@@ -420,18 +593,18 @@ public final class BigIntegerValue extends NumericValue {
      *     instance of the target class
      */
 
-    public Object convertToJava(Class target, XPathContext context) throws XPathException {
-        if (isWithinLongRange()) {
-            IntegerValue val = new IntegerValue(longValue());
-            return val.convertToJava(target, context);
-        } else if (target.isAssignableFrom(IntegerValue.class)) {
-            return this;
-        } else if (target == BigInteger.class) {
-            return value;
-        } else {
-            return convert(Type.DECIMAL, context).convertToJava(target, context);
-        }
-    }
+//    public Object convertAtomicToJava(Class target, XPathContext context) throws XPathException {
+//        if (isWithinLongRange()) {
+//            Int64Value val = Int64Value.makeIntegerValue(longValue());
+//            return val.convertToJava(target, context);
+//        } else if (target.isAssignableFrom(Int64Value.class)) {
+//            return this;
+//        } else if (target == BigInteger.class) {
+//            return value;
+//        } else {
+//            return convertPrimitive(BuiltInAtomicType.DECIMAL, true, context).asAtomic().convertToJava(target, context);
+//        }
+//    }
 
 
 }
@@ -449,7 +622,7 @@ public final class BigIntegerValue extends NumericValue {
 //
 // The Initial Developer of the Original Code is Michael H. Kay.
 //
-// Portions created by (xt) are Copyright (C) (James Clark). All Rights Reserved.
+// Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
 //
 // Contributor(s): none.
 //

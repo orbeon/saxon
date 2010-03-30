@@ -18,29 +18,33 @@ final class AncestorEnumeration extends AxisIteratorImpl {
 
     public AncestorEnumeration(TinyNodeImpl node, NodeTest nodeTest, boolean includeSelf) {
         test = nodeTest;
-        this.startNode = node;
+        startNode = node;
         this.includeSelf = includeSelf;
         current = startNode;
     }
 
     public Item next() {
-        if (position==0 && includeSelf && test.matches(startNode)) {
-            current = startNode;
-            position = 1;
-            return current;
-        } else {
-            NodeInfo node = ((NodeInfo)current).getParent();
-            while (node != null && !test.matches(node)) {
-                node = node.getParent();
+        if (position <= 0) {
+            if (position < 0) {
+                return null;
             }
-            current = node;
-            if (node == null) {
-                position = -1;
-            } else {
-                position++;
+            if (position==0 && includeSelf && test.matches(startNode)) {
+                current = startNode;
+                position = 1;
+                return current;
             }
-            return current;
         }
+        NodeInfo node = current.getParent();
+        while (node != null && !test.matches(node)) {
+            node = node.getParent();
+        }
+        current = node;
+        if (node == null) {
+            position = -1;
+        } else {
+            position++;
+        }
+        return current;
     }
 
     /**

@@ -12,17 +12,37 @@ public class PullPushCopier {
     private PullProvider in;
     private Receiver out;
 
+    /**
+     * Create a PullPushCopier
+     * @param in a PullProvider from which events will be read
+     * @param out a Receiver to which copies of the same events will be written
+     */
+
     public PullPushCopier(PullProvider in, Receiver out) {
         this.out = out;
         this.in = in;
     }
 
     /**
-     * Copy the input to the output
+     * Copy the input to the output. This method will open the output Receiver before appending to
+     * it, and will close it afterwards.
      * @throws XPathException
      */
 
     public void copy() throws XPathException {
+        out.open();
+        PullPushTee tee = new PullPushTee(in, out);
+        new PullConsumer(tee).consume();
+        out.close();
+    }
+
+    /**
+     * Copy the input to the output. This method relies on the caller to open the output Receiver before
+     * use and to close it afterwards.
+     * @throws XPathException
+     */
+
+    public void append() throws XPathException {
         PullPushTee tee = new PullPushTee(in, out);
         new PullConsumer(tee).consume();
     }

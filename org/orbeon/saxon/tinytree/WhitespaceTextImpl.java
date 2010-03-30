@@ -2,6 +2,7 @@ package org.orbeon.saxon.tinytree;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.om.FastStringBuffer;
 
 /**
   * A node in the XML parse tree representing a text node with compressed whitespace content
@@ -9,6 +10,14 @@ import org.orbeon.saxon.type.Type;
   */
 
 public final class WhitespaceTextImpl extends TinyNodeImpl {
+
+    // TODO: make this class implement CharSequence directly, avoiding the need to create a CompressedWhitespace object
+
+    /**
+     * Create a compressed whitespace text node
+     * @param tree the tree to contain the node
+     * @param nodeNr the internal node number
+     */
 
     public WhitespaceTextImpl(TinyTree tree, int nodeNr) {
         this.tree = tree;
@@ -26,7 +35,8 @@ public final class WhitespaceTextImpl extends TinyNodeImpl {
 
     /**
      * Get the value of the item as a CharSequence. This is in some cases more efficient than
-     * the version of the method that returns a String.
+     * the version of the method that returns a String. For a WhitespaceTextImpl node, it avoids the
+     * cost of decompressing the whitespace
      */
 
     public CharSequence getStringValueCS() {
@@ -42,12 +52,29 @@ public final class WhitespaceTextImpl extends TinyNodeImpl {
      */
 
     public static CharSequence getStringValue(TinyTree tree, int nodeNr) {
-        long value = ((long)tree.alpha[nodeNr]<<32) | (tree.beta[nodeNr]);
+        long value = ((long)tree.alpha[nodeNr]<<32) | ((long)tree.beta[nodeNr] & 0xffffffffL);
         return new CompressedWhitespace(value);
+    }
+
+   /**
+     * Static method to get the string value of a text node and append it to a supplied buffer
+     * without first constructing the node object
+     * @param tree the tree
+     * @param nodeNr the node number of the text node
+     * @param buffer a buffer to which the string value will be appended
+     */
+
+    public static void appendStringValue(TinyTree tree, int nodeNr, FastStringBuffer buffer) {
+        long value = ((long)tree.alpha[nodeNr]<<32) | ((long)tree.beta[nodeNr] & 0xffffffffL);
+        CompressedWhitespace.uncompress(value, buffer);
     }
 
     /**
      * Static method to get the "long" value representing the content of a whitespace text node
+     * @param tree the TinyTree
+     * @param nodeNr the internal node number
+     * @return a value representing the compressed whitespace content
+     * @see CompressedWhitespace
      */
 
     public static long getLongValue(TinyTree tree, int nodeNr) {

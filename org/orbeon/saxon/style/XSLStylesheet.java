@@ -3,47 +3,44 @@ package org.orbeon.saxon.style;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.PreparedStylesheet;
 import org.orbeon.saxon.event.SaxonOutputKeys;
-import org.orbeon.saxon.value.Whitespace;
-import org.orbeon.saxon.expr.ComputedExpression;
-import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.CollationMap;
+import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.functions.*;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.LocationMap;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.query.XQueryFunction;
 import org.orbeon.saxon.query.XQueryFunctionLibrary;
-import org.orbeon.saxon.sort.CodepointCollator;
-import org.orbeon.saxon.sort.IntHashMap;
-import org.orbeon.saxon.sort.IntHashSet;
-import org.orbeon.saxon.sort.IntIterator;
+import org.orbeon.saxon.sort.*;
 import org.orbeon.saxon.trans.*;
 import org.orbeon.saxon.type.SchemaException;
 import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.Whitespace;
 
 import java.util.*;
 
 /**
  * An xsl:stylesheet or xsl:transform element in the stylesheet. <br>
  * Note this element represents a stylesheet module, not necessarily
- * the whole stylesheet.
+ * the whole stylesheet. However, much of the functionality (and the fields)
+ * are relevant only to the top-level module.
  */
 
 public class XSLStylesheet extends StyleElement {
 
-    Executable exec = new Executable();
+    Executable exec;
 
     // the Location Map keeps track of modules and line numbers of expressions and instructions
     private LocationMap locationMap = new LocationMap();
 
-    // index of global variables and parameters, by fingerprint
+    // index of global variables and parameters, by StructuredQName
     // (overridden variables are excluded).
     // Used at compile-time only, except for debugging
     private HashMap globalVariableIndex = new HashMap(20);
 
     // the name pool used for names that will be needed at run-time, notably
     // the names used in XPath expressions and patterns, but also key names, parameter names, etc
-    private NamePool targetNamePool;
+    //private NamePool targetNamePool;
 
     // true if this stylesheet was included by xsl:include, false if it is the
     // principal stylesheet or if it was imported
@@ -108,29 +105,36 @@ public class XSLStylesheet extends StyleElement {
     // flag: saxon:allow-all-built-in-types is set to true
     private boolean allowsAllBuiltInTypes = false;
 
+    // map for allocating unique numbers to local parameter names. Key is a
+    // StructuredQName; value is a boxed int. Use only on the principal module.
+    private HashMap localParameterNumbers = null;
+
     /**
      * Create link to the owning PreparedStylesheet object
+     * @param sheet the PreparedStylesheet
      */
 
     public void setPreparedStylesheet(PreparedStylesheet sheet) {
         Configuration config = sheet.getConfiguration();
         stylesheet = sheet;
-        targetNamePool = sheet.getTargetNamePool();
+        //targetNamePool = sheet.getTargetNamePool();
+        exec = new Executable(config);
         exec.setConfiguration(config);
         exec.setRuleManager(new RuleManager());
         exec.setLocationMap(locationMap);
         exec.setHostLanguage(Configuration.XSLT);
 
         functionLibrary = new FunctionLibraryList();
-        functionLibrary.addFunctionLibrary(new SystemFunctionLibrary(SystemFunctionLibrary.FULL_XSLT));
+        functionLibrary.addFunctionLibrary(
+                SystemFunctionLibrary.getSystemFunctionLibrary(SystemFunctionLibrary.FULL_XSLT));
         functionLibrary.addFunctionLibrary(new StylesheetFunctionLibrary(this, true));
         functionLibrary.addFunctionLibrary(config.getVendorFunctionLibrary());
         functionLibrary.addFunctionLibrary(new ConstructorFunctionLibrary(config));
         queryFunctions = new XQueryFunctionLibrary(config);
         functionLibrary.addFunctionLibrary(queryFunctions);
         if (config.isAllowExternalFunctions()) {
-            javaFunctions = config.getExtensionBinder();
-            config.getPlatform().addFunctionLibraries(functionLibrary, config);
+            javaFunctions = config.getExtensionBinder("java");
+            Configuration.getPlatform().addFunctionLibraries(functionLibrary, config, Configuration.XSLT);
         }
         functionLibrary.addFunctionLibrary(new StylesheetFunctionLibrary(this, false));
 
@@ -155,8 +159,13 @@ public class XSLStylesheet extends StyleElement {
         return exec;
     }
 
+    protected boolean mayContainParam() {
+        return true;
+    }
+
     /**
      * Get the function library. Available only on the principal stylesheet module
+     * @return the function library
      */
 
     public FunctionLibrary getFunctionLibrary() {
@@ -165,6 +174,7 @@ public class XSLStylesheet extends StyleElement {
 
     /**
      * Get the locationMap object
+     * @return the LocationMap
      */
 
     public LocationMap getLocationMap() {
@@ -172,16 +182,8 @@ public class XSLStylesheet extends StyleElement {
     }
 
     /**
-     * Get the namepool to be used at run-time, this namepool holds the names used in
-     * all XPath expressions and patterns
-     */
-
-    public NamePool getTargetNamePool() {
-        return targetNamePool;
-    }
-
-    /**
      * Get the RuleManager which handles template rules
+     * @return the template rule manager
      */
 
     public RuleManager getRuleManager() {
@@ -190,17 +192,21 @@ public class XSLStylesheet extends StyleElement {
 
     /**
      * Get the rules determining which nodes are to be stripped from the tree
+     * @return the Mode object holding the whitespace stripping rules. The stripping
+     * rules defined in xsl:strip-space are managed in the same way as template rules,
+     * hence the use of a special Mode object
      */
 
     protected Mode getStripperRules() {
         if (exec.getStripperRules() == null) {
-            exec.setStripperRules(new Mode(Mode.STRIPPER_MODE, -1));
+            exec.setStripperRules(new Mode(Mode.STRIPPER_MODE, Mode.DEFAULT_MODE_NAME));
         }
         return exec.getStripperRules();
     }
 
     /**
      * Determine whether this stylesheet does any whitespace stripping
+     * @return true if this stylesheet strips whitespace from source documents
      */
 
     public boolean stripsWhitespace() {
@@ -215,6 +221,7 @@ public class XSLStylesheet extends StyleElement {
 
     /**
      * Get the KeyManager which handles key definitions
+     * @return the key manager
      */
 
     public KeyManager getKeyManager() {
@@ -226,6 +233,7 @@ public class XSLStylesheet extends StyleElement {
 
     /**
      * Get the DecimalFormatManager which handles decimal-format definitions
+     * @return the DecimalFormatManager for this stylesheet
      */
 
     public DecimalFormatManager getDecimalFormatManager() {
@@ -237,6 +245,7 @@ public class XSLStylesheet extends StyleElement {
 
     /**
      * Get the collation map
+     * @return the CollationMap
      */
 
     public CollationMap getCollationMap() {
@@ -244,10 +253,12 @@ public class XSLStylesheet extends StyleElement {
     }
 
     /**
-     * Register a named collation (actually a Comparator)
+     * Register a named collation (actually a StringCollator)
+     * @param name the name of the collation
+     * @param collation the StringCollator that implements this collation
      */
 
-    public void setCollation(String name, Comparator collation) {
+    public void setCollation(String name, StringCollator collation) {
         if (exec.getCollationTable() == null) {
             exec.setCollationTable(new CollationMap(getConfiguration()));
         }
@@ -262,7 +273,11 @@ public class XSLStylesheet extends StyleElement {
      * @return null if the collation is not found
      */
 
-    protected Comparator findCollation(String name) {
+    protected StringCollator findCollation(String name) {
+
+        if (name == null) {
+            name = exec.getDefaultCollationName();
+        }
 
         if (name.equals(NamespaceConstant.CODEPOINT_COLLATION_URI)) {
             return CodepointCollator.getInstance();
@@ -270,12 +285,10 @@ public class XSLStylesheet extends StyleElement {
 
         // First try to find it in the table
 
-        Comparator c = null;
-        if (name == null) {
-            name = exec.getDefaultCollationName();
-        }
+        StringCollator c = null;
+
         if (exec.getCollationTable() != null) {
-            c = (Comparator) exec.getCollationTable().getNamedCollation(name);
+            c = exec.getCollationTable().getNamedCollation(name);
         }
         if (c != null) return c;
 
@@ -295,12 +308,6 @@ public class XSLStylesheet extends StyleElement {
             }
         }
 
-        // if it's not defined in the stylesheet, it might be a standard URI
-
-        if (name == null) {
-            return null;
-        }
-
         Configuration config = getConfiguration();
         return config.getCollationURIResolver().resolve(name, getBaseURI(), config);
     }
@@ -316,16 +323,15 @@ public class XSLStylesheet extends StyleElement {
     /**
      * Get a character map, identified by the fingerprint of its name.
      * Search backwards through the stylesheet.
-     * @param fingerprint The fingerprint of the character map name,
-     * in the target namepool.
+     * @param name The character map name being sought
      * @return the identified character map, or null if not found
      */
 
-    public XSLCharacterMap getCharacterMap(int fingerprint) {
+    public XSLCharacterMap getCharacterMap(StructuredQName name) {
         for (int i = topLevel.size() - 1; i >= 0; i--) {
             if (topLevel.get(i) instanceof XSLCharacterMap) {
                 XSLCharacterMap t = (XSLCharacterMap) topLevel.get(i);
-                if (t.getCharacterMapFingerprint() == fingerprint) {
+                if (t.getCharacterMapName().equals(name)) {
                     return t;
                 }
             }
@@ -335,6 +341,8 @@ public class XSLStylesheet extends StyleElement {
 
     /**
      * Set the import precedence of this stylesheet
+     * @param prec the import precedence. Higher numbers indicate higher precedence, but the actual
+     * number has no significance
      */
 
     public void setPrecedence(int prec) {
@@ -353,6 +361,7 @@ public class XSLStylesheet extends StyleElement {
     /**
      * Get the minimum import precedence of this stylesheet, that is, the lowest precedence
      * of any stylesheet imported by this one
+     * @return the minimum precedence of imported stylesheet modules
      */
 
     public int getMinImportPrecedence() {
@@ -362,6 +371,7 @@ public class XSLStylesheet extends StyleElement {
     /**
      * Set the minimum import precedence of this stylesheet, that is, the lowest precedence
      * of any stylesheet imported by this one
+     * @param precedence the precedence of the first stylesheet module that this one imports
      */
 
     public void setMinImportPrecedence(int precedence) {
@@ -370,6 +380,7 @@ public class XSLStylesheet extends StyleElement {
 
     /**
      * Set the StyleSheet that included or imported this one.
+     * @param importer the stylesheet module that included or imported this module
      */
 
     public void setImporter(XSLStylesheet importer) {
@@ -396,6 +407,8 @@ public class XSLStylesheet extends StyleElement {
 
     /**
      * Get the top level elements in this stylesheet, after applying include/import
+     * @return a list of top-level elements in this stylesheet module or in those
+     * modules that it includes or imports
      */
 
     public List getTopLevel() {
@@ -404,15 +417,18 @@ public class XSLStylesheet extends StyleElement {
 
     /**
      * Allocate a slot number for a global variable or parameter
+     * @param qName the name of the variable or parameter
+     * @return int the allocated slot number
      */
 
-    public int allocateGlobalSlot(int fingerprint) {
-        return exec.getGlobalVariableMap().allocateSlotNumber(fingerprint);
+    public int allocateGlobalSlot(StructuredQName qName) {
+        return exec.getGlobalVariableMap().allocateSlotNumber(qName);
     }
 
     /**
      * Ensure there is enough space for local variables or parameters when evaluating the match pattern of
      * template rules
+     * @param n the number of slots to be allocated
      */
 
     public void allocatePatternSlots(int n) {
@@ -434,15 +450,15 @@ public class XSLStylesheet extends StyleElement {
 
             int nc = atts.getNameCode(a);
             String f = getNamePool().getClarkName(nc);
-            if (f == StandardNames.VERSION) {
+            if (f.equals(StandardNames.VERSION)) {
                 // already processed
-            } else if (f == StandardNames.ID) {
+            } else if (f.equals(StandardNames.ID)) {
                 //
-            } else if (f == StandardNames.EXTENSION_ELEMENT_PREFIXES) {
+            } else if (f.equals(StandardNames.EXTENSION_ELEMENT_PREFIXES)) {
                 //
-            } else if (f == StandardNames.EXCLUDE_RESULT_PREFIXES) {
+            } else if (f.equals(StandardNames.EXCLUDE_RESULT_PREFIXES)) {
                 //
-            } else if (f == StandardNames.DEFAULT_VALIDATION) {
+            } else if (f.equals(StandardNames.DEFAULT_VALIDATION)) {
                 defaultValidation = Validation.getCode(atts.getValue(a));
                 if (defaultValidation == Validation.INVALID) {
                     compileError("Invalid value for default-validation attribute. " +
@@ -452,9 +468,9 @@ public class XSLStylesheet extends StyleElement {
                     compileError("default-validation='" + atts.getValue(a) + "' requires a schema-aware processor",
                             "XTSE1660");
                 }
-            } else if (f == StandardNames.INPUT_TYPE_ANNOTATIONS) {
+            } else if (f.equals(StandardNames.INPUT_TYPE_ANNOTATIONS)) {
                 inputTypeAnnotationsAtt = atts.getValue(a);
-            } else if (f == StandardNames.SAXON_ALLOW_ALL_BUILT_IN_TYPES) {
+            } else if (f.equals(StandardNames.SAXON_ALLOW_ALL_BUILT_IN_TYPES)) {
                 allowAllBuiltInTypesAtt = atts.getValue(a);
             } else {
                 checkUnknownAttribute(nc);
@@ -480,7 +496,7 @@ public class XSLStylesheet extends StyleElement {
         if (allowAllBuiltInTypesAtt != null) {
             if (allowAllBuiltInTypesAtt.equals("yes")) {
                 allowsAllBuiltInTypes = true;
-            } else if (inputTypeAnnotationsAtt.equals("no")) {
+            } else if (allowAllBuiltInTypesAtt.equals("no")) {
                 //
             } else {
                 compileWarning("Invalid value for saxon:allow-all-built-in-types attribute. " +
@@ -491,6 +507,8 @@ public class XSLStylesheet extends StyleElement {
 
     /**
      * Get the value of the default validation attribute
+     * @return the value of the default-validation attribute, as a constant such
+     * as {@link Validation#STRIP}
      */
 
     public int getDefaultValidation() {
@@ -502,6 +520,7 @@ public class XSLStylesheet extends StyleElement {
      * Get the value of the input-type-annotations attribute, for this module alone.
      * The value is an or-ed combination of the two bits
      * {@link #ANNOTATION_STRIP} and {@link #ANNOTATION_PRESERVE}
+     * @return the value if the input-type-annotations attribute in this stylesheet module
      */
 
     public int getInputTypeAnnotationsAttribute() throws XPathException {
@@ -526,6 +545,8 @@ public class XSLStylesheet extends StyleElement {
      * Get the value of the input-type-annotations attribute, for this module combined with that
      * of all included/imported modules. The value is an or-ed combination of the two bits
      * {@link #ANNOTATION_STRIP} and {@link #ANNOTATION_PRESERVE}
+     * @return the value of the input-type-annotations attribute, for this module combined with that
+     * of all included/imported modules
      */
 
     public int getInputTypeAnnotations() {
@@ -536,6 +557,8 @@ public class XSLStylesheet extends StyleElement {
      * Set the value of the input-type-annotations attribute, for this module combined with that
      * of all included/imported modules. The value is an or-ed combination of the two bits
      * {@link #ANNOTATION_STRIP} and {@link #ANNOTATION_PRESERVE}
+     * @param annotations the value of the input-type-annotations attribute, for this module combined with that
+     * of all included/imported modules.
      */
 
     public void setInputTypeAnnotations(int annotations) throws XPathException {
@@ -549,6 +572,7 @@ public class XSLStylesheet extends StyleElement {
     /**
      * Determine whether the use of non-primitive built-in types has been enabled for this stylesheet
      * (This is relevant only for Saxon-B: such types are always permitted in Saxon-SA)
+     * @return true if all built-in types can be used
      */
 
     public boolean allowsAllBuiltInTypes() {
@@ -577,6 +601,8 @@ public class XSLStylesheet extends StyleElement {
 
     /**
      * Determine if a namespace is included in the result-prefix of a namespace-alias
+     * @param uriCode the namepool code of the URI
+     * @return true if an xsl:namespace-alias has been defined for this namespace URI
      */
 
     protected boolean isAliasResultNamespace(short uriCode) {
@@ -619,7 +645,6 @@ public class XSLStylesheet extends StyleElement {
                     curr instanceof XSLParam ||
                     curr instanceof XSLPreserveSpace ||
                     curr instanceof XSLVariable ||
-                    curr instanceof XSLParam ||
                     curr instanceof DataElement) {
                 // all is well
             } else if (!NamespaceConstant.XSLT.equals(curr.getURI()) && !"".equals(curr.getURI())) {
@@ -789,12 +814,17 @@ public class XSLStylesheet extends StyleElement {
                 try {
                     ((XSLImportSchema) node).readSchema();
                 } catch (SchemaException e) {
-                    throw StaticError.makeStaticError(e);
+                    throw XPathException.makeXPathException(e);
                 }
             } else if (node instanceof XSLDecimalFormat) {
                 ((XSLDecimalFormat) node).register();
             } else if (node instanceof SaxonImportQuery) {
                 ((SaxonImportQuery) node).importModule();
+            } else if (node instanceof XSLKey) {
+                StructuredQName keyName = ((XSLKey)node).getKeyName();
+                if (keyName != null) {
+                    exec.getKeyManager().preRegisterKeyDefinition(keyName);
+                }
             }
         }
         // Now seal all the schemas that have been imported to guarantee consistency with instance documents
@@ -815,15 +845,13 @@ public class XSLStylesheet extends StyleElement {
      */
 
     private void indexVariableDeclaration(XSLVariableDeclaration var) throws XPathException {
-        int fingerprint = var.getVariableFingerprint();
-        //System.err.println("fingerprint = " + fingerprint);
-        if (fingerprint != -1) {
-            Integer key = new Integer(fingerprint);
+        StructuredQName qName = var.getVariableQName();
+        if (qName != null) {
             // see if there is already a global variable with this precedence
-            XSLVariableDeclaration other = (XSLVariableDeclaration) globalVariableIndex.get(key);
+            XSLVariableDeclaration other = (XSLVariableDeclaration) globalVariableIndex.get(qName);
             if (other == null) {
                 // this is the first
-                globalVariableIndex.put(key, var);
+                globalVariableIndex.put(qName, var);
             } else {
                 // check the precedences
                 int thisPrecedence = var.getPrecedence();
@@ -836,7 +864,7 @@ public class XSLStylesheet extends StyleElement {
                 } else {
                     // can't happen, but we'll play safe
                     other.setRedundant();
-                    globalVariableIndex.put(key, var);
+                    globalVariableIndex.put(qName, var);
                 }
             }
         }
@@ -848,14 +876,14 @@ public class XSLStylesheet extends StyleElement {
      * @throws XPathException
      */
     private void indexNamedTemplate(XSLTemplate template) throws XPathException {
-        int fingerprint = template.getTemplateFingerprint();
-        if (fingerprint != -1) {
-            Integer key = new Integer(fingerprint);
+        StructuredQName qName = template.getTemplateName();
+        if (qName != null) {
             // see if there is already a named template with this precedence
-            XSLTemplate other = (XSLTemplate) templateIndex.get(key);
+            XSLTemplate other = (XSLTemplate) templateIndex.get(qName);
             if (other == null) {
                 // this is the first
-                templateIndex.put(key, template);
+                templateIndex.put(qName, template);
+                exec.putNamedTemplate(qName, template.getCompiledTemplate());
             } else {
                 // check the precedences
                 int thisPrecedence = template.getPrecedence();
@@ -868,10 +896,10 @@ public class XSLStylesheet extends StyleElement {
                 } else {
                     // can't happen, but we'll play safe
                     //other.setRedundantNamedTemplate();
-                    templateIndex.put(key, template);
+                    templateIndex.put(qName, template);
+                    exec.putNamedTemplate(qName, template.getCompiledTemplate());
                 }
             }
-            exec.putNamedTemplate(fingerprint, template.getCompiledTemplate());
         }
     }
 
@@ -939,16 +967,19 @@ public class XSLStylesheet extends StyleElement {
     }
 
     /**
-     * Get the global variable or parameter with a given fingerprint (taking
+     * Get the global variable or parameter with a given name (taking
      * precedence rules into account)
+     * @param qName name of the global variable or parameter
+     * @return the variable declaration
      */
 
-    public XSLVariableDeclaration getGlobalVariable(int fingerprint) {
-        return (XSLVariableDeclaration) globalVariableIndex.get(new Integer(fingerprint));
+    public XSLVariableDeclaration getGlobalVariable(StructuredQName qName) {
+        return (XSLVariableDeclaration) globalVariableIndex.get(qName);
     }
 
     /**
      * Set that this stylesheet needs dynamic output properties
+     * @param b true if this stylesheet needs dynamic output properties
      */
 
     public void setNeedsDynamicOutputProperties(boolean b) {
@@ -957,37 +988,39 @@ public class XSLStylesheet extends StyleElement {
 
     /**
      * Create an output properties object representing the xsl:output elements in the stylesheet.
-     * @param fingerprint The name of the output format required. If set to -1, gathers
+     * @param formatQName The name of the output format required. If set to null, gathers
      * information for the unnamed output format
      * @return the Properties object containing the details of the specified output format
      * @throws XPathException if a named output format does not exist in
      * the stylesheet
      */
 
-    public Properties gatherOutputProperties(int fingerprint) throws XPathException {
-        boolean found = (fingerprint == -1);
+    public Properties gatherOutputProperties(StructuredQName formatQName) throws XPathException {
+        boolean found = (formatQName == null);
         Properties details = new Properties();
         HashMap precedences = new HashMap(10);
         for (int i = topLevel.size()-1; i >= 0; i--) {
             Object s = topLevel.get(i);
             if (s instanceof XSLOutput) {
                 XSLOutput xo = (XSLOutput) s;
-                if (xo.getOutputFingerprint() == fingerprint) {
+                if (formatQName == null
+                        ? xo.getFormatQName() == null
+                        : formatQName.equals(xo.getFormatQName())) {
                     found = true;
                     xo.gatherOutputProperties(details, precedences);
                 }
             }
         }
         if (!found) {
-            compileError("Requested output format " +
-                    (fingerprint == -1 ? "(unnamed)" : getNamePool().getClarkName(fingerprint)) +
-                    " has not been defined");
+            compileError("Requested output format " + formatQName.getDisplayName() +
+                    " has not been defined", "XTDE1460");
         }
         return details;
     }
 
     /**
      * Declare an imported XQuery function
+     * @param function the imported function
      */
 
     protected void declareXQueryFunction(XQueryFunction function) throws XPathException {
@@ -996,14 +1029,13 @@ public class XSLStylesheet extends StyleElement {
 
     /**
      * Declare a URI that maps to a Java class containing extension functions
+     * @param uri the namespace uri used in the function names
+     * @param theClass the Java class containing methods accessible using this URI
      */
 
     protected void declareJavaClass(String uri, Class theClass) {
-        if (javaFunctions instanceof JavaExtensionLibrary) {
-            ((JavaExtensionLibrary)javaFunctions).declareJavaClass(uri, theClass);
-        } else {
-            throw new IllegalStateException("saxon:script cannot be used with a custom extension library factory");
-        }
+        Configuration.getPlatform().declareJavaClass(javaFunctions, uri, theClass);
+
     }
 
     /**
@@ -1027,6 +1059,7 @@ public class XSLStylesheet extends StyleElement {
 
     /**
      * Compile the stylesheet to create an executable.
+     * @return the Executable representing the compiled stylesheet
      */
 
     public Executable compileStylesheet() throws XPathException {
@@ -1054,9 +1087,8 @@ public class XSLStylesheet extends StyleElement {
                     StyleElement snode = (StyleElement) node;
                     //int module = putModuleNumber(snode.getSystemId());
                     Expression inst = snode.compile(exec);
-
-                    if (inst instanceof ComputedExpression) {
-                        ((ComputedExpression) inst).setLocationId(allocateLocationId(getSystemId(), snode.getLineNumber()));
+                    if (inst != null) {
+                        inst.setLocationId(allocateLocationId(getSystemId(), snode.getLineNumber()));
                     }
                 }
             }
@@ -1066,25 +1098,25 @@ public class XSLStylesheet extends StyleElement {
             if (exec.getDecimalFormatManager() != null) {
                 try {
                     exec.getDecimalFormatManager().fixupDefaultDefault();
-                } catch (StaticError err) {
+                } catch (XPathException err) {
                     compileError(err.getMessage(), err.getErrorCodeLocalPart());
                 }
             }
 
             exec.setStripsWhitespace(stripsWhitespace());
-            Properties props = gatherOutputProperties(-1);
+            Properties props = gatherOutputProperties(null);
             props.setProperty(SaxonOutputKeys.STYLESHEET_VERSION, getVersion().toString());
             exec.setDefaultOutputProperties(props);
 
             // handle named output formats for use at run-time
-            IntHashSet outputNames = new IntHashSet(5);
+            HashSet outputNames = new HashSet(5);
             for (int i=0; i<topLevel.size(); i++) {
                 Object child = topLevel.get(i);
                 if (child instanceof XSLOutput) {
                     XSLOutput out = (XSLOutput)child;
-                    int fp = out.getOutputFingerprint();
-                    if (fp != -1) {
-                        outputNames.add(fp);
+                    StructuredQName qName = out.getFormatQName();
+                    if (qName != null) {
+                        outputNames.add(qName);
                     }
                 }
             }
@@ -1094,11 +1126,11 @@ public class XSLStylesheet extends StyleElement {
                             "format name at run-time, but there are no named xsl:output declarations", "XTDE1460");
                 }
             } else {
-                for (IntIterator iter = outputNames.iterator(); iter.hasNext();) {
-                    int fp = iter.next();
-                    Properties oprops = gatherOutputProperties(fp);
+                for (Iterator iter = outputNames.iterator(); iter.hasNext();) {
+                    StructuredQName qName = (StructuredQName)iter.next();
+                    Properties oprops = gatherOutputProperties(qName);
                     if (needsDynamicOutputProperties) {
-                        exec.setOutputProperties(fp, oprops);
+                        exec.setOutputProperties(qName, oprops);
                     }
                 }
             }
@@ -1112,13 +1144,13 @@ public class XSLStylesheet extends StyleElement {
                 if (topLevel.get(i) instanceof XSLCharacterMap) {
                     XSLCharacterMap t = (XSLCharacterMap) topLevel.get(i);
                     if (!t.isRedundant()) {
-                        int fp = t.getCharacterMapFingerprint();
+                        StructuredQName qn = t.getCharacterMapName();
                         IntHashMap map = new IntHashMap(20);
                         t.assemble(map);
                         if (exec.getCharacterMapIndex() == null) {
-                            exec.setCharacterMapIndex(new IntHashMap(20));
+                            exec.setCharacterMapIndex(new HashMap(20));
                         }
-                        exec.getCharacterMapIndex().put(fp, map);
+                        exec.getCharacterMapIndex().put(qn, map);
                     }
                 }
             }
@@ -1143,19 +1175,18 @@ public class XSLStylesheet extends StyleElement {
 
             Configuration config = getConfiguration();
             FunctionLibraryList libraryList = new FunctionLibraryList();
-            libraryList.addFunctionLibrary(new SystemFunctionLibrary(SystemFunctionLibrary.FULL_XSLT));
+            libraryList.addFunctionLibrary(
+                    SystemFunctionLibrary.getSystemFunctionLibrary(SystemFunctionLibrary.FULL_XSLT));
             libraryList.addFunctionLibrary(overriding);
             libraryList.addFunctionLibrary(config.getVendorFunctionLibrary());
             libraryList.addFunctionLibrary(new ConstructorFunctionLibrary(getConfiguration()));
             libraryList.addFunctionLibrary(queryFunctions);
             if (getConfiguration().isAllowExternalFunctions()) {
-                libraryList.addFunctionLibrary(javaFunctions);
-                config.getPlatform().addFunctionLibraries(functionLibrary, config);
+                //libraryList.addFunctionLibrary(javaFunctions);
+                Configuration.getPlatform().addFunctionLibraries(libraryList, config, Configuration.XSLT);
             }
             libraryList.addFunctionLibrary(underriding);
             exec.setFunctionLibrary(libraryList);
-
-
             return exec;
 
         } catch (RuntimeException err) {
@@ -1181,6 +1212,25 @@ public class XSLStylesheet extends StyleElement {
         return null;
     }
 
+    /**
+     * Allocate a unique number to a local parameter name. This should only be called on the principal
+     * stylesheet module.
+     * @param qName the local parameter name
+     * @return an integer that uniquely identifies this parameter name within the stylesheet
+     */
+
+    public int allocateUniqueParameterNumber(StructuredQName qName) {
+        if (localParameterNumbers == null) {
+            localParameterNumbers = new HashMap(50);
+        }
+        Integer x = (Integer)localParameterNumbers.get(qName);
+        if (x == null) {
+            x = new Integer(localParameterNumbers.size());
+            localParameterNumbers.put(qName, x);
+        }
+        return x.intValue();
+    }
+
 }
 
 //
@@ -1199,5 +1249,4 @@ public class XSLStylesheet extends StyleElement {
 // Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
 //
 // Contributor(s):
-// Portions marked "e.g." are from Edwin Glaser (edwin@pannenleiter.de)
 //

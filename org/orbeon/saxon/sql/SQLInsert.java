@@ -1,4 +1,5 @@
 package org.orbeon.saxon.sql;
+
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.SimpleExpression;
 import org.orbeon.saxon.expr.XPathContext;
@@ -8,16 +9,19 @@ import org.orbeon.saxon.om.AxisIterator;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.style.ExtensionInstruction;
-import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.trans.SaxonErrorCode;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.ObjectValue;
+import org.orbeon.saxon.value.Whitespace;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+
 /**
 * An sql:insert element in the stylesheet.
 */
@@ -33,6 +37,8 @@ public class SQLInsert extends ExtensionInstruction {
 		if (table==null) {
             reportAbsence("table");
         }
+        table = SQLConnect.quoteSqlName(table);
+        
         String connectAtt = getAttributeList().getValue("", "connection");
         if (connectAtt==null) {
             reportAbsence("connection");
@@ -44,6 +50,21 @@ public class SQLInsert extends ExtensionInstruction {
     public void validate() throws XPathException {
         super.validate();
         connection = typeCheck("connection", connection);
+        AxisIterator kids = iterateAxis(Axis.CHILD);
+        while(true) {
+            NodeInfo curr = (NodeInfo)kids.next();
+            if (curr == null) {
+                break;
+            }
+            if (curr instanceof SQLColumn) {
+                // OK
+            } else if (curr.getNodeKind() == Type.TEXT && Whitespace.isWhite(curr.getStringValueCS())) {
+                // OK
+            } else {
+                compileError("Only sql:column is allowed as a child of sql:insert", "XTSE0010");
+            }
+        }
+
     }
 
     public Expression compile(Executable exec) throws XPathException {
@@ -130,6 +151,19 @@ public class SQLInsert extends ExtensionInstruction {
             return "sql:insert";
         }
 
+//        public Expression promote(PromotionOffer offer) throws XPathException {
+//            if (offer.action != PromotionOffer.FOCUS_INDEPENDENT && offer.action != PromotionOffer.EXTRACT_GLOBAL_VARIABLES) {
+//                // TODO: See bug 1971291, test case sql002. Suppressing the promotion of sql:column instructions is a rather
+//                // crude solution to the bug; a better approach would be to allow them to be promoted, and avoid the assumption
+//                // that the arguments at run-time will always be SQLColumn instructions. Also, it would be nice to get
+//                // rid of the type hierarchy abuse: SQLColumn should not really extend GeneralVariable. See also similar
+//                // logic in SQLUpdate.
+//                return super.promote(offer);
+//            } else {
+//                return this;
+//            }
+//        }
+
         public Item evaluateItem(XPathContext context) throws XPathException {
 
             // Prepare the SQL statement (only do this once)
@@ -148,7 +182,7 @@ public class SQLInsert extends ExtensionInstruction {
 
                 int i = 1;
                 for (int c=FIRST_COLUMN; c<arguments.length; c++) {
-                    AtomicValue v = (AtomicValue)((SQLColumn.ColumnInstruction)arguments[c]).getSelectValue(context);
+                    AtomicValue v = (AtomicValue)arguments[c].evaluateItem(context);
 
          			// TODO: the values are all strings. There is no way of adding to a numeric column
            		    String val = v.getStringValue();

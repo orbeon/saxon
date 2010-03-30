@@ -1,11 +1,13 @@
 package org.orbeon.saxon.query;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionVisitor;
 import org.orbeon.saxon.expr.UserFunctionCall;
+import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.functions.FunctionLibrary;
 import org.orbeon.saxon.instruct.UserFunction;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.om.StructuredQName;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
 
 import java.util.HashMap;
@@ -24,11 +26,12 @@ public class XQueryFunctionLibrary implements FunctionLibrary, XQueryFunctionBin
 
     // The functions in this library are represented using a HashMap
     // The key of the hashmap is a Long whose two halves hold (a) the fingerprint, and (b) the arity
-    // The valye in the hashmap is an XQueryFunction
+    // The value in the hashmap is an XQueryFunction
     private HashMap functions = new HashMap(20);
 
 	/**
-	* Create an XQueryFunctionLibrary
+	 * Create an XQueryFunctionLibrary
+     * @param config the Saxon configuration
 	*/
 
 	public XQueryFunctionLibrary(Configuration config) {
@@ -37,6 +40,7 @@ public class XQueryFunctionLibrary implements FunctionLibrary, XQueryFunctionBin
 
     /**
      * Set the Configuration options
+     * @param config the Saxon configuration
      */
 
     public void setConfiguration(Configuration config) {
@@ -45,30 +49,28 @@ public class XQueryFunctionLibrary implements FunctionLibrary, XQueryFunctionBin
 
     /**
      * Get the Configuration options
+     * @return the Saxon configuration
      */
 
     public Configuration getConfiguration() {
         return config;
     }
 
-    private NamePool getNamePool() {
-        return config.getNamePool();
-    }
-
     /**
      * Register a user-defined XQuery function
+     * @param function the function to be registered
+     * @throws XPathException if there is an existing function with the same name and arity
      */
 
-    public void declareFunction(XQueryFunction function) throws StaticError {
-        int fp = function.getFunctionFingerprint();
-        int arity = function.getNumberOfArguments();
-        Long keyObj = functionKey(fp, arity);
-        if (functions.get(keyObj) != null) {
-            XQueryFunction old = (XQueryFunction)functions.get(keyObj);
-            StaticError err = new StaticError("Duplicate definition of function " +
-                    getNamePool().getDisplayName(fp) +
-                    " (see line " + old.getLineNumber() + " in " + old.getSystemId() + ')');
+    public void declareFunction(XQueryFunction function) throws XPathException {
+        String keyObj = function.getIdentificationKey();
+        XQueryFunction existing = (XQueryFunction)functions.get(keyObj);
+        if (existing != null) {
+            XPathException err = new XPathException("Duplicate definition of function " +
+                    function.getDisplayName() +
+                    " (see line " + existing.getLineNumber() + " in " + existing.getSystemId() + ')');
             err.setErrorCode("XQST0034");
+            err.setIsStaticError(true);
             err.setLocator(function);
             throw err;
         }
@@ -76,39 +78,26 @@ public class XQueryFunctionLibrary implements FunctionLibrary, XQueryFunctionBin
     }
 
     /**
-     * Compute a unique key for a function based on its name and arity
-     * @param fp the fingerprint of the function name
-     * @param arity the arity (number of arguments) of the function
-     * @return a unique key used to identify the function
-     */
-    private static Long functionKey(int fp, int arity) {
-        return new Long((((long)arity)<<32) + (long)fp);
-    }
-
-    /**
      * Test whether a function with a given name and arity is available. This supports
      * the function-available() function in XSLT. This method may be called either at compile time
      * or at run time.
-     * @param uri  The URI of the function name
-     * @param local  The local part of the function name
+     * @param functionName the QName identifying the function
      * @param arity The number of arguments. This is set to -1 in the case of the single-argument
      * function-available() function; in this case the method should return true if there is some
-     * matching extension function, regardless of its arity.
      */
 
-    public boolean isAvailable(int fingerprint, String uri, String local, int arity) {
+    public boolean isAvailable(StructuredQName functionName, int arity) {
         if (arity == -1) {
             // we'll just test arity 0..20. Since this method is supporting an XSLT-only interrogative
             // on an XQuery function library, the outcome isn't too important.
             for (int i=0; i<20; i++) {
-                if (isAvailable(fingerprint, uri, local, i)) {
+                if (isAvailable(functionName, i)) {
                     return true;
                 }
             }
             return false;
         }
-
-        return (functions.get(functionKey(fingerprint, arity)) != null);
+        return (functions.get(XQueryFunction.getIdentificationKey(functionName, arity)) != null);
     }
 
     /**
@@ -132,12 +121,13 @@ public class XQueryFunctionLibrary implements FunctionLibrary, XQueryFunctionBin
      * later when bindUnboundFunctionCalls() is called.
     */
 
-    public Expression bind(int nameCode, String uri, String local, Expression[] arguments) throws XPathException {
-        int fp = nameCode & 0xfffff;
-        XQueryFunction fd = (XQueryFunction)functions.get(functionKey(fp, arguments.length));
+    public Expression bind(StructuredQName functionName, Expression[] arguments, StaticContext env) throws XPathException {
+        String functionKey = XQueryFunction.getIdentificationKey(
+                functionName, arguments.length);
+        XQueryFunction fd = (XQueryFunction)functions.get(functionKey);
         if (fd != null) {
             UserFunctionCall ufc = new UserFunctionCall();
-            ufc.setFunctionNameCode(nameCode);
+            ufc.setFunctionName(fd.getFunctionName());
             ufc.setArguments(arguments);
             ufc.setStaticType(fd.getResultType());
             UserFunction fn = fd.getUserFunction();
@@ -146,8 +136,10 @@ public class XQueryFunctionLibrary implements FunctionLibrary, XQueryFunctionBin
                 fd.registerReference(ufc);
                 ufc.setConfirmed(true);
             } else {
-                ufc.setFunction(fn, fd.getStaticContext());
-                ufc.checkFunctionCall(fn, fd.getStaticContext());
+                ufc.setFunction(fn);
+                ExpressionVisitor visitor = ExpressionVisitor.make(fd.getStaticContext());
+                visitor.setExecutable(fd.getExecutable());
+                ufc.checkFunctionCall(fn, visitor);
             }
             return ufc;
         } else {
@@ -160,8 +152,21 @@ public class XQueryFunctionLibrary implements FunctionLibrary, XQueryFunctionBin
      * @return the XQueryFunction if there is one, or null if not.
      */
 
-    public XQueryFunction getDeclaration(int nameCode, String uri, String local, Expression[] staticArgs) {
-        return (XQueryFunction)functions.get(functionKey(nameCode & NamePool.FP_MASK, staticArgs.length));
+    public XQueryFunction getDeclaration(StructuredQName functionName, Expression[] staticArgs) {
+        String functionKey = XQueryFunction.getIdentificationKey(
+                functionName, staticArgs.length);
+        return (XQueryFunction)functions.get(functionKey);
+    }
+
+    /**
+     * Get the function declaration corresponding to a given function name and arity, supplied
+     * in the form "{uri}local/arity"
+     * @param functionKey a string in the form "{uri}local/arity" identifying the required function
+     * @return the XQueryFunction if there is one, or null if not.
+     */
+
+    public XQueryFunction getDeclarationByKey(String functionKey) {
+        return (XQueryFunction)functions.get(functionKey);
     }
 
     /**
@@ -182,30 +187,48 @@ public class XQueryFunctionLibrary implements FunctionLibrary, XQueryFunctionBin
      * executable code of the function.
      * <p>
      * This method is for internal use.
+     * @param env the static context for the main query body.
      */
 
-    protected void fixupGlobalFunctions(StaticQueryContext env) throws XPathException {
+    protected void fixupGlobalFunctions(QueryModule env) throws XPathException {
+        ExpressionVisitor visitor = ExpressionVisitor.make(env);
         Iterator iter = functions.values().iterator();
         while (iter.hasNext()) {
             XQueryFunction fn = (XQueryFunction)iter.next();
-            fn.compile(env);
+            fn.compile();
         }
         iter = functions.values().iterator();
         while (iter.hasNext()) {
             XQueryFunction fn = (XQueryFunction)iter.next();
-            fn.checkReferences(env);
+            visitor.setExecutable(fn.getExecutable());
+            fn.checkReferences(visitor);
         }
     }
 
     /**
-     * Output "explain" information about each declared function
+     * Optimize the body of all global functions. This may involve inlining functions calls
      */
 
-     public void explainGlobalFunctions() throws XPathException {
+    protected void optimizeGlobalFunctions() throws XPathException {
         Iterator iter = functions.values().iterator();
         while (iter.hasNext()) {
             XQueryFunction fn = (XQueryFunction)iter.next();
-            fn.explain(getConfiguration());
+            fn.optimize();
+        }
+    }
+
+
+
+    /**
+     * Output "explain" information about each declared function
+     * @param out the ExpressionPresenter that renders the output
+     */
+
+     public void explainGlobalFunctions(ExpressionPresenter out) {
+        Iterator iter = functions.values().iterator();
+        while (iter.hasNext()) {
+            XQueryFunction fn = (XQueryFunction)iter.next();
+            fn.explain(out);
         }
     }
 
@@ -217,15 +240,16 @@ public class XQueryFunctionLibrary implements FunctionLibrary, XQueryFunctionBin
      * @param uri the uri of the function name
      * @param localName the local part of the function name
      * @param arity the number of arguments.
+     * @return the function identified by the URI, local name, and arity; or null if there is no such function
      */
 
     public UserFunction getUserDefinedFunction(String uri, String localName, int arity) {
-        int fp = getNamePool().allocate("", uri, localName) & 0xfffff;
-        XQueryFunction function = (XQueryFunction)functions.get(functionKey(fp, arity));
-        if (function==null) {
+        String functionKey = XQueryFunction.getIdentificationKey(uri, localName, arity);
+        XQueryFunction fd = (XQueryFunction)functions.get(functionKey);
+        if (fd==null) {
             return null;
         }
-        return function.getUserFunction();
+        return fd.getUserFunction();
     }
 
     /**

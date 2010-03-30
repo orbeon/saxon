@@ -1,17 +1,14 @@
 package org.orbeon.saxon.functions;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Platform;
-import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.regex.RegularExpression;
-import org.orbeon.saxon.trans.DynamicError;
-import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.BooleanValue;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.value.Value;
 
 
 /**
@@ -23,26 +20,73 @@ public class Matches extends SystemFunction {
     private RegularExpression regexp;
 
     /**
-    * Simplify and validate.
-    * This is a pure function so it can be simplified in advance if the arguments are known
-    * @return the simplified expression
-    * @throws org.orbeon.saxon.trans.StaticError if any error is found (e.g. invalid regular expression)
-    */
+     * Simplify and validate.
+     * This is a pure function so it can be simplified in advance if the arguments are known
+     * @return the simplified expression
+     * @throws XPathException if any error is found (e.g. invalid regular expression)
+     * @param visitor an expression visitor
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
-        Expression e = simplifyArguments(env);
-
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        Expression e = simplifyArguments(visitor);
         // compile the regular expression once if possible
-        if (regexp == null && !(e instanceof Value)) {
+        if (e == this) {
+            maybePrecompile(visitor);
+        }
+        return e;
+    }
+
+    /**
+     * Precompile the regular expression if possible
+     * @param visitor an expression visitor
+     */
+
+    private void maybePrecompile(ExpressionVisitor visitor) throws XPathException {
+        if (regexp == null) {
             try {
-                regexp = tryToCompile(argument, 1, 2, env);
-            } catch (StaticError err) {
+                regexp = tryToCompile(argument, 1, 2, visitor.getStaticContext());
+            } catch (XPathException err) {
                 err.setLocator(this);
                 throw err;
             }
         }
+    }
 
+
+    /**
+     * Perform optimisation of an expression and its subexpressions.
+     * <p/>
+     * <p>This method is called after all references to functions and variables have been resolved
+     * to the declaration of the function or variable, and after all type checking has been done.</p>
+     *
+     * @param visitor         an expression visitor
+     * @param contextItemType the static type of "." at the point where this expression is invoked.
+     *                        The parameter is set to null if it is known statically that the context item will be undefined.
+     *                        If the type of the context item is not known statically, the argument is set to
+     *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
+     * @return the original expression, rewritten if appropriate to optimize execution
+     * @throws org.orbeon.saxon.trans.XPathException
+     *          if an error is discovered during this phase
+     *          (typically a type error)
+     */
+
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression e = super.optimize(visitor, contextItemType);
+        // try once again to compile the regular expression once if possible
+        // (used when the regex has been identified as a constant as a result of earlier rewrites)
+        if (e == this) {
+            maybePrecompile(visitor);
+        }
         return e;
+    }
+
+    /**
+     * Get the compiled regular expression, returning null if the regex has not been compiled
+     * @return the compiled regular expression, or null
+     */
+
+    public RegularExpression getCompiledRegularExpression() {
+        return regexp;
     }
 
     /**
@@ -56,7 +100,7 @@ public class Matches extends SystemFunction {
         AtomicValue sv0 = (AtomicValue)argument[0].evaluateItem(c);
         if (sv0==null) {
             sv0 = StringValue.EMPTY_STRING;
-        };
+        }
 
         RegularExpression re = regexp;
 
@@ -74,11 +118,15 @@ public class Matches extends SystemFunction {
             }
 
             try {
-                final Platform platform = c.getConfiguration().getPlatform();
-                re = platform.compileRegularExpression(pat.getStringValueCS(), true, flags);
+                final Platform platform = Configuration.getPlatform();
+                final int xmlVersion = c.getConfiguration().getXMLVersion();
+                re = platform.compileRegularExpression(
+                        pat.getStringValueCS(), xmlVersion, RegularExpression.XPATH_SYNTAX, flags);
             } catch (XPathException err) {
-                DynamicError de = new DynamicError(err);
-                de.setErrorCode("FORX0002");
+                XPathException de = new XPathException(err);
+                if (de.getErrorCodeLocalPart() == null) {
+                    de.setErrorCode("FORX0002");
+                }
                 de.setXPathContext(c);
                 throw de;
             }
@@ -136,6 +184,7 @@ public class Matches extends SystemFunction {
      * @param args the supplied arguments to the function, as an array
      * @param patternArg the position of the argument containing the regular expression
      * @param flagsArg the position of the argument containing the flags
+     * @param env the static context
      * @return the compiled regular expression, or null indicating that the information
      * is not available statically so it cannot be precompiled
      * @throws XPathException if any failure occurs, in particular, if the regular
@@ -151,25 +200,39 @@ public class Matches extends SystemFunction {
         CharSequence flagstr = null;
         if (args.length-1 < flagsArg) {
             flagstr = "";
-        } else if (args[flagsArg] instanceof StringValue) {
-            flagstr = ((StringValue)args[flagsArg]).getStringValueCS();
+        } else if (args[flagsArg] instanceof StringLiteral) {
+            flagstr = ((StringLiteral)args[flagsArg]).getStringValue();
         }
 
-        if (args[patternArg] instanceof StringValue && flagstr != null) {
+        if (args[patternArg] instanceof StringLiteral && flagstr != null) {
             try {
-                Platform platform = env.getConfiguration().getPlatform();
-                CharSequence in = ((StringValue)args[patternArg]).getStringValueCS();
-                RegularExpression regexp = platform.compileRegularExpression(in, true, flagstr);
-                return regexp;
+                Platform platform = Configuration.getPlatform();
+                String in = ((StringLiteral)args[patternArg]).getStringValue();
+                final int xmlVersion = env.getConfiguration().getXMLVersion();
+                int syntax = RegularExpression.XPATH_SYNTAX;
+                // TODO: Find a better (conformant) way of switching this option on
+                if (flagstr.length() > 0 && flagstr.charAt(0) == '!') {
+                    flagstr = flagstr.subSequence(1, flagstr.length());
+                    syntax = RegularExpression.NATIVE_SYNTAX;
+                }
+                return platform.compileRegularExpression(in, xmlVersion, syntax, flagstr);
             } catch (XPathException err) {
-                StaticError e2 = new StaticError(err.getMessage());
-                e2.setErrorCode("FORX0002");
-                throw e2;
+                if (err.getErrorCodeLocalPart() == null) {
+                    err.setErrorCode("FORX0002");
+                }
+                throw err;
             }
         } else {
             return null;
         }
     }
+
+
+//    public static void main(String[] args) {
+//        System.out.println(Pattern.matches("(X)(2)?(3)?(4)?(5)?(6)?(7)?(8)?(9)?(10)?((Y)(\\12))", "XYY"));
+////        String pat = "(X)(2)(3)(4)(5)(6)(7)(8)(9)(10)(11(12)(13)\\11)";
+////        System.out.println(Pattern.matches(pat, "X2345678910111213X1"));
+//    }
 }
 
 

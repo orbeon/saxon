@@ -15,22 +15,74 @@ public class CompilerInfo {
     private URIResolver uriResolver;
 
     private ErrorListener errorListener;
+    private boolean compileWithTracing;
+
+    /**
+     * Set the URI Resolver to be used in this compilation episode.
+     * @param resolver The URIResolver to be used. This is used to dereference URIs encountered in constructs
+     * such as xsl:include, xsl:import, and xsl:import-schema.
+     * @since 8.7
+     */
 
     public void setURIResolver(URIResolver resolver) {
-        this.uriResolver = resolver;
+        uriResolver = resolver;
     }
+
+    /**
+     * Get the URI Resolver being used in this compilation episode.
+     * @return resolver The URIResolver in use. This is used to dereference URIs encountered in constructs
+     * such as xsl:include, xsl:import, and xsl:import-schema.
+     * @since 8.7
+     */
 
     public URIResolver getURIResolver() {
         return uriResolver;
     }
 
+    /**
+     * Set the ErrorListener to be used during this compilation episode
+     * @param listener The error listener to be used. This is notified of all errors detected during the
+     * compilation.
+     * @since 8.7
+     */
+
     public void setErrorListener(ErrorListener listener) {
-        this.errorListener = listener;
+        errorListener = listener;
     }
+
+    /**
+     * Get the ErrorListener being used during this compilation episode
+     * @return listener The error listener in use. This is notified of all errors detected during the
+     * compilation.
+     * @since 8.7
+     */
 
     public ErrorListener getErrorListener() {
         return errorListener;
     }
+
+    /**
+     * Set whether trace hooks are to be included in the compiled code. To use tracing, it is necessary
+     * both to compile the code with trace hooks included, and to supply a TraceListener at run-time
+     * @param trueOrFalse true if trace code is to be compiled in, false otherwise
+     * @since 8.9
+     */
+
+    public void setCompileWithTracing(boolean trueOrFalse) {
+        compileWithTracing = trueOrFalse;
+    }
+
+    /**
+     * Determine whether trace hooks are included in the compiled code.
+     * @return true if trace hooks are included, false if not.
+     * @since 8.9
+     */
+
+    public boolean isCompileWithTracing() {
+        return compileWithTracing;
+    }
+
+
 
 }
 

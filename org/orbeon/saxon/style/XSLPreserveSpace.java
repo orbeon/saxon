@@ -4,6 +4,7 @@ import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.QNameException;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.pattern.*;
 import org.orbeon.saxon.trans.Mode;
 import org.orbeon.saxon.trans.XPathException;
@@ -50,7 +51,7 @@ public class XSLPreserveSpace extends StyleElement {
 
         // elements is a space-separated list of element names
 
-        StringTokenizer st = new StringTokenizer(elements);
+        StringTokenizer st = new StringTokenizer(elements, " \t\n\r", false);
         while (st.hasMoreTokens()) {
             String s = st.nextToken();
             NodeTestPattern pat = new NodeTestPattern();
@@ -66,7 +67,7 @@ public class XSLPreserveSpace extends StyleElement {
                             pat,
                             preserve,
                             getPrecedence(),
-                            -0.5);
+                            -0.5, true);
 
             } else if (s.endsWith(":*")) {
                 if (s.length()==2) {
@@ -75,7 +76,7 @@ public class XSLPreserveSpace extends StyleElement {
                 String prefix = s.substring(0, s.length()-2);
                 String uri = getURIForPrefix(prefix, false);
                 nt = new NamespaceTest(
-                                    getTargetNamePool(),
+                                    getNamePool(),
                                     Type.ELEMENT,
                                     uri);
                 pat.setNodeTest(nt);
@@ -83,14 +84,14 @@ public class XSLPreserveSpace extends StyleElement {
                             pat,
                             preserve,
                             getPrecedence(),
-                            -0.25);
+                            -0.25, true);
             } else if (s.startsWith("*:")) {
                 if (s.length()==2) {
                     compileError("No local name after '*:'");
                 }
                 String localname = s.substring(2);
                 nt = new LocalNameTest(
-                                    getTargetNamePool(),
+                                    getNamePool(),
                                     Type.ELEMENT,
                                     localname);
                 pat.setNodeTest(nt);
@@ -98,7 +99,7 @@ public class XSLPreserveSpace extends StyleElement {
                             pat,
                             preserve,
                             getPrecedence(),
-                            -0.25);
+                            -0.25, true);
             } else {
                 String prefix;
                 String localName = null;
@@ -107,7 +108,7 @@ public class XSLPreserveSpace extends StyleElement {
                     String[] parts = getConfiguration().getNameChecker().getQNameParts(s);
                     prefix = parts[0];
                     if (parts[0].equals("")) {
-                        uri = getNamePool().getURIFromURICode(getDefaultXPathNamespace());
+                        uri = getDefaultXPathNamespace();
                     } else {
                         uri = getURIForPrefix(prefix, false);
                         if (uri == null) {
@@ -120,7 +121,7 @@ public class XSLPreserveSpace extends StyleElement {
                     compileError("Element name " + s + " is not a valid QName", "XTSE0280");
                     return null;
                 }
-                NamePool target = getTargetNamePool();
+                NamePool target = getNamePool();
                 int nameCode = target.allocate("", uri, localName);
                 nt = new NameTest(Type.ELEMENT, nameCode, getNamePool());
                 pat.setNodeTest(nt);
@@ -128,7 +129,7 @@ public class XSLPreserveSpace extends StyleElement {
                             pat,
                             preserve,
                             getPrecedence(),
-                            0);
+                            0, true);
             }
 
         }

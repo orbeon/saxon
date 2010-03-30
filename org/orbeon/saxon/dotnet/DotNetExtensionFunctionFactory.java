@@ -1,6 +1,8 @@
 package org.orbeon.saxon.dotnet;
 import cli.System.Reflection.MemberInfo;
 import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.om.StructuredQName;
+import org.orbeon.saxon.functions.ExtensionFunctionFactory;
 import org.orbeon.saxon.expr.Expression;
 
 import java.io.Serializable;
@@ -14,7 +16,7 @@ import java.io.Serializable;
  * DotNetExtensionFunctionFactory, is used for .NET extensions.
 */
 
-public class DotNetExtensionFunctionFactory implements Serializable {
+public class DotNetExtensionFunctionFactory implements ExtensionFunctionFactory, Serializable {
 
     public DotNetExtensionFunctionFactory(Configuration config) {
         this.config = config;
@@ -36,7 +38,7 @@ public class DotNetExtensionFunctionFactory implements Serializable {
     /**
      * Factory method to create an expression that calls a Java extension function.
      * This is always called at XPath compile time.
-     * @param nameCode the name of the function name, as represented in the name pool
+     * @param functionName the name of the function
      * @param theClass the Java class containing the extension function
      * @param method The "accessibleObject" representing a constructor, method, or field corresponding
      * to the extension function
@@ -46,7 +48,7 @@ public class DotNetExtensionFunctionFactory implements Serializable {
      */
 
     public Expression makeExtensionFunctionCall(
-            int nameCode, cli.System.Type theClass, MemberInfo method, Expression[] arguments) {
+            StructuredQName functionName, cli.System.Type theClass, MemberInfo method, Expression[] arguments) {
         DotNetExtensionFunctionCall fn;
         try {
             fn = (DotNetExtensionFunctionCall)(extensionFunctionCallClass.newInstance());
@@ -55,7 +57,7 @@ public class DotNetExtensionFunctionFactory implements Serializable {
         } catch (IllegalAccessException e) {
             throw new IllegalArgumentException(e.getMessage());
         }
-        fn.init(nameCode, theClass, method, config);
+        fn.init(functionName, theClass, method, config);
         fn.setArguments(arguments);
         return fn;
     }

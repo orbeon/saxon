@@ -19,7 +19,6 @@ public class FilterIterator implements SequenceIterator {
     private int position = 0;
     private Item current = null;
     protected XPathContext filterContext;
-    private boolean filterIsSingletonBoolean = false;
 
     /**
     * Constructor
@@ -37,10 +36,6 @@ public class FilterIterator implements SequenceIterator {
         filterContext.setOriginatingConstructType(Location.FILTER_EXPRESSION);
     }
 
-    public void setFilterIsSingletonBoolean(boolean isBoolean) {
-        filterIsSingletonBoolean = isBoolean;
-    }
-
     /**
     * Get the next item if there is one
     */
@@ -56,8 +51,9 @@ public class FilterIterator implements SequenceIterator {
     }
 
     /**
-    * Get the next node that matches the filter predicate if there is one,
-     * or null if not.
+     * Get the next item in the base sequence that matches the filter predicate
+     * if there is such an item, or null if not.
+     * @return the next item that matches the predicate
     */
 
     protected Item getNextMatchingItem() throws XPathException {
@@ -74,15 +70,10 @@ public class FilterIterator implements SequenceIterator {
 
     /**
     * Determine whether the context item matches the filter predicate
+     * @return true if the context item matches
     */
 
     protected boolean matches() throws XPathException {
-
-
-
-        if (filterIsSingletonBoolean) {
-            return filter.effectiveBooleanValue(filterContext);
-        }
 
         // This code is carefully designed to avoid reading more items from the
         // iteration of the filter expression than are absolutely essential.
@@ -108,12 +99,17 @@ public class FilterIterator implements SequenceIterator {
                     ExpressionTool.ebvError("sequence of two or more items starting with a string");
                 }
                 return (first.getStringValueCS().length()!=0);
+            } else if (first instanceof Int64Value) {
+                if (iterator.next() != null) {
+                    ExpressionTool.ebvError("sequence of two or more items starting with a numeric value");
+                }
+                return ((Int64Value)first).longValue() == base.position();
+
             } else if (first instanceof NumericValue) {
                 if (iterator.next() != null) {
                     ExpressionTool.ebvError("sequence of two or more items starting with a numeric value");
                 }
-                IntegerValue basePos = new IntegerValue(base.position());
-                return first.equals(basePos);
+                return ((NumericValue)first).compareTo(base.position()) == 0;
             } else {
                 ExpressionTool.ebvError("sequence starting with an atomic value other than a boolean, number, or string");
                 return false;
@@ -127,6 +123,10 @@ public class FilterIterator implements SequenceIterator {
 
     public int position() {
         return position;
+    }
+
+    public void close() {
+        base.close();
     }
 
     /**
@@ -159,6 +159,16 @@ public class FilterIterator implements SequenceIterator {
 
     public static final class NonNumeric extends FilterIterator {
 
+        /**
+         * Create a FilterIterator for the situation where it is known that the filter
+         * expression will never evaluate to a number value. For this case we can simply
+         * use the effective boolean value of the predicate
+         * @param base iterator over the sequence to be filtered
+         * @param filter the filter expression
+         * @param context the current context (for evaluating the filter expression as a whole).
+         * A new context will be created to evaluate the predicate.
+         */
+
         public NonNumeric(SequenceIterator base, Expression filter,
                             XPathContext context) {
             super(base, filter, context);
@@ -188,6 +198,15 @@ public class FilterIterator implements SequenceIterator {
 
     public static final class Leading extends FilterIterator {
 
+        /**
+         * Create a FilterIterate that terminates at the first item for which the predicate
+         * evaluates to false
+         * @param base iterator over the sequence to be filtered
+         * @param filter the filter expression - always evaluated as a boolean
+         * @param context the outer context for the filter expression as a whole; a new
+         * context will be created for evaluating the predicate
+         */
+
         public Leading(SequenceIterator base, Expression filter,
                             XPathContext context) {
             super(base, filter, context);
@@ -206,17 +225,15 @@ public class FilterIterator implements SequenceIterator {
         */
 
         protected Item getNextMatchingItem() throws XPathException {
-            while (true) {
-                Item next = base.next();
-                if (next == null) {
-                    return null;
-                }
-                if (matches()) {
-                    return next;
-                } else {
-                    // terminate the iteration on the first non-match
-                    return null;
-                }
+            Item next = base.next();
+            if (next == null) {
+                return null;
+            }
+            if (matches()) {
+                return next;
+            } else {
+                // terminate the iteration on the first non-match
+                return null;
             }
         }
 
@@ -229,13 +246,9 @@ public class FilterIterator implements SequenceIterator {
                                         filterContext);
         }
 
-
     }
 
-
 }
-
-
 
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");

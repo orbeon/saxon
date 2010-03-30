@@ -1,12 +1,13 @@
 package org.orbeon.saxon.expr;
+import org.orbeon.saxon.functions.BooleanFn;
+import org.orbeon.saxon.functions.SystemFunction;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.BooleanValue;
-import org.orbeon.saxon.functions.SystemFunction;
-import org.orbeon.saxon.functions.BooleanFn;
+import org.orbeon.saxon.instruct.Choose;
 
 import java.util.Iterator;
 import java.util.List;
@@ -16,10 +17,41 @@ import java.util.List;
 * Boolean expression: two truth values combined using AND or OR.
 */
 
-public class BooleanExpression extends BinaryExpression {
+public class BooleanExpression extends BinaryExpression implements Negatable {
+
+    /**
+     * Construct a boolean expression
+     * @param p1 the first operand
+     * @param operator one of {@link Token#AND} or {@link Token#OR}
+     * @param p2 the second operand
+     */
 
     public BooleanExpression(Expression p1, int operator, Expression p2) {
         super(p1, operator, p2);
+    }
+
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression e = super.typeCheck(visitor, contextItemType);
+        if (e == this) {
+            XPathException err0 = TypeChecker.ebvError(operand0, visitor.getConfiguration().getTypeHierarchy());
+            if (err0 != null) {
+                err0.setLocator(this);
+                throw err0;
+            }
+            XPathException err1 = TypeChecker.ebvError(operand1, visitor.getConfiguration().getTypeHierarchy());
+            if (err1 != null) {
+                err1.setLocator(this);
+                throw err1;
+            }
+            // Precompute the EBV of any constant operand
+            if (operand0 instanceof Literal && !(((Literal)operand0).getValue() instanceof BooleanValue)) {
+                operand0 = Literal.makeLiteral(BooleanValue.get(operand0.effectiveBooleanValue(null)));
+            }
+            if (operand1 instanceof Literal && !(((Literal)operand1).getValue() instanceof BooleanValue)) {
+                operand1 = Literal.makeLiteral(BooleanValue.get(operand1.effectiveBooleanValue(null)));
+            }
+        }
+        return e;
     }
 
     /**
@@ -36,75 +68,98 @@ public class BooleanExpression extends BinaryExpression {
      * <p>This method is called after all references to functions and variables have been resolved
      * to the declaration of the function or variable, and after all type checking has been done.</p>
      *
-     * @param opt             the optimizer in use. This provides access to supporting functions; it also allows
-     *                        different optimization strategies to be used in different circumstances.
-     * @param env             the static context of the expression
+     * @param visitor an expression visitor
      * @param contextItemType the static type of "." at the point where this expression is invoked.
      *                        The parameter is set to null if it is known statically that the context item will be undefined.
      *                        If the type of the context item is not known statically, the argument is set to
      *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
      * @return the original expression, rewritten if appropriate to optimize execution
-     * @throws org.orbeon.saxon.trans.StaticError if an error is discovered during this phase
+     * @throws XPathException if an error is discovered during this phase
      *                                        (typically a type error)
      */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        // Rewrite [A and B] as [if (A) then B else false()]. The benefit of this is that when B is a recursive
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+
+        final Expression e = super.optimize(visitor, contextItemType);
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
+
+        if (e != this) {
+            return e;
+        }
+
+        Optimizer opt = visitor.getConfiguration().getOptimizer();
+        operand0 = ExpressionTool.unsortedIfHomogeneous(opt, operand0);
+        operand1 = ExpressionTool.unsortedIfHomogeneous(opt, operand1);
+
+        // If the value can be determined from knowledge of one operand, precompute the result
+
+        if (operator == Token.AND && (
+                Literal.isConstantBoolean(operand0, false) || Literal.isConstantBoolean(operand1, false))) {
+            return new Literal(BooleanValue.FALSE);
+        }
+
+        if (operator == Token.OR && (
+                Literal.isConstantBoolean(operand0, true) || Literal.isConstantBoolean(operand1, true))) {
+            return new Literal(BooleanValue.TRUE);
+        }
+
+        // Rewrite (A and B) as (if (A) then B else false()). The benefit of this is that when B is a recursive
         // function call, it is treated as a tail call (test qxmp290). To avoid disrupting other optimizations
         // of "and" expressions (specifically, where clauses in FLWOR expressions), do this ONLY if B is a user
         // function call (we can't tell if it's recursive), and it's not in a loop.
-        final Expression e = super.optimize(opt, env, contextItemType);
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
+
+
         if (e == this && operator == Token.AND &&
                 operand1 instanceof UserFunctionCall &&
-                th.isSubType(operand1.getItemType(th), Type.BOOLEAN_TYPE) &&
-                !containedInLoop(env)) {
-            IfExpression cond = new IfExpression(operand0, operand1, BooleanValue.FALSE);
-            cond.setLocationId(getLocationId());
-            cond.setParentExpression(getParentExpression());
+                th.isSubType(operand1.getItemType(th), BuiltInAtomicType.BOOLEAN) &&
+                !visitor.isLoopingSubexpression(null)) {
+            Expression cond = Choose.makeConditional(operand0, operand1, Literal.makeLiteral(BooleanValue.FALSE));
+            ExpressionTool.copyLocationInfo(this, cond);
             return cond;
         }
         return this;
     }
 
-    private boolean containedInLoop(StaticContext env) {
-        ComputedExpression e = this;
-        while (true) {
-            Container c = e.getParentExpression();
-            if (c instanceof Expression && ExpressionTool.isRepeatedSubexpression((Expression)c, e, env)) {
-                return true;
-            } else if (c instanceof ComputedExpression) {
-                e = (ComputedExpression)c;
-            } else {
-                return false;
-            }
-        }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new BooleanExpression(operand0.copy(), operator, operand1.copy());
+    }
+
+
+    /**
+     * Check whether this specific instance of the expression is negatable
+     *
+     * @return true if it is
+     */
+
+    public boolean isNegatable(ExpressionVisitor visitor) {
+        return true;
     }
 
     /**
      * Return the negation of this boolean expression, that is, an expression that returns true
      * when this expression returns false, and vice versa
+     *
+     * @return the negation of this expression
      */
 
-    public Expression negate(StaticContext env) {
+    public Expression negate() {
         // Apply de Morgan's laws
         if (operator == Token.AND) {
             // not(A and B) ==> not(A) or not(B)
-            BooleanFn not0 = (BooleanFn)SystemFunction.makeSystemFunction("not", 1, env.getNamePool());
-            Expression[] args0 = {operand0};
-            not0.setArguments(args0);
-            BooleanFn not1 = (BooleanFn)SystemFunction.makeSystemFunction("not", 1, env.getNamePool());
-            Expression[] args1 = {operand1};
-            not1.setArguments(args1);
+            BooleanFn not0 = (BooleanFn)SystemFunction.makeSystemFunction("not", new Expression[]{operand0});
+            BooleanFn not1 = (BooleanFn)SystemFunction.makeSystemFunction("not", new Expression[]{operand1});
             return new BooleanExpression(not0, Token.OR, not1);
         } else {
             // not(A or B) => not(A) and not(B)
-            BooleanFn not0 = (BooleanFn)SystemFunction.makeSystemFunction("not", 1, env.getNamePool());
-            Expression[] args0 = {operand0};
-            not0.setArguments(args0);
-            BooleanFn not1 = (BooleanFn)SystemFunction.makeSystemFunction("not", 1, env.getNamePool());
-            Expression[] args1 = {operand1};
-            not1.setArguments(args1);
+            BooleanFn not0 = (BooleanFn)SystemFunction.makeSystemFunction("not", new Expression[]{operand0});
+            BooleanFn not1 = (BooleanFn)SystemFunction.makeSystemFunction("not", new Expression[]{operand1});
             return new BooleanExpression(not0, Token.AND, not1);
         }
     }
@@ -135,13 +190,13 @@ public class BooleanExpression extends BinaryExpression {
     }
 
     /**
-    * Determine the data type of the expression
-    * @return Type.BOOLEAN
-     * @param th
+     * Determine the data type of the expression
+     * @return BuiltInAtomicType.BOOLEAN
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
-        return Type.BOOLEAN_TYPE;
+        return BuiltInAtomicType.BOOLEAN;
     }
 
     /**

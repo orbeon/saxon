@@ -4,6 +4,7 @@ import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.QNameValue;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 
 
 /**
@@ -22,45 +23,24 @@ public class ResolveQName extends SystemFunction {
             return null;
         }
 
-        CharSequence qname = arg0.getStringValueCS();
-        String[] parts;
+        CharSequence lexicalQName = arg0.getStringValueCS();
         final NameChecker checker = context.getConfiguration().getNameChecker();
-        try {
-
-            parts = checker.getQNameParts(qname);
-        } catch (QNameException err) {
-            dynamicError(err.getMessage(), "FOCA0002", context);
-            return null;
-        }
 
         NodeInfo element = (NodeInfo)argument[1].evaluateItem(context);
-        SequenceIterator nsNodes = element.iterateAxis(Axis.NAMESPACE);
+        NamespaceResolver resolver = new InscopeNamespaceResolver(element);
+        StructuredQName qName;
 
-        while (true) {
-            NodeInfo namespace = (NodeInfo)nsNodes.next();
-            if (namespace==null) {
-                break;
-            }
-            String prefix = namespace.getLocalPart();
-            if (prefix.equals(parts[0])) {
-                return new QNameValue(prefix, namespace.getStringValue(), parts[1], checker);
-            }
+        try {
+            qName= StructuredQName.fromLexicalQName(lexicalQName, true, checker, resolver);
+        } catch (XPathException e) {
+            e.maybeSetLocation(this);
+            throw e;
         }
 
-        if (parts[0].equals("")) {
-            return new QNameValue("", null, parts[1], checker);
-        }
-
-        dynamicError(
-            "Namespace prefix '" + parts[0] + "' is not in scope for the selected element", "FONS0004", context);
-        return null;
+        return new QNameValue(qName, BuiltInAtomicType.QNAME);
     }
 
 }
-
-
-
-
 
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");

@@ -2,11 +2,12 @@ package org.orbeon.saxon.om;
 
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.event.ReceiverOptions;
 import org.orbeon.saxon.pattern.AnyNodeTest;
-import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.pattern.NodeTest;
-import org.orbeon.saxon.sort.IntHashSet;
+import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.sort.IntIterator;
+import org.orbeon.saxon.sort.IntHashSet;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.StringValue;
@@ -26,22 +27,25 @@ public class NamespaceIterator implements AxisIterator {
     private NamespaceNodeImpl next;
     private NamespaceNodeImpl current;
     private IntIterator nsIterator;
-    private int count;
 
+    /**
+     * Factory method to create an iterator over the in-scope namespace nodes
+     * @param element the node whose namespaces are required
+     * @param test used to filter the returned nodes
+     * @return an iterator over the namespace nodes that satisfy the test
+     */
 
-    public NamespaceIterator(NodeInfo element, NodeTest test) {
-        this.element = element;
-        this.test = test;
+    public static AxisIterator makeIterator(NodeInfo element, NodeTest test) {
+        boolean first = true;
         if (test instanceof AnyNodeTest || test == NodeKindTest.NAMESPACE) {
-            this.test = null;
+            test = null;
         }
-        index = -1;
-
-        IntHashSet undeclared = new IntHashSet(8);
-        IntHashSet declared = new IntHashSet(8);
+        AxisIterator result = null;
+        IntHashSet declared = null;
+        IntHashSet undeclared = null;
         int[] buffer = new int[8];
         NodeInfo node = element;
-        declared.add(NamespaceConstant.XML_NAMESPACE_CODE);
+
         while (node != null && node.getNodeKind() == Type.ELEMENT) {
 
             int[] nslist = node.getDeclaredNamespaces(buffer);
@@ -50,13 +54,23 @@ public class NamespaceIterator implements AxisIterator {
                     if (nslist[i] ==-1) {
                         break;
                     }
+                    if (first) {
+                        NamespaceIterator nsi = new NamespaceIterator();
+                        nsi.element = element;
+                        nsi.test = test;
+                        nsi.index = -1;
+                        undeclared = new IntHashSet(8);
+                        declared = new IntHashSet(8);
+                        declared.add(NamespaceConstant.XML_NAMESPACE_CODE);
+                        first = false;
+                        result = nsi;
+                    }
                     short uriCode = (short)(nslist[i] & 0xffff);
                     short prefixCode = (short)(nslist[i] >> 16);
                     if (uriCode == 0) {
                         // this is an undeclaration
                         undeclared.add(prefixCode);
                     } else {
-                        //Integer key = new Integer(prefixCode);
                         if (!undeclared.contains(prefixCode)) {
                             declared.add(nslist[i]);
                             undeclared.add(prefixCode);
@@ -66,8 +80,22 @@ public class NamespaceIterator implements AxisIterator {
             }
             node = node.getParent();
         }
-        count = declared.size();
-        nsIterator = declared.iterator();
+        if (result == null) {
+            NodeInfo ns = new NamespaceNodeImpl(element, NamespaceConstant.XML_NAMESPACE_CODE, 0);
+            if (test == null) {
+                return SingleNodeIterator.makeIterator(ns);
+            } else {
+                return Navigator.filteredSingleton(ns, test);
+            }
+        } else {
+            ((NamespaceIterator)result).nsIterator = declared.iterator();
+            return result;
+        }
+    }
+
+
+    private NamespaceIterator() {
+
     }
 
     /**
@@ -84,6 +112,18 @@ public class NamespaceIterator implements AxisIterator {
         }
         next = null;
     }
+
+    /**
+     * Move to the next node, without returning it. Returns true if there is
+     * a next node, false if the end of the sequence has been reached. After
+     * calling this method, the current node may be retrieved using the
+     * current() function.
+     */
+
+    public boolean moveNext() {
+        return (next() != null);
+    }
+
 
     /**
      * Get the next item in the sequence. <BR>
@@ -128,6 +168,44 @@ public class NamespaceIterator implements AxisIterator {
         return position;
     }
 
+    public void close() {
+    }
+
+    /**
+     * Return an iterator over an axis, starting at the current node.
+     *
+     * @param axis the axis to iterate over, using a constant such as
+     *             {@link Axis#CHILD}
+     * @param test a predicate to apply to the nodes before returning them.
+     * @throws NullPointerException if there is no current node
+     */
+
+    public AxisIterator iterateAxis(byte axis, NodeTest test) {
+        return current.iterateAxis(axis, test);
+    }
+
+    /**
+     * Return the atomized value of the current node.
+     *
+     * @return the atomized value.
+     * @throws NullPointerException if there is no current node
+     */
+
+    public Value atomize() throws XPathException {
+        return current.atomize();
+    }
+
+    /**
+     * Return the string value of the current node.
+     *
+     * @return the string value, as an instance of CharSequence.
+     * @throws NullPointerException if there is no current node
+     */
+
+    public CharSequence getStringValue() {
+        return current.getStringValueCS();
+    }
+
     /**
      * Get another iterator over the same sequence of items, positioned at the
      * start of the sequence
@@ -136,7 +214,7 @@ public class NamespaceIterator implements AxisIterator {
      */
 
     public SequenceIterator getAnother() {
-        return new NamespaceIterator(element, test);
+        return makeIterator(element, test);
     }
 
     /**
@@ -155,20 +233,72 @@ public class NamespaceIterator implements AxisIterator {
 
     /**
      * Get a list of in-scope namespace codes. If an array of namespace codes is needed, without
-     * actually constructing the namespace nodes, a caller may create the NamespaceIterator and then
-     * call this method. The result is an array of integers, each containing a prefix code in the top
+     * actually constructing the namespace nodes, this factory method can be used directly.
+     * The result is an array of integers, each containing a prefix code in the top
      * half and a uri code in the bottom half. Note that calling this method is destructive: the
      * iterator is consumed and cannot be used again.
+     * @param element the element whose nodes are required
+     * @return the list of in scope namespaces
      */
 
-    public int[] getInScopeNamespaceCodes() {
-        int[] codes = new int[count];
-        int i = 0;
-        while (nsIterator.hasNext()) {
-            codes[i++] = nsIterator.next();
+    public static int[] getInScopeNamespaceCodes(NodeInfo element) {
+        boolean first = true;
+        IntHashSet declared = null;
+        IntHashSet undeclared = null;
+        int[] buffer = new int[8];
+        NodeInfo node = element;
+
+        while (node != null && node.getNodeKind() == Type.ELEMENT) {
+
+            int[] nslist = node.getDeclaredNamespaces(buffer);
+            if (nslist != null) {
+                for (int i=0; i<nslist.length; i++) {
+                    if (nslist[i] ==-1) {
+                        break;
+                    }
+                    if (first) {
+                        undeclared = new IntHashSet(8);
+                        declared = new IntHashSet(8);
+                        declared.add(NamespaceConstant.XML_NAMESPACE_CODE);
+                        first = false;
+                    }
+                    short uriCode = (short)(nslist[i] & 0xffff);
+                    short prefixCode = (short)(nslist[i] >> 16);
+                    if (uriCode == 0) {
+                        // this is an undeclaration
+                        undeclared.add(prefixCode);
+                    } else {
+                        if (!undeclared.contains(prefixCode)) {
+                            declared.add(nslist[i]);
+                            undeclared.add(prefixCode);
+                        }
+                    }
+                }
+            }
+            node = node.getParent();
         }
-        return codes;
+        if (first) {
+            return XML_NAMESPACE_CODE_ARRAY;
+        } else {
+
+            try {
+                int[] codes = new int[declared.size()];
+                int i = 0;
+                IntIterator ii = declared.iterator();
+                while (ii.hasNext()) {
+                    codes[i++] = ii.next();
+                }
+                return codes;
+            } catch (ArrayIndexOutOfBoundsException e) {
+                // Diagnostic patch for a rarely-occurring problem, observed in both 8.6 and 9.1
+                System.err.println("*** Internal error in NamespaceIterator ***");
+                declared.diagnosticDump();
+                throw e;
+            }
+        }
     }
+
+    private static int[] XML_NAMESPACE_CODE_ARRAY = {NamespaceConstant.XML_NAMESPACE_CODE};
 
     /**
      * Inner class: a model-independent representation of a namespace node
@@ -181,6 +311,13 @@ public class NamespaceIterator implements AxisIterator {
         int position;
         int namecode;
 
+        /**
+         * Create a namespace node
+         * @param element the parent element of the namespace node
+         * @param nscode the namespace code, representing the prefix and URI of the namespace binding
+         * @param position maintains document order among namespace nodes for the same element
+         */
+
         public NamespaceNodeImpl(NodeInfo element, int nscode, int position) {
             this.element = element;
             this.nscode = nscode;
@@ -188,9 +325,9 @@ public class NamespaceIterator implements AxisIterator {
             NamePool pool = element.getNamePool();
             String prefix = pool.getPrefixFromNamespaceCode(nscode);
             if ("".equals(prefix)) {
-                this.namecode = -1;
+                namecode = -1;
             } else {
-                this.namecode = pool.allocate("", "", prefix);
+                namecode = pool.allocate("", "", prefix);
             }
         }
 
@@ -218,10 +355,8 @@ public class NamespaceIterator implements AxisIterator {
          */
 
         public boolean isSameNodeInfo(NodeInfo other) {
-            if (!(other instanceof NamespaceNodeImpl)) {
-                return false;
-            }
-            return element.isSameNodeInfo(((NamespaceNodeImpl)other).element) &&
+            return other instanceof NamespaceNodeImpl &&
+                    element.isSameNodeInfo(((NamespaceNodeImpl)other).element) &&
                     nscode == ((NamespaceNodeImpl)other).nscode;
 
         }
@@ -239,12 +374,8 @@ public class NamespaceIterator implements AxisIterator {
           */
 
          public boolean equals(Object other) {
-            if (other instanceof NodeInfo) {
-                return isSameNodeInfo((NodeInfo)other);
-            } else {
-                return false;
-            }
-        }
+           return other instanceof NodeInfo && isSameNodeInfo((NodeInfo)other);
+       }
 
          /**
           * The hashCode() method obeys the contract for hashCode(): that is, if two objects are equal
@@ -291,6 +422,17 @@ public class NamespaceIterator implements AxisIterator {
 
         public int getLineNumber() {
             return element.getLineNumber();
+        }
+
+        /**
+         * Get column number
+         *
+         * @return the column number of the node in its original source document; or
+         *         -1 if not available
+         */
+
+        public int getColumnNumber() {
+            return element.getColumnNumber();
         }
 
         /**
@@ -522,10 +664,7 @@ public class NamespaceIterator implements AxisIterator {
                             nodeTest);
 
                 case Axis.PARENT:
-                     if (nodeTest.matches(element)) {
-                         return SingletonIterator.makeIterator(element);
-                     }
-                     return EmptyIterator.getInstance();
+                    return Navigator.filteredSingleton(element, nodeTest);
 
                 case Axis.PRECEDING:
                     return new Navigator.AxisFilter(
@@ -533,10 +672,7 @@ public class NamespaceIterator implements AxisIterator {
                             nodeTest);
 
                 case Axis.SELF:
-                    if (nodeTest.matches(this)) {
-                        return SingletonIterator.makeIterator(this);
-                    }
-                    return EmptyIterator.getInstance();
+                    return Navigator.filteredSingleton(this, nodeTest);
 
                 case Axis.PRECEDING_OR_ANCESTOR:
                     return new Navigator.AxisFilter(
@@ -634,19 +770,7 @@ public class NamespaceIterator implements AxisIterator {
          */
 
         public void copy(Receiver out, int whichNamespaces, boolean copyAnnotations, int locationId) throws XPathException {
-            out.namespace(nscode, 0);
-        }
-
-        /**
-         * Output all namespace nodes associated with this element. Does nothing if
-         * the node is not an element.
-         *
-         * @param out              The relevant outputter
-         * @param includeAncestors True if namespaces declared on ancestor
-         */
-
-        public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors) throws XPathException {
-
+            out.namespace(nscode, ReceiverOptions.REJECT_DUPLICATES);
         }
 
         /**
@@ -680,7 +804,7 @@ public class NamespaceIterator implements AxisIterator {
          * @param systemId The system identifier as a URL string.
          */
         public void setSystemId(String systemId) {
-
+            // no action: namespace nodes have the same base URI as their parent
         }
 
         /**
@@ -710,5 +834,54 @@ public class NamespaceIterator implements AxisIterator {
         public Value atomize() throws XPathException {
             return new StringValue(getStringValueCS());
         }
+
+
+        /**
+         * Determine whether this node has the is-id property
+         *
+         * @return true if the node is an ID
+         */
+
+        public boolean isId() {
+            return false;
+        }
+
+        /**
+         * Determine whether this node has the is-idref property
+         *
+         * @return true if the node is an IDREF or IDREFS element or attribute
+         */
+
+        public boolean isIdref() {
+            return false;
+        }
+
+        /**
+         * Determine whether the node has the is-nilled property
+         *
+         * @return true if the node has the is-nilled property
+         */
+
+        public boolean isNilled() {
+            return false;
+        }
     }
 }
+
+//
+// The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");
+// you may not use this file except in compliance with the License. You may obtain a copy of the
+// License at http://www.mozilla.org/MPL/
+//
+// Software distributed under the License is distributed on an "AS IS" basis,
+// WITHOUT WARRANTY OF ANY KIND, either express or implied.
+// See the License for the specific language governing rights and limitations under the License.
+//
+// The Original Code is: all this file.
+//
+// The Initial Developer of the Original Code is Michael H. Kay
+//
+// Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
+//
+// Contributor(s): none.
+//

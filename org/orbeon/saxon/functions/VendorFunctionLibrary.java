@@ -1,27 +1,32 @@
 package org.orbeon.saxon.functions;
 
+import org.orbeon.saxon.trans.Err;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.om.StructuredQName;
 import org.orbeon.saxon.pattern.NodeKindTest;
-import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.Err;
 
 import java.util.HashMap;
 
 /**
  * The VendorFunctionLibrary represents specially-recognized functions in the Saxon namespace. It doesn't
  * handle Saxon extension functions that are implemented as normal extension functions, which are bound using
- * the {@link JavaExtensionLibrary}.
+ * the {@link org.orbeon.saxon.functions.JavaExtensionLibrary}.
  */
 
 public class VendorFunctionLibrary implements FunctionLibrary {
 
     private HashMap functionTable;
+
+    /**
+     * Create the Vendor Function Library for Saxon
+     */
 
     public VendorFunctionLibrary() {
         init();
@@ -57,23 +62,31 @@ public class VendorFunctionLibrary implements FunctionLibrary {
         functionTable = new HashMap(30);
         StandardFunction.Entry e;
         e = register("evaluate", Evaluate.class, Evaluate.EVALUATE, 1, 10, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
-            StandardFunction.arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
+            StandardFunction.arg(e, 0, BuiltInAtomicType.STRING, StaticProperty.EXACTLY_ONE, null);
 
         e = register("evaluate-node", Evaluate.class, Evaluate.EVALUATE_NODE, 1, 1, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
-            StandardFunction.arg(e, 0, Type.NODE_TYPE, StaticProperty.EXACTLY_ONE);
+            StandardFunction.arg(e, 0, Type.NODE_TYPE, StaticProperty.EXACTLY_ONE, null);
 
         e = register("eval", Evaluate.class, Evaluate.EVAL, 1, 10, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
-            StandardFunction.arg(e, 0, Type.ANY_ATOMIC_TYPE, StaticProperty.EXACTLY_ONE);
+            StandardFunction.arg(e, 0, BuiltInAtomicType.ANY_ATOMIC, StaticProperty.EXACTLY_ONE, null);
 
-        e = register("expression", Evaluate.class, Evaluate.EXPRESSION, 1, 1, Type.ANY_ATOMIC_TYPE, StaticProperty.EXACTLY_ONE);
-            StandardFunction.arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
+        e = register("expression", Evaluate.class, Evaluate.EXPRESSION, 1, 2, BuiltInAtomicType.ANY_ATOMIC, StaticProperty.EXACTLY_ONE);
+            StandardFunction.arg(e, 0, BuiltInAtomicType.STRING, StaticProperty.EXACTLY_ONE, null);
+            StandardFunction.arg(e, 1, NodeKindTest.ELEMENT, StaticProperty.EXACTLY_ONE, null);
+
+        e = register("is-whole-number", IsWholeNumber.class, 1, 1, 1, BuiltInAtomicType.BOOLEAN, StaticProperty.EXACTLY_ONE);
+            StandardFunction.arg(e, 0, BuiltInAtomicType.NUMERIC, StaticProperty.ALLOWS_ZERO_OR_ONE, null);
+
+        e = register("item-at", ItemAt.class, 1, 2, 2, StandardFunction.SAME_AS_FIRST_ARGUMENT, StaticProperty.ALLOWS_ZERO_OR_ONE);
+            StandardFunction.arg(e, 0, Type.ITEM_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE, null);
+            StandardFunction.arg(e, 1, BuiltInAtomicType.NUMERIC, StaticProperty.ALLOWS_ZERO_OR_ONE, null);
 
         e = register("parse", Parse.class, 0, 1, 1, NodeKindTest.DOCUMENT, StaticProperty.EXACTLY_ONE);
-            StandardFunction.arg(e, 0, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
+            StandardFunction.arg(e, 0, BuiltInAtomicType.STRING, StaticProperty.EXACTLY_ONE, null);
 
-        e = register("serialize", Serialize.class, 0, 2, 2, Type.STRING_TYPE, StaticProperty.EXACTLY_ONE);
-            StandardFunction.arg(e, 0, Type.NODE_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE);
-            StandardFunction.arg(e, 1, Type.ITEM_TYPE, StaticProperty.EXACTLY_ONE);
+        e = register("serialize", Serialize.class, 0, 2, 2, BuiltInAtomicType.STRING, StaticProperty.EXACTLY_ONE);
+            StandardFunction.arg(e, 0, Type.NODE_TYPE, StaticProperty.ALLOWS_ZERO_OR_ONE, null);
+            StandardFunction.arg(e, 1, Type.ITEM_TYPE, StaticProperty.EXACTLY_ONE, null);
 
     }
 
@@ -81,20 +94,15 @@ public class VendorFunctionLibrary implements FunctionLibrary {
      * Test whether a Saxon function with a given name and arity is available. This supports
      * the function-available() function in XSLT. This method may be called either at compile time
      * or at run time.
-     * @param uri  The URI of the function name
-     * @param local  The local part of the function name
+     * @param functionName the name of the function
      * @param arity The number of arguments. This is set to -1 in the case of the single-argument
      * function-available() function; in this case the method should return true if there is some
-     * matching extension function, regardless of its arity.
      */
 
-    public boolean isAvailable(int fingerprint, String uri, String local, int arity) {
-        if (uri.equals(NamespaceConstant.SAXON)) {
-            StandardFunction.Entry entry = (StandardFunction.Entry)functionTable.get(local);
-            if (entry == null) {
-                return false;
-            }
-            return (arity == -1 ||
+    public boolean isAvailable(StructuredQName functionName, int arity) {
+        if (functionName.getNamespaceURI().equals(NamespaceConstant.SAXON)) {
+            StandardFunction.Entry entry = (StandardFunction.Entry)functionTable.get(functionName.getLocalName());
+            return entry != null && (arity == -1 ||
                     (arity >= entry.minArguments && arity <= entry.maxArguments));
         } else {
             return false;
@@ -105,11 +113,11 @@ public class VendorFunctionLibrary implements FunctionLibrary {
      * Bind an extension function, given the URI and local parts of the function name,
      * and the list of expressions supplied as arguments. This method is called at compile
      * time.
-     * @param uri  The URI of the function name
-     * @param local  The local part of the function name
+     * @param functionName the name of the function
      * @param staticArgs  The expressions supplied statically in the function call. The intention is
      * that the static type of the arguments (obtainable via getItemType() and getCardinality() may
      * be used as part of the binding algorithm.
+     * @param env
      * @return An object representing the extension function to be called, if one is found;
      * null if no extension function was found matching the required name and arity.
      * @throws org.orbeon.saxon.trans.XPathException if a function is found with the required name and arity, but
@@ -118,8 +126,10 @@ public class VendorFunctionLibrary implements FunctionLibrary {
      * the function call, but no function was found.
      */
 
-    public Expression bind(int nameCode, String uri, String local, Expression[] staticArgs)
+    public Expression bind(StructuredQName functionName, Expression[] staticArgs, StaticContext env)
             throws XPathException {
+        String uri = functionName.getNamespaceURI();
+        String local = functionName.getLocalName();
         if (uri.equals(NamespaceConstant.SAXON)) {
             StandardFunction.Entry entry = (StandardFunction.Entry)functionTable.get(local);
             if (entry == null) {
@@ -133,7 +143,7 @@ public class VendorFunctionLibrary implements FunctionLibrary {
                 throw new AssertionError("Failed to load Saxon extension function: " + err.getMessage());
             }
             f.setDetails(entry);
-            f.setFunctionNameCode(nameCode);
+            f.setFunctionName(functionName);
             f.setArguments(staticArgs);
             checkArgumentCount(staticArgs.length, entry.minArguments, entry.maxArguments, local);
             return f;
@@ -144,35 +154,41 @@ public class VendorFunctionLibrary implements FunctionLibrary {
 
     /**
      * Make a Saxon function with a given name
+     * @param localName the local name of the function
+     * @param env the static context
+     * @param arguments the arguments of the function
+     * @return an exprssion representing a call on the given function
      */
 
     public Expression makeSaxonFunction(String localName, StaticContext env, Expression[] arguments)
     throws XPathException {
         String uri = NamespaceConstant.SAXON;
-        int nameCode = env.getNamePool().allocate("saxon", uri, localName);
-        return bind(nameCode, uri, localName, arguments);
+        StructuredQName functionName = new StructuredQName("saxon", uri, localName);
+        return bind(functionName, arguments, env);
     }
 
     /**
     * Check number of arguments. <BR>
     * A convenience routine for use in subclasses.
+    * @param numArgs the actual number of arguments
     * @param min the minimum number of arguments allowed
     * @param max the maximum number of arguments allowed
+    * @param local the local name of the function, used for diagnostics
     * @return the actual number of arguments
     * @throws org.orbeon.saxon.trans.XPathException if the number of arguments is out of range
     */
 
     private int checkArgumentCount(int numArgs, int min, int max, String local) throws XPathException {
         if (min==max && numArgs != min) {
-            throw new StaticError("Function " + Err.wrap("saxon:"+local, Err.FUNCTION) + " must have "
+            throw new XPathException("Function " + Err.wrap("saxon:"+local, Err.FUNCTION) + " must have "
                     + min + pluralArguments(min));
         }
         if (numArgs < min) {
-            throw new StaticError("Function " + Err.wrap("saxon:"+local, Err.FUNCTION) + " must have at least "
+            throw new XPathException("Function " + Err.wrap("saxon:"+local, Err.FUNCTION) + " must have at least "
                     + min + pluralArguments(min));
         }
         if (numArgs > max) {
-            throw new StaticError("Function " + Err.wrap("saxon:"+local, Err.FUNCTION) + " must have no more than "
+            throw new XPathException("Function " + Err.wrap("saxon:"+local, Err.FUNCTION) + " must have no more than "
                     + max + pluralArguments(max));
         }
         return numArgs;
@@ -180,6 +196,8 @@ public class VendorFunctionLibrary implements FunctionLibrary {
 
     /**
     * Utility routine used in constructing error messages
+     * @param num a number
+     * @return the string " argument" or " arguments" if num is plural
     */
 
     public static String pluralArguments(int num) {

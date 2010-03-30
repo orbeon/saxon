@@ -1,13 +1,13 @@
 package org.orbeon.saxon.sort;
+
 import java.io.Serializable;
-import java.util.Comparator;
 
 
 /**
  * A collating sequence that uses Unicode codepoint ordering
  */
 
-public class CodepointCollator implements Comparator, SubstringMatcher, Serializable {
+public class CodepointCollator implements StringCollator, SubstringMatcher, Serializable {
 
     private static CodepointCollator theInstance = new CodepointCollator();
 
@@ -21,7 +21,7 @@ public class CodepointCollator implements Comparator, SubstringMatcher, Serializ
     * @throws ClassCastException if the objects are of the wrong type for this Comparer
     */
 
-    public int compare(Object a, Object b) {
+    public int compareStrings(String a, String b) {
         //return ((String)a).compareTo((String)b);
         // Note that Java does UTF-16 code unit comparison, which is not the same as Unicode codepoint comparison
         // except in the "equals" case. So we have to do a character-by-character comparison
@@ -156,6 +156,15 @@ public class CodepointCollator implements Comparator, SubstringMatcher, Serializ
         return s1.substring(0, j);
     }
 
+    /**
+     * Get a collation key for two Strings. The essential property of collation keys
+     * is that if two values are equal under the collation, then the collation keys are
+     * compare correctly under the equals() method.
+     */
+
+    public Object getCollationKey(String s) {
+        return s;
+    }
 }
 
 

@@ -3,13 +3,9 @@ import cli.System.Globalization.CompareInfo;
 import cli.System.Globalization.CompareOptions;
 import cli.System.Globalization.CultureInfo;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.sort.AlphanumericComparer;
-import org.orbeon.saxon.sort.LowercaseFirstComparer;
-import org.orbeon.saxon.sort.UppercaseFirstComparer;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.sort.*;
 import org.orbeon.saxon.trans.XPathException;
 
-import java.text.Collator;
 import java.text.ParseException;
 import java.text.RuleBasedCollator;
 import java.util.Comparator;
@@ -33,12 +29,13 @@ public abstract class DotNetCollationFactory {
      * Make a collator with given properties
      * @param config the Configuration
      * @param props the desired properties of the collation
+     * @param uri the collation URI
      * @return a collation with these properties
      */
 
-    public static Comparator makeCollation(Configuration config, Properties props) throws XPathException {
+    public static StringCollator makeCollation(Configuration config, Properties props, String uri) throws XPathException {
 
-        Comparator collator = null;
+        StringCollator stringCollator = null;
 
         // If a specific collation class is requested, this overrides everything else. Note that
         // the class is loaded as a Java class, not as a .NET class.
@@ -47,9 +44,11 @@ public abstract class DotNetCollationFactory {
         if (classAtt != null) {
             Object comparator = config.getInstance(classAtt, null);
             if (comparator instanceof Comparator) {
-                collator = (Comparator)comparator;
+                stringCollator = new NamedCollation(uri, (Comparator)comparator);
+            } else if (comparator instanceof StringCollator) {
+                return (StringCollator)comparator;
             } else {
-                throw new DynamicError("Requested collation class " + classAtt + " is not a Comparator");
+                throw new XPathException("Requested collation class " + classAtt + " is not a Comparator");
             }
         }
 
@@ -57,11 +56,11 @@ public abstract class DotNetCollationFactory {
         // available from the GNU Classpath library.
 
         String rulesAtt = props.getProperty("rules");
-        if (rulesAtt!=null && collator==null) {
+        if (rulesAtt!=null && stringCollator==null) {
             try {
-                collator = new RuleBasedCollator(rulesAtt);
+                stringCollator = new NamedCollation(uri, new RuleBasedCollator(rulesAtt));
             } catch (ParseException e) {
-                throw new DynamicError("Invalid collation rules: " + e.getMessage());
+                throw new XPathException("Invalid collation rules: " + e.getMessage());
             }
         }
 
@@ -89,7 +88,7 @@ public abstract class DotNetCollationFactory {
             } else if (strengthAtt.equals("identical")) {
                  options = 0;
             } else {
-                throw new DynamicError("strength must be primary, secondary, tertiary, or identical");
+                throw new XPathException("strength must be primary, secondary, tertiary, or identical");
             }
         }
 
@@ -102,7 +101,7 @@ public abstract class DotNetCollationFactory {
             } else if (ignore.equals("no")) {
                 // no-op
             } else {
-                throw new DynamicError("ignore-case must be yes or no");
+                throw new XPathException("ignore-case must be yes or no");
             }
         }
 
@@ -113,7 +112,7 @@ public abstract class DotNetCollationFactory {
             } else if (ignore.equals("no")) {
                 // no-op
             } else {
-                throw new DynamicError("ignore-modifiers must be yes or no");
+                throw new XPathException("ignore-modifiers must be yes or no");
             }
         }
 
@@ -124,7 +123,7 @@ public abstract class DotNetCollationFactory {
             } else if (ignore.equals("no")) {
                 // no-op
             } else {
-                throw new DynamicError("ignore-symbols must be yes or no");
+                throw new XPathException("ignore-symbols must be yes or no");
             }
         }
 
@@ -135,26 +134,12 @@ public abstract class DotNetCollationFactory {
             } else if (ignore.equals("no")) {
                 // no-op
             } else {
-                throw new DynamicError("ignore-width must be yes or no");
+                throw new XPathException("ignore-width must be yes or no");
             }
         }
 
-        if (collator == null) {
-            collator = new DotNetComparator(info, CompareOptions.wrap(options));
-        }
-
-        // See if there is a decomposition attribute
-        String decompositionAtt = props.getProperty("decomposition");
-        if (decompositionAtt!=null && collator instanceof Collator) {
-            if (decompositionAtt.equals("none")) {
-                ((Collator)collator).setDecomposition(Collator.NO_DECOMPOSITION);
-            } else if (decompositionAtt.equals("standard")) {
-                ((Collator)collator).setDecomposition(Collator.CANONICAL_DECOMPOSITION);
-            } else if (decompositionAtt.equals("full")) {
-                ((Collator)collator).setDecomposition(Collator.FULL_DECOMPOSITION);
-            } else {
-                throw new DynamicError("decomposition must be non, standard, or full");
-            }
+        if (stringCollator == null) {
+            stringCollator = new DotNetComparator(info, CompareOptions.wrap(options));
         }
 
         // See if there is a case-order property
@@ -162,28 +147,28 @@ public abstract class DotNetCollationFactory {
         if (caseOrder != null && !"#default".equals(caseOrder)) {
             // force the base collation to ignore case
             options |= CompareOptions.IgnoreCase;
-            collator = new DotNetComparator(info, CompareOptions.wrap(options));
+            stringCollator = new DotNetComparator(info, CompareOptions.wrap(options));
             if (caseOrder.equals("lower-first")) {
-                collator = new LowercaseFirstComparer(collator);
+                stringCollator = new LowercaseFirstCollator(stringCollator);
             } else if (caseOrder.equals("upper-first")) {
-                collator = new UppercaseFirstComparer(collator);
+                stringCollator = new UppercaseFirstCollator(stringCollator);
                 //System.err.println("Creating UCFirstComparer");
             } else {
-                throw new DynamicError("case-order must be lower-first, upper-first, or #default");
+                throw new XPathException("case-order must be lower-first, upper-first, or #default");
             }
-        };
+        }
 
         // See if there is an alphanumeric property
         String alphanumeric = props.getProperty("alphanumeric");
         if (alphanumeric != null && !"no".equals(alphanumeric)) {
             if (alphanumeric.equals("yes")) {
-                collator = new AlphanumericComparer(collator);
+                stringCollator = new AlphanumericCollator(stringCollator);
             } else {
-                throw new DynamicError("alphanumeric must be yes or no");
+                throw new XPathException("alphanumeric must be yes or no");
             }
         }
 
-        return collator;
+        return stringCollator;
     }
 
 }

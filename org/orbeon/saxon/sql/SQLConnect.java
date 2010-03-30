@@ -1,18 +1,17 @@
 package org.orbeon.saxon.sql;
-import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.SimpleExpression;
-import org.orbeon.saxon.expr.StaticProperty;
-import org.orbeon.saxon.expr.XPathContext;
+
+import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.style.ExtensionInstruction;
-import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.trans.SaxonErrorCode;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.ObjectValue;
 import org.orbeon.saxon.value.StringValue;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.util.regex.Pattern;
 
 /**
 * An sql:connect element in the stylesheet.
@@ -33,7 +32,7 @@ public class SQLConnect extends ExtensionInstruction {
 
         // Get mandatory database attribute
 
-        String dbAtt = attributeList.getValue("", "database");
+        String dbAtt = getAttributeValue("", "database");
         if (dbAtt==null) {
             reportAbsence("database");
             dbAtt = ""; // for error recovery
@@ -42,7 +41,7 @@ public class SQLConnect extends ExtensionInstruction {
 
 	    // Get driver attribute
 
-        String dbDriver = attributeList.getValue("", "driver");
+        String dbDriver = getAttributeValue("", "driver");
         if (dbDriver==null) {
             if (dbAtt.length()>9 && dbAtt.substring(0,9).equals("jdbc:odbc")) {
                 dbDriver = "sun.jdbc.odbc.JdbcOdbcDriver";
@@ -55,18 +54,18 @@ public class SQLConnect extends ExtensionInstruction {
 
         // Get and expand user attribute, which defaults to empty string
 
-        String userAtt = attributeList.getValue("", "user");
+        String userAtt = getAttributeValue("", "user");
         if (userAtt==null) {
-            user = StringValue.EMPTY_STRING;
+            user = new StringLiteral(StringValue.EMPTY_STRING);
         } else {
             user = makeAttributeValueTemplate(userAtt);
         }
 
         // Get and expand password attribute, which defaults to empty string
 
-        String pwdAtt = attributeList.getValue("", "password");
+        String pwdAtt = getAttributeValue("", "password");
         if (pwdAtt==null) {
-            password = StringValue.EMPTY_STRING;
+            password = new StringLiteral(StringValue.EMPTY_STRING);
         } else {
             password = makeAttributeValueTemplate(pwdAtt);
         }
@@ -96,7 +95,7 @@ public class SQLConnect extends ExtensionInstruction {
 
             Expression[] subs = {database, driver, user, password};
             setArguments(subs);
-        };
+        }
 
         /**
          * A subclass must provide one of the methods evaluateItem(), iterate(), or process().
@@ -121,10 +120,10 @@ public class SQLConnect extends ExtensionInstruction {
 
             Connection connection = null;      // JDBC Database Connection
 
-            String dbString = arguments[DATABASE].evaluateAsString(context);
-    	    String dbDriverString = arguments[DRIVER].evaluateAsString(context);
-            String userString = arguments[USER].evaluateAsString(context);
-            String pwdString = arguments[PASSWORD].evaluateAsString(context);
+            String dbString = arguments[DATABASE].evaluateAsString(context).toString();
+    	    String dbDriverString = arguments[DRIVER].evaluateAsString(context).toString();
+            String userString = arguments[USER].evaluateAsString(context).toString();
+            String pwdString = arguments[PASSWORD].evaluateAsString(context).toString();
 
             try {
                 // the following hack is necessary to load JDBC drivers
@@ -138,6 +137,23 @@ public class SQLConnect extends ExtensionInstruction {
 
         }
     }
+
+    /**
+     * Utility method to quote a SQL table or column name if it needs quoting.
+     * @param name the supplied name
+     * @return the supplied name, enclosed in double quotes if it does not satisfy the pattern [A-Za-z_][A-Za-z0-9_]*,
+     * with any double quotes replaced by two double quotes
+     */
+
+    public static String quoteSqlName(String name) throws IllegalArgumentException {
+        // TODO: allow an embedded double-quote to be escaped as two double-quotes
+        if (namePattern.matcher(name).matches()) {
+            return name;
+        }
+        return "\"" + name + "\"";
+    }
+
+    private static Pattern namePattern = Pattern.compile("\"[^\"]+\"|[A-Za-z_][A-Za-z0-9_]*");
 }
 
 //

@@ -5,13 +5,11 @@ import cli.System.Globalization.CompareOptions;
 import cli.System.Globalization.SortKey;
 import org.orbeon.saxon.sort.SubstringMatcher;
 
-import java.util.Comparator;
-
 /**
  * A Collation implemented as a wrapper around a .NET CompareInfo object. Note that the
  * objects to be compared must be strings.
  */
-public class DotNetComparator implements SubstringMatcher, Comparator {
+public class DotNetComparator implements SubstringMatcher {
 
     private CompareInfo comparer;
     private CompareOptions options;
@@ -61,8 +59,8 @@ public class DotNetComparator implements SubstringMatcher, Comparator {
      * @throws ClassCastException if the arguments' types prevent them from
      *                            being compared by this Comparator.
      */
-    public int compare(Object o1, Object o2) {
-        return comparer.Compare((String)o1, (String)o2, options);
+    public int compareStrings(String o1, String o2) {
+        return comparer.Compare(o1, o2, options);
     }
 
     /**
@@ -184,7 +182,7 @@ public class DotNetComparator implements SubstringMatcher, Comparator {
      * where the wrapper implements the required comparison methods.
      */
 
-    public SortKeyWrapper getCollationKey(String value) {
+    public Object getCollationKey(String value) {
         final SortKey sortKey = comparer.GetSortKey(value, options);
         return new SortKeyWrapper(sortKey);
     }

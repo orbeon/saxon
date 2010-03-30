@@ -2,12 +2,12 @@ package org.orbeon.saxon.exslt;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.value.EmptySequence;
-import org.orbeon.saxon.value.SequenceExtent;
-import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.value.*;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 
 /**
@@ -134,11 +134,66 @@ public abstract class Math  {
     }
 
     /**
-    * Get the power of two numeric values  (SStL)
+    * Get the power of two double or float values, returning the result as a double
     */
 
-    public static double power (double x, double y) {
-        return java.lang.Math.pow(x,y);
+//    public static double power (double x, double y) {   // (SStL)
+//        return java.lang.Math.pow(x,y);
+//    }
+
+    /**
+     * Get a number n raised to the power of another number e.
+     *
+     * <p>If e is a non-negative integer, then the result will have the same type as n, except
+     * that a float is always promoted to double.</p>
+     *
+     * <p>If e is a negative integer, then the result will have the same type as n except that a float
+     * is treated as a double and an integer is treated as a decimal.</p>
+     *
+     * <p>If e is not an integer (or an xs:decimal representing an integer),
+     * the result will be a double.</p>
+     *
+     * @param n the first argument.
+     * @param e the second argument. M
+     * @return the result of n^e
+     * @throws XPathException if an arithmetic overflow is detected. However, there is no guarantee that
+     * overflow will always be detected, it may (especially with double arithmetic) lead to wrong answers
+     * being returned.
+     */
+
+    public static NumericValue power(NumericValue n, NumericValue e) throws XPathException {
+        if (n instanceof DoubleValue || n instanceof FloatValue ||
+                e instanceof DoubleValue || e instanceof FloatValue ||
+                !e.isWholeNumber()) {
+            return new DoubleValue(java.lang.Math.pow(n.getDoubleValue(), e.getDoubleValue()));
+        } else if (e instanceof IntegerValue && n instanceof IntegerValue && e.signum() >= 0) {
+            long le = e.longValue();
+            if (le > Integer.MAX_VALUE) {
+                throw new XPathException("exponent out of range");
+            }
+            return IntegerValue.makeIntegerValue(((IntegerValue)n).asBigInteger().pow((int)le));
+        } else {
+            BigDecimal nd = n.getDecimalValue();
+            long le = e.longValue();
+            if (le > Integer.MAX_VALUE || le < Integer.MIN_VALUE) {
+                throw new XPathException("exponent out of range");
+            }
+            // JDK 1.5 code: return new DecimalValue(nd.pow((int)le));
+            try {
+                Class bigDecimalClass = nd.getClass();
+                Method pow = bigDecimalClass.getMethod("pow", new Class[]{int.class});
+                Integer[] argValues = {new Integer((int)le)};
+                BigDecimal result = (BigDecimal)pow.invoke(nd, (Object[])argValues);
+                return new DecimalValue(result);
+            } catch (NoSuchMethodException err) {
+                throw new XPathException("power(decimal) not available in JDK 1.4");
+            } catch (IllegalAccessException err) {
+                throw new XPathException("power(decimal) not available in JDK 1.4");
+            } catch (InvocationTargetException err) {
+                throw new XPathException("power(decimal) not available in JDK 1.4");
+            }
+
+        }
     }
 
     /**
@@ -165,15 +220,12 @@ public abstract class Math  {
         } else if (name.equals("SQRT1_2")) {
             con="0.7071067811865476";
         } else {
-            DynamicError e = new DynamicError("Unknown math constant " + name);
+            XPathException e = new XPathException("Unknown math constant " + name);
             e.setXPathContext(context);
             throw e;
         }
 
-        int x = (int) precision;
-        String returnVal=con.substring(0,x+2);
-        double rV=new Double(returnVal).doubleValue();
-        return rV;
+        return Double.parseDouble(con.substring(0, ((int)precision) + 2));
     }
 
     /**

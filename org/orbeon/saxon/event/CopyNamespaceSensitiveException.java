@@ -1,13 +1,13 @@
 package org.orbeon.saxon.event;
 
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 
 /**
  * Exception indicating that an attempt was made to copy namespace-sensitive content
  * without copying its associated namespaces
  */
 
-public class CopyNamespaceSensitiveException extends DynamicError {
+public class CopyNamespaceSensitiveException extends XPathException {
 
     public CopyNamespaceSensitiveException(String message) {
         super(message);

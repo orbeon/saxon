@@ -4,9 +4,7 @@ import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.sort.GenericAtomicComparer;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.value.IntegerValue;
-
-//import java.util.Comparator;
+import org.orbeon.saxon.value.Int64Value;
 
 /**
 * XSLT 2.0 compare() function
@@ -26,23 +24,21 @@ public class Compare extends CollatingFunction {
         if (arg0==null) {
             return null;
         }
-        arg0 = arg0.getPrimitiveValue();
 
         AtomicValue arg1 = (AtomicValue)argument[1].evaluateItem(context);
         if (arg1==null) {
             return null;
         }
-        arg1 = arg1.getPrimitiveValue();
 
         GenericAtomicComparer collator = getAtomicComparer(2, context);
 
-        int result = collator.compare(arg0, arg1);
+        int result = collator.compareAtomicValues(arg0, arg1);
         if (result < 0) {
-            return IntegerValue.MINUS_ONE;
+            return Int64Value.MINUS_ONE;
         } else if (result > 0) {
-            return IntegerValue.PLUS_ONE;
+            return Int64Value.PLUS_ONE;
         } else {
-            return IntegerValue.ZERO;
+            return Int64Value.ZERO;
         }
     }
 

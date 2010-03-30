@@ -2,8 +2,12 @@ package org.orbeon.saxon.style;
 
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.UserFunctionCall;
+import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.functions.FunctionLibrary;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.om.StructuredQName;
+
+import java.util.List;
 
 /**
  * A StylesheetFunctionLibrary contains functions defined by the user in a stylesheet. This library is used at
@@ -32,15 +36,13 @@ public class StylesheetFunctionLibrary implements FunctionLibrary {
     /**
      * Test whether a Saxon function with a given name and arity is available. This supports
      * the function-available() function in XSLT.
-     * @param uri  The URI of the function name
-     * @param local  The local part of the function name
+     * @param functionName
      * @param arity The number of arguments. This is set to -1 in the case of the single-argument
      * function-available() function; in this case the method should return true if there is some
-     * matching extension function, regardless of its arity.
      */
 
-    public boolean isAvailable(int fingerprint, String uri, String local, int arity) {
-        XSLFunction fn = stylesheet.getStylesheetFunction(fingerprint, arity);
+    public boolean isAvailable(StructuredQName functionName, int arity) {
+        XSLFunction fn = stylesheet.getStylesheetFunction(functionName, arity);
         return (fn != null);
     }
 
@@ -48,13 +50,11 @@ public class StylesheetFunctionLibrary implements FunctionLibrary {
      * Bind a function, given the URI and local parts of the function name,
      * and the list of expressions supplied as arguments. This method is called at compile
      * time.
-     * @param nameCode The namepool nameCode of the function name. The uri and local name are also
-     * supplied (redundantly) to avoid fetching them from the name pool.
-     * @param uri  The URI of the function name
-     * @param local  The local part of the function name
+     * @param functionName
      * @param staticArgs  The expressions supplied statically in the function call. The intention is
      * that the static type of the arguments (obtainable via getItemType() and getCardinality() may
      * be used as part of the binding algorithm.
+     * @param env
      * @return An object representing the extension function to be called, if one is found;
      * null if no extension function was found matching the required name and arity.
      * @throws org.orbeon.saxon.trans.XPathException if a function is found with the required name and arity, but
@@ -63,10 +63,9 @@ public class StylesheetFunctionLibrary implements FunctionLibrary {
      * the function call, but no function was found.
      */
 
-    public Expression bind(int nameCode, String uri, String local, Expression[] staticArgs)
+    public Expression bind(StructuredQName functionName, Expression[] staticArgs, StaticContext env)
             throws XPathException {
-        int fingerprint = nameCode & 0xfffff;
-        XSLFunction fn = stylesheet.getStylesheetFunction(fingerprint, staticArgs.length);
+        XSLFunction fn = stylesheet.getStylesheetFunction(functionName, staticArgs.length);
         if (fn==null) {
             return null;
         }
@@ -75,7 +74,7 @@ public class StylesheetFunctionLibrary implements FunctionLibrary {
         }
         UserFunctionCall fc = new UserFunctionCall();
         fn.registerReference(fc);
-        fc.setFunctionNameCode(nameCode);
+        fc.setFunctionName(functionName);
         fc.setArguments(staticArgs);
         fc.setConfirmed(true);
         return fc;
@@ -91,6 +90,14 @@ public class StylesheetFunctionLibrary implements FunctionLibrary {
 
     public FunctionLibrary copy() {
         return this;
+    }
+
+    /**
+     * Get a list of all functions in this StylesheetFunctionLibrary
+     */
+
+    public List getAllFunctions() {
+        return stylesheet.getAllStylesheetFunctions();
     }
 
 }

@@ -25,6 +25,12 @@ public class UncommittedSerializer extends ProxyReceiver {
     Result finalResult;
     Properties outputProperties;
 
+    /**
+     * Create an uncommitted Serializer
+     * @param finalResult the output destination
+     * @param outputProperties the serialization properties
+     */
+
     public UncommittedSerializer(Result finalResult, Properties outputProperties) {
         this.finalResult = finalResult;
         this.outputProperties = outputProperties;
@@ -120,7 +126,7 @@ public class UncommittedSerializer extends ProxyReceiver {
     * @param nameCode The element name (tag)
      * @param typeCode The type annotation
      * @param properties Bit field holding special properties of the element
-    */
+     */
 
     public void startElement(int nameCode, int typeCode, int locationId, int properties) throws XPathException {
         if (!committed) {
@@ -144,7 +150,8 @@ public class UncommittedSerializer extends ProxyReceiver {
     }
 
     /**
-    * Switch to a specific emitter once the output method is known
+     * Switch to a specific emitter once the output method is known
+     * @param method the method to switch to (xml, html, xhtml)
     */
 
     private void switchToMethod(String method) throws XPathException {

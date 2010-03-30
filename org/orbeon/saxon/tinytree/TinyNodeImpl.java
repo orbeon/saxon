@@ -1,14 +1,11 @@
 package org.orbeon.saxon.tinytree;
 
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.Err;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.trans.Err;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.AnyNodeTest;
 import org.orbeon.saxon.pattern.NameTest;
 import org.orbeon.saxon.pattern.NodeTest;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.type.Type;
@@ -27,7 +24,7 @@ import javax.xml.transform.SourceLocator;
  * @author Michael H. Kay
  */
 
-public abstract class TinyNodeImpl implements NodeInfo, ExtendedNodeInfo, FingerprintedNode, SourceLocator {
+public abstract class TinyNodeImpl implements NodeInfo, FingerprintedNode, SourceLocator {
 
     protected TinyTree tree;
     protected int nodeNr;
@@ -64,7 +61,7 @@ public abstract class TinyNodeImpl implements NodeInfo, ExtendedNodeInfo, Finger
      */
 
     public int getColumnNumber() {
-        return -1;
+        return tree.getColumnNumber(nodeNr);
     }
 
     /**
@@ -79,16 +76,16 @@ public abstract class TinyNodeImpl implements NodeInfo, ExtendedNodeInfo, Finger
     /**
      * Get the typed value of this node.
      * If there is no type annotation, we return the string value, as an instance
-     * of xdt:untypedAtomic
+     * of xs:untypedAtomic
      */
 
     public SequenceIterator getTypedValue() throws XPathException {
         int annotation = getTypeAnnotation();
         if ((annotation & NodeInfo.IS_DTD_TYPE) != 0) {
-            annotation = StandardNames.XDT_UNTYPED_ATOMIC;
+            annotation = StandardNames.XS_UNTYPED_ATOMIC;
         }
         annotation &= NamePool.FP_MASK;
-        if (annotation == -1 || annotation == StandardNames.XDT_UNTYPED_ATOMIC || annotation == StandardNames.XDT_UNTYPED) {
+        if (annotation == -1 || annotation == StandardNames.XS_UNTYPED_ATOMIC || annotation == StandardNames.XS_UNTYPED) {
             return SingletonIterator.makeIterator(new UntypedAtomicValue(getStringValueCS()));
         } else {
             SchemaType stype = getConfiguration().getSchemaType(annotation);
@@ -99,7 +96,7 @@ public abstract class TinyNodeImpl implements NodeInfo, ExtendedNodeInfo, Finger
                 } catch (Exception err) {
                     typeName = annotation + "";
                 }
-                throw new DynamicError("Unknown type annotation " +
+                throw new XPathException("Unknown type annotation " +
                         Err.wrap(typeName) + " in document instance");
             } else {
                 return stype.getTypedValue(this);
@@ -121,15 +118,15 @@ public abstract class TinyNodeImpl implements NodeInfo, ExtendedNodeInfo, Finger
     public Value atomize() throws XPathException {
         int annotation = getTypeAnnotation();
         if ((annotation & NodeInfo.IS_DTD_TYPE) != 0) {
-            annotation = StandardNames.XDT_UNTYPED_ATOMIC;
+            annotation = StandardNames.XS_UNTYPED_ATOMIC;
         }
-        if (annotation == -1 || annotation == StandardNames.XDT_UNTYPED_ATOMIC || annotation == StandardNames.XDT_UNTYPED) {
+        if (annotation == -1 || annotation == StandardNames.XS_UNTYPED_ATOMIC || annotation == StandardNames.XS_UNTYPED) {
             return new UntypedAtomicValue(getStringValueCS());
         } else {
             SchemaType stype = getConfiguration().getSchemaType(annotation);
             if (stype == null) {
                 String typeName = getNamePool().getDisplayName(annotation);
-                throw new DynamicError("Unknown type annotation " +
+                throw new XPathException("Unknown type annotation " +
                         Err.wrap(typeName) + " in document instance");
             } else {
                 return stype.atomize(this);
@@ -146,18 +143,14 @@ public abstract class TinyNodeImpl implements NodeInfo, ExtendedNodeInfo, Finger
      */
 
     public void setSystemId(String uri) {
-        short type = tree.nodeKind[nodeNr];
-        if (type == Type.ATTRIBUTE || type == Type.NAMESPACE) {
-            getParent().setSystemId(uri);
-        } else {
-            tree.setSystemId(nodeNr, uri);
-        }
+        tree.setSystemId(nodeNr, uri);
     }
 
     /**
      * Set the parent of this node. Providing this information is useful,
      * if it is known, because otherwise getParent() has to search backwards
      * through the document.
+     * @param parent the parent of this node
      */
 
     protected void setParentNode(TinyNodeImpl parent) {
@@ -172,22 +165,11 @@ public abstract class TinyNodeImpl implements NodeInfo, ExtendedNodeInfo, Finger
      */
 
     public boolean isSameNodeInfo(NodeInfo other) {
-        if (this == other) {
-            return true;
-        }
-        if (!(other instanceof TinyNodeImpl)) {
-            return false;
-        }
-        if (this.tree != ((TinyNodeImpl)other).tree) {
-            return false;
-        }
-        if (this.nodeNr != ((TinyNodeImpl)other).nodeNr) {
-            return false;
-        }
-        if (this.getNodeKind() != other.getNodeKind()) {
-            return false;
-        }
-        return true;
+        return this == other ||
+               (other instanceof TinyNodeImpl &&
+                tree == ((TinyNodeImpl)other).tree &&
+                nodeNr == ((TinyNodeImpl)other).nodeNr &&
+                getNodeKind() == other.getNodeKind());
     }
 
     /**
@@ -204,11 +186,7 @@ public abstract class TinyNodeImpl implements NodeInfo, ExtendedNodeInfo, Finger
      */
 
     public boolean equals(Object other) {
-        if (other instanceof NodeInfo) {
-            return isSameNodeInfo((NodeInfo)other);
-        } else {
-            return false;
-        }
+        return other instanceof NodeInfo && isSameNodeInfo((NodeInfo)other);
     }
 
     /**
@@ -247,7 +225,7 @@ public abstract class TinyNodeImpl implements NodeInfo, ExtendedNodeInfo, Finger
 
     public int getLineNumber() {
         return tree.getLineNumber(nodeNr);
-    }
+    } 
 
     /**
      * Get the node sequence number (in document order). Sequence numbers are monotonic but not
@@ -256,6 +234,7 @@ public abstract class TinyNodeImpl implements NodeInfo, ExtendedNodeInfo, Finger
      * For document nodes, elements, text nodes, comment nodes, and PIs, the sequence number
      * is a long with the sequential node number in the top half and zero in the bottom half.
      * The bottom half is used only for attributes and namespace.
+     * @return the sequence number
      */
 
     protected long getSequenceNumber() {
@@ -443,11 +422,7 @@ public abstract class TinyNodeImpl implements NodeInfo, ExtendedNodeInfo, Finger
                 if (hasChildNodes()) {
                     return new DescendantEnumeration(tree, this, nodeTest, true);
                 } else {
-                    if (nodeTest.matches(this)) {
-                        return SingletonIterator.makeIterator(this);
-                    } else {
-                        return EmptyIterator.getInstance();
-                    }
+                    return Navigator.filteredSingleton(this, nodeTest);
                 }
 
             case Axis.FOLLOWING:
@@ -470,7 +445,7 @@ public abstract class TinyNodeImpl implements NodeInfo, ExtendedNodeInfo, Finger
                 if (type != Type.ELEMENT) {
                     return EmptyIterator.getInstance();
                 }
-                return new NamespaceIterator(this, nodeTest);
+                return NamespaceIterator.makeIterator(this, nodeTest);
 
             case Axis.PARENT:
                 NodeInfo parent = getParent();
@@ -539,7 +514,7 @@ public abstract class TinyNodeImpl implements NodeInfo, ExtendedNodeInfo, Finger
      * @return the node number of the parent node, or -1 if there is no parent.
      */
 
-    static final int getParentNodeNr(TinyTree tree, int nodeNr) {
+    static int getParentNodeNr(TinyTree tree, int nodeNr) {
 
         if (tree.depth[nodeNr] == 0) {
             return -1;
@@ -628,18 +603,6 @@ public abstract class TinyNodeImpl implements NodeInfo, ExtendedNodeInfo, Finger
 
     public NamePool getNamePool() {
         return tree.getNamePool();
-    }
-
-    /**
-     * Output all namespace nodes associated with this element. Does nothing if
-     * the node is not an element.
-     *
-     * @param out              The relevant outputter
-     * @param includeAncestors True if namespaces declared on ancestor elements must
-     */
-
-    public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors)
-            throws XPathException {
     }
 
     /**
@@ -736,11 +699,11 @@ public abstract class TinyNodeImpl implements NodeInfo, ExtendedNodeInfo, Finger
             int nextSib = tree.next[n];
             if (nextSib > dn) {
                 return true;
-            } else if (tree.depth[nextSib] == 0) {
+            } else if (nextSib < 0 || tree.depth[nextSib] == 0) {
                 return true;
             } else if (nextSib < n) {
                 n = nextSib;
-                continue;
+                // continue
             } else {
                 return false;
             }
@@ -776,6 +739,7 @@ public abstract class TinyNodeImpl implements NodeInfo, ExtendedNodeInfo, Finger
 
     /**
      * Get the node number of this node within the TinyTree. This method is intended for internal use.
+     * @return the internal node number
      */
 
     public int getNodeNumber() {

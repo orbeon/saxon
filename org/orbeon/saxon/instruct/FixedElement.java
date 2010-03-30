@@ -1,22 +1,21 @@
 package org.orbeon.saxon.instruct;
+
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.QNameException;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.om.Validation;
 import org.orbeon.saxon.pattern.CombinedNodeTest;
 import org.orbeon.saxon.pattern.ContentTypeTest;
 import org.orbeon.saxon.pattern.NameTest;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.trace.InstructionInfo;
-import org.orbeon.saxon.trace.Location;
-import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
-import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.Configuration;
+import org.xml.sax.Locator;
 
-import java.io.PrintStream;
 import java.util.Iterator;
 
 
@@ -31,6 +30,9 @@ public class FixedElement extends ElementCreator {
 
     // TODO: create a separate class for the case where schema validation is involved
 
+    // TODO: if the sequence of child elements is statically known (e.g. if the content is a Block consisting
+    // entirely of FixedElement instructions) then validate against the schema content model at compile time.
+
     private int nameCode;
     protected int[] namespaceCodes = null;
     private ItemType itemType;
@@ -42,6 +44,7 @@ public class FixedElement extends ElementCreator {
      *                       May be null if none are required.
      * @param inheritNamespaces true if the children of this element are to inherit its namespaces
      * @param schemaType Type annotation for the new element node
+     * @param validation Validation mode to be applied, for example STRICT, LAX, SKIP
      */
     public FixedElement(int nameCode,
                         int[] namespaceCodes,
@@ -53,43 +56,189 @@ public class FixedElement extends ElementCreator {
         this.inheritNamespaces = inheritNamespaces;
         setSchemaType(schemaType);
         this.validation = validation;
-        this.validating = schemaType != null || validation != Validation.PRESERVE;
+        preservingTypes = schemaType == null && validation == Validation.PRESERVE;
     }
 
-    public InstructionInfo getInstructionInfo() {
-        InstructionDetails details = (InstructionDetails)super.getInstructionInfo();
-        details.setConstructType(Location.LITERAL_RESULT_ELEMENT);
-        details.setObjectNameCode(nameCode);
-        return details;
-    }
+//    public InstructionInfo getInstructionInfo() {
+//        InstructionDetails details = (InstructionDetails)super.getInstructionInfo();
+//        details.setConstructType(Location.LITERAL_RESULT_ELEMENT);
+//        details.setObjectNameCode(nameCode);
+//        return details;
+//    }
 
     /**
-     * Simplify an expression. This performs any static optimization (by rewriting the expression
-     * as a different expression).
-     *
+     * Simplify an expression. This performs any context-independent rewriting
+     * @param visitor the expression visitor
      * @return the simplified expression
      * @throws org.orbeon.saxon.trans.XPathException
      *          if an error is discovered during expression rewriting
      */
 
-    public Expression simplify(StaticContext env) throws XPathException {
-        final Configuration config = env.getConfiguration();
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        final Configuration config = visitor.getConfiguration();
         setLazyConstruction(config.isLazyConstructionMode());
-        validating &= config.isSchemaAware(Configuration.XML_SCHEMA);
-        itemType = computeFixedElementItemType(this, env, validation, getSchemaType(), nameCode, content);
-        return super.simplify(env);
+        preservingTypes |= !config.isSchemaAware(Configuration.XML_SCHEMA);
+        int val = validation;
+        SchemaType type = getSchemaType();
+        itemType = computeFixedElementItemType(this, visitor.getStaticContext(),
+                val, type, nameCode, content);
+        return super.simplify(visitor);
     }
+
+
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression e = super.optimize(visitor, contextItemType);
+        if (e != this) {
+            return e;
+        }
+        // Remove any unnecessary creation of namespace nodes by child literal result elements.
+        // Specifically, if this instruction creates a namespace node, then a child literal result element
+        // doesn't need to create the same namespace if all the following conditions are true:
+        // (a) the child element is in the same namespace as its parent, and
+        // (b) this element doesn't specify xsl:inherit-namespaces="no"
+        // (c) the child element is incapable of creating attributes in a non-null namespace
+
+        if (!inheritNamespaces) {
+            return this;
+        }
+        if (namespaceCodes == null || namespaceCodes.length == 0) {
+            return this;
+        }
+        NamePool pool = visitor.getExecutable().getConfiguration().getNamePool();
+        int uriCode = getURICode(pool);
+        if (content instanceof FixedElement) {
+            if (((FixedElement)content).getURICode(pool) == uriCode) {
+                ((FixedElement)content).removeRedundantNamespaces(visitor, namespaceCodes);
+            }
+            return this;
+        }
+        if (content instanceof Block) {
+            Iterator iter = content.iterateSubExpressions();
+            while (iter.hasNext()) {
+                Expression exp = (Expression)iter.next();
+                if (exp instanceof FixedElement && ((FixedElement)exp).getURICode(pool) == uriCode) {
+                    ((FixedElement)exp).removeRedundantNamespaces(visitor, namespaceCodes);
+                }
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Remove namespaces that are not required for this element because they are output on
+     * the parent element
+     * @param visitor the expression visitor
+     * @param parentNamespaces the namespaces that are output by the parent element
+     */
+
+    private void removeRedundantNamespaces(ExpressionVisitor visitor, int[] parentNamespaces) {
+        // It's only safe to remove any namespaces if the element is incapable of creating any attribute nodes
+        // in a non-null namespace
+        // This is because namespaces created on this element take precedence over namespaces created by namespace
+        // fixup based on the prefix used in the attribute name (see atrs24)
+        if (namespaceCodes == null || namespaceCodes.length == 0) {
+            return;
+        }
+        TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
+        ItemType contentType = content.getItemType(th);
+        boolean ok = th.relationship(contentType, NodeKindTest.ATTRIBUTE) == TypeHierarchy.DISJOINT;
+        if (!ok) {
+            // if the content might include attributes, discount any that are known to be in the null namespace
+            if (content instanceof Block) {
+                ok = true;
+                Iterator iter = content.iterateSubExpressions();
+                while (iter.hasNext()) {
+                    Expression exp = (Expression)iter.next();
+                    if (exp instanceof FixedAttribute) {
+                        int attNameCode = ((FixedAttribute)exp).getAttributeNameCode();
+                        if (NamePool.getPrefixIndex(attNameCode) != 0) {
+                            ok = false;
+                            break;
+                        }
+                    } else {
+                        ItemType childType = exp.getItemType(th);
+                        if (th.relationship(childType, NodeKindTest.ATTRIBUTE) != TypeHierarchy.DISJOINT) {
+                            ok = false;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if (ok) {
+            int removed = 0;
+            for (int i=0; i<namespaceCodes.length; i++) {
+                for (int j=0; j<parentNamespaces.length; j++) {
+                    if (namespaceCodes[i] == parentNamespaces[j]) {
+                        namespaceCodes[i] = -1;
+                        removed++;
+                        break;
+                    }
+                }
+            }
+            if (removed > 0) {
+                if (removed == namespaceCodes.length) {
+                    namespaceCodes = null;
+                } else {
+                    int[] ns2 = new int[namespaceCodes.length - removed];
+                    int j=0;
+                    for (int i=0; i<namespaceCodes.length; i++) {
+                        if (namespaceCodes[i] != -1) {
+                            ns2[j++] = namespaceCodes[i];
+                        }
+                    }
+                    namespaceCodes = ns2;
+                }
+            }
+        }
+    }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        FixedElement fe = new FixedElement(nameCode, namespaceCodes, inheritNamespaces, getSchemaType(), validation);
+        fe.setContentExpression(content.copy());
+        fe.setBaseURI(getBaseURI());
+        return fe;
+    }
+
+    /**
+     * Get the URI code representing the namespace URI of the element being constructed
+     * @param pool the NamePool
+     * @return the URI code
+     */
+
+    public short getURICode(NamePool pool) {
+        return pool.getURICode(nameCode);
+    }
+
+    /**
+     * Determine the item type of an element being constructed
+     * @param instr the FixedElement instruction
+     * @param env the static context
+     * @param validation the schema validation mode
+     * @param schemaType the schema type for validation
+     * @param nameCode the name of the element
+     * @param content the expression that computes the content of the element
+     * @return the item type
+     * @throws XPathException
+     */
 
     private ItemType computeFixedElementItemType(FixedElement instr, StaticContext env,
                                             int validation, SchemaType schemaType,
                                             int nameCode, Expression content) throws XPathException {
         final Configuration config = env.getConfiguration();
         ItemType itemType;
+        boolean typeBasedValidation = (schemaType != null);
         if (schemaType == null) {
             if (validation == Validation.STRICT) {
                 SchemaDeclaration decl = config.getElementDeclaration(nameCode & 0xfffff);
                 if (decl == null) {
-                    StaticError err = new StaticError("There is no global element declaration for " +
+                    XPathException err = new XPathException("There is no global element declaration for " +
                             env.getNamePool().getDisplayName(nameCode) +
                             ", so strict validation will fail");
                     err.setErrorCode(instr.isXSLT() ? "XTTE1512" : "XQDY0027");
@@ -97,8 +246,19 @@ public class FixedElement extends ElementCreator {
                     err.setLocator(instr);
                     throw err;
                 }
+                if (decl.isAbstract()) {
+                    XPathException err = new XPathException("The element declaration for " +
+                            env.getNamePool().getDisplayName(nameCode) +
+                            " is abstract, so strict validation will fail");
+                    err.setErrorCode(instr.isXSLT() ? "XTTE1512" : "XQDY0027");
+                    err.setIsTypeError(true);
+                    err.setLocator(instr);
+                    throw err;
+                }
                 schemaType = decl.getType();
                 instr.setSchemaType(schemaType);
+                    // TODO: this causes validation against the type, rather than the declaration:
+                    // are identity constraints being tested on the top-level element?
                 itemType = new CombinedNodeTest(
                         new NameTest(Type.ELEMENT, nameCode, env.getNamePool()),
                         Token.INTERSECT,
@@ -116,22 +276,24 @@ public class FixedElement extends ElementCreator {
                     try {
                         config.checkTypeDerivationIsOK(xsiType, schemaType, 0);
                     } catch (SchemaException e) {
-                        throw new StaticError("The specified xsi:type " + xsiType.getDescription() +
+                        ValidationException ve = new ValidationException("The specified xsi:type " + xsiType.getDescription() +
                                 " is not validly derived from the required type " + schemaType.getDescription());
+                        ve.setConstraintReference(1, "cvc-elt", "4.3");
+                        ve.setErrorCode(instr.isXSLT() ? "XTTE1515" : "XQDY0027");
+                        ve.setLocator((Locator)instr);
+                        throw ve;
                     }
                 }
             } else if (validation == Validation.LAX) {
                 SchemaDeclaration decl = config.getElementDeclaration(nameCode & 0xfffff);
                 if (decl == null) {
                     env.issueWarning("There is no global element declaration for " +
-                            env.getNamePool().getDisplayName(nameCode) +
-                            ", so lax validation has no effect", instr);
-                    itemType = new CombinedNodeTest(
-                        new NameTest(Type.ELEMENT, nameCode, env.getNamePool()),
-                        Token.INTERSECT,
-                        new ContentTypeTest(Type.ELEMENT,
-                                BuiltInSchemaFactory.getSchemaType(StandardNames.XDT_UNTYPED),
-                                config));
+                            env.getNamePool().getDisplayName(nameCode), instr);
+                    itemType = new NameTest(Type.ELEMENT, nameCode, env.getNamePool());
+//                    itemType = new CombinedNodeTest(
+//                        new NameTest(Type.ELEMENT, nameCode, env.getNamePool()),
+//                        Token.INTERSECT,
+//                        new ContentTypeTest(Type.ELEMENT, Untyped.getInstance(), config));
                 } else {
                     schemaType = decl.getType();
                     instr.setSchemaType(schemaType);
@@ -152,17 +314,13 @@ public class FixedElement extends ElementCreator {
                 itemType = new CombinedNodeTest(
                         new NameTest(Type.ELEMENT, nameCode, env.getNamePool()),
                         Token.INTERSECT,
-                        new ContentTypeTest(Type.ELEMENT,
-                                BuiltInSchemaFactory.getSchemaType(StandardNames.XS_ANY_TYPE),
-                                config));
+                        new ContentTypeTest(Type.ELEMENT, AnyType.getInstance(), config));
             } else {
                 // we know the result will be an untyped element
                 itemType = new CombinedNodeTest(
                         new NameTest(Type.ELEMENT, nameCode, env.getNamePool()),
                         Token.INTERSECT,
-                        new ContentTypeTest(Type.ELEMENT,
-                                BuiltInSchemaFactory.getSchemaType(StandardNames.XDT_UNTYPED),
-                                config));
+                        new ContentTypeTest(Type.ELEMENT, Untyped.getInstance(), config));
             }
         } else {
             itemType = new CombinedNodeTest(
@@ -184,7 +342,7 @@ public class FixedElement extends ElementCreator {
     /**
      * Get the type of the item returned by this instruction
      * @return the item type
-     * @param th
+     * @param th The type hierarchy cache
      */
     public ItemType getItemType(TypeHierarchy th) {
         if (itemType == null) {
@@ -211,6 +369,7 @@ public class FixedElement extends ElementCreator {
     /**
      * Determine whether the element constructor creates a fixed xsi:type attribute, and if so, return the
      * relevant type.
+     * @param env the static context
      * @return the type denoted by the constructor's xsi:type attribute if there is one.
      * Return null if there is no xsi:type attribute, or if the value of the xsi:type
      * attribute is a type that is not statically known (this is allowed)
@@ -238,14 +397,14 @@ public class FixedElement extends ElementCreator {
     }
 
     private SchemaType testForXSIType(FixedAttribute fat, StaticContext env) throws XPathException {
-        int att = fat.evaluateNameCode(null) & NamePool.FP_MASK;
+        int att = fat.getAttributeNameCode() & NamePool.FP_MASK;
         if (att == StandardNames.XSI_TYPE) {
             Expression attValue = fat.getSelect();
-            if (attValue instanceof StringValue) {
+            if (attValue instanceof StringLiteral) {
                 try {
                     NamePool pool = env.getNamePool();
                     String[] parts = env.getConfiguration().getNameChecker().getQNameParts(
-                            ((StringValue)attValue).getStringValue());
+                            ((StringLiteral)attValue).getStringValue());
                     // The only namespace bindings we can trust are those declared on this element
                     // TODO: we could also trust those on enclosing LREs in the same function/template,
                     int uriCode = -1;
@@ -261,10 +420,9 @@ public class FixedElement extends ElementCreator {
                     }
                     String uri = pool.getURIFromURICode((short)uriCode);
                     int typefp = pool.allocate(parts[0], uri, parts[1]) & NamePool.FP_MASK;
-                    SchemaType type = env.getConfiguration().getSchemaType(typefp);
-                    return type;
+                    return env.getConfiguration().getSchemaType(typefp);
                 } catch (QNameException e) {
-                    throw new StaticError(e.getMessage());
+                    throw new XPathException(e.getMessage());
                 }
             }
         }
@@ -281,13 +439,13 @@ public class FixedElement extends ElementCreator {
 
     public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException {
         if (parentType instanceof SimpleType) {
-            StaticError err = new StaticError("Element " + env.getNamePool().getDisplayName(nameCode) +
+            XPathException err = new XPathException("Element " + env.getNamePool().getDisplayName(nameCode) +
                     " is not permitted here: the containing element is of simple type " + parentType.getDescription());
             err.setIsTypeError(true);
             err.setLocator(this);
             throw err;
         } else if (((ComplexType)parentType).isSimpleContent()) {
-            StaticError err = new StaticError("Element " + env.getNamePool().getDisplayName(nameCode) +
+            XPathException err = new XPathException("Element " + env.getNamePool().getDisplayName(nameCode) +
                     " is not permitted here: the containing element has a complex type with simple content");
             err.setIsTypeError(true);
             err.setLocator(this);
@@ -295,14 +453,14 @@ public class FixedElement extends ElementCreator {
         }
         SchemaType type;
         try {
-            type = ((ComplexType)parentType).getElementParticleType(nameCode & 0xfffff);
+            type = ((ComplexType)parentType).getElementParticleType(nameCode & 0xfffff, true);
         } catch (SchemaException e) {
-            throw new StaticError(e);
+            throw new XPathException(e);
         }
         if (type == null) {
-            StaticError err = new StaticError("Element " + env.getNamePool().getDisplayName(nameCode) +
-                " is not permitted in the content model of the complex type " +
-                parentType.getDescription());
+            XPathException err = new XPathException("Element " + env.getNamePool().getDisplayName(nameCode) +
+                    " is not permitted in the content model of the complex type " +
+                    parentType.getDescription());
             err.setIsTypeError(true);
             err.setLocator(this);
             err.setErrorCode(isXSLT() ? "XTTE1510" : "XQDY0027");
@@ -348,15 +506,19 @@ public class FixedElement extends ElementCreator {
     }
 
     /**
-     * Display this instruction as an expression, for diagnostics
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "element ");
-        out.println(ExpressionTool.indent(level+1) + "name " +
-                (config==null ? nameCode+"" : config.getNamePool().getDisplayName(nameCode)));
-        out.println(ExpressionTool.indent(level+1) + "content");
-        content.display(level+1, out, config);
+    public void explain(ExpressionPresenter out) {
+        out.startElement("directElement");
+        out.emitAttribute("name", out.getNamePool().getDisplayName(nameCode));
+        out.emitAttribute("validation", Validation.toString(validation));
+        if (getSchemaType() != null) {
+            out.emitAttribute("type", getSchemaType().getDescription());
+        }
+        content.explain(out);
+        out.endElement();
     }
 }
 

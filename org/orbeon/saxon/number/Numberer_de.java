@@ -7,7 +7,7 @@ package org.orbeon.saxon.number;
   * @author Michael H. Kay
   */
 
-public class Numberer_de extends Numberer_en {
+public class Numberer_de extends AbstractNumberer {
 
     /**
      * Construct the ordinal suffix for a number, for example "st", "nd", "rd"
@@ -61,12 +61,12 @@ public class Numberer_de extends Numberer_en {
     }
 
     private static String[] germanUnits = {
-        "", "Eins", "Zwei", "Drei", "Vier", "Fünf", "Sechs", "Sieben", "Acht", "Neun",
-        "Zehn", "Elf", "Zwölf", "Dreizehn", "Vierzehn", "Fünfzehn", "Sechszehn",
+        "", "Eins", "Zwei", "Drei", "Vier", "Fï¿½nf", "Sechs", "Sieben", "Acht", "Neun",
+        "Zehn", "Elf", "Zwï¿½lf", "Dreizehn", "Vierzehn", "Fï¿½nfzehn", "Sechszehn",
         "Siebzehn", "Achtzehn", "Neunzehn"};
 
     private static String[] germanTens = {
-        "", "Zehn", "Zwanzig", "Dreißig", "Vierzig", "Fünfzig",
+        "", "Zehn", "Zwanzig", "Dreiï¿½ig", "Vierzig", "Fï¿½nfzig",
         "Sechzig", "Siebzig", "Achtzig", "Neunzig"};
 
     /**
@@ -107,8 +107,8 @@ public class Numberer_de extends Numberer_en {
     }
 
     private static String[] germanOrdinalUnits = {
-        "", "Erst", "Zweit", "Dritt", "Viert", "Fünft", "Sechst", "Siebt", "Acht", "Neunt",
-        "Zehnt", "Elft", "Zwölft", "Dreizehnt", "Vierzehnt", "Fünfzehnt", "Sechszehnt",
+        "", "Erst", "Zweit", "Dritt", "Viert", "Fï¿½nft", "Sechst", "Siebt", "Acht", "Neunt",
+        "Zehnt", "Elft", "Zwï¿½lft", "Dreizehnt", "Vierzehnt", "Fï¿½nfzehnt", "Sechszehnt",
         "Siebzehnt", "Achtzehnt", "Neunzehnt"};
 
     /**
@@ -133,7 +133,7 @@ public class Numberer_de extends Numberer_en {
     }
 
     private static String[] germanMonths = {
-        "Januar", "Februar", "März", "April", "Mai", "Juni",
+        "Januar", "Februar", "Mï¿½rz", "April", "Mai", "Juni",
         "Juli", "August", "September", "Oktober", "November", "Dezember"
     };
 

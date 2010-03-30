@@ -8,7 +8,8 @@ import org.orbeon.saxon.type.Type;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 
-import java.lang.reflect.Method;
+import java.util.Collections;
+import java.util.Iterator;
 
 /**
  * The document node of a tree implemented as a wrapper around a DOM Document.
@@ -19,7 +20,7 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
     protected Configuration config;
     protected String baseURI;
     protected int documentNumber;
-    protected boolean level3 = false;
+    protected boolean domLevel3;
 
     /**
      * Wrap a DOM Document or DocumentFragment node
@@ -37,16 +38,7 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
         nodeKind = Type.DOCUMENT;
         this.baseURI = baseURI;
         docWrapper = this;
-
-        // Find out if this is a level-3 DOM implementation
-        Method[] methods = doc.getClass().getMethods();
-        for (int i=0; i<methods.length; i++) {
-            if (methods[i].getName().equals("isSameNode")) {
-                level3 = true;
-                break;
-            }
-        }
-
+        domLevel3 = config.getDOMLevel() == 3;
         setConfiguration(config);
     }
 
@@ -63,7 +55,8 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
         if (node == this.node) {
             return this;
         }
-        if (node.getOwnerDocument() == this.node) {
+        Document doc = node.getOwnerDocument();
+        if (doc == this.node || (domLevel3 && doc != null && doc.isSameNode(this.node))) {
             return makeWrapper(node, this);
         } else {
             throw new IllegalArgumentException(
@@ -139,6 +132,17 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
             return false;
         }
         return node == ((DocumentWrapper)other).node;
+    }
+
+    /**
+     * Get the list of unparsed entities defined in this document
+     * @return an Iterator, whose items are of type String, containing the names of all
+     *         unparsed entities defined in this document. If there are no unparsed entities or if the
+     *         information is not available then an empty iterator is returned
+     */
+
+    public Iterator getUnparsedEntityNames() {
+        return Collections.EMPTY_LIST.iterator();
     }
 
     /**

@@ -1,7 +1,6 @@
 package org.orbeon.saxon.om;
 
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.value.Value;
 
 /**
  * This interface is an extension to the SequenceIterator interface; it represents
@@ -13,12 +12,12 @@ import org.orbeon.saxon.value.Value;
 public interface GroundedIterator extends SequenceIterator {
 
     /**
-     * Return a Value containing all the items in the sequence returned by this
+     * Return a GroundedValue containing all the items in the sequence returned by this
      * SequenceIterator. This should be an "in-memory" value, not a Closure.
      * @return the corresponding Value
      */
 
-    public Value materialize() throws XPathException;
+    public GroundedValue materialize() throws XPathException;
 }
 
 

@@ -2,27 +2,24 @@ package org.orbeon.saxon.instruct;
 
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Platform;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.EmptyIterator;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.om.EmptyIterator;
-import org.orbeon.saxon.pattern.NoNodeTest;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.pattern.EmptySequenceTest;
 import org.orbeon.saxon.regex.RegexIterator;
 import org.orbeon.saxon.regex.RegularExpression;
-import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.SchemaType;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.type.TypeHierarchy;
+import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.SequenceType;
 
-import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 
 /**
- * An xsl:analyze-string elements in the stylesheet. New at XSLT 2.0<BR>
+ * An xsl:analyze-string element in the stylesheet. New at XSLT 2.0
  */
 
 public class AnalyzeString extends Instruction {
@@ -81,6 +78,7 @@ public class AnalyzeString extends Instruction {
 
     /**
      * Get the expression used to process matching substrings
+     * @return the expression used to process matching substrings
      */
 
     public Expression getMatchingExpression() {
@@ -89,6 +87,7 @@ public class AnalyzeString extends Instruction {
 
     /**
      * Get the expression used to process non-matching substrings
+     * @return the expression used to process non-matching substrings
      */
 
     public Expression getNonMatchingExpression() {
@@ -103,72 +102,107 @@ public class AnalyzeString extends Instruction {
      * @return the simplified expression
      * @throws XPathException if an error is discovered during expression
      *                        rewriting
+     * @param visitor an expression visitor
      */
 
-    public Expression simplify(StaticContext env) throws XPathException {
-        select = select.simplify(env);
-        regex = regex.simplify(env);
-        flags = flags.simplify(env);
-        if (matching != null) {
-            matching = matching.simplify(env);
-        }
-        if (nonMatching != null) {
-            nonMatching = nonMatching.simplify(env);
-        }
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        select = visitor.simplify(select);
+        regex = visitor.simplify(regex);
+        flags = visitor.simplify(flags);
+        matching = visitor.simplify(matching);
+        nonMatching = visitor.simplify(nonMatching);
         return this;
     }
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        select = select.typeCheck(env, contextItemType);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        select = visitor.typeCheck(select, contextItemType);
         adoptChildExpression(select);
-        regex = regex.typeCheck(env, contextItemType);
+        regex = visitor.typeCheck(regex, contextItemType);
         adoptChildExpression(regex);
-        flags = flags.typeCheck(env, contextItemType);
+        flags = visitor.typeCheck(flags, contextItemType);
         adoptChildExpression(flags);
         if (matching != null) {
-            matching = matching.typeCheck(env, Type.STRING_TYPE);
+            matching = visitor.typeCheck(matching, BuiltInAtomicType.STRING);
             adoptChildExpression(matching);
         }
         if (nonMatching != null) {
-            nonMatching = nonMatching.typeCheck(env, Type.STRING_TYPE);
+            nonMatching = visitor.typeCheck(nonMatching, BuiltInAtomicType.STRING);
             adoptChildExpression(nonMatching);
         }
         // Following type checking has already been done in the case of XSLT xsl:analyze-string, but is
         // needed where the instruction is generated from saxon:analyze-string extension function
         RoleLocator role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "analyze-string/select", 0, null);
-        role.setSourceLocator(this);
-        select = TypeChecker.staticTypeCheck(select, SequenceType.SINGLE_STRING, false, role, env);
+                new RoleLocator(RoleLocator.INSTRUCTION, "analyze-string/select", 0);
+        //role.setSourceLocator(this);
+        select = TypeChecker.staticTypeCheck(select, SequenceType.SINGLE_STRING, false, role, visitor);
 
-        role = new RoleLocator(RoleLocator.INSTRUCTION, "analyze-string/regex", 0, null);
-        role.setSourceLocator(this);
-        regex = TypeChecker.staticTypeCheck(regex, SequenceType.SINGLE_STRING, false, role, env);
+        role = new RoleLocator(RoleLocator.INSTRUCTION, "analyze-string/regex", 0);
+        //role.setSourceLocator(this);
+        regex = TypeChecker.staticTypeCheck(regex, SequenceType.SINGLE_STRING, false, role, visitor);
 
-        role = new RoleLocator(RoleLocator.INSTRUCTION, "analyze-string/flags", 0, null);
-        role.setSourceLocator(this);
-        flags = TypeChecker.staticTypeCheck(flags, SequenceType.SINGLE_STRING, false, role, env);
+        role = new RoleLocator(RoleLocator.INSTRUCTION, "analyze-string/flags", 0);
+        //role.setSourceLocator(this);
+        flags = TypeChecker.staticTypeCheck(flags, SequenceType.SINGLE_STRING, false, role, visitor);
 
         return this;
     }
 
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        select = select.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        select = visitor.optimize(select, contextItemType);
         adoptChildExpression(select);
-        regex = regex.optimize(opt, env, contextItemType);
+        regex = visitor.optimize(regex, contextItemType);
         adoptChildExpression(regex);
-        flags = flags.optimize(opt, env, contextItemType);
+        flags = visitor.optimize(flags, contextItemType);
         adoptChildExpression(flags);
         if (matching != null) {
-            matching = matching.optimize(opt, env, Type.STRING_TYPE);
+            matching = matching.optimize(visitor, BuiltInAtomicType.STRING);
             adoptChildExpression(matching);
         }
         if (nonMatching != null) {
-            nonMatching = nonMatching.optimize(opt, env, Type.STRING_TYPE);
+            nonMatching = nonMatching.optimize(visitor, BuiltInAtomicType.STRING);
             adoptChildExpression(nonMatching);
+        }
+        if (pattern == null && regex instanceof StringLiteral && flags instanceof StringLiteral) {
+            try {
+                final Platform platform = Configuration.getPlatform();
+                final CharSequence regex = ((StringLiteral)this.regex).getStringValue();
+                final CharSequence flagstr = ((StringLiteral)flags).getStringValue();
+                final int xmlVersion = visitor.getConfiguration().getXMLVersion();
+                pattern = platform.compileRegularExpression(
+                        regex, xmlVersion, RegularExpression.XPATH_SYNTAX, flagstr);
+
+                if (pattern.matches("")) {
+                    invalidRegex("The regular expression must not be one that matches a zero-length string", "XTDE1150");
+                }
+            } catch (XPathException err) {
+                if ("FORX0001".equals(err.getErrorCodeLocalPart())) {
+                    invalidRegex("Error in regular expression flags: " + err, "XTDE1145");
+                } else {
+                    invalidRegex("Error in regular expression: " + err, "XTDE1140");
+                }
+            }
         }
         return this;
     }
+
+    private void invalidRegex(String message, String errorCode) throws XPathException {
+        pattern = null;
+        XPathException err = new XPathException(message, errorCode);
+        err.setLocator(this);
+        throw err;
+    }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        throw new UnsupportedOperationException("copy");
+    }
+    
 
     /**
      * Check that any elements and attributes constructed or returned by this expression are acceptable
@@ -191,7 +225,7 @@ public class AnalyzeString extends Instruction {
      * Get the item type of the items returned by evaluating this instruction
      *
      * @return the static item type of the instruction
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
@@ -205,7 +239,7 @@ public class AnalyzeString extends Instruction {
             if (nonMatching != null) {
                 return nonMatching.getItemType(th);
             } else {
-                return NoNodeTest.getInstance();
+                return EmptySequenceTest.getInstance();
             }
         }
     }
@@ -278,6 +312,18 @@ public class AnalyzeString extends Instruction {
     }
 
     /**
+     * Given an expression that is an immediate child of this expression, test whether
+     * the evaluation of the parent expression causes the child expression to be
+     * evaluated repeatedly
+     * @param child the immediate subexpression
+     * @return true if the child expression is evaluated repeatedly
+     */
+
+    public boolean hasLoopingSubexpression(Expression child) {
+        return child == matching || child == nonMatching;
+    }
+
+    /**
      * Replace one subexpression by a replacement subexpression
      * @param original the original subexpression
      * @param replacement the replacement subexpression
@@ -306,7 +352,7 @@ public class AnalyzeString extends Instruction {
             nonMatching = replacement;
             found = true;
         }
-                return found;
+        return found;
     }
 
     /**
@@ -356,21 +402,22 @@ public class AnalyzeString extends Instruction {
      */
 
     private RegexIterator getRegexIterator(XPathContext context) throws XPathException {
-        String input = select.evaluateAsString(context);
+        CharSequence input = select.evaluateAsString(context);
 
         RegularExpression re = pattern;
         if (re == null) {
-            String flagstr = flags.evaluateAsString(context);
-            final Platform platform = context.getConfiguration().getPlatform();
-            re = platform.compileRegularExpression(regex.evaluateAsString(context), true, flagstr);
+            CharSequence flagstr = flags.evaluateAsString(context);
+            final Platform platform = Configuration.getPlatform();
+            final int xmlVersion = context.getConfiguration().getXMLVersion();
+            re = platform.compileRegularExpression(
+                    regex.evaluateAsString(context), xmlVersion, RegularExpression.XPATH_SYNTAX, flagstr);
             if (re.matches("")) {
                 dynamicError("The regular expression must not be one that matches a zero-length string",
                         "XTDE1150", context);
             }
         }
 
-        RegexIterator iter = re.analyze(input);
-        return iter;
+        return re.analyze(input);
     }
 
     /**
@@ -400,30 +447,32 @@ public class AnalyzeString extends Instruction {
     }
 
     /**
-     * Diagnostic print of expression structure. The expression is written to the System.err
-     * output stream
-     *
-     * @param level indentation level for this expression
-     @param out
-     @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "analyze-string");
-        out.println(ExpressionTool.indent(level) + "select = ");
-        select.display(level + 1, out, config);
-        out.println(ExpressionTool.indent(level) + "regex = ");
-        regex.display(level + 1, out, config);
-        out.println(ExpressionTool.indent(level) + "flags = ");
-        flags.display(level + 1, out, config);
+    public void explain(ExpressionPresenter out) {
+        out.startElement("analyzeString");
+        out.startSubsidiaryElement("select");
+        select.explain(out);
+        out.endSubsidiaryElement();
+        out.startSubsidiaryElement("regex");
+        regex.explain(out);
+        out.endSubsidiaryElement();
+        out.startSubsidiaryElement("flags");
+        flags.explain(out);
+        out.endSubsidiaryElement();
         if (matching != null) {
-            out.println(ExpressionTool.indent(level) + "matching = ");
-            matching.display(level + 1, out, config);
+            out.startSubsidiaryElement("matching");
+            matching.explain(out);
+            out.endSubsidiaryElement();
         }
         if (nonMatching != null) {
-            out.println(ExpressionTool.indent(level) + "non-matching = ");
-            nonMatching.display(level + 1, out, config);
+            out.startSubsidiaryElement("nonMatching");
+            nonMatching.explain(out);
+            out.endSubsidiaryElement();
         }
+        out.endElement();
     }
 
     /**
@@ -484,5 +533,4 @@ public class AnalyzeString extends Instruction {
 // Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
 //
 // Contributor(s):
-// Portions marked "e.g." are from Edwin Glaser (edwin@pannenleiter.de)
 //

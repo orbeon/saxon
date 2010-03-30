@@ -1,4 +1,5 @@
 package org.orbeon.saxon;
+
 import org.orbeon.saxon.event.*;
 import org.orbeon.saxon.trans.XPathException;
 import org.xml.sax.SAXParseException;

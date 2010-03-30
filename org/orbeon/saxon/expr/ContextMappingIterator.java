@@ -1,5 +1,4 @@
 package org.orbeon.saxon.expr;
-import org.orbeon.saxon.om.AtomizableIterator;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.trans.XPathException;
@@ -15,13 +14,12 @@ import org.orbeon.saxon.trans.XPathException;
 * sets each item being processed as the context item
 */
 
-public final class ContextMappingIterator implements SequenceIterator, AtomizableIterator {
+public final class ContextMappingIterator implements SequenceIterator {
 
     private SequenceIterator base;
     private ContextMappingFunction action;
     private XPathContext context;
-    private SequenceIterator results = null;
-    private boolean atomizing = false;
+    private SequenceIterator stepIterator = null;
     private Item current = null;
     private int position = 0;
 
@@ -34,7 +32,7 @@ public final class ContextMappingIterator implements SequenceIterator, Atomizabl
      */
 
     public ContextMappingIterator(ContextMappingFunction action, XPathContext context) {
-        this.base = context.getCurrentIterator();
+        base = context.getCurrentIterator();
         this.action = action;
         this.context = context;
     }
@@ -42,30 +40,26 @@ public final class ContextMappingIterator implements SequenceIterator, Atomizabl
     public Item next() throws XPathException {
         Item nextItem;
         while (true) {
-            if (results != null) {
-                nextItem = results.next();
+            if (stepIterator != null) {
+                nextItem = stepIterator.next();
                 if (nextItem != null) {
                     break;
                 } else {
-                    results = null;
+                    stepIterator = null;
                 }
             }
             if (base.next() != null) {
                 // Call the supplied mapping function
-                results = action.map(context);
-
-                if (atomizing && results instanceof AtomizableIterator) {
-                    ((AtomizableIterator)results).setIsAtomizing(atomizing);
-                }
-                nextItem = results.next();
+                stepIterator = action.map(context);
+                nextItem = stepIterator.next();
                 if (nextItem == null) {
-                    results = null;
+                    stepIterator = null;
                 } else {
                     break;
                 }
 
             } else {
-                results = null;
+                stepIterator = null;
                 current = null;
                 position = -1;
                 return null;
@@ -85,6 +79,9 @@ public final class ContextMappingIterator implements SequenceIterator, Atomizabl
         return position;
     }
 
+    public void close() {
+        base.close();
+    }
 
     public SequenceIterator getAnother() throws XPathException {
         SequenceIterator newBase = base.getAnother();
@@ -94,9 +91,7 @@ public final class ContextMappingIterator implements SequenceIterator, Atomizabl
             c2.setCurrentIterator(newBase);
             c2.setOrigin(context.getOrigin());
         }
-        ContextMappingIterator m = new ContextMappingIterator(action, c2);
-        m.setIsAtomizing(atomizing);
-        return m;
+        return new ContextMappingIterator(action, c2);
     }
 
     /**
@@ -110,7 +105,7 @@ public final class ContextMappingIterator implements SequenceIterator, Atomizabl
      */
 
     public int getProperties() {
-        return ATOMIZABLE;
+        return 0;
     }
 
     /**
@@ -123,9 +118,9 @@ public final class ContextMappingIterator implements SequenceIterator, Atomizabl
      * value of the nodes instead of the nodes themselves.
      */
 
-    public void setIsAtomizing(boolean atomizing) {
-        this.atomizing = atomizing;
-    }
+//    public void setIsAtomizing(boolean atomizing) {
+//        this.atomizing = atomizing;
+//    }
 
 }
 

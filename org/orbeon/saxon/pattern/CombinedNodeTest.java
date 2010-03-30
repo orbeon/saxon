@@ -23,6 +23,13 @@ public class CombinedNodeTest extends NodeTest {
     private int operator;
     private boolean isGlobalComponentTest;
 
+    /**
+     * Create a NodeTest that combines two other node tests
+     * @param nt1 the first operand
+     * @param operator one of Token.UNION, Token.INTERSECT, Token.EXCEPT
+     * @param nt2 the second operand
+     */
+
     public CombinedNodeTest(NodeTest nt1, int operator, NodeTest nt2) {
         nodetest1 = nt1;
         this.operator = operator;
@@ -33,6 +40,7 @@ public class CombinedNodeTest extends NodeTest {
      * Indicate whether this CombinedNodeTest actually represents a SequenceType of the form
      * schema-element(X) or schema-attribute(X). This information is used only when reconstructing a
      * string representation of the NodeTest for diagnostics.
+     * @param global true if this test represents a schema-element or schema-attribute test
      */
 
     public void setGlobalComponentTest(boolean global) {
@@ -146,10 +154,38 @@ public class CombinedNodeTest extends NodeTest {
         }
     }
 
+    public String toString() {
+        if (isGlobalComponentTest) {
+            if (nodetest1 instanceof SubstitutionGroupTest) {
+                return nodetest1.toString();
+            } else {
+                final int kind = nodetest1.getPrimitiveType();
+                final String skind = (kind == Type.ELEMENT ? "schema-element(" : "schema-attribute(");
+                final String name = nodetest1.toString();
+                return skind + name + ')';
+            }
+        } else if (nodetest1 instanceof NameTest && operator==Token.INTERSECT) {
+            int kind = nodetest1.getPrimitiveType();
+            String skind = (kind == Type.ELEMENT ? "element(" : "attribute(");
+            String content = "";
+            if (nodetest2 instanceof ContentTypeTest) {
+                final SchemaType schemaType = ((ContentTypeTest)nodetest2).getSchemaType();
+                content = ", " + schemaType.getFingerprint();
+            }
+            String name = nodetest1.toString();
+            return skind + name + content + ')';
+        } else {
+            String nt1 = (nodetest1==null ? "true()" : nodetest1.toString());
+            String nt2 = (nodetest2==null ? "true()" : nodetest2.toString());
+            return '(' + nt1 + ' ' + Token.tokens[operator] + ' ' + nt2 + ')';
+        }
+    }
+
+
     /**
      * Get the supertype of this type. This isn't actually a well-defined concept: the types
      * form a lattice rather than a strict hierarchy.
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getSuperType(TypeHierarchy th) {
@@ -207,7 +243,7 @@ public class CombinedNodeTest extends NodeTest {
 
     /**
      * Get the set of node names allowed by this NodeTest. This is returned as a set of Integer fingerprints.
-     * A null value indicates that all names are permitted (i.e. that there are no constraints on the node name.
+     * A null value indicates that all names are permitted (i.e. that there are no constraints on the node name).
      * The default implementation returns null.
      */
 
@@ -265,14 +301,14 @@ public class CombinedNodeTest extends NodeTest {
         AtomicType type2 = nodetest2.getAtomizedItemType();
         if (type1.isSameType(type2)) return type1;
         if (operator == Token.INTERSECT) {
-            if (type2 == Type.ANY_ATOMIC_TYPE) {
+            if (type2.equals(BuiltInAtomicType.ANY_ATOMIC)) {
                 return type1;
             }
-            if (type1 == Type.ANY_ATOMIC_TYPE) {
+            if (type1.equals(BuiltInAtomicType.ANY_ATOMIC)) {
                 return type2;
             }
         }
-        return Type.ANY_ATOMIC_TYPE;
+        return BuiltInAtomicType.ANY_ATOMIC;
     }
 
     /**
@@ -327,11 +363,21 @@ public class CombinedNodeTest extends NodeTest {
 
     /**
      * Get the two parts of the combined node test
+     * @return the two operands
      */
 
     public NodeTest[] getComponentNodeTests() {
-        NodeTest[] tests = {nodetest1, nodetest2};
-        return tests;
+        return new NodeTest[] {nodetest1, nodetest2};
+    }
+
+    /**
+     * Get the operator used to combine the two node tests: one of {@link Token#UNION},
+     * {@link Token#INTERSECT}, {@link Token#EXCEPT}, 
+     * @return the operator
+     */
+
+    public int getOperator() {
+        return operator;
     }
 }
 

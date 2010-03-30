@@ -1,5 +1,6 @@
 package org.orbeon.saxon.expr;
 
+import org.orbeon.saxon.om.StructuredQName;
 
 
 /**
@@ -11,27 +12,23 @@ package org.orbeon.saxon.expr;
 public interface VariableDeclaration {
 
     /**
-    * Method called by a BindingReference to register the variable reference for
-    * subsequent fixup.
-    * This method is called by the XPath parser when
-    * each reference to the variable is encountered. At some time after parsing and before execution of the
-    * expression, the VariableDeclaration is responsible for calling the two methods setStaticType()
-    * and fixup() on each BindingReference that has been registered with it.<br>
+     * Method called by a BindingReference to register the variable reference for
+     * subsequent fixup.
+     * This method is called by the XPath parser when
+     * each reference to the variable is encountered. At some time after parsing and before execution of the
+     * expression, the VariableDeclaration is responsible for calling the two methods setStaticType()
+     * and fixup() on each BindingReference that has been registered with it.<br>
+     * @param ref the variable reference
     */
 
     public void registerReference(BindingReference ref);
 
     /**
-    * Get the fingerprint code that identifies the name of the variable
+     * Get the name of the variable as a structured QName
+     * @return the variable name
     */
 
-    public int getNameCode();
-
-    /**
-     * Get the name of the variable for use in diagnostics - a lexical QName
-     */
-
-    public String getVariableName();
+    public StructuredQName getVariableQName();
 
 }
 

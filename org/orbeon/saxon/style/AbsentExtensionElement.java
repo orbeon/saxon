@@ -1,7 +1,6 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.trans.XPathException;
 
 /**
@@ -62,7 +61,7 @@ public class AbsentExtensionElement extends StyleElement {
         // if there are fallback children, compile the code for the fallback elements
 
         if (validationError==null) {
-            validationError = new StaticError("Unknown instruction");
+            validationError = new XPathException("Unknown instruction");
         }
         return fallbackProcessing(exec, this);
     }
@@ -84,5 +83,4 @@ public class AbsentExtensionElement extends StyleElement {
 // Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
 //
 // Contributor(s):
-// Portions marked "e.g." are from Edwin Glaser (edwin@pannenleiter.de)
 //

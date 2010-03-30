@@ -1,5 +1,7 @@
 package org.orbeon.saxon.om;
 
+import java.util.Iterator;
+
 /**
  * This interface represents a document node as defined in the XPath 2.0 data model.
  * It extends NodeInfo, which is used to represent any node. Every document node must
@@ -33,6 +35,15 @@ public interface DocumentInfo extends NodeInfo {
      */
 
     public NodeInfo selectID(String id);
+
+    /**
+     * Get the list of unparsed entities defined in this document
+     * @return an Iterator, whose items are of type String, containing the names of all
+     * unparsed entities defined in this document. If there are no unparsed entities or if the
+     * information is not available then an empty iterator is returned
+     */
+
+    public Iterator getUnparsedEntityNames();
 
     /**
      * Get the unparsed entity with a given name

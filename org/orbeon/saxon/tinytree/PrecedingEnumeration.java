@@ -35,21 +35,25 @@ final class PrecedingEnumeration extends AxisIteratorImpl {
     public Item next() {
         int nextNodeNr = ((TinyNodeImpl)current).nodeNr;
         while (true) {
-            nextNodeNr--;
             if (!includeAncestors) {
+                nextNodeNr--;
                 // skip over ancestor elements
                 while (nextAncestorDepth >= 0 && tree.depth[nextNodeNr] == nextAncestorDepth) {
                     if (nextAncestorDepth-- <= 0) {  // bug 1121528
                         current = null;
                         position = -1;
                         return null;
-                    };
+                    }
                     nextNodeNr--;
                 }
-            } else if (tree.depth[nextNodeNr] == 0) {
-                current = null;
-                position = -1;
-                return null;
+            } else {
+                if (tree.depth[nextNodeNr] == 0) {
+                    current = null;
+                    position = -1;
+                    return null;
+                } else {
+                    nextNodeNr--;
+                }
             }
             if (test.matches(tree, nextNodeNr)) {
                 position++;

@@ -1,7 +1,8 @@
 package org.orbeon.saxon.trace;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.om.NamePool;
 
 /**
 * A Simple trace listener that writes messages to System.err
@@ -31,13 +32,14 @@ public class TimedTraceListener implements TraceListener {
     */
 
     public void enter(InstructionInfo instruction, XPathContext context) {
+        NamePool pool = context.getNamePool();
         int loc = instruction.getConstructType();
         if (loc == StandardNames.XSL_FUNCTION || loc == StandardNames.XSL_TEMPLATE) {
             String tag = "<";
             tag += (loc==StandardNames.XSL_FUNCTION ? "function" : "template");
             String name = null;
-            if (instruction.getObjectNameCode() != -1) {
-                name = context.getNamePool().getDisplayName(instruction.getObjectNameCode());
+            if (instruction.getObjectName() != null) {
+                name = instruction.getObjectName().getDisplayName();
             } else if (instruction.getProperty("name") != null) {
                 name = instruction.getProperty("name").toString();
             }

@@ -3,6 +3,7 @@ package org.orbeon.saxon.tinytree;
 import org.orbeon.saxon.om.FastStringBuffer;
 
 import java.io.Writer;
+import java.io.OutputStream;
 
 /**
  * This class provides a compressed representation of a sequence of whitespace characters. The representation
@@ -19,7 +20,7 @@ public class CompressedWhitespace implements CharSequence {
     private long value;
 
     public CompressedWhitespace(long compressedValue) {
-        this.value = compressedValue;
+        value = compressedValue;
     }
 
     /**
@@ -87,19 +88,23 @@ public class CompressedWhitespace implements CharSequence {
         if (buffer == null) {
             buffer = new FastStringBuffer(length());
         }
-        final long val = value;
+        uncompress(value, buffer);
+        return buffer;
+    }
+
+    public static void uncompress(long value, FastStringBuffer buffer) {
         for (int s=56; s>=0; s-=8) {
-            byte b = (byte)((val>>>s) & 0xff);
+            byte b = (byte)((value >>>s) & 0xff);
             if (b == 0) {
                 break;
             }
             char c = WHITE_CHARS[b>>>6 & 0x3];
             int len = (b & 0x3f);
+            buffer.ensureCapacity(len);
             for (int j=0; j<len; j++) {
                 buffer.append(c);
             }
         }
-        return buffer;
     }
 
     public long getCompressedValue() {
@@ -245,10 +250,46 @@ public class CompressedWhitespace implements CharSequence {
         }
     }
 
-    public static void main( String[] args ) {
-        CharSequence c = compress("\t\n\n\t\t\n      ");
-        System.err.println(c);
+    /**
+     * Write the value to a UTF-8 OutputStream with escaping of special characters
+     * @param specialChars array of booleans indicating which characters need to be XML-escaped
+     * @param stream the output stream to write to
+     */
+
+    public void writeEscape(boolean[] specialChars, OutputStream stream) throws java.io.IOException {
+        final long val = value;
+        for (int s=56; s>=0; s-=8) {
+            final byte b = (byte)((val>>>s) & 0xff);
+            if (b == 0) {
+                break;
+            }
+            final char c = WHITE_CHARS[b>>>6 & 0x3];
+            final int len = (b & 0x3f);
+            if (specialChars[c]) {
+                byte[] e;
+                if (c=='\n') {
+                    e = ESCAPE_N;
+                } else if (c=='\r') {
+                    e = ESCAPE_R;
+                } else {
+                    e = ESCAPE_T;
+                }
+                for (int j=0; j<len; j++) {
+                    stream.write(e);
+                }
+            } else {
+                for (int j=0; j<len; j++) {
+                    stream.write(c);
+                }
+            }
+        }
     }
+
+    private static byte[] ESCAPE_N = {'&', '#', 'x', 'A', ';'};
+    private static byte[] ESCAPE_R = {'&', '#', 'x', 'D', ';'};
+    private static byte[] ESCAPE_T = {'&', '#', 'x', '9', ';'};
+
+
 
 }
 

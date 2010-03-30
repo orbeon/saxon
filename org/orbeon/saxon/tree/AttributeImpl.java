@@ -1,20 +1,17 @@
 package org.orbeon.saxon.tree;
 import org.orbeon.saxon.event.Receiver;
-import org.orbeon.saxon.om.AttributeCollection;
-import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.om.FastStringBuffer;
-import org.orbeon.saxon.om.ExtendedNodeInfo;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
 
 /**
-  * A node in the XML parse tree representing an attribute. Note that this is
-  * generated only "on demand", when the attribute is selected by a select pattern.<P>
+  * A node in the "linked" tree representing an attribute. Note that this is
+  * generated only "on demand", when the attribute is selected by a path expression.<P>
   * @author Michael H. Kay
   */
 
-final class AttributeImpl extends NodeImpl implements ExtendedNodeInfo {
+final class AttributeImpl extends NodeImpl {
 
     private int nameCode;
     private int typeCode;
@@ -57,6 +54,9 @@ final class AttributeImpl extends NodeImpl implements ExtendedNodeInfo {
      */
 
     public boolean isId() {
+        if (getFingerprint() == StandardNames.XML_ID) {
+            return true;
+        }
         TypeHierarchy th = getConfiguration().getTypeHierarchy();
         return th.isIdCode(typeCode);
     }
@@ -114,7 +114,8 @@ final class AttributeImpl extends NodeImpl implements ExtendedNodeInfo {
     */
 
     protected long getSequenceNumber() {
-        return parent.getSequenceNumber() + 0x8000 + index;
+        long parseq = parent.getSequenceNumber();
+        return (parseq == -1L ? parseq : parseq + 0x8000 + index);
         // note the 0x8000 is to leave room for namespace nodes
     }
 
@@ -170,8 +171,8 @@ final class AttributeImpl extends NodeImpl implements ExtendedNodeInfo {
     }
 
     /**
-    * Get sequential key. Returns key of owning element with the attribute index as a suffix
-     * @param buffer
+     * Get sequential key. Returns key of owning element with the attribute index as a suffix
+     * @param buffer a buffer to which the generated ID will be written
      */
 
     public void generateId(FastStringBuffer buffer) {
@@ -190,6 +191,112 @@ final class AttributeImpl extends NodeImpl implements ExtendedNodeInfo {
         out.attribute(nameCode, typeCode, getStringValue(), locationId, 0);
     }
 
+    /**
+     * Delete this node (that is, detach it from its parent)
+     */
+
+    public void delete() {
+        if (parent != null) {
+            ((ElementImpl)parent).removeAttribute(getNameCode());
+        }
+        parent = null;
+        // TODO: allow for the fact that transiently during an update operation, several attributes may have the same
+        // name. 
+    }
+
+
+    /**
+     * Replace this node with a given sequence of nodes
+     * @param replacement the replacement nodes (which for this version of the method mut be attribute
+     * nodes). The target attribute node is deleted, and the replacement nodes are added to the
+     * parent element; if they have the same names as existing nodes, then the existing nodes will be
+     * overwritten.
+     * @param inherit set to true if new child elements are to inherit the in-scope namespaces
+     * of their new parent. Not used when replacing attribute nodes.
+     * @throws IllegalArgumentException if any of the replacement nodes is not an attribute
+     */
+
+    public void replace(NodeInfo[] replacement, boolean inherit) {
+        ParentNodeImpl element = parent;
+        delete();
+        for (int i=0; i<replacement.length; i++) {
+            NodeInfo n = replacement[i];
+            if (n.getNodeKind() != Type.ATTRIBUTE) {
+                throw new IllegalArgumentException("Replacement nodes must be attributes");
+            }
+            element.putAttribute(n.getNameCode(), StandardNames.XS_UNTYPED_ATOMIC, n.getStringValue(), 0);
+        }
+    }
+
+    /**
+     * Rename this node
+     *
+     * @param newNameCode the NamePool code of the new name
+     */
+
+    public void rename(int newNameCode) {
+        // The attribute node itself is transient; we need to update the attribute collection held in the parent
+        if (parent != null) {
+            AttributeCollectionImpl atts = (AttributeCollectionImpl)((ElementImpl)parent).getAttributeList();
+            atts.renameAttribute(nameCode, newNameCode);
+            if ((newNameCode>>20) != 0) {
+                // new attribute name is in a namespace
+                int nscode = getNamePool().getNamespaceCode(newNameCode);
+                int prefixCode = nscode>>16 & 0xffff;
+                short uc = ((ElementImpl)parent).getURICodeForPrefixCode(prefixCode);
+                if (uc == -1) {
+                    parent.addNamespace(nscode, false);
+                } else if (uc != (nscode&0xffff)) {
+                    throw new IllegalArgumentException(
+                            "Namespace binding of new name conflicts with existing namespace binding");
+                }
+            }
+        }
+        nameCode = newNameCode;
+    }
+
+    public void replaceStringValue(CharSequence stringValue) {
+        value = stringValue.toString();
+        // The attribute node itself is transient; we need to update the attribute collection held in the parent
+        if (parent != null) {
+            AttributeCollectionImpl atts = (AttributeCollectionImpl)((ElementImpl)parent).getAttributeList();
+            atts.replaceAttribute(nameCode, stringValue);
+        }
+    }
+
+
+    /**
+     * Remove type information from this node (and its ancestors, recursively).
+     * This method implements the upd:removeType() primitive defined in the XQuery Update specification
+     *
+     */
+
+    public void removeTypeAnnotation() {
+        typeCode = StandardNames.XS_UNTYPED_ATOMIC;
+        if (parent != null) {
+            AttributeCollectionImpl atts = (AttributeCollectionImpl)((ElementImpl)parent).getAttributeList();
+            atts.setTypeAnnotation(nameCode, StandardNames.XS_UNTYPED_ATOMIC);
+            parent.removeTypeAnnotation();
+        }
+    }
+
+
+    /**
+     * Set the type annotation on a node. This must only be called when the caller has verified (by validation)
+     * that the node is a valid instance of the specified type. The call is ignored if the node is not an element
+     * or attribute node.
+     *
+     * @param typeCode the type annotation (possibly including high bits set to indicate the isID, isIDREF, and
+     *                 isNilled properties)
+     */
+
+    public void setTypeAnnotation(int typeCode) {
+        this.typeCode = typeCode;
+        if (parent != null) {
+            AttributeCollectionImpl atts = (AttributeCollectionImpl)((ElementImpl)parent).getAttributeList();
+            atts.setTypeAnnotation(nameCode, typeCode);
+        }
+    }
 }
 
 //

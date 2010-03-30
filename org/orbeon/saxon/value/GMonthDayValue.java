@@ -2,7 +2,7 @@ package org.orbeon.saxon.value;
 
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.FastStringBuffer;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
 
@@ -13,47 +13,58 @@ import java.util.regex.Pattern;
  * Implementation of the xs:gYear data type
  */
 
-public class GMonthDayValue extends DateValue {
+public class GMonthDayValue extends GDateValue {
 
     private static Pattern regex =
             Pattern.compile("--([0-9][0-9]-[0-9][0-9])(Z|[+-][0-9][0-9]:[0-9][0-9])?");
 
-    public GMonthDayValue(){};
+    private GMonthDayValue(){}
 
-    public GMonthDayValue(CharSequence value) throws XPathException {
+    public static ConversionResult makeGMonthDayValue(CharSequence value) {
         Matcher m = regex.matcher(Whitespace.trimWhitespace(value));
         if (!m.matches()) {
-            throw new DynamicError("Cannot convert '" + value + "' to a gMonthDay");
+            return new ValidationFailure("Cannot convert '" + value + "' to a gMonthDay");
         }
+        GMonthDayValue g = new GMonthDayValue();
         String base = m.group(1);
         String tz = m.group(2);
         String date = "2000-" + base + (tz==null ? "" : tz);
-        setLexicalValue(date);
+        g.typeLabel = BuiltInAtomicType.G_MONTH_DAY;
+        return setLexicalValue(g, date);
     }
 
     public GMonthDayValue(byte month, byte day, int tz) {
+        this(month, day, tz, BuiltInAtomicType.G_MONTH_DAY);
+    }
+
+    public GMonthDayValue(byte month, byte day, int tz, AtomicType type) {
         this.year = 2000;
         this.month = month;
         this.day = day;
         setTimezoneInMinutes(tz);
-    }
-
-    /**
-    * Determine the data type of the expression
-    * @return Type.G_MONTH_DAY_TYPE,
-     * @param th
-     */
-
-    public ItemType getItemType(TypeHierarchy th) {
-        return Type.G_MONTH_DAY_TYPE;
+        this.typeLabel = type;
     }
 
     /**
      * Make a copy of this date, time, or dateTime value
+     * @param typeLabel
      */
 
-    public CalendarValue copy() {
-        return new GMonthDayValue(month, day, getTimezoneInMinutes());
+    public AtomicValue copyAsSubType(AtomicType typeLabel) {
+        GMonthDayValue v = new GMonthDayValue(month, day, getTimezoneInMinutes());
+        v.typeLabel = typeLabel;
+        return v;
+    }
+
+    /**
+     * Determine the primitive type of the value. This delivers the same answer as
+     * getItemType().getPrimitiveItemType(). The primitive types are
+     * the 19 primitive types of XML Schema, plus xs:integer, xs:dayTimeDuration and xs:yearMonthDuration,
+     * and xs:untypedAtomic. For external objects, the result is AnyAtomicType.
+     */
+
+    public BuiltInAtomicType getPrimitiveType() {
+        return BuiltInAtomicType.G_MONTH_DAY;
     }
 
     /**
@@ -63,23 +74,21 @@ public class GMonthDayValue extends DateValue {
      * @return an AtomicValue, a value of the required type; or an ErrorValue
     */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, XPathContext context)  {
+    public ConversionResult convertPrimitive(BuiltInAtomicType requiredType, boolean validate, XPathContext context)  {
         switch(requiredType.getPrimitiveType()) {
-        case Type.G_MONTH_DAY:
-        case Type.ANY_ATOMIC:
-        case Type.ITEM:
+        case StandardNames.XS_G_MONTH_DAY:
+        case StandardNames.XS_ANY_ATOMIC_TYPE:
             return this;
 
-        case Type.STRING:
+        case StandardNames.XS_STRING:
             return new StringValue(getStringValueCS());
-        case Type.UNTYPED_ATOMIC:
+        case StandardNames.XS_UNTYPED_ATOMIC:
             return new UntypedAtomicValue(getStringValueCS());
         default:
-            ValidationException err = new ValidationException("Cannot convert gMonthDay to " +
+            ValidationFailure err = new ValidationFailure("Cannot convert gMonthDay to " +
                                      requiredType.getDisplayName());
             err.setErrorCode("XPTY0004");
-            err.setIsTypeError(true);
-            return new ValidationErrorValue(err);
+            return err;
         }
     }
 
@@ -98,6 +107,35 @@ public class GMonthDayValue extends DateValue {
 
         return sb;
 
+    }
+
+    /**
+     * Add a duration to this date/time value
+     *
+     * @param duration the duration to be added (which might be negative)
+     * @return a new date/time value representing the result of adding the duration. The original
+     *         object is not modified.
+     * @throws org.orbeon.saxon.trans.XPathException
+     *
+     */
+
+    public CalendarValue add(DurationValue duration) throws XPathException {
+        XPathException err = new XPathException("Cannot add a duration to an xs:gMonthDay");
+        err.setErrorCode("XPTY0004");
+        throw err;
+    }
+
+    /**
+     * Return a new date, time, or dateTime with the same normalized value, but
+     * in a different timezone
+     *
+     * @param tz the new timezone, in minutes
+     * @return the date/time in the new timezone
+     */
+
+    public CalendarValue adjustTimezone(int tz) {
+        DateTimeValue dt = (DateTimeValue)toDateTime().adjustTimezone(tz);
+        return new GMonthDayValue(dt.getMonth(), dt.getDay(), dt.getTimezoneInMinutes());
     }
 }
 

@@ -33,7 +33,6 @@ public interface RegexIterator extends SequenceIterator {
 
     public SequenceIterator getRegexGroupIterator();
 
-
 }
 
 //
@@ -52,5 +51,4 @@ public interface RegexIterator extends SequenceIterator {
 // Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
 //
 // Contributor(s):
-// Portions marked "e.g." are from Edwin Glaser (edwin@pannenleiter.de)
 //

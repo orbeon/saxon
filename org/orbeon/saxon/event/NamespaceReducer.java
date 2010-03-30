@@ -45,6 +45,24 @@ public class NamespaceReducer extends ProxyReceiver implements NamespaceResolver
     private int[] pendingUndeclarations = null;
 
     /**
+     * Create a NamespaceReducer
+     */
+
+    public NamespaceReducer() {}
+
+    /**
+     * Create a NamespaceReducer with a given destination Receiver
+     * @param base the Receiver to which events will be passed after namespace reduction
+     */
+
+    public NamespaceReducer(Receiver base) {
+        setUnderlyingReceiver(base);
+        if (pipelineConfiguration == null) {
+            pipelineConfiguration = base.getPipelineConfiguration();
+        }
+    }
+
+    /**
     * startElement. This call removes redundant namespace declarations, and
     * possibly adds an xmlns="" undeclaration.
     */
@@ -87,6 +105,13 @@ public class NamespaceReducer extends ProxyReceiver implements NamespaceResolver
 
     }
 
+    /**
+     * Output a namespace node (binding)
+     * @param namespaceCode encapsulates the prefix and URI
+     * @param properties the properties of the namespace binding
+     * @throws XPathException
+     */
+
     public void namespace(int namespaceCode, int properties) throws XPathException {
 
         // Keep the namespace only if it is actually needed
@@ -99,7 +124,10 @@ public class NamespaceReducer extends ProxyReceiver implements NamespaceResolver
     }
 
     /**
-    * Determine whether a namespace declaration is needed
+     * Determine whether a namespace declaration is needed
+     * @param nscode the namespace code
+     * @return true if the namespace is needed: that is, if it not the XML namespace, is not a duplicate,
+     * and is not a redundant xmlns="".
     */
 
     private boolean isNeeded(int nscode) {
@@ -125,8 +153,8 @@ public class NamespaceReducer extends ProxyReceiver implements NamespaceResolver
         		return false;
         	}
         	if ((namespaces[i]>>16) == (nscode>>16)) {
-        		// same prefix, different URI, so we do need it
-        		return true;
+        		// same prefix, different URI.
+                return true;
             }
         }
 
@@ -135,7 +163,8 @@ public class NamespaceReducer extends ProxyReceiver implements NamespaceResolver
     }
 
     /**
-    * Add a namespace declaration to the stack
+     * Add a namespace declaration to the stack
+     * @param nscode the namespace code to be added
     */
 
     private void addToStack(int nscode) {
@@ -179,8 +208,7 @@ public class NamespaceReducer extends ProxyReceiver implements NamespaceResolver
             throw new IllegalStateException("Attempt to output end tag with no matching start tag");
         }
 
-        int nscount = countStack[depth];
-        namespacesSize -= nscount;
+        namespacesSize -= countStack[depth];
 
         nextReceiver.endElement();
 
@@ -218,7 +246,7 @@ public class NamespaceReducer extends ProxyReceiver implements NamespaceResolver
 
     public String getURIForPrefix(String prefix, boolean useDefault) {
         NamePool pool = getNamePool();
-        if ("".equals(prefix) && !useDefault) {
+        if ((prefix==null || prefix.length()==0) && !useDefault) {
             return "";
         } else if ("xml".equals(prefix)) {
             return NamespaceConstant.XML;

@@ -69,7 +69,7 @@ public class AnyItemType implements ItemType, Serializable {
     }
 
     public AtomicType getAtomizedItemType() {
-        return Type.ANY_ATOMIC_TYPE;
+        return BuiltInAtomicType.ANY_ATOMIC;
     }
 
     public String toString() {

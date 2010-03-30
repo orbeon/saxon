@@ -20,7 +20,7 @@ public class NamespaceConstant {
 
 	public static final String NULL = "";
 	/**
-	 * The numeric code representing the null namespace (actually, zero)
+	 * The numeric URI code representing the null namespace (actually, zero)
 	 */
 	public static final short NULL_CODE = 0;
     /**
@@ -70,40 +70,11 @@ public class NamespaceConstant {
     public static final short SCHEMA_CODE = 4;
 
     /**
-     * Namespace for additional XPath-defined data types:
-     * "http://www.w3.org/2005/xpath-datatypes"
-     */
-    public static final String XDT = "http://www.w3.org/2005/xpath-datatypes";
-
-    /**
-     * Older versions of XDT namespace
-     */
-
-    public static final String XDT200504 = "http://www.w3.org/2005/04/xpath-datatypes";
-    public static final String XDT200502 = "http://www.w3.org/2005/02/xpath-datatypes";
-    public static final String XDT200410 = "http://www.w3.org/2004/10/xpath-datatypes";
-    public static final String XDT200407 = "http://www.w3.org/2004/07/xpath-datatypes";
-
-    /**
-     * Test whether a namespace is the XDT namespace
-     */
-
-    public static final boolean isXDTNamespace(String uri) {
-        return uri.equals(XDT) || uri.equals(XDT200504) || uri.equals(XDT200502) ||
-                uri.equals(XDT200410) || uri.equals(XDT200407);
-    }
-
-    /**
-     * Numeric code representing the schema namespace
-     */
-    public static final short XDT_CODE = 5;
-
-    /**
      * XML-schema-defined namespace for use in instance documents ("xsi")
      */
     public static final String SCHEMA_INSTANCE = "http://www.w3.org/2001/XMLSchema-instance";
 
-    public static final short XSI_CODE = 6;
+    public static final short XSI_CODE = 5;
 
     /**
      * Fixed namespace name for EXSLT/Common: "http://exslt.org/common"
@@ -183,6 +154,12 @@ public class NamespaceConstant {
     public static final String ANONYMOUS = "http://ns.saxonica.com/anonymous-type";
 
     /**
+     * Namespace for the Saxon serialization of the schema component model
+     */
+
+    public static final String SCM = "http://ns.saxonica.com/schema-component-model";
+
+    /**
      * URI identifying the Saxon object model for use in the JAXP 1.3 XPath API
      */
 
@@ -208,6 +185,12 @@ public class NamespaceConstant {
     public static final String OBJECT_MODEL_DOM4J = "http://www.dom4j.org/jaxp/xpath/dom4j";
 
     /**
+     * URI identifying the .NET DOM object model (not used, but needed for consistency)
+     */
+
+    public static final String OBJECT_MODEL_DOT_NET_DOM = "http://saxon.sf.net/object-model/dotnet/dom";
+
+    /**
      * URI identifying the Unicode codepoint collation
      */
 
@@ -225,11 +208,13 @@ public class NamespaceConstant {
      */
 
     public static final boolean isReserved(String uri) {
+        if (uri == null) {
+            return false;
+        }
         return uri.equals(XSLT) ||
                 uri.equals(FN) ||
                 uri.equals(XML) ||
                 uri.equals(SCHEMA)||
-                //uri.equals(XDT) ||
                 uri.equals(SCHEMA_INSTANCE);
     }
 
@@ -252,6 +237,69 @@ public class NamespaceConstant {
                 //uri.equals(XDT) ||
                 uri.equals(SCHEMA_INSTANCE);
     }
+
+    /**
+     * Find a similar namespace to one that is a possible mis-spelling
+     * @param candidate the possibly mis-spelt namespace
+     * @return the correct spelling of the namespace
+     */
+
+    public static String findSimilarNamespace(String candidate) {
+        return null;
+        // Suppressed as caused crashes late in the 9.1 build validation
+//        if (isSimilar(candidate, XML)) {
+//            return XML;
+//        } else if (isSimilar(candidate, SCHEMA)) {
+//            return SCHEMA;
+//        } else if (isSimilar(candidate, XSLT)) {
+//            return XSLT;
+//        } else if (isSimilar(candidate, SCHEMA_INSTANCE)) {
+//            return SCHEMA_INSTANCE;
+//        } else if (isSimilar(candidate, FN)) {
+//            return FN;
+//        } else if (isSimilar(candidate, SAXON)) {
+//            return SAXON;
+//        } else if (isSimilar(candidate, EXSLT_COMMON)) {
+//            return EXSLT_COMMON;
+//        } else if (isSimilar(candidate, EXSLT_MATH)) {
+//            return EXSLT_MATH;
+//        } else if (isSimilar(candidate, EXSLT_DATES_AND_TIMES)) {
+//            return EXSLT_DATES_AND_TIMES;
+//        } else if (isSimilar(candidate, EXSLT_RANDOM)) {
+//            return EXSLT_RANDOM;
+//        } else if (isSimilar(candidate, XHTML)) {
+//            return XHTML;
+//        } else if (isSimilar(candidate, ERR)) {
+//            return ERR;
+//        } else if (isSimilar(candidate, JAVA_TYPE)) {
+//            return JAVA_TYPE;
+//        } else if (isSimilar(candidate, DOT_NET_TYPE)) {
+//            return DOT_NET_TYPE;
+//        } else {
+//            return null;
+//        }
+    }
+
+//    private static boolean isSimilar(String s1, String s2) {
+//        if (s1.equalsIgnoreCase(s2)) {
+//            return true;
+//        } else if (s1.startsWith(s2) && s1.length() - s2.length() < 3) {
+//            return true;
+//        } else if (s2.startsWith(s1) && s2.length() - s1.length() < 3) {
+//            return true;
+//        } else {
+//            int diff = 0;
+//            for (int i=0; i<s1.length(); i++) {
+//                char c1 = s1.charAt(i);
+//                if (!((i < s2.length() && c1 == s2.charAt(i))
+//                        || (i > 0 && i < s2.length()-1 && c1 == s2.charAt(i-1))
+//                        || (i < s2.length()+1 && c1 == s2.charAt(i+1)))) {
+//                    diff++;
+//                }
+//            }
+//            return diff < 3;
+//        }
+//    }
 }
 
 //

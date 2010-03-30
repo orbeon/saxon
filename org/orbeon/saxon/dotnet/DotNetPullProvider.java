@@ -8,9 +8,7 @@ import org.orbeon.saxon.event.SourceLocationProvider;
 import org.orbeon.saxon.expr.ExpressionLocation;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pull.PullProvider;
-import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.tinytree.CompressedWhitespace;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
 
@@ -19,7 +17,7 @@ import java.util.List;
 
 
 /**
- * This class implements the Saxon PullProvider interface as a wrapper around a .NET XMLReader.
+ * This class implements the Saxon PullProvider interface as a wrapper around a .NET XmlReader.
  */
 
 public class DotNetPullProvider implements PullProvider, SaxonLocator, SourceLocationProvider {
@@ -29,7 +27,13 @@ public class DotNetPullProvider implements PullProvider, SaxonLocator, SourceLoc
     private NamePool pool;
     private String baseURI;
     private boolean isEmptyElement = false;
+    private boolean expandDefaults = true;
     private int current = START_OF_INPUT;
+
+    /**
+     * Create a PullProvider that wraps a .NET XML parser
+     * @param parser the .NET XML parser. In practice, the code relies on this being an XMLValidatingReader
+     */
 
     public DotNetPullProvider(XmlReader parser) {
         this.parser = parser;
@@ -38,6 +42,7 @@ public class DotNetPullProvider implements PullProvider, SaxonLocator, SourceLoc
     /**
      * Set the base URI to be used. This is used only if the XmlReader cannot supply
      * a base URI.
+     * @param base the base URI
      */
 
     public void setBaseURI(String base) {
@@ -53,7 +58,7 @@ public class DotNetPullProvider implements PullProvider, SaxonLocator, SourceLoc
      */
 
     public void close() {
-
+        parser.Close();
     }
 
     /**
@@ -95,7 +100,7 @@ public class DotNetPullProvider implements PullProvider, SaxonLocator, SourceLoc
 
     public AttributeCollection getAttributes() throws XPathException {
         if (parser.get_HasAttributes()) {
-            AttributeCollectionImpl atts = new AttributeCollectionImpl(pool);
+            AttributeCollectionImpl atts = new AttributeCollectionImpl(pipe.getConfiguration());
             for (int i=0; i<parser.get_AttributeCount(); i++) {
                 parser.MoveToAttribute(i);
                 final String prefix = parser.get_Prefix();
@@ -103,10 +108,10 @@ public class DotNetPullProvider implements PullProvider, SaxonLocator, SourceLoc
                 final String localName = parser.get_LocalName();
                 if ("xmlns".equals(prefix) || ("".equals(prefix) && "xmlns".equals(localName))) {
                     // skip the namespace declaration
-                } else {
+                } else if (expandDefaults || !parser.get_IsDefault()) {
                     int nc = pool.allocate(prefix, namespaceURI, localName);
-                    // TODO: get the attribute type (especially if it's an ID)
-                    atts.addAttribute(nc, StandardNames.XDT_UNTYPED_ATOMIC, parser.get_Value(), 0, 0);
+                    // .NET does not report the attribute type (even if it's an ID...)
+                    atts.addAttribute(nc, StandardNames.XS_UNTYPED_ATOMIC, parser.get_Value(), 0, 0);
                 }
             }
             return atts;
@@ -194,8 +199,7 @@ public class DotNetPullProvider implements PullProvider, SaxonLocator, SourceLoc
             if (used < limit) {
                 nscodes[used] = -1;
             }
-            NamespaceDeclarationsImpl nslist = new NamespaceDeclarationsImpl(pool, nscodes);
-            return nslist;
+            return new NamespaceDeclarationsImpl(pool, nscodes);
         } else {
             return EmptyNamespaceDeclarationList.getInstance();
         }
@@ -260,7 +264,7 @@ public class DotNetPullProvider implements PullProvider, SaxonLocator, SourceLoc
      */
 
     public int getTypeAnnotation() {
-        return StandardNames.XDT_UNTYPED;
+        return StandardNames.XS_UNTYPED;
     }
 
     /**
@@ -286,10 +290,12 @@ public class DotNetPullProvider implements PullProvider, SaxonLocator, SourceLoc
         do {
             try {
                 parser.Read();
+                //noinspection ConstantIfStatement
                 if (false) throw new XmlException("dummy"); // keeps the compiler happy
+                //noinspection ConstantIfStatement
                 if (false) throw new XmlSchemaException("dummy", new XmlException("dummy")); // keeps the compiler happy
             } catch (XmlException e) {
-                DynamicError de = new DynamicError("Error reported by XML parser: ", e);
+                XPathException de = new XPathException("Error reported by XML parser: " + e.getMessage(), e);
                 ExpressionLocation loc = new ExpressionLocation();
                 loc.setSystemId(getSystemId());
                 loc.setLineNumber(e.get_LineNumber());
@@ -297,12 +303,21 @@ public class DotNetPullProvider implements PullProvider, SaxonLocator, SourceLoc
                 de.setLocator(loc);
                 throw de;
             } catch (XmlSchemaException e) {
-                DynamicError de = new DynamicError("Validation error reported by XML parser: ", e);
+                XPathException de = new XPathException("Validation error reported by XML parser: " + e.getMessage(), e);
                 ExpressionLocation loc = new ExpressionLocation();
                 loc.setSystemId(getSystemId());
                 loc.setLineNumber(e.get_LineNumber());
-                System.err.println("** parser reported line " + e.get_LineNumber());
+                //System.err.println("** parser reported line " + e.get_LineNumber());
                 loc.setColumnNumber(e.get_LinePosition());
+                de.setLocator(loc);
+                throw de;
+            } catch (Exception e) {
+                // The Microsoft spec says that the only exception thrown is XmlException. But
+                // we've seen others, for example System.IO.FileNotFoundException when the DTD can't
+                // be located
+                XPathException de = new XPathException("Error reported by XML parser: " + e.getMessage(), e);
+                ExpressionLocation loc = new ExpressionLocation();
+                loc.setSystemId(getSystemId());
                 de.setLocator(loc);
                 throw de;
             }
@@ -335,7 +350,9 @@ public class DotNetPullProvider implements PullProvider, SaxonLocator, SourceLoc
      */
 
     private int mapInputKindToOutputKind(int in) {
-        // TODO: we are losing unparsedEntities - see test expr02
+        // Note: we are losing unparsedEntities - see test expr02. Apparently unparsed entities are not
+        // available via an XMLValidatingReader. We would have to build a DOM to get them, and that's too high
+        // a price to pay.
         switch (in) {
             case XmlNodeType.Attribute:
                 return PullProvider.ATTRIBUTE;
@@ -375,6 +392,7 @@ public class DotNetPullProvider implements PullProvider, SaxonLocator, SourceLoc
     public void setPipelineConfiguration(PipelineConfiguration pipe) {
         this.pipe = pipe;
         pool = pipe.getConfiguration().getNamePool();
+        expandDefaults = pipe.getConfiguration().isExpandAttributeDefaults();
     }
 
     /**
@@ -481,18 +499,22 @@ public class DotNetPullProvider implements PullProvider, SaxonLocator, SourceLoc
      */
     public String getSystemId() {
         String base = parser.get_BaseURI();
-        if (base == null || base.equals("")) {
+        if (base == null || base.length() == 0) {
             return baseURI;
         } else {
             return base;
         }
     }
 
-    public int getLineNumber(int locationId) {
+    public int getLineNumber(long locationId) {
         return getLineNumber();
     }
 
-    public String getSystemId(int locationId) {
+    public int getColumnNumber(long locationId) {
+        return getColumnNumber();
+    }
+
+    public String getSystemId(long locationId) {
         return getSystemId();
     }
 

@@ -2,29 +2,34 @@ package org.orbeon.saxon.functions;
 import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.pattern.AnyNodeTest;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.sort.DocumentOrderIterator;
 import org.orbeon.saxon.sort.LocalOrderComparer;
 import org.orbeon.saxon.style.ExpressionContext;
-import org.orbeon.saxon.trans.KeyManager;
-import org.orbeon.saxon.trans.StaticError;
-import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.*;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.Cardinality;
-import org.orbeon.saxon.value.StringValue;
 
 
 public class KeyFn extends SystemFunction implements XSLTFunction {
 
     private NamespaceResolver nsContext = null;
-    private int keyFingerprint = -1;
+    private KeyDefinitionSet staticKeySet = null; // null if name resolution is done at run-time
     private transient boolean checked = false;
     private transient boolean internal = false;
         // the second time checkArguments is called, it's a global check so the static context is inaccurate
+
+    /**
+     * Get the key name, if known statically. If not known statically, return null.
+     * @return the key name if known, otherwise null
+     */
+
+    public StructuredQName getStaticKeyName() {
+        return (staticKeySet == null ? null : staticKeySet.getKeyName());
+    }
 
     /**
      * Type-check the expression. This also calls preEvaluate() to evaluate the function
@@ -32,13 +37,14 @@ public class KeyFn extends SystemFunction implements XSLTFunction {
      * can override the preEvaluate method.
      */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
         try {
-            return super.typeCheck(env, contextItemType);
+            return super.typeCheck(visitor, contextItemType);
         } catch (XPathException err) {
             if ("XPDY0002".equals(err.getErrorCodeLocalPart())) {
-                DynamicError e = new DynamicError("Cannot call the key() function when there is no context node");
+                XPathException e = new XPathException("Cannot call the key() function when there is no context node");
                 e.setErrorCode("XTDE1270");
+                e.maybeSetLocation(this);
                 throw e;
             }
             throw err;
@@ -46,65 +52,75 @@ public class KeyFn extends SystemFunction implements XSLTFunction {
     }
 
     /**
-     * Non-standard constructor to create an internal call on key() with a known key fingerprint
+     * Non-standard constructor to create an internal call on key() with a known key definition
+     * @param keySet the set of KeyDefinitions (always a single KeyDefinition)
+     * @param name the name allocated to the key (first argument of the function)
+     * @param value the value being searched for (second argument of the function)
+     * @param doc the document being searched (third argument)
+     * @return a call on the key() function
      */
 
-    public static KeyFn internalKeyCall(NamePool pool, int fingerprint, String name, Expression value, Expression doc) {
+    public static KeyFn internalKeyCall(KeyDefinitionSet keySet, String name, Expression value, Expression doc) {
         KeyFn k = new KeyFn();
-        Expression[] arguments = {new StringValue(name), value, doc};
-        k.argument = arguments;
-        k.keyFingerprint= fingerprint;
+        k.argument = new Expression[] {new StringLiteral(name), value, doc};
+        k.staticKeySet = keySet;
         k.checked = true;
         k.internal = true;
         k.setDetails(StandardFunction.getFunction("key", 3));
-        k.setFunctionNameCode(pool.allocate("fn", NamespaceConstant.FN, "key"));
+        k.setFunctionName(FN_KEY);
         k.adoptChildExpression(value);
         k.adoptChildExpression(doc);
         return k;
     }
 
-    /**
-    * Simplify: add a third implicit argument, the context document
-    */
+    private final static StructuredQName FN_KEY = new StructuredQName("fn", NamespaceConstant.FN, "key");
 
-     public Expression simplify(StaticContext env) throws XPathException {
-        if (!internal && !(env instanceof ExpressionContext)) {
-            throw new StaticError("The key() function is available only in XPath expressions within an XSLT stylesheet");
+    /**
+     * Simplify: add a third implicit argument, the context document
+     * @param visitor the expression visitor
+     */
+
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        if (!internal && !(visitor.getStaticContext() instanceof ExpressionContext)) {
+            throw new XPathException("The key() function is available only in XPath expressions within an XSLT stylesheet");
         }
-        KeyFn f = (KeyFn)super.simplify(env);
+        KeyFn f = (KeyFn)super.simplify(visitor);
         if (argument.length == 2) {
             f.addContextDocumentArgument(2, "key");
         }
         return f;
     }
 
-    public void checkArguments(StaticContext env) throws XPathException {
+    public void checkArguments(ExpressionVisitor visitor) throws XPathException {
         if (checked) return;
         checked = true;
-        super.checkArguments(env);
-        Optimizer opt = env.getConfiguration().getOptimizer();
+        super.checkArguments(visitor);
+        Optimizer opt = visitor.getConfiguration().getOptimizer();
         argument[1] = ExpressionTool.unsorted(opt, argument[1], false);
-        if (argument[0] instanceof StringValue) {
+        if (argument[0] instanceof StringLiteral) {
             // common case, key name is supplied as a constant
+            StructuredQName keyName;
             try {
-                keyFingerprint = ((ExpressionContext)env).getFingerprint(((StringValue)argument[0]).getStringValue(), false);
+                keyName = ((ExpressionContext)visitor.getStaticContext()).getStructuredQName(
+                        ((StringLiteral)argument[0]).getStringValue(), false);
             } catch (XPathException e) {
-                StaticError err = new StaticError("Error in key name " +
-                        ((StringValue)argument[0]).getStringValue() + ": " + e.getMessage());
+                XPathException err = new XPathException("Error in key name " +
+                        ((StringLiteral)argument[0]).getStringValue() + ": " + e.getMessage());
                 err.setLocator(this);
                 err.setErrorCode("XTDE1260");
                 throw err;
             }
-            if (keyFingerprint==-1) {
-                StaticError err = new StaticError("Key " +
-                        ((StringValue)argument[0]).getStringValue() + " has not been defined");
+            staticKeySet = visitor.getExecutable().getKeyManager().getKeyDefinitionSet(keyName);
+            if (staticKeySet == null) {
+                XPathException err = new XPathException("Key " +
+                        ((StringLiteral)argument[0]).getStringValue() + " has not been defined");
                 err.setLocator(this);
                 err.setErrorCode("XTDE1260");
                 throw err;
             }
         } else {
             // we need to save the namespace context
-            nsContext = env.getNamespaceResolver();
+            nsContext = visitor.getStaticContext().getNamespaceResolver();
         }
     }
 
@@ -126,11 +142,52 @@ public class KeyFn extends SystemFunction implements XSLTFunction {
     }
 
     /**
-    * preEvaluate: this method suppresses compile-time evaluation by doing nothing
-    */
+     * preEvaluate: this method suppresses compile-time evaluation by doing nothing
+     * @param visitor the expression visitor
+     */
 
-    public Expression preEvaluate(StaticContext env) {
+    public Expression preEvaluate(ExpressionVisitor visitor) {
         return this;
+    }
+
+    /**
+     * Add a representation of a doc() call or similar function to a PathMap.
+     * This is a convenience method called by the addToPathMap() methods for doc(), document(), collection()
+     * and similar functions. These all create a new root expression in the path map.
+     *
+     * @param pathMap     the PathMap to which the expression should be added
+     * @param pathMapNodeSet
+     * @return the pathMapNode representing the focus established by this expression, in the case where this
+     *         expression is the first operand of a path expression or filter expression
+     */
+
+    public PathMap.PathMapNodeSet addToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodeSet) {
+        argument[0].addToPathMap(pathMap, pathMapNodeSet);
+        argument[1].addToPathMap(pathMap, pathMapNodeSet);
+        PathMap.PathMapNodeSet target = argument[2].addToPathMap(pathMap, pathMapNodeSet);
+        // indicate that the function navigates to all nodes in the containing document
+        AxisExpression root = new AxisExpression(Axis.ANCESTOR_OR_SELF, NodeKindTest.DOCUMENT);
+        root.setContainer(getContainer());
+        target = target.createArc(root);
+        AxisExpression allElements = new AxisExpression(Axis.DESCENDANT, AnyNodeTest.getInstance());
+        allElements.setContainer(getContainer());
+        return target.createArc(allElements);
+    }
+
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        KeyFn k = (KeyFn)super.copy();
+        k.nsContext = nsContext;
+        k.staticKeySet = staticKeySet;
+        k.internal = internal;
+        k.checked = checked;
+        return k;
     }
 
     /**
@@ -171,17 +228,20 @@ public class KeyFn extends SystemFunction implements XSLTFunction {
         }
         DocumentInfo doc = (DocumentInfo)root;
 
-        int fprint = keyFingerprint;
-        if (fprint == -1) {
+        KeyDefinitionSet selectedKeySet = staticKeySet;
+        if (selectedKeySet == null) {
             String givenkeyname = argument[0].evaluateItem(context).getStringValue();
+            StructuredQName qName = null;
             try {
-                fprint = controller.getNamePool().allocateLexicalQName(
-                        givenkeyname, false, nsContext,
-                        controller.getConfiguration().getNameChecker()) & NamePool.FP_MASK;
+                qName = StructuredQName.fromLexicalQName(
+                            givenkeyname, false,
+                            controller.getConfiguration().getNameChecker(),
+                            nsContext);
             } catch (XPathException err) {
                 dynamicError("Invalid key name: " + err.getMessage(), "XTDE1260", context);
             }
-            if (fprint==-1) {
+            selectedKeySet = controller.getKeyManager().getKeyDefinitionSet(qName);
+            if (selectedKeySet == null) {
                 dynamicError("Key '" + givenkeyname + "' has not been defined", "XTDE1260", context);
                 return null;
             }
@@ -201,11 +261,12 @@ public class KeyFn extends SystemFunction implements XSLTFunction {
             final XPathContext keyContext = context;
             final DocumentInfo document = doc;
             final KeyManager keyManager = controller.getKeyManager();
+            final KeyDefinitionSet keySet = selectedKeySet;
             MappingFunction map = new MappingFunction() {
                 // Map a value to the sequence of nodes having that value as a key value
-                public Object map(Item item) throws XPathException {
+                public SequenceIterator map(Item item) throws XPathException {
                     return keyManager.selectByKey(
-                            keyFingerprint, document, (AtomicValue)item, keyContext);
+                            keySet, document, (AtomicValue)item, keyContext);
                 }
             };
 
@@ -219,11 +280,9 @@ public class KeyFn extends SystemFunction implements XSLTFunction {
                     return EmptyIterator.getInstance();
                 }
                 KeyManager keyManager = controller.getKeyManager();
-                allResults = keyManager.selectByKey(fprint, doc, keyValue, context);
+                allResults = keyManager.selectByKey(selectedKeySet, doc, keyValue, context);
             } catch (XPathException e) {
-                if (e.getLocator() == null) {
-                    e.setLocator(this);
-                }
+                e.maybeSetLocation(this);
                 throw e;
             }
         }
@@ -235,24 +294,6 @@ public class KeyFn extends SystemFunction implements XSLTFunction {
         return new ItemMappingIterator(allResults, filter);
     }
 
-
-
-    /**
-    * Implement the MappingFunction interface
-    */
-
-//    private static class KeyMappingFunction implements MappingFunction {
-//
-//        public XPathContext keyContext;
-//        public int keyFingerprint;
-//        public DocumentInfo document;
-//
-//        public Object map(Item item) throws XPathException {
-//            KeyManager keyManager = keyContext.getController().getKeyManager();
-//            return keyManager.selectByKey(
-//                    keyFingerprint, document, (AtomicValue)item, keyContext);
-//        }
-//    }
 
     /**
      * Mapping class to filter nodes that have the origin node as an ancestor-or-self
@@ -270,23 +311,6 @@ public class KeyFn extends SystemFunction implements XSLTFunction {
             }
         }
 
-    }
-
-    public PathMap.PathMapNode addToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
-        if (argument[0] instanceof ComputedExpression) {
-            ((ComputedExpression)argument[0]).addToPathMap(pathMap, pathMapNode);
-        }
-        if (argument[1] instanceof ComputedExpression) {
-            ((ComputedExpression)argument[1]).addToPathMap(pathMap, pathMapNode);
-        }
-        PathMap.PathMapNode target = ((ComputedExpression)argument[2]).addToPathMap(pathMap, pathMapNode);
-        // indicate that the function navigates to all nodes in the containing document
-        AxisExpression root = new AxisExpression(Axis.ANCESTOR_OR_SELF, NodeKindTest.DOCUMENT);
-        root.setParentExpression(getParentExpression());
-        target = target.createArc(root);
-        AxisExpression allElements = new AxisExpression(Axis.DESCENDANT, AnyNodeTest.getInstance());
-        allElements.setParentExpression(getParentExpression());
-        return target.createArc(allElements);
     }
 
 }

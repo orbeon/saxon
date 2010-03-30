@@ -1,7 +1,7 @@
 package org.orbeon.saxon.pull;
 
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.event.*;
 import org.orbeon.saxon.expr.StackFrame;
@@ -32,7 +32,13 @@ public abstract class UnconstructedParent implements NodeInfo {
     protected XPathContextMajor savedXPathContext;
     protected NodeInfo node = null;
 
-    public UnconstructedParent(ParentNodeConstructor instruction, XPathContext context) {
+    /**
+     * Create an UnconstructedParent node
+     * @param instruction the instruction responsible for creating this element or document node
+     * @param context the XPath dynamic context
+     */
+
+    protected UnconstructedParent(ParentNodeConstructor instruction, XPathContext context) {
         this.instruction = instruction;
         savedXPathContext = context.newContext();
         savedXPathContext.setOriginatingConstructType(Location.LAZY_EVALUATION);
@@ -59,7 +65,7 @@ public abstract class UnconstructedParent implements NodeInfo {
         SequenceIterator currentIterator = context.getCurrentIterator();
         if (currentIterator != null) {
             Item contextItem = currentIterator.current();
-            AxisIterator single = SingletonIterator.makeIterator(contextItem);
+            UnfailingIterator single = SingletonIterator.makeIterator(contextItem);
             single.next();
             savedXPathContext.setCurrentIterator(single);
             // we don't save position() and last() because we have no way
@@ -69,13 +75,28 @@ public abstract class UnconstructedParent implements NodeInfo {
         savedXPathContext.setReceiver(new SequenceOutputter());
     }
 
+    /**
+     * Get the saved XPath dynamic context
+     * @return the saved context
+     */
+
     public XPathContext getXPathContext() {
         return savedXPathContext;
     }
 
+    /**
+     * Get the instruction responsible for creating this element or document node
+     * @return the relevant instruction
+     */
+
     public ParentNodeConstructor getInstruction() {
         return instruction;
     }
+
+    /**
+     * Get a PullProvider that delivers the stream of events corresponding to the tree rooted at this virtual node
+     * @return the PullProvider for the events in the virtual tree
+     */
 
     public PullProvider getPuller() {
         if (node == null) {
@@ -99,6 +120,7 @@ public abstract class UnconstructedParent implements NodeInfo {
         puller.setPipelineConfiguration(pipe);
         TinyBuilder builder = new TinyBuilder();
         builder.setPipelineConfiguration(pipe);
+        builder.setSystemId(pipe.getLocationProvider().getSystemId(instruction.getLocationId()));
         builder.setBaseURI(pipe.getLocationProvider().getSystemId(instruction.getLocationId()));
         NamespaceReducer reducer = new NamespaceReducer();
         reducer.setUnderlyingReceiver(builder);
@@ -106,9 +128,9 @@ public abstract class UnconstructedParent implements NodeInfo {
         ComplexContentOutputter outputter = new ComplexContentOutputter();
         outputter.setReceiver(reducer);
         outputter.setPipelineConfiguration(pipe);
-        outputter.open();
+        //outputter.open();
         new PullPushCopier(puller, outputter).copy();
-        outputter.close();
+        //outputter.close();
 
         node = builder.getCurrentRoot();
     }
@@ -143,16 +165,10 @@ public abstract class UnconstructedParent implements NodeInfo {
      */
 
     public boolean isSameNodeInfo(NodeInfo other) {
-        if (this == other) {
-            return true;
-        }
-        if (other instanceof UnconstructedParent) {
-            return false;
-        }
-        if (node != null) {
-            return node.isSameNodeInfo(other);
-        }
-        return false;
+        return this == other ||
+                !(other instanceof UnconstructedParent) &&
+                        node != null &&
+                        node.isSameNodeInfo(other);
     }
 
    /**
@@ -168,12 +184,8 @@ public abstract class UnconstructedParent implements NodeInfo {
       */
 
      public boolean equals(Object other) {
-        if (other instanceof NodeInfo) {
-            return isSameNodeInfo((NodeInfo)other);
-        } else {
-            return false;
-        }
-    }
+       return other instanceof NodeInfo && isSameNodeInfo((NodeInfo)other);
+   }
 
      /**
       * The hashCode() method obeys the contract for hashCode(): that is, if two objects are equal
@@ -217,9 +229,13 @@ public abstract class UnconstructedParent implements NodeInfo {
 
     public String getBaseURI() {
         if (node == null) {
-            tryToConstruct();
+            // the base URI of a constructed parentless document or element node is the static base URI of the
+            // instruction/expression that created it
+            PipelineConfiguration pipe = savedXPathContext.getController().makePipelineConfiguration();
+            return pipe.getLocationProvider().getSystemId(instruction.getLocationId());
+        } else {
+            return node.getBaseURI();
         }
-        return node.getBaseURI();
     }
 
     /**
@@ -232,6 +248,15 @@ public abstract class UnconstructedParent implements NodeInfo {
     public int getLineNumber() {
         return -1;
     }
+
+   /**
+     * Get column number
+     * @return the column number of the node in its original source document; or -1 if not available
+     */
+
+    public int getColumnNumber() {
+        return -1;
+    }        
 
     /**
      * Determine the relative position of this node and another node, in document order.
@@ -356,7 +381,7 @@ public abstract class UnconstructedParent implements NodeInfo {
      */
 
     public int getTypeAnnotation() {
-        return StandardNames.XDT_UNTYPED;
+        return StandardNames.XS_UNTYPED;
     }
 
     /**
@@ -513,33 +538,13 @@ public abstract class UnconstructedParent implements NodeInfo {
                 PullProvider pull = new VirtualTreeWalker(instruction, savedXPathContext);
                 pull.setPipelineConfiguration(out.getPipelineConfiguration());
                 PullPushCopier copier = new PullPushCopier(pull, out);
-                copier.copy();
+                copier.append();
                 return;
             } else {
                 construct();
             }
         }
         node.copy(out, whichNamespaces, copyAnnotations, locationId);
-    }
-
-    /**
-     * Output all namespace declarations associated with this element. Does nothing if
-     * the node is not an element.
-     *
-     * @param out              The relevant Receiver
-     * @param includeAncestors True if namespaces declared on ancestor
-     *                         elements must be output; false if it is known that these are
-     */
-
-    public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors) throws XPathException {
-        if (node == null) {
-            try {
-                construct();
-            } catch (UncheckedXPathException e) {
-                throw e.getXPathException();
-            }
-        }
-        node.sendNamespaceDeclarations(out, includeAncestors);
     }
 
     /**
@@ -631,6 +636,36 @@ public abstract class UnconstructedParent implements NodeInfo {
         }
         return node.atomize();
     }
+
+    /**
+     * Determine whether this node has the is-id property
+     *
+     * @return true if the node is an ID
+     */
+
+    public boolean isId() {
+        return false;
+    }
+
+    /**
+     * Determine whether this node has the is-idref property
+     *
+     * @return true if the node is an IDREF or IDREFS element or attribute
+     */
+
+    public boolean isIdref() {
+        return false;
+    }
+
+    /**
+     * Determine whether the node has the is-nilled property
+     *
+     * @return true if the node has the is-nilled property
+     */
+
+    public boolean isNilled() {
+        return false;
+    }    
 
 
 }

@@ -2,11 +2,13 @@ package org.orbeon.saxon.value;
 
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.FastStringBuffer;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
+import org.orbeon.saxon.sort.StringCollator;
 
 import java.io.ByteArrayOutputStream;
+import java.util.Arrays;
 
 /**
  * A value of type xs:base64Binary
@@ -19,6 +21,8 @@ public class Base64BinaryValue extends AtomicValue {
 
     /**
      * Constructor: create a base64Binary value from a supplied string in base64 encoding
+     * @param s the lexical representation of the base64 binary value. There is no requirement
+     * that whitespace should already be collapsed.
      */
 
     public Base64BinaryValue(CharSequence s) throws XPathException {
@@ -26,54 +30,92 @@ public class Base64BinaryValue extends AtomicValue {
         try {
             decoder.translate(s);
         } catch (IllegalArgumentException e) {
-            DynamicError err = new DynamicError(e.getMessage());
+            XPathException err = new XPathException(e.getMessage());
             err.setErrorCode("FORG0001");
             throw err;
         }
         binaryValue = decoder.getByteArray();
+        typeLabel = BuiltInAtomicType.BASE64_BINARY;
     }
 
     /**
+     * Constructor: create a base64Binary value from a supplied string in base64 encoding,
+     * with a specified type. This method throws no checked exceptions; the caller is expected
+     * to ensure that the string is a valid Base64 lexical representation, that it conforms
+     * to the specified type, and that the type is indeed a subtype of xs:base64Binary.
+     * An unchecked exception such as an IllegalArgumentException may be thrown if these
+     * conditions are not satisfied, but this is not guaranteed.
+     * @param s the value in base64 encoding
+     * @param type the atomic type. This must be xs:base64binary or a subtype.
+     */
+
+    public Base64BinaryValue(CharSequence s, AtomicType type) {
+        Base64Decoder decoder = new Base64Decoder();
+        decoder.translate(s);
+        binaryValue = decoder.getByteArray();
+        typeLabel = type;
+    }
+
+
+    /**
      * Constructor: create a base64Binary value from a given array of bytes
+     * @param value array of bytes holding the octet sequence
      */
 
     public Base64BinaryValue(byte[] value) {
-        this.binaryValue = value;
+        binaryValue = value;
+        typeLabel = BuiltInAtomicType.BASE64_BINARY;
+    }
+
+    /**
+     * Create a copy of this atomic value (usually so that the type label can be changed).
+     * The type label of the copy will be reset to the primitive type.
+     * @param typeLabel the type label to be attached to the value, a subtype of xs:base64Binary
+     * @return the copied value
+     */
+
+    public AtomicValue copyAsSubType(AtomicType typeLabel) {
+        Base64BinaryValue v = new Base64BinaryValue(binaryValue);
+        v.typeLabel = typeLabel;
+        return v;        
     }
 
     /**
      * Get the binary value
+     * @return the octet sequence that is the typed value
      */
 
     public byte[] getBinaryValue() {
         return binaryValue;
     }
 
+    public BuiltInAtomicType getPrimitiveType() {
+        return BuiltInAtomicType.BASE64_BINARY;
+    }
+
     /**
      * Convert to target data type
      * @param requiredType an integer identifying the required atomic type
-     * @param context
+     * @param context the XPath dynamic evaluation context
      * @return an AtomicValue, a value of the required type; or an ErrorValue
      */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, XPathContext context) {
+    public ConversionResult convertPrimitive(BuiltInAtomicType requiredType, boolean validate, XPathContext context) {
         switch (requiredType.getPrimitiveType()) {
-        case Type.BASE64_BINARY:
-        case Type.ANY_ATOMIC:
-        case Type.ITEM:
+        case StandardNames.XS_BASE64_BINARY:
+        case StandardNames.XS_ANY_ATOMIC_TYPE:
             return this;
-        case Type.STRING:
+        case StandardNames.XS_STRING:
             return new StringValue(getStringValueCS());
-        case Type.UNTYPED_ATOMIC:
+        case StandardNames.XS_UNTYPED_ATOMIC:
             return new UntypedAtomicValue(getStringValueCS());
-        case Type.HEX_BINARY:
+        case StandardNames.XS_HEX_BINARY:
             return new HexBinaryValue(binaryValue);
         default:
-            ValidationException err = new ValidationException("Cannot convert base64Binary to " +
+            ValidationFailure err = new ValidationFailure("Cannot convert base64Binary to " +
                                      requiredType.getDisplayName());
             err.setErrorCode("XPTY0004");
-            err.setIsTypeError(true);
-            return new ValidationErrorValue(err);
+            return err;
         }
     }
 
@@ -89,75 +131,97 @@ public class Base64BinaryValue extends AtomicValue {
     }
 
     /**
-      * Get the number of octets in the value
-      */
+     * Get the number of octets in the value
+     * @return the number of octets
+     */
 
      public int getLengthInOctets() {
          return binaryValue.length;
      }
 
     /**
-     * Determine the data type of the exprssion
-     * @return Type.BASE64_BINARY_TYPE
-     * @param th
-     */
-
-    public ItemType getItemType(TypeHierarchy th) {
-        return Type.BASE64_BINARY_TYPE;
-    }
-
-    /**
      * Convert to Java object (for passing to external functions)
      */
 
-    public Object convertToJava(Class target, XPathContext context) throws XPathException {
+//    public Object convertAtomicToJava(Class target, XPathContext context) throws XPathException {
+//
+//        if (target.isAssignableFrom(Base64BinaryValue.class)) {
+//            return this;
+//        } else if (target == Object.class) {
+//            return getStringValue();
+//        } else {
+//            Object o = super.convertSequenceToJava(target, context);
+//            if (o == null) {
+//                throw new XPathException("Conversion of base64Binary to " + target.getName() +
+//                        " is not supported");
+//            }
+//            return o;
+//        }
+//    }
 
-        if (target.isAssignableFrom(Base64BinaryValue.class)) {
-            return this;
-        } else if (target == String.class || target == CharSequence.class) {
-            return getStringValue();
-        } else if (target == Object.class) {
-            return getStringValue();
-        } else {
-            Object o = super.convertToJava(target, context);
-            if (o == null) {
-                throw new DynamicError("Conversion of base64Binary to " + target.getName() +
-                        " is not supported");
-            }
-            return o;
-        }
+    /**
+     * Support XML Schema comparison semantics
+     */
+
+    public Comparable getSchemaComparable() {
+        return new Base64BinaryComparable();
     }
 
+    private class Base64BinaryComparable implements Comparable {
+
+        public Base64BinaryValue getBase64BinaryValue() {
+            return Base64BinaryValue.this;
+        }
+
+         public int compareTo(Object o) {
+             if (o instanceof Base64BinaryComparable &&
+                     Arrays.equals(getBase64BinaryValue().binaryValue,
+                             ((Base64BinaryComparable)o).getBase64BinaryValue().binaryValue)) {
+                 return 0;
+             } else {
+                 return INDETERMINATE_ORDERING;
+             }
+         }
+
+         public boolean equals(Object o) {
+             return compareTo(o) == 0;
+         }
+
+         public int hashCode() {
+             return Base64BinaryValue.this.hashCode();
+         }
+     }
+
+
+    /**
+     * Get an object value that implements the XPath equality and ordering comparison semantics for this value.
+     * If the ordered parameter is set to true, the result will be a Comparable and will support a compareTo()
+     * method with the semantics of the XPath lt/gt operator, provided that the other operand is also obtained
+     * using the getXPathComparable() method. In all cases the result will support equals() and hashCode() methods
+     * that support the semantics of the XPath eq operator, again provided that the other operand is also obtained
+     * using the getXPathComparable() method. A context argument is supplied for use in cases where the comparison
+     * semantics are context-sensitive, for example where they depend on the implicit timezone or the default
+     * collation.
+     *
+     * @param ordered true if an ordered comparison is required. In this case the result is null if the
+     *                type is unordered; in other cases the returned value will be a Comparable.
+     * @param collator
+     *@param context the XPath dynamic evaluation context, used in cases where the comparison is context
+     *                sensitive @return an Object whose equals() and hashCode() methods implement the XPath comparison semantics
+     *         with respect to this atomic value. If ordered is specified, the result will either be null if
+     *         no ordering is defined, or will be a Comparable
+     */
+
+    public Object getXPathComparable(boolean ordered, StringCollator collator, XPathContext context) {
+        return (ordered ? null : this);
+    }
 
     /**
      * Test if the two base64Binary values are equal.
      */
 
     public boolean equals(Object other) {
-        // TODO: support schema semantics here...
-        Base64BinaryValue v2;
-        if (other instanceof Base64BinaryValue) {
-            v2 = (Base64BinaryValue)other;
-        } else if (other instanceof AtomicValue) {
-            try {
-                v2 = (Base64BinaryValue)((AtomicValue)other).convert(Type.BASE64_BINARY, null);
-            } catch (XPathException err) {
-                return false;
-            }
-        } else {
-            return false;
-        }
-        if (binaryValue.length != v2.binaryValue.length) {
-            return false;
-        }
-        ;
-        for (int i = 0; i < binaryValue.length; i++) {
-            if (binaryValue[i] != v2.binaryValue[i]) {
-                return false;
-            }
-            ;
-        }
-        return true;
+        return Arrays.equals(binaryValue, ((Base64BinaryValue)other).binaryValue);
     }
 
     public int hashCode() {
@@ -169,7 +233,7 @@ public class Base64BinaryValue extends AtomicValue {
         for (int i=0; i<Math.min(value.length, 64); i++) {
             h = (h<<1) ^ value[i];
         }
-        return (int)((h>>32)^h)&0xffffffff;
+        return (int)((h >> 32) ^ h);
     }
 
      /*
@@ -271,6 +335,7 @@ public class Base64BinaryValue extends AtomicValue {
          * using the base64 encoding.  If there are bytes in `out' already, the
          * new bytes are appended, so the caller should do `out.setLength(0)'
          * first if that's desired.
+         * @param in the octet sequence to be encoded in Base64
          */
         public final void translate(byte[] in) {
             int in_length = in.length;
@@ -559,7 +624,7 @@ public class Base64BinaryValue extends AtomicValue {
 // WITHOUT WARRANTY OF ANY KIND, either express or implied.
 // See the License for the specific language governing rights and limitations under the License.
 //
-// The Original Code is: all this file, with the exception of the two subclasses which
+// The Original Code is: all this file, with the exception of the two inner classes which
 // were originated by Mozilla/Netscape and reached Saxon via Castor.
 //
 // The Initial Developer of the Original Code is Michael H. Kay, Saxonica.

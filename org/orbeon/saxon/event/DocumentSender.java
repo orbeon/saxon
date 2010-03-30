@@ -78,12 +78,16 @@ public class DocumentSender implements SaxonLocator {
 		return top.getSystemId();
 	}
 
-    public String getSystemId(int locationId) {
+    public String getSystemId(long locationId) {
         return getSystemId();
     }
 
-    public int getLineNumber(int locationId) {
+    public int getLineNumber(long locationId) {
         return getLineNumber();
+    }
+
+    public int getColumnNumber(long locationId) {
+        return getColumnNumber();
     }
 
 }

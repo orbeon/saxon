@@ -1,14 +1,13 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.value.BooleanValue;
-
-import javax.xml.transform.ErrorListener;
-import javax.xml.transform.TransformerException;
+import org.orbeon.saxon.value.SingletonNode;
+import org.orbeon.saxon.FeatureKeys;
+import org.orbeon.saxon.Configuration;
 
 /**
  * Implement the fn:doc() function - a simplified form of the Document function
@@ -16,49 +15,118 @@ import javax.xml.transform.TransformerException;
 
 public class Doc extends SystemFunction {
 
-    public static final int DOC = 0;
-    public static final int DOC_AVAILABLE = 1;
-
     private String expressionBaseURI = null;
+    private boolean readOnce = false;
 
-    public void checkArguments(StaticContext env) throws XPathException {
+    /**
+     * Indicate that the document will be read once only (or that it should be treated as if it
+     * is read once only. This means (a) the document will not be held in memory after all references
+     * to it go out of scope, and (b) if the query or transformation tries to read it again, it will get a new
+     * copy, with different node identities, and potentially with different content. It also means that the
+     * document is eligible for document projection.
+     * @param once true if this document is to be treated as being read once only
+     */
+
+    public void setReadOnce(boolean once) {
+        readOnce = once;
+    }
+
+    /**
+     * Ask whether this document has been marked as being read once only.
+     * @return true if the document has been marked as being read once only
+     */
+
+    public boolean isReadOnce() {
+        return readOnce;
+    }
+
+    public void checkArguments(ExpressionVisitor visitor) throws XPathException {
         if (expressionBaseURI == null) {
-            super.checkArguments(env);
-            expressionBaseURI = env.getBaseURI();
+            super.checkArguments(visitor);
+            expressionBaseURI = visitor.getStaticContext().getBaseURI();
         }
     }
 
     /**
-    * preEvaluate: this method suppresses compile-time evaluation by doing nothing
-    */
+     * Get the static base URI of the expression
+     * @return the static base URI
+     */
 
-    public Expression preEvaluate(StaticContext env) {
+    public String getStaticBaseURI() {
+        return expressionBaseURI;
+    }
+
+    /**
+     * preEvaluate: this method suppresses compile-time evaluation unless a configuration option has been
+     * set to allow early evaluation.
+     * @param visitor an expression visitor
+     */
+
+    public Expression preEvaluate(ExpressionVisitor visitor) {
+        Configuration config = visitor.getConfiguration();
+        if (((Boolean)config.getConfigurationProperty(
+                FeatureKeys.PRE_EVALUATE_DOC_FUNCTION)).booleanValue()) {
+            try {
+                AtomicValue hrefVal = (AtomicValue)argument[0].evaluateItem(null);
+                if (hrefVal==null) {
+                    return null;
+                }
+                String href = hrefVal.getStringValue();
+                if (href.indexOf('#') >= 0) {
+                    return this;
+                }
+                NodeInfo item = Document.preLoadDoc(href, expressionBaseURI, config, this);
+                if (item!=null) {
+                    return new Literal(new SingletonNode(item));
+                }
+            } catch (Exception err) {
+                // ignore the exception and try again at run-time
+                return this;
+            }
+        }
         return this;
     }
 
+    public int computeCardinality() {
+        return argument[0].getCardinality() & ~StaticProperty.ALLOWS_MANY;
+    }
+
+
+    /**
+     * Add a representation of this expression to a PathMap. The PathMap captures a map of the nodes visited
+     * by an expression in a source tree.
+     *
+     * @param pathMap     the PathMap to which the expression should be added
+     * @param pathMapNodeSet
+     * @return the pathMapNode representing the focus established by this expression, in the case where this
+     *         expression is the first operand of a path expression or filter expression
+     */
+
+    public PathMap.PathMapNodeSet addToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodeSet) {
+        return addDocToPathMap(pathMap, pathMapNodeSet);
+    }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        Doc d = (Doc)super.copy();
+        d.expressionBaseURI = expressionBaseURI;
+        d.readOnce = readOnce;
+        return d;
+    }
+
+    /**
+     * Evaluate the expression
+     * @param context the dynamic evaluation context
+     * @return the result of evaluating the expression (a document node)
+     * @throws XPathException
+     */
+
     public Item evaluateItem(XPathContext context) throws XPathException {
-        if (operation == DOC) {
-            return doc(context);
-        } else {
-            // operation == DOC_AVAILABLE
-            try {
-                Controller controller = context.getController();
-                // suppress all error messages while attempting to fetch the document
-                ErrorListener old = controller.getErrorListener();
-                controller.setErrorListener(new ErrorListener() {
-                    public void warning(TransformerException exception) {}
-                    public void error(TransformerException exception) {}
-                    public void fatalError(TransformerException exception) {}
-                });
-                Item item = doc(context);
-                controller.setErrorListener(old);
-                return BooleanValue.get(item != null);
-            } catch (Exception err) {
-                // Orbeon 2008-05-16: catch all exceptions
-                // This is fixed in Saxon 9
-                return BooleanValue.FALSE;
-            }
-        }
+        return doc(context);
     }
 
     /**
@@ -70,20 +138,21 @@ public class Doc extends SystemFunction {
     public int computeSpecialProperties() {
         return StaticProperty.ORDERED_NODESET |
                 StaticProperty.PEER_NODESET |
-                StaticProperty.NON_CREATIVE;
+                StaticProperty.NON_CREATIVE |
+                StaticProperty.SINGLE_DOCUMENT_NODESET;
         // Declaring it as a peer node-set expression avoids sorting of expressions such as
         // doc(XXX)/a/b/c
         // The doc() function might appear to be creative: but it isn't, because multiple calls
         // with the same arguments will produce identical results.
     }
 
-    private Item doc(XPathContext context) throws XPathException {
+    private NodeInfo doc(XPathContext context) throws XPathException {
         AtomicValue hrefVal = (AtomicValue)argument[0].evaluateItem(context);
         if (hrefVal==null) {
             return null;
         }
         String href = hrefVal.getStringValue();
-        Item item = Document.makeDoc(href, expressionBaseURI, context, this);
+        NodeInfo item = Document.makeDoc(href, expressionBaseURI, context, this);
         if (item==null) {
             // we failed to read the document
             dynamicError("Failed to load document " + href, "FODC0005", context);
@@ -95,6 +164,8 @@ public class Doc extends SystemFunction {
     /**
      * Copy the document identified by this expression to a given Receiver. This method is used only when it is
      * known that the document is being copied, because there is then no problem about node identity.
+     * @param context the XPath dynamic context
+     * @param out the destination to which the document will be sent
      */
 
     public void sendDocument(XPathContext context, Receiver out) throws XPathException {
@@ -103,13 +174,17 @@ public class Doc extends SystemFunction {
             return;
         }
         String href = hrefVal.getStringValue();
-        Document.sendDoc(href, expressionBaseURI, context, this, out);
+        try {
+            Document.sendDoc(href, expressionBaseURI, context, this, out);
+        } catch (XPathException e) {
+            e.maybeSetLocation(this);
+            if (e.getErrorCodeLocalPart() == null) {
+                e.setErrorCode("FODC0005");
+            }
+            throw e;
+        }
     }
-
-    public PathMap.PathMapNode addToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
-        return addDocToPathMap(pathMap, pathMapNode);
-    }
-
+    
 }
 
 //

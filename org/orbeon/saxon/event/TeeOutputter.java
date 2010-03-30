@@ -57,12 +57,11 @@ public class TeeOutputter extends SequenceReceiver {
      *
      * @param nameCode    integer code identifying the name of the element within the name pool.
      * @param typeCode    integer code identifying the element's type within the name pool. The value -1
-     *                    indicates the default type, xdt:untyped.
+*                    indicates the default type, xs:untyped.
      * @param locationId  an integer which can be interpreted using a LocationMap to return
-     *                    information such as line number and system ID. If no location information is available,
-     *                    the value zero is supplied.
+*                    information such as line number and system ID. If no location information is available,
+*                    the value zero is supplied.
      * @param properties  bit-significant properties of the element node. If there are no revelant
-     *                    properties, zero is supplied.
      */
 
     public void startElement(int nameCode, int typeCode, int locationId, int properties) throws XPathException {
@@ -138,13 +137,11 @@ public class TeeOutputter extends SequenceReceiver {
      *
      * @param chars      The characters
      * @param locationId an integer which can be interpreted using a LocationMap to return
-     *                   information such as line number and system ID. If no location information is available,
-     *                   the value zero is supplied.
+*                   information such as line number and system ID. If no location information is available,
+*                   the value zero is supplied.
      * @param properties Bit significant value. The following bits are defined:
-     *                   <dt>DISABLE_ESCAPING</dt>           <dd>Disable escaping for this text node</dd>
-     *                   <dt>USE_CDATA</dt>                  <dd>Output as a CDATA section</dd>
-     *                   <dt>NO_SPECIAL_CHARACTERS</dt>      <dd>Value contains no special characters</dd>
-     *                   <dt>WHITESPACE</dt>                 <dd>Text is all whitespace</dd>
+*                   <dt>DISABLE_ESCAPING</dt>           <dd>Disable escaping for this text node</dd>
+*                   <dt>USE_CDATA</dt>                  <dd>Output as a CDATA section</dd>
      */
 
     public void characters(CharSequence chars, int locationId, int properties) throws XPathException {

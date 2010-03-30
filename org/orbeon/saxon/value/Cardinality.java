@@ -1,6 +1,6 @@
 package org.orbeon.saxon.value;
 
-import org.orbeon.saxon.expr.StaticProperty;
+import org.orbeon.saxon.expr.*;
 
 /**
 * This class contains static methods to manipulate the cardinality
@@ -20,17 +20,52 @@ public final class Cardinality {
 
     /**
      * Determine whether multiple occurrences are allowed
+     * @param cardinality the cardinality of a sequence
+     * @return true if the cardinality allows the sequence to contain more than one item
      */
 
-    public static final boolean allowsMany(int cardinality) {
+    public static boolean allowsMany(int cardinality) {
         return (cardinality & StaticProperty.ALLOWS_MANY) != 0;
     }
 
     /**
-     * Determine whether empty sequence is allowed
+     * Determine whether multiple occurrences are not only allowed, but likely.
+     * This returns false for an expression that is the atomization of a singleton
+     * node, since in that case it's quite unusual for the typed value to be a
+     * non-singleton sequence.
+     * @param expression an expression
+     * @return true if multiple occurrences are not only allowed, but likely. Return
+     * false if multiple occurrences are unlikely, even though they might be allowed.
+     * This is typically the case for the atomized sequence that is obtained by atomizing
+     * a singleton node.
      */
 
-    public static final boolean allowsZero(int cardinality) {
+    public static boolean expectsMany(Expression expression) {
+        if (expression instanceof VariableReference) {
+            Binding b = ((VariableReference)expression).getBinding();
+            if (b instanceof LetExpression) {
+                return expectsMany(((LetExpression)b).getSequence());
+            }
+        }
+        if (expression instanceof LazyExpression) {
+            return expectsMany(((LazyExpression)expression).getBaseExpression());
+        }
+        if (expression instanceof Atomizer) {
+            return expectsMany(((Atomizer)expression).getBaseExpression());
+        }
+        if (expression instanceof FilterExpression) {
+            return expectsMany(((FilterExpression)expression).getBaseExpression());
+        }
+        return allowsMany(expression.getCardinality());
+    }
+
+    /**
+     * Determine whether empty sequence is allowed
+     * @param cardinality the cardinality of a sequence
+     * @return true if the cardinality allows the sequence to be empty
+     */
+
+    public static boolean allowsZero(int cardinality) {
         return (cardinality & StaticProperty.ALLOWS_ZERO) != 0;
     }
 
@@ -42,7 +77,7 @@ public final class Cardinality {
     * @return the cardinality that allows both c1 and c2
     */
 
-    public static final int union(int c1, int c2) {
+    public static int union(int c1, int c2) {
         int r = c1 | c2;
         // eliminate disallowed options
         if (r == (StaticProperty.ALLOWS_MANY |
@@ -51,46 +86,16 @@ public final class Cardinality {
         return r;
     }
 
-    /**
-     * Form the sum of two cardinalities
+
+     /**
+      * Add two cardinalities
+      * @param c1 the first cardinality
+      * @param c2 the second cardinality
+      * @return the cardinality of a sequence formed by concatenating the sequences whose cardinalities
+      * are c1 and c2
      */
 
-    public static final int sum(int c1, int c2) {
-        if (c1 == 0) {
-            return c2;
-        }
-        if (c2 == 0) {
-            return c1;
-        }
-        if (allowsMany(c1) || allowsMany(c2)) {
-            return c1 | c2;
-        }
-        if (!allowsZero(c1) && !allowsZero(c2)) {
-            return StaticProperty.ALLOWS_ONE_OR_MORE;
-        } else {
-            return StaticProperty.ALLOWS_ZERO_OR_MORE;
-        }
-    }
-
-    /**
-    * Test if one cardinality subsumes another. Cardinality c1 subsumes c2 if every option permitted
-    * by c2 is also permitted by c1.
-    * @param c1 a cardinality
-    * @param c2 another cardinality
-    * @return true if if every option permitted
-    * by c2 is also permitted by c1.
-    */
-
-    public static final boolean subsumes(int c1, int c2) {
-        return (c1|c2)==c1;
-    }
-
-    /**
-     * Add two cardinalities
-     */
-
-    public static final int add(int c1, int c2) {
-        // TODO: what's the difference between this method and sum() above?
+    public static int sum(int c1, int c2) {
         if (c1==StaticProperty.EMPTY) {
             return c2;
         }
@@ -102,10 +107,29 @@ public final class Cardinality {
     }
 
     /**
+    * Test if one cardinality subsumes another. Cardinality c1 subsumes c2 if every option permitted
+    * by c2 is also permitted by c1.
+    * @param c1 a cardinality
+    * @param c2 another cardinality
+    * @return true if if every option permitted
+    * by c2 is also permitted by c1.
+    */
+
+    public static boolean subsumes(int c1, int c2) {
+        return (c1|c2)==c1;
+    }
+
+
+
+    /**
      * Multiply two cardinalities
+     * @param c1 the first cardinality
+     * @param c2 the second cardinality
+     * @return the product of the cardinalities, that is, the cardinality of the sequence
+     * "for $x in S1 return S2", where c1 is the cardinality of S1 and c2 is the cardinality of S2
      */
 
-    public static final int multiply(int c1, int c2) {
+    public static int multiply(int c1, int c2) {
         if (c1==StaticProperty.EMPTY || c2==StaticProperty.EMPTY) {
             return StaticProperty.EMPTY;
         }
@@ -125,7 +149,10 @@ public final class Cardinality {
     }
 
     /**
-    * Display the cardinality
+     * Display the cardinality as a string
+     * @param cardinality the cardinality value to be displayed
+     * @return the representation as a string, for example "zero or one", "zero or more"
+     *
     */
 
     public static String toString(int cardinality) {
@@ -149,6 +176,8 @@ public final class Cardinality {
 
     /**
      * Get the occurence indicator representing the cardinality
+     * @param cardinality the cardinality value
+     * @return the occurrence indicator, for example "*", "+", "?", "".
      */
 
     public static String getOccurrenceIndicator(int cardinality) {
@@ -161,6 +190,8 @@ public final class Cardinality {
                 return "*";
             case StaticProperty.ALLOWS_ONE_OR_MORE:
                 return "+";
+            case StaticProperty.EMPTY:
+                return "\u00B0";
             default: throw new AssertionError("unknown cardinality value");
         }
     }

@@ -128,7 +128,7 @@ class DOMAttributeMap implements NamedNodeMap {
             int count = nsList.length;
             for (int i=0; i<count; i++) {
                 if (nsList[i] == -1) {
-                    count = i-1;
+                    count = i;
                     break;
                 }
             }

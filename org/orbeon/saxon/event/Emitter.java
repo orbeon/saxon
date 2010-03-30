@@ -5,7 +5,6 @@ import org.orbeon.saxon.charcode.CharacterSetFactory;
 import org.orbeon.saxon.charcode.PluggableCharacterSet;
 import org.orbeon.saxon.charcode.UnicodeCharacterSet;
 import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.transform.OutputKeys;
@@ -50,8 +49,8 @@ public abstract class Emitter implements Result, Receiver
 	*/
 
 	public void setPipelineConfiguration(PipelineConfiguration pipe) {
-	    this.pipelineConfig = pipe;
-        this.namePool = pipe.getConfiguration().getNamePool();
+        pipelineConfig = pipe;
+        namePool = pipe.getConfiguration().getNamePool();
 	}
 
 	/**
@@ -63,7 +62,8 @@ public abstract class Emitter implements Result, Receiver
 	}
 
 	/**
-	* Get the configuration used for this document
+	 * Get the configuration used for this document
+     * @return the configuration
 	*/
 
 	public Configuration getConfiguration() {
@@ -71,7 +71,8 @@ public abstract class Emitter implements Result, Receiver
 	}
 
 	/**
-	* Set the System ID
+	 * Set the System ID
+     * @param systemId the system identifier (=base URI)
 	*/
 
 	public void setSystemId(String systemId) {
@@ -87,20 +88,22 @@ public abstract class Emitter implements Result, Receiver
 	}
 
     /**
-    * Set output properties
+     * Set output properties
+     * @param details the output serialization properties
     */
 
     public void setOutputProperties(Properties details) throws XPathException {
         if (characterSet==null) {
-            characterSet = CharacterSetFactory.getCharacterSet(details, getPipelineConfiguration().getController());
+            characterSet = CharacterSetFactory.getCharacterSet(details, getPipelineConfiguration());
             allCharactersEncodable = (characterSet instanceof UnicodeCharacterSet);
         }
         outputProperties = details;
     }
 
     /**
-    * Get the output properties
-    */
+     * Get the output properties
+     * @return the output serialization properties
+     */
 
     public Properties getOutputProperties() {
         return outputProperties;
@@ -108,14 +111,18 @@ public abstract class Emitter implements Result, Receiver
 
     /**
      * Set the StreamResult acting as the output destination of the Emitter
+     * @param result the output destination
      */
 
     public void setStreamResult(StreamResult result) throws XPathException {
-        this.streamResult = result;
+        streamResult = result;
+        if (systemId == null) {
+            systemId = result.getSystemId();
+        }
     }
 
     /**
-     * Make a Writer for this Emitter to use, given a StreamResult
+     * Make a Writer for this Emitter to use, given a StreamResult.
      */
 
     protected void makeWriter() throws XPathException {
@@ -135,7 +142,7 @@ public abstract class Emitter implements Result, Receiver
         if (writer == null) {
             String uriString = streamResult.getSystemId();
             if (uriString == null) {
-                throw new DynamicError("No system ID supplied for result file");
+                throw new XPathException("No system ID supplied for result file");
             }
 
             try {
@@ -153,19 +160,20 @@ public abstract class Emitter implements Result, Receiver
                 // call on OutputURIResolver.close() can close it
                 streamResult.setOutputStream(outputStream);
             } catch (FileNotFoundException fnf) {
-                throw new DynamicError(fnf);
+                throw new XPathException(fnf);
             } catch (URISyntaxException use) {
-                throw new DynamicError(use);
+                throw new XPathException(use);
             } catch (IllegalArgumentException iae) {
                 // for example, the system ID doesn't use the file: scheme
-                throw new DynamicError(iae);
+                throw new XPathException(iae);
             }
         }
     }
     /**
-    * Determine whether the Emitter wants a Writer for character output or
-    * an OutputStream for binary output. The standard Emitters all use a Writer, so
-    * this returns true; but a subclass can override this if it wants to use an OutputStream
+     * Determine whether the Emitter wants a Writer for character output or
+     * an OutputStream for binary output. The standard Emitters all use a Writer, so
+     * this returns true; but a subclass can override this if it wants to use an OutputStream
+     * @return true if a Writer is needed, as distinct from an OutputStream
     */
 
     public boolean usesWriter() {
@@ -173,10 +181,11 @@ public abstract class Emitter implements Result, Receiver
     }
 
     /**
-    * Set the output destination as a character stream
+     * Set the output destination as a character stream
+     * @param writer the Writer to use as an output destination
     */
 
-    public void setWriter(Writer writer) {
+    public void setWriter(Writer writer) throws XPathException {
         this.writer = writer;
 
         // If the writer uses a known encoding, change the encoding in the XML declaration
@@ -185,12 +194,16 @@ public abstract class Emitter implements Result, Receiver
 
         if (writer instanceof OutputStreamWriter && outputProperties != null) {
             String enc = ((OutputStreamWriter)writer).getEncoding();
-            outputProperties.put(OutputKeys.ENCODING, enc);
+            //System.err.println("Java encoding: " + enc);
+            outputProperties.setProperty(OutputKeys.ENCODING, enc);
+            characterSet = CharacterSetFactory.getCharacterSet(outputProperties, getPipelineConfiguration());
+            allCharactersEncodable = (characterSet instanceof UnicodeCharacterSet);
         }
     }
 
     /**
-    * Get the output writer
+     * Get the output writer
+     * @return the Writer being used as an output destination, if any
     */
 
     public Writer getWriter() {
@@ -198,11 +211,15 @@ public abstract class Emitter implements Result, Receiver
     }
 
     /**
-    * Set the output destination as a byte stream
+     * Set the output destination as a byte stream.
+     * <p>Note that if a specific encoding (other than the default, UTF-8) is required, then
+     * {@link #setOutputProperties(java.util.Properties)} must be called <i>before</i> calling
+     * this method.</p>
+     * @param stream the OutputStream being used as an output destination
     */
 
     public void setOutputStream(OutputStream stream) throws XPathException {
-        this.outputStream = stream;
+        outputStream = stream;
 
         // If the user supplied an OutputStream, but the Emitter is written to
         // use a Writer (this is the most common case), then we create a Writer
@@ -211,6 +228,10 @@ public abstract class Emitter implements Result, Receiver
 
         if (usesWriter()) {
 
+            if (outputProperties == null) {
+                outputProperties = new Properties();
+            }
+
             String encoding = outputProperties.getProperty(OutputKeys.ENCODING);
             if (encoding==null) {
                 encoding = "UTF8";
@@ -218,9 +239,17 @@ public abstract class Emitter implements Result, Receiver
             } else if (encoding.equalsIgnoreCase("UTF-8")) {
                 encoding = "UTF8";
                 allCharactersEncodable = true;
+            } else if (encoding.equalsIgnoreCase("UTF-16")) {
+                encoding = "UTF16";
             }
 
-	        if (characterSet instanceof PluggableCharacterSet) {
+            String byteOrderMark = outputProperties.getProperty(SaxonOutputKeys.BYTE_ORDER_MARK);
+            if ("no".equals(byteOrderMark) && "UTF16".equals(encoding)) {
+                // Java always writes a bom for UTF-16, so if the user doesn't want one, use utf16-be
+                encoding = "UTF-16BE";
+            }
+
+            if (characterSet instanceof PluggableCharacterSet) {
 	        	encoding = ((PluggableCharacterSet)characterSet).getEncodingName();
 	        }
 
@@ -236,19 +265,19 @@ public abstract class Emitter implements Result, Receiver
                     break;
                 } catch (Exception err) {
                     if (encoding.equalsIgnoreCase("UTF8")) {
-                        throw new DynamicError("Failed to create a UTF8 output writer");
+                        throw new XPathException("Failed to create a UTF8 output writer");
                     }
-                    DynamicError de = new DynamicError("Encoding " + encoding + " is not supported: using UTF8");
+                    XPathException de = new XPathException("Encoding " + encoding + " is not supported: using UTF8");
                     de.setErrorCode("SESU0007");
                     try {
                         getPipelineConfiguration().getErrorListener().error(de);
                     } catch (TransformerException e) {
-                        throw DynamicError.makeDynamicError(e);
+                        throw XPathException.makeXPathException(e);
                     }
                     encoding = "UTF8";
                     characterSet = UnicodeCharacterSet.getInstance();
                     allCharactersEncodable = true;
-                    outputProperties.put(OutputKeys.ENCODING, "UTF-8");
+                    outputProperties.setProperty(OutputKeys.ENCODING, "UTF-8");
                 }
             }
         }
@@ -256,7 +285,8 @@ public abstract class Emitter implements Result, Receiver
     }
 
     /**
-    * Get the output stream
+     * Get the output stream
+     * @return the OutputStream being used as an output destination, if any
     */
 
     public OutputStream getOutputStream() {
@@ -264,8 +294,11 @@ public abstract class Emitter implements Result, Receiver
     }
 
     /**
-    * Set unparsed entity URI. Needed to satisfy the Receiver interface, but not used,
-    * because unparsed entities can occur only in input documents, not in output documents.
+     * Set unparsed entity URI. Needed to satisfy the Receiver interface, but not used,
+     * because unparsed entities can occur only in input documents, not in output documents.
+     * @param name the entity name
+     * @param uri the entity system ID
+     * @param publicId the entity public ID
     */
 
     public void setUnparsedEntity(String name, String uri, String publicId) throws XPathException {}

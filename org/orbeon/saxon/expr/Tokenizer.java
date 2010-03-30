@@ -1,5 +1,5 @@
 package org.orbeon.saxon.expr;
-import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.Whitespace;
 
 import java.util.ArrayList;
@@ -13,23 +13,9 @@ import java.util.List;
  */
 
 
+//@SuppressWarnings({"StringEquality"})
 public final class Tokenizer {
 
-    public int getState() {
-        return state;
-    }
-
-    public void setState(int state) {
-        this.state = state;
-        if (state==DEFAULT_STATE) {
-            // force the followsOperator() test to return true
-            precedingToken = Token.UNKNOWN;
-            currentToken = Token.UNKNOWN;
-        } else if (state==OPERATOR_STATE) {
-            precedingToken = Token.RPAR;
-            currentToken = Token.RPAR;
-        }
-    }
 
     private int state = DEFAULT_STATE;
         // we may need to make this a stack at some time
@@ -115,9 +101,32 @@ public final class Tokenizer {
      */
     private int precedingToken = Token.UNKNOWN;
 
+    /**
+     * Get the current tokenizer state
+     * @return the current state
+     */
 
-    //public boolean recognizePragmas = false;
-    //public String lastPragma = null;
+    public int getState() {
+        return state;
+    }
+
+    /**
+     * Set the tokenizer into a special state
+     * @param state the new state
+     */
+
+    public void setState(int state) {
+        this.state = state;
+        if (state==DEFAULT_STATE) {
+            // force the followsOperator() test to return true
+            precedingToken = Token.UNKNOWN;
+            currentToken = Token.UNKNOWN;
+        } else if (state==OPERATOR_STATE) {
+            precedingToken = Token.RPAR;
+            currentToken = Token.RPAR;
+        }
+    }
+
 
     //
     // Lexical analyser for expressions, queries, and XSLT patterns
@@ -131,22 +140,23 @@ public final class Tokenizer {
      * @param start start point within the string
      * @param end end point within the string (last character not read):
      * -1 means end of string
-     * @exception org.orbeon.saxon.trans.StaticError if a lexical error occurs, e.g. unmatched
+     * @param lineNumber the linenumber in the source where the expression appears
+     * @throws XPathException if a lexical error occurs, e.g. unmatched
      *     string quotes
      */
-    public void tokenize(String input, int start, int end, int lineNumber) throws StaticError {
+    public void tokenize(String input, int start, int end, int lineNumber) throws XPathException {
         nextToken = Token.EOF;
         nextTokenValue = null;
         nextTokenStartOffset = 0;
         inputOffset = start;
         this.input = input;
-        this.startLineNumber = lineNumber;
+        startLineNumber = lineNumber;
         this.lineNumber = lineNumber;
-        this.nextLineNumber = lineNumber;
+        nextLineNumber = lineNumber;
         if (end==-1) {
-            this.inputLength = input.length();
+            inputLength = input.length();
         } else {
-            this.inputLength = end;
+            inputLength = end;
         }
 
         // The tokenizer actually reads one token ahead. The raw lexical analysis performed by
@@ -170,10 +180,10 @@ public final class Tokenizer {
      * Get the next token from the input expression. The type of token is returned in the
      * currentToken variable, the string value of the token in currentTokenValue.
      *
-     * @exception org.orbeon.saxon.trans.StaticError if a lexical error is detected
+     * @throws XPathException if a lexical error is detected
      */
 
-    public void next() throws StaticError {
+    public void next() throws XPathException {
         precedingToken = currentToken;
         currentToken = nextToken;
         currentTokenValue = nextTokenValue;
@@ -257,6 +267,8 @@ public final class Tokenizer {
                         currentToken = Token.EVERY;
                     } else if (currentTokenValue=="let") {
                         currentToken = Token.LET;
+                    } else if (currentTokenValue=="copy") {
+                        currentToken = Token.COPY;
                     }
                     break;
 
@@ -301,6 +313,26 @@ public final class Tokenizer {
                     } else {
                         currentToken = val.intValue();
                         currentTokenValue = composite;
+                        // some tokens are actually triples
+//                        if (currentToken == Token.AS_FIRST || currentToken == Token.AS_LAST) {
+//                            lookAhead();
+//                            if (nextToken != Token.NAME || !nextTokenValue.equals("into")) {
+//                                throw new XPathException("After '" + composite + "', expected 'into'");
+//                            }
+//                            nextToken = currentToken;   // to reestablish after-operator state
+//                        } else
+                        if (currentToken == Token.REPLACE_VALUE) {
+                            // this one's a quadruplet - "replace value of node"
+                            lookAhead();
+                            if (nextToken != Token.NAME || !nextTokenValue.equals("of")) {
+                                throw new XPathException("After '" + composite + "', expected 'of'");
+                            }
+                            lookAhead();
+                            if (nextToken != Token.NAME || !nextTokenValue.equals("node")) {
+                                throw new XPathException("After 'replace value of', expected 'node'");
+                            }
+                            nextToken = currentToken;   // to reestablish after-operator state
+                        }
                         lookAhead();
                         return;
                     }
@@ -333,9 +365,9 @@ public final class Tokenizer {
      * The method is normally called internally, but the XQuery parser also
      * calls it to resume normal tokenization after dealing with pseudo-XML
      * syntax.
-     * @exception org.orbeon.saxon.trans.StaticError if a lexical error occurs
+     * @throws XPathException if a lexical error occurs
      */
-    public void lookAhead() throws StaticError {
+    public void lookAhead() throws XPathException {
         precedingToken = nextToken;
         nextTokenValue = null;
         nextTokenStartOffset = inputOffset;
@@ -367,7 +399,7 @@ public final class Tokenizer {
                         return;
                     }
 	            }
-	            throw new StaticError("Unexpected colon at start of token");
+	            throw new XPathException("Unexpected colon at start of token");
             case '@':
 	            nextToken = Token.AT;
 	            return;
@@ -410,7 +442,7 @@ public final class Tokenizer {
                         inputOffset++;
                     }
                     if (nestingDepth > 0) {
-                        throw new StaticError("Unclosed XQuery pragma");
+                        throw new XPathException("Unclosed XQuery pragma");
                     }
 	                nextToken = Token.PRAGMA;
                     nextTokenValue = input.substring(pragmaStart, inputOffset-2 );
@@ -426,10 +458,6 @@ public final class Tokenizer {
                             incrementLineNumber();
                         } else if (input.charAt(inputOffset) == ':' &&
                                 input.charAt(inputOffset+1) == ')') {
-//                            if (input.charAt(inputOffset-2) == '(' &&
-//                                    input.charAt(inputOffset-1) == ':') {
-//                                throw new StaticError("Empty XPath comments are not allowed");
-//                            }
                             nestingDepth--;
                             inputOffset++;
                         } else if (input.charAt(inputOffset) == '(' &&
@@ -440,7 +468,7 @@ public final class Tokenizer {
                         inputOffset++;
                     }
                     if (nestingDepth > 0) {
-                        throw new StaticError("Unclosed XPath comment");
+                        throw new XPathException("Unclosed XPath comment");
                     }
                     lookAhead();
                 } else {
@@ -466,28 +494,24 @@ public final class Tokenizer {
 	                nextToken = Token.NE;
 	                return;
 	            }
-	            throw new StaticError("'!' without '='");
+	            throw new XPathException("'!' without '='");
             case '*':
                 // disambiguation of MULT and STAR is now done later
-                //if (followsOperator()) {
-                    if (inputOffset < inputLength
-	                        && input.charAt(inputOffset) == ':') {
-    	                inputOffset++;
-    	                nextToken = Token.SUFFIX;
-    	                // we leave the parser to get the following name as a separate
-    	                // token, but first check there's no intervening white space or comments
-    	                if (inputOffset < inputLength) {
-    	                    char ahead = input.charAt(inputOffset);
-    	                    if (" \r\t\n(".indexOf(ahead) >= 0) {
-    	                        throw new StaticError("Whitespace and comments are not allowed after '*:'");
-    	                    } 
-    	                }
-    	                return;
-	                }
-	                nextToken = Token.STAR;
-                //} else {
-                //    nextToken = MULT;
-                //}
+                if (inputOffset < inputLength
+                        && input.charAt(inputOffset) == ':') {
+                    inputOffset++;
+                    nextToken = Token.SUFFIX;
+                    // we leave the parser to get the following name as a separate
+                    // token, but first check there's no intervening white space or comments
+                    if (inputOffset < inputLength) {
+                        char ahead = input.charAt(inputOffset);
+                        if (" \r\t\n(".indexOf(ahead) >= 0) {
+                            throw new XPathException("Whitespace and comments are not allowed after '*:'");
+                        }
+                    }
+                    return;
+                }
+                nextToken = Token.STAR;
 	            return;
             case ',':
 	            nextToken = Token.COMMA;
@@ -596,7 +620,7 @@ public final class Tokenizer {
                         default:
                             if (('a' <= c && c <= 'z') || c>127) {
                                 // this prevents the famous "10div 3"
-                                throw new StaticError("Separator needed after numeric literal");
+                                throw new XPathException("Separator needed after numeric literal");
                             }
                             inputOffset--;
                             break numloop;
@@ -614,7 +638,7 @@ public final class Tokenizer {
     	            inputOffset = input.indexOf(c, inputOffset);
     	            if (inputOffset < 0) {
     	                inputOffset = nextTokenStartOffset + 1;
-    	                throw new StaticError("Unmatched quote in expression");
+    	                throw new XPathException("Unmatched quote in expression");
     	            }
     	            nextTokenValue += input.substring(nextTokenStartOffset + 1, inputOffset++);
     		        // look for doubled delimiters
@@ -652,7 +676,7 @@ public final class Tokenizer {
 	            break;
             default:
 	            if (c < 0x80 && !Character.isLetter(c)) {
-	                throw new StaticError("Invalid character '" + c + "' in expression");
+	                throw new XPathException("Invalid character '" + c + "' in expression");
                 }
                 /* fall through */
             case '_':
@@ -724,6 +748,7 @@ public final class Tokenizer {
                 if (s=="ge") return Token.FGE;
                 if (s=="lt") return Token.FLT;
                 if (s=="le") return Token.FLE;
+                if (s=="as") return Token.AS;
                 break;
             case 3:
                 if (s=="and") return Token.AND;
@@ -735,14 +760,19 @@ public final class Tokenizer {
                 if (s=="then") return Token.THEN;
                 if (s=="else") return Token.ELSE;
                 if (s=="case") return Token.CASE;
+                if (s=="into") return Token.INTO;
+                if (s=="with") return Token.WITH;
                 break;
             case 5:
                 if (s=="where") return Token.WHERE;
                 if (s=="union") return Token.UNION;
+                if (s=="after") return Token.AFTER;
                 break;
             case 6:
                 if (s=="except") return Token.EXCEPT;
                 if (s=="return") return Token.RETURN;
+                if (s=="before") return Token.BEFORE;
+                if (s=="modify") return Token.MODIFY;
                 break;
             case 7:
                 if (s=="default") return Token.DEFAULT;
@@ -797,6 +827,7 @@ public final class Tokenizer {
 
     /**
      * Test whether the previous token is an operator
+     * @param precedingToken the token to be tested
      * @return true if the previous token is an operator token
      */
 
@@ -821,31 +852,6 @@ public final class Tokenizer {
         }
         return c;
     }
-
-    /**
-     * Normalize line endings according to the rules in XML 1.1.
-     * @param c the most recently read character. The value of inputOffset must be the immediately following
-     * character
-     * @return c the current character after newline normalization
-     */
-
-//    private char normalizeLineEnding(char c) throws StringIndexOutOfBoundsException {
-//        switch (c)  {
-//            case '\r':
-//                if (input.charAt(inputOffset) == '\n' || input.charAt(inputOffset) == 0x85) {
-//                    inputOffset++;
-//                    return '\n';
-//                } else {
-//                    return '\n';
-//                }
-//            case 0x85:
-//                return '\n';
-//            case 0x2028:
-//                return '\n';
-//            default:
-//                return c;
-//        }
-//    }
 
     /**
      * Increment the line number, making a record of where in the input string the newline character occurred.
@@ -875,6 +881,7 @@ public final class Tokenizer {
 
     /**
      * Get the most recently read text (for use in an error message)
+     * @return a chunk of text leading up to the error
      */
 
     public String recentText() {
@@ -891,6 +898,7 @@ public final class Tokenizer {
 
     /**
      * Get the line number of the current token
+     * @return the line number
      */
 
     public int getLineNumber() {
@@ -899,30 +907,18 @@ public final class Tokenizer {
 
     /**
      * Get the column number of the current token
+     * @return the column number
      */
 
     public int getColumnNumber() {
         return (int)(getLineAndColumn(currentTokenStartOffset)&0x7fffffff);
     }
 
-// --Commented out by Inspection START (16/12/04 14:40):
-//    /**
-//     * Get the line and column number of the current token,
-//     * as a long value with the line number in the top half
-//     * and the column number in the lower half
-//     * @return the line and column number, packed together
-//     */
-//
-//    public long getLineAndColumn() {
-//        return ((long)getLineNumber()) << 32 | ((long)getColumnNumber());
-//    }
-// --Commented out by Inspection STOP (16/12/04 14:40)
-
-
     /**
      * Get the line and column number corresponding to a given offset in the input expression,
      * as a long value with the line number in the top half
      * and the column number in the lower half
+     * @param offset the byte offset in the expression
      * @return the line and column number, packed together
      */
 
@@ -939,9 +935,21 @@ public final class Tokenizer {
         return ((long)startLineNumber) << 32 | (long)(offset+1);
     }
 
+    /**
+     * Return the line number corresponding to a given offset in the expression
+     * @param offset the byte offset in the expression
+     * @return the line number
+     */
+
     public int getLineNumber(int offset) {
         return (int)((getLineAndColumn(offset))>>32);
     }
+
+    /**
+     * Return the column number corresponding to a given offset in the expression
+     * @param offset the byte offset in the expression
+     * @return the column number
+     */
 
     public int getColumnNumber(int offset) {
         return (int)((getLineAndColumn(offset))&0x7fffffff);

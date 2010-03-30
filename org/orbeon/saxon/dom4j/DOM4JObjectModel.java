@@ -3,12 +3,14 @@ package org.orbeon.saxon.dom4j;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.event.PipelineConfiguration;
 import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.expr.JPConverter;
+import org.orbeon.saxon.expr.PJConverter;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.om.DocumentInfo;
-import org.orbeon.saxon.om.ExternalObjectModel;
-import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.AnyNodeTest;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.value.SequenceExtent;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.value.SingletonNode;
 import org.orbeon.saxon.value.Value;
 import org.dom4j.*;
 
@@ -18,16 +20,64 @@ import java.io.Serializable;
 
 
 /**
- * This interface must be implemented by any third-party object model that can
- * be wrapped with a wrapper that implements the Saxon Object Model (the NodeInfo interface).
- * This implementation of the interface supports wrapping of JDOM Documents.
+ * This class is the DOM4J implementation of Saxon's ExternalObjectModel interface; it supports
+ * the wrapping of DOM4J documents as instances of the Saxon NodeInfo interface.
  */
 
 public class DOM4JObjectModel implements ExternalObjectModel, Serializable {
 
     public DOM4JObjectModel() {}
 
-     /**
+    /**
+     * Get the URI of the external object model as used in the JAXP factory interfaces for obtaining
+     * an XPath implementation
+     */
+
+    public String getIdentifyingURI() {
+        return NamespaceConstant.OBJECT_MODEL_DOM4J;
+    }
+
+    public PJConverter getPJConverter(Class targetClass) {
+        if (isRecognizedNodeClass(targetClass)) {
+            return new PJConverter() {
+                public Object convert(ValueRepresentation value, Class targetClass, XPathContext context) throws XPathException {
+                    return convertXPathValueToObject(Value.asValue(value), targetClass, context);
+                }
+            };
+        } else {
+            return null;
+        }
+    }
+
+    public JPConverter getJPConverter(Class targetClass) {
+        if (isRecognizedNodeClass(targetClass)) {
+            return new JPConverter() {
+                public ValueRepresentation convert(Object object, XPathContext context) throws XPathException {
+                    return convertObjectToXPathValue(object, context.getConfiguration());
+                }
+                public ItemType getItemType() {
+                    return AnyNodeTest.getInstance();
+                }
+            };
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Get a converter that converts a sequence of XPath nodes to this model's representation
+     * of a node list.
+     * @param node an example of the kind of node used in this model
+     * @return if the model does not recognize this node as one of its own, return null. Otherwise
+     *         return a PJConverter that takes a list of XPath nodes (represented as NodeInfo objects) and
+     *         returns a collection of nodes in this object model
+     */
+
+    public PJConverter getNodeListCreator(Object node) {
+        return null;
+    }
+
+    /**
      * Test whether this object model recognizes a given node as one of its own
      */
 
@@ -50,7 +100,7 @@ public class DOM4JObjectModel implements ExternalObjectModel, Serializable {
      * @return true if the class is used to represent nodes in this object model
      */
 
-    public boolean isRecognizedNodeClass(Class nodeClass) {
+    private boolean isRecognizedNodeClass(Class nodeClass) {
         return Document.class.isAssignableFrom(nodeClass) ||
                 Element.class.isAssignableFrom(nodeClass) ||
                 Attribute.class.isAssignableFrom(nodeClass) ||
@@ -109,8 +159,18 @@ public class DOM4JObjectModel implements ExternalObjectModel, Serializable {
      * be converted, an exception should be thrown
      */
 
-    public Value convertObjectToXPathValue(Object object, Configuration config) throws XPathException {
-        return null;
+    public ValueRepresentation convertObjectToXPathValue(Object object, Configuration config) throws XPathException {
+        if (isRecognizedNode(object)) {
+            if (object instanceof Document) {
+                return wrapDocument(object, null, config);
+            } else {
+                Document root = getDocumentRoot(object);
+                DocumentInfo docInfo = wrapDocument(root, null, config);
+                return wrapNode(docInfo, object);
+            }
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -121,7 +181,16 @@ public class DOM4JObjectModel implements ExternalObjectModel, Serializable {
      * Value to see whether they belong to this object model.
      */
 
-    public Object convertXPathValueToObject(Value value, Class targetClass, XPathContext context) {
+    public Object convertXPathValueToObject(Value value, Object targetClass, XPathContext context) {
+        if (value instanceof SingletonNode) {
+            NodeInfo node = ((SingletonNode)value).getNode();
+            if (node instanceof VirtualNode) {
+                Object u = ((VirtualNode)node).getUnderlyingNode();
+                if (((Class)targetClass).isAssignableFrom(u.getClass())) {
+                    return u;
+                }
+            }
+        }
         return null;
     }
 
@@ -183,17 +252,6 @@ public class DOM4JObjectModel implements ExternalObjectModel, Serializable {
         return (Document)node;
     }
 
-    /**
-     * Convert a sequence of values to a NODELIST, as defined in the JAXP XPath API spec. This method
-     * is used when the evaluate() request specifies the return type as NODELIST, regardless of the
-     * actual results of the expression. If the sequence contains things other than nodes, the fallback
-     * is to return the sequence as a Java List object. The method can return null to invoke fallback
-     * behaviour.
-     */
-
-    public Object convertToNodeList(SequenceExtent extent) {
-        return null;
-    }
 }
 
 

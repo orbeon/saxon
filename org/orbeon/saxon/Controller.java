@@ -2,7 +2,9 @@ package org.orbeon.saxon;
 import org.orbeon.saxon.event.*;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.XPathContextMajor;
+import org.orbeon.saxon.expr.PathMap;
 import org.orbeon.saxon.functions.Component;
+import org.orbeon.saxon.functions.EscapeURI;
 import org.orbeon.saxon.instruct.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.sort.IntHashMap;
@@ -11,13 +13,13 @@ import org.orbeon.saxon.trace.*;
 import org.orbeon.saxon.trans.*;
 import org.orbeon.saxon.tree.TreeBuilder;
 import org.orbeon.saxon.value.DateTimeValue;
+import org.orbeon.saxon.type.SchemaURIResolver;
 import org.xml.sax.SAXParseException;
 
 import javax.xml.transform.*;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
-import java.io.OutputStream;
-import java.io.PrintStream;
+import java.io.*;
 import java.util.*;
 
 /**
@@ -52,25 +54,30 @@ import java.util.*;
  * @since 8.4
  */
 
-public class Controller extends Transformer implements InstructionInfoProvider {
+public class Controller extends Transformer {
 
     private Configuration config;
     private Item initialContextItem;
     private Item contextForGlobalVariables;
     private Bindery bindery;                // holds values of global and local variables
     private NamePool namePool;
-    private Emitter messageEmitter;
+    private Receiver messageEmitter;
     private RuleManager ruleManager;
     private Properties localOutputProperties;
     private GlobalParameterSet parameters;
     private PreparedStylesheet preparedStylesheet;
     private TraceListener traceListener;
     private boolean tracingPaused;
+    private PrintStream traceFunctionDestination = System.err;
     private URIResolver standardURIResolver;
     private URIResolver userURIResolver;
     private Result principalResult;
     private String principalResultURI;
+    private String cookedPrincipalResultURI;
+    private boolean thereHasBeenAnExplicitResultDocument;
     private OutputURIResolver outputURIResolver;
+    private UnparsedTextURIResolver unparsedTextResolver;
+    private SchemaURIResolver schemaURIResolver;
     private ErrorListener errorListener;
     private int recoveryPolicy;
     private Executable executable;
@@ -82,16 +89,17 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     private HashMap userDataTable;
     private DateTimeValue currentDateTime;
     private boolean dateTimePreset = false;
-    private int initialMode = -1;
+    private StructuredQName initialMode = null;
     private NodeInfo lastRememberedNode = null;
     private int lastRememberedNumber = -1;
     private ClassLoader classLoader;
+    private PathMap pathMap = null;
 //    private int nextLocalDocumentNumber = -1;
 
     /**
-     * Create a Controller and initialise variables. Constructor is protected,
-     * the Controller should be created using newTransformer() in the PreparedStylesheet
-     * class.
+     * Create a Controller and initialise variables. Note: XSLT applications should
+     * create the Controller by using the JAXP newTransformer() method, or in S9API
+     * by using XsltExecutable.load()
      *
      * @param config The Configuration used by this Controller
      */
@@ -99,17 +107,14 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     public Controller(Configuration config) {
         this.config = config;
         // create a dummy executable
-        executable = new Executable();
-        executable.setConfiguration(config);
+        executable = new Executable(config);
         executable.setHostLanguage(config.getHostLanguage());
         sourceDocumentPool = new DocumentPool();
         reset();
     }
 
     /**
-     * Create a Controller and initialise variables. Constructor is protected,
-     * the Controller should be created using newTransformer() in the PreparedStylesheet
-     * class.
+     * Create a Controller and initialise variables.
      *
      * @param config The Configuration used by this Controller
      * @param executable The executable used by this Controller
@@ -151,8 +156,9 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 		namePool = config.getNamePool();
         standardURIResolver = config.getSystemURIResolver();
         userURIResolver = config.getURIResolver();
-
         outputURIResolver = config.getOutputURIResolver();
+        schemaURIResolver = config.getSchemaURIResolver();
+        unparsedTextResolver = new StandardUnparsedTextResolver();
         errorListener = config.getErrorListener();
         recoveryPolicy = config.getRecoveryPolicy();
         if (errorListener instanceof StandardErrorListener) {
@@ -169,7 +175,13 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
         traceListener = null;
         tracingPaused = false;
-        TraceListener tracer = config.getTraceListener();
+        traceFunctionDestination = System.err;
+        TraceListener tracer;
+        try {
+            tracer = config.makeTraceListener();
+        } catch (XPathException err) {
+            throw new IllegalStateException(err.getMessage());
+        }
         if (tracer!=null) {
             addTraceListener(tracer);
         }
@@ -185,9 +197,10 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         principalResultURI = null;
         initialTemplate = null;
         allOutputDestinations = null;
+        thereHasBeenAnExplicitResultDocument = false;
         currentDateTime = null;
         dateTimePreset = false;
-        initialMode = -1;
+        initialMode = null;
         lastRememberedNode = null;
         lastRememberedNumber = -1;
         classLoader = null;
@@ -221,8 +234,8 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     public void setInitialMode(String expandedModeName) {
         if (expandedModeName==null) return;
-        if (expandedModeName.equals("")) return;
-        initialMode = namePool.allocateClarkName(expandedModeName);
+        if (expandedModeName.length() == 0) return;
+        initialMode = StructuredQName.fromClarkName(expandedModeName);
     }
 
     /**
@@ -231,7 +244,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      */
 
     public String getInitialMode() {
-        return namePool.getClarkName(initialMode);
+        return initialMode.getClarkName();
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -305,7 +318,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         Enumeration keys = localOutputProperties.propertyNames();
         while(keys.hasMoreElements()) {
             String key = (String)keys.nextElement();
-            newProps.put(key, localOutputProperties.getProperty(key));
+            newProps.setProperty(key, localOutputProperties.getProperty(key));
         }
         return newProps;
     }
@@ -334,7 +347,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         }
         try {
             SaxonOutputKeys.checkOutputProperty(name, value, getConfiguration().getNameChecker());
-        } catch (DynamicError err) {
+        } catch (XPathException err) {
             throw new IllegalArgumentException(err.getMessage());
         }
         localOutputProperties.setProperty(name, value);
@@ -359,7 +372,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     public String getOutputProperty(String name) {
          try {
             SaxonOutputKeys.checkOutputProperty(name, null, getConfiguration().getNameChecker());
-        } catch (DynamicError err) {
+        } catch (XPathException err) {
             throw new IllegalArgumentException(err.getMessage());
         }
         if (localOutputProperties == null) {
@@ -411,9 +424,33 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
+     * Get the base output URI after processing. The processing consists of (a) defaulting
+     * to the current user directory if no base URI is available and if the stylesheet is trusted,
+     * and (b) applying IRI-to-URI escaping
+     * @return the base output URI after processing.
+     */
+
+    public String getCookedBaseOutputURI() {
+        if (cookedPrincipalResultURI == null) {
+            String base = getBaseOutputURI();
+            if (base == null && config.isAllowExternalFunctions()) {
+                // if calling external functions is allowed, then the stylesheet is trusted, so
+                // we allow it to write to files relative to the current directory
+                base = new File(System.getProperty("user.dir")).toURI().toString();
+            }
+            if (base != null) {
+                base = EscapeURI.iriToUri(base).toString();
+            }
+            cookedPrincipalResultURI = base;
+        }
+        return cookedPrincipalResultURI;
+    }
+
+    /**
      * Get the principal result destination.
-     * <p>
-     * This method is intended for internal use only.
+     * <p>This method is intended for internal use only. It is typically called by Saxon during the course
+     * of a transformation, to discover the result that was supplied in the transform() call.</p>
+     * @return the Result object supplied as the principal result destination.
      */
 
     public Result getPrincipalResult() {
@@ -439,15 +476,13 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         if (uri.startsWith("file:///")) {
             uri = "file:/" + uri.substring(8);
         }
-        if (allOutputDestinations.contains(uri)) {
-            return false;
-        }
-        return true;
+        return !allOutputDestinations.contains(uri);
     }
 
     /**
      * Add a URI to the set of output destinations that cannot be written to, either because
      * they have already been written to, or because they have been read
+     * @param uri A URI that is not available as an output destination
      */
 
     public void addUnavailableOutputDestination(String uri) {
@@ -456,6 +491,19 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         }
         allOutputDestinations.add(uri);
     }
+
+    /**
+     * Remove a URI from the set of output destinations that cannot be written to or read from.
+     * Used to support saxon:discard-document()
+     * @param uri A URI that is being made available as an output destination
+     */
+
+    public void removeUnavailableOutputDestination(String uri) {
+        if (allOutputDestinations != null) {
+            allOutputDestinations.remove(uri);
+        }
+    }
+
 
     /**
      * Determine whether an output URI is available for use. This method is intended
@@ -468,10 +516,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      */
 
     public boolean isUnusedOutputDestination(String uri) {
-        if (allOutputDestinations == null) {
-            return true;
-        }
-        return !allOutputDestinations.contains(uri);
+        return allOutputDestinations == null || !allOutputDestinations.contains(uri);
     }
 
     /**
@@ -481,8 +526,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     public void checkImplicitResultTree() throws XPathException {
         if (!checkUniqueOutputDestination(principalResultURI)) {
-            DynamicError err = new DynamicError(
-                    "Cannot write an implicit result document if an explicit result document has been written to the same URI: " +
+            XPathException err = new XPathException("Cannot write an implicit result document if an explicit result document has been written to the same URI: " +
                     principalResultURI);
             err.setErrorCode("XTDE1490");
             throw err;
@@ -490,9 +534,28 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
+     * Set that an explicit result tree has been written using xsl:result-document
+     */
+
+    public void setThereHasBeenAnExplicitResultDocument() {
+        thereHasBeenAnExplicitResultDocument = true;
+    }
+
+    /**
+     * Test whether an explicit result tree has been written using xsl:result-document
+     * @return true if the transformation has evaluated an xsl:result-document instruction
+     */
+
+    public boolean hasThereBeenAnExplicitResultDocument() {
+        return thereHasBeenAnExplicitResultDocument;
+    }
+
+    /**
      * Allocate a SequenceOutputter for a new output destination. Reuse the existing one
      * if it is available for reuse (this is designed to ensure that the TinyTree structure
      * is also reused, creating a forest of trees all sharing the same data structure)
+     * @param size the estimated size of the output sequence
+     * @return SequenceOutputter the allocated SequenceOutputter
      */
 
     public SequenceOutputter allocateSequenceOutputter(int size) {
@@ -507,6 +570,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Accept a SequenceOutputter that is now available for reuse
+     * @param out the SequenceOutputter that is available for reuse
      */
 
     public void reuseSequenceOutputter(SequenceOutputter out) {
@@ -522,29 +586,31 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      * by matching an initial context node in a source document. This method may eventually
      * be superseded by a standard JAXP method once JAXP supports XSLT 2.0.
      * <p>
-     * Although the Saxon command line interface does not allow both a source document and
-     * an initial template to be specified, this API has no such restriction.
-     * <p>
      * Note that any parameters supplied using {@link #setParameter} are used as the values
      * of global stylesheet parameters. There is no way to supply values for local parameters
      * of the initial template.
      *
-     * @param expandedName The expanded name of the template in {uri}local format
+     * @param expandedName The expanded name of the template in {uri}local format, or null
+     * to indicate that there should be no initial template.
      * @throws XPathException if there is no named template with this name
      * @since 8.4
      */
 
     public void setInitialTemplate(String expandedName) throws XPathException {
-        int fingerprint = namePool.allocateClarkName(expandedName);
-        Template t = getExecutable().getNamedTemplate(fingerprint);
+        if (expandedName == null) {
+            initialTemplate = null;
+            return;
+        }
+        StructuredQName qName = StructuredQName.fromClarkName(expandedName);
+        Template t = getExecutable().getNamedTemplate(qName);
         if (t == null) {
-            DynamicError err = new DynamicError("There is no named template with expanded name "
-                                           + expandedName);
+            XPathException err = new XPathException("There is no named template with expanded name "
+                    + expandedName);
             err.setErrorCode("XTDE0040");
             reportFatalError(err);
             throw err;
         } else if (t.hasRequiredParams()) {
-            DynamicError err = new DynamicError("The named template "
+            XPathException err = new XPathException("The named template "
                     + expandedName
                     + " has required parameters, so cannot be used as the entry point");
             err.setErrorCode("XTDE0060");
@@ -565,7 +631,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         if (initialTemplate == null) {
             return null;
         } else {
-            return namePool.getClarkName(initialTemplate.getFingerprint());
+            return initialTemplate.getTemplateName().getClarkName();
         }
     }
 
@@ -575,8 +641,9 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      * Make a PipelineConfiguration based on the properties of this Controller.
      * <p>
      * This interface is intended primarily for internal use, although it may be necessary
-     * for applications to call it directly for use in conjunction with the experimental pull
-     * API.
+     * for applications to call it directly if they construct pull or push pipelines
+     * @return a newly constructed PipelineConfiguration holding a reference to this
+     * Controller as well as other configuration information.
      */
 
     public PipelineConfiguration makePipelineConfiguration() {
@@ -584,8 +651,10 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         pipe.setConfiguration(getConfiguration());
         pipe.setErrorListener(getErrorListener());
         pipe.setURIResolver(userURIResolver==null ? standardURIResolver : userURIResolver);
-        pipe.setSchemaURIResolver(getConfiguration().getSchemaURIResolver());
-                // TODO: allow a different one at Controller level
+        pipe.setSchemaURIResolver(schemaURIResolver);
+        pipe.setExpandAttributeDefaults(getConfiguration().isExpandAttributeDefaults());
+        pipe.setUseXsiSchemaLocation(((Boolean)getConfiguration().getConfigurationProperty(
+                FeatureKeys.USE_XSI_SCHEMA_LOCATION)).booleanValue());
         pipe.setController(this);
         final Executable executable = getExecutable();
         if (executable != null) {
@@ -607,42 +676,74 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      * @return The newly constructed message Emitter
      */
 
-    public Emitter makeMessageEmitter() throws XPathException {
+    private Receiver makeMessageEmitter() throws XPathException {
         String emitterClass = config.getMessageEmitterClass();
 
-        Object emitter = config.getInstance(emitterClass, getClassLoader());
-        if (!(emitter instanceof Emitter)) {
-            throw new DynamicError(emitterClass + " is not an Emitter");
+        Object messageReceiver = config.getInstance(emitterClass, getClassLoader());
+        if (!(messageReceiver instanceof Receiver)) {
+            throw new XPathException(emitterClass + " is not a Receiver");
         }
-        setMessageEmitter((Emitter)emitter);
-        return messageEmitter;
+        setMessageEmitter((Receiver)messageReceiver);
+//        if (messageReceiver instanceof Emitter) {
+//            Properties props = new Properties();
+//            props.setProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+//            ((Emitter)messageReceiver).setOutputProperties(props);
+//        }
+        return (Receiver)messageReceiver;
     }
 
     /**
-     * Set the Emitter to be used for xsl:message output.
+     * Set the Receiver to be used for xsl:message output.
      * <p>
      * Recent versions of the JAXP interface specify that by default the
      * output of xsl:message is sent to the registered ErrorListener. Saxon
      * does not yet implement this convention. Instead, the output is sent
      * to a default message emitter, which is a slightly customised implementation
-     * of the standard Saxon Emitter interface.
+     * of the standard Saxon Emitter interface.</p>
      * <p>
      * This interface can be used to change the way in which Saxon outputs
-     * xsl:message output.
+     * xsl:message output.</p>
      * <p>
      * It is not necessary to use this interface in order to change the destination
      * to which messages are written: that can be achieved by obtaining the standard
-     * message emitter and calling its {@link Emitter#setWriter} method.
+     * message emitter and calling its {@link Emitter#setWriter} method.</p>
      * <p>
-     * This method is intended for use by advanced applications. The Emitter interface
-     * itself is not part of the stable Saxon public API.
-     *
-     * @param emitter The emitter to receive xsl:message output.
+     * Although any <code>Receiver</code> can be supplied as the destination for messages,
+     * applications may find it convenient to implement a subclass of {@link org.orbeon.saxon.event.SequenceWriter},
+     * in which only the abstract <code>write()</code> method is implemented. This will have the effect that the
+     * <code>write()</code> method is called to output each message as it is generated, with the <code>Item</code>
+     * that is passed to the <code>write()</code> method being the document node at the root of an XML document
+     * containing the contents of the message. 
+     * <p>
+     * This method is intended for use by advanced applications. The Receiver interface
+     * itself is subject to change in new Saxon releases.</p>
+     * <p>
+     * The supplied Receiver will have its open() method called once at the start of
+     * the transformation, and its close() method will be called once at the end of the
+     * transformation. Each individual call of an xsl:message instruction is wrapped by
+     * calls of startDocument() and endDocument(). If terminate="yes" is specified on the
+     * xsl:message call, the properties argument of the startDocument() call will be set
+     * to the value {@link ReceiverOptions#TERMINATE}.</p>
+     * @param receiver The receiver to receive xsl:message output.
+     * @since 8.4; changed in 8.9 to supply a Receiver rather than an Emitter
      */
 
-    public void setMessageEmitter(Emitter emitter) {
-        messageEmitter = emitter;
-        messageEmitter.setPipelineConfiguration(makePipelineConfiguration());
+    public void setMessageEmitter(Receiver receiver) {
+        messageEmitter = receiver;
+        if (receiver.getPipelineConfiguration() == null) {
+            messageEmitter.setPipelineConfiguration(makePipelineConfiguration());
+        }
+        if (messageEmitter instanceof Emitter && ((Emitter)messageEmitter).getOutputProperties() == null) {
+            try {
+                Properties props = new Properties();
+                props.setProperty(OutputKeys.METHOD, "xml");
+                props.setProperty(OutputKeys.INDENT, "yes");
+                props.setProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+                ((Emitter)messageEmitter).setOutputProperties(props);
+            } catch (XPathException e) {
+                // no action
+            }
+        }
     }
 
     /**
@@ -650,10 +751,11 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      * previously supplied to the {@link #setMessageEmitter} method, or the
      * default message emitter otherwise.
      *
-     * @return the Emitter being used for xsl:message output
+     * @return the Receiver being used for xsl:message output
+     * @since 8.4; changed in 8.9 to return a Receiver rather than an Emitter
      */
 
-    public Emitter getMessageEmitter() {
+    public Receiver getMessageEmitter() {
        return messageEmitter;
     }
 
@@ -666,6 +768,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      * @param useMaps the expanded use-character-maps property: a space-separated list of names
      * of character maps to be used, each one expressed as an expanded-QName in Clark notation
      * (that is, {uri}local-name).
+     * @param sf the SerializerFactory - used to create a CharacterMapExpander
      * @return a CharacterMapExpander if one is required, or null if not (for example, if the
      * useMaps argument is an empty string).
      * @throws XPathException if a name in the useMaps property cannot be resolved to a declared
@@ -674,20 +777,20 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     public CharacterMapExpander makeCharacterMapExpander(String useMaps, SerializerFactory sf) throws XPathException {
         CharacterMapExpander characterMapExpander = null;
-        IntHashMap characterMapIndex = getExecutable().getCharacterMapIndex();
+        HashMap characterMapIndex = getExecutable().getCharacterMapIndex();
         if (useMaps != null && characterMapIndex != null) {
             List characterMaps = new ArrayList(5);
-            StringTokenizer st = new StringTokenizer(useMaps);
+            StringTokenizer st = new StringTokenizer(useMaps, " \t\n\r", false);
             while (st.hasMoreTokens()) {
                 String expandedName = st.nextToken();
-                int f = namePool.getFingerprintForExpandedName(expandedName);
-                IntHashMap map = (IntHashMap)characterMapIndex.get(f);
+                StructuredQName qName = StructuredQName.fromClarkName(expandedName);
+                IntHashMap map = (IntHashMap)characterMapIndex.get(qName);
                 if (map==null) {
-                    throw new DynamicError("Character map '" + expandedName + "' has not been defined");
+                    throw new XPathException("Character map '" + expandedName + "' has not been defined");
                 }
                 characterMaps.add(map);
             }
-            if (characterMaps.size() > 0) {
+            if (!characterMaps.isEmpty()) {
                 characterMapExpander = sf.newCharacterMapExpander();
                 characterMapExpander.setCharacterMaps(characterMaps);
             }
@@ -749,11 +852,11 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      * This method is intended for internal use only.
      *
      * @param err An exception holding information about the error
-     * @exception DynamicError if the error listener decides not to
+     * @throws XPathException if the error listener decides not to
      *     recover from the error
      */
 
-    public void recoverableError(XPathException err) throws DynamicError {
+    public void recoverableError(XPathException err) throws XPathException {
         try {
             if (executable.getHostLanguage() == Configuration.XQUERY) {
                 reportFatalError(err);
@@ -762,7 +865,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
                 errorListener.error(err);
             }
         } catch (TransformerException e) {
-            DynamicError de = DynamicError.makeDynamicError(e);
+            XPathException de = XPathException.makeXPathException(e);
             de.setHasBeenReported();
             throw de;
         }
@@ -770,6 +873,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     /**
      * Report a fatal error
+     * @param err the error to be reported
      */
 
     public void reportFatalError(XPathException err) {
@@ -846,12 +950,15 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      * initial context node is set automatically. This method is useful in XQuery,
      * to define an initial context node for evaluating global variables, and also
      * in XSLT 2.0, when the transformation is started by invoking a named template.
-     * <p/>
-     * When an initial context item is set, it also becomes the context item used for
-     * evaluating global variables. However, the context item for global variables may
-     * subsequently be changed independently. In XQuery, the two context items are always
+     *
+     * <p>When an initial context item is set, it also becomes the context item used for
+     * evaluating global variables. The two context items can only be different when the
+     * {@link #transform} method is used to transform a document starting at a node other
+     * than the root.</p>
+     *
+     * <p>In XQuery, the two context items are always
      * the same; in XSLT, the context node for evaluating global variables is the root of the
-     * tree containing the initial context item.
+     * tree containing the initial context item.</p>
      *
      * @param item The initial context item. The XSLT specification says that this
      * must be a node; however this restriction is not enforced, and any item can be supplied
@@ -863,6 +970,8 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     public void setInitialContextItem(Item item) {
         initialContextItem = item;
         contextForGlobalVariables = item;
+        // TODO: are we enforcing the rule that in XSLT the context for global variables is always the
+        // root of the tree?
     }
 
     /**
@@ -875,24 +984,6 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     public Bindery getBindery() {
         return bindery;
-    }
-
-    /**
-     * Get the context item used for evaluating global variables, provided this is a document node.
-     * If the initial context item is not defined, or is not a node in a document, return null.
-     * @return the context item used for evaluating global variables, provided this is a document node,
-     * otherwise null
-     * @since 8.4
-     * @deprecated From Saxon 8.7, replaced by {@link #getInitialContextItem} and
-     * {@link #getContextForGlobalVariables}
-     */
-
-    public DocumentInfo getPrincipalSourceDocument() {
-        if (contextForGlobalVariables instanceof DocumentInfo) {
-            return (DocumentInfo)contextForGlobalVariables;
-        } else {
-            return null;
-        }
     }
 
     /**
@@ -918,6 +1009,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     public Item getContextForGlobalVariables() {
         return contextForGlobalVariables;
+        // See bug 5224, which points out that the rules for XQuery 1.0 weren't clearly defined
     }
 
     /**
@@ -930,6 +1022,9 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     public void setURIResolver(URIResolver resolver) {
         userURIResolver = resolver;
+        if (resolver instanceof StandardURIResolver) {
+            ((StandardURIResolver)resolver).setConfiguration(getConfiguration());
+        }                                                      
     }
 
     /**
@@ -997,6 +1092,52 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
+     * Set an UnparsedTextURIResolver to be used to resolve URIs passed to the XSLT
+     * unparsed-text() function.
+     * @param resolver the unparsed text URI resolver to be used. This replaces any unparsed text
+     * URI resolver previously registered.
+     * @since 8.9
+     */
+
+    public void setUnparsedTextURIResolver(UnparsedTextURIResolver resolver) {
+        unparsedTextResolver = resolver;
+    }
+
+    /**
+     * Get the URI resolver for the unparsed-text() function. This will
+     * return the UnparsedTextURIResolver previously set using the {@link #setUnparsedTextURIResolver}
+     * method.
+     * @return the registered UnparsedTextURIResolver
+     * @since 8.9
+     */
+
+    public UnparsedTextURIResolver getUnparsedTextURIResolver() {
+        return unparsedTextResolver;
+    }
+
+    /**
+     * Set the SchemaURIResolver used for resolving references to schema
+     * documents. Defaults to the SchemaURIResolver registered with the
+     * Configuration
+     * @param resolver the resolver for references to schema documents
+     */
+
+    public void setSchemaURIResolver(SchemaURIResolver resolver) {
+        schemaURIResolver = resolver;
+    }
+
+    /**
+     * Get the SchemaURIResolver used for resolving references to schema
+     * documents. If none has been set on the Controller, returns the
+     * SchemaURIResolver registered with the Configuration
+     * @return the resolver for references to schema documents
+     */
+
+    public SchemaURIResolver getSchemaURIResolver() {
+        return schemaURIResolver;
+    }
+
+    /**
      * Get the KeyManager.
      * <p>
      * This method is intended for internal use only.
@@ -1035,6 +1176,21 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     public void setTreeModel(int model) {
         treeModel = model;
+    }
+
+    /**
+     * Get the tree data model to use. This affects all source documents subsequently constructed using a
+     * Builder obtained from this Controller. This includes a document built from a StreamSource or
+     * SAXSource supplied as a parameter to the {@link #transform} method.
+     *
+     * @return model the tree model: {@link Builder#LINKED_TREE} or
+     *     {@link Builder#TINY_TREE}
+     * @see org.orbeon.saxon.event.Builder
+     * @since 9.1
+     */
+
+    public int getTreeModel() {
+        return treeModel;
     }
 
     /**
@@ -1083,22 +1239,24 @@ public class Controller extends Transformer implements InstructionInfoProvider {
             } else {
                 Stripper s = new AllElementStripper();
                 s.setUnderlyingReceiver(b);
+                s.setPipelineConfiguration(b.getPipelineConfiguration());
                 return s;
             }
         }
         Stripper stripper;
         if (executable==null) {
-            stripper = new Stripper(new Mode(Mode.STRIPPER_MODE, -1));
+            stripper = new Stripper(new Mode(Mode.STRIPPER_MODE, Mode.DEFAULT_MODE_NAME));
         } else {
             stripper = executable.newStripper();
         }
-        stripper.setPipelineConfiguration(makePipelineConfiguration());
-		//stripper.setController(this);
-        if (b != null) {
-		    stripper.setUnderlyingReceiver(b);
+        stripper.setXPathContext(newXPathContext());
+        if (b == null) {
+            stripper.setPipelineConfiguration(makePipelineConfiguration());
+        } else {
+            stripper.setPipelineConfiguration(b.getPipelineConfiguration());
+            stripper.setUnderlyingReceiver(b);
         }
-
-		return stripper;
+        return stripper;
     }
 
     /**
@@ -1194,12 +1352,14 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      * Configuration or TransformerFactory, the TraceListener will automatically
      * be added to every Controller that uses that Configuration.
      *
-     * @param trace the trace listener.
+     * @param trace the trace listener. If null is supplied, the call has no effect.
      * @since 8.4
      */
 
     public void addTraceListener(TraceListener trace) { // e.g.
-        traceListener = TraceEventMulticaster.add(traceListener, trace);
+        if (trace != null) {
+            traceListener = TraceEventMulticaster.add(traceListener, trace);
+        }
     }
 
     /**
@@ -1212,6 +1372,32 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     public void removeTraceListener(TraceListener trace) { // e.g.
         traceListener = TraceEventMulticaster.remove(traceListener, trace);
+    }
+
+    /**
+     * Set the destination for output from the fn:trace() function.
+     * By default, the destination is System.err. If a TraceListener is in use,
+     * this is ignored, and the trace() output is sent to the TraceListener.
+     * @param stream the PrintStream to which trace output will be sent. If set to
+     * null, trace output is suppressed entirely. It is the caller's responsibility
+     * to close the stream after use.
+     * @since 9.1
+     */
+
+    public void setTraceFunctionDestination(PrintStream stream) {
+        traceFunctionDestination = stream;
+    }
+
+    /**
+     * Get the destination for output from the fn:trace() function.
+     * @return the PrintStream to which trace output will be sent. If no explicitly
+     * destination has been set, returns System.err. If the destination has been set
+     * to null to suppress trace output, returns null.
+     * @since 9.1
+     */
+
+    public PrintStream getTraceFunctionDestination() {
+        return traceFunctionDestination;
     }
 
     /**
@@ -1259,29 +1445,37 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         // get a new bindery, to clear out any variables from previous runs
 
         bindery = new Bindery();
-        executable.initialiseBindery(bindery);
-
-        // create an initial stack frame, used for evaluating standalone expressions,
-        // e.g. expressions within the filter of a match pattern. This stack frame
-        // never gets closed, but no one will notice.
-
-        //bindery.openStackFrame();
+        executable.initializeBindery(bindery);
 
         // if parameters were supplied, set them up
 
-        defineGlobalParameters(bindery);
+        defineGlobalParameters();
     }
 
     /**
-     * Define the global parameters of the transformation or query.
+     * Register the global parameters of the transformation or query. This should be called after a sequence
+     * of calls on {@link #setParameter}. It checks that all required parameters have been supplied, and places
+     * the values of the parameters in the Bindery to make them available for use during the query or
+     * transformation.
      * <p>
      * This method is intended for internal use only
-     * @param bindery The Bindery, which holds values of global variables and parameters
      */
 
-    public void defineGlobalParameters(Bindery bindery) throws XPathException {
+    public void defineGlobalParameters() throws XPathException {
         executable.checkAllRequiredParamsArePresent(parameters);
         bindery.defineGlobalParameters(parameters);
+    }
+
+    /**
+     * Allocate space in the bindery for global variables.
+     * <p>For internal use only.</p>
+     * @param numberOfVariables the number of global variables for which space is required
+     */
+
+    public void allocateGlobalVariables(int numberOfVariables) {
+        SlotManager map = executable.getGlobalVariableMap();
+        map.setNumberOfVariables(numberOfVariables);
+        bindery.allocateGlobals(map);
     }
 
 
@@ -1358,7 +1552,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
     public void transform(Source source, Result result) throws TransformerException {
         if (preparedStylesheet==null) {
-            throw new DynamicError("Stylesheet has not been prepared");
+            throw new XPathException("Stylesheet has not been prepared");
         }
 
         if (!dateTimePreset) {
@@ -1397,15 +1591,15 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
             } else if (source == null) {
                 if (initialTemplate == null) {
-                    throw new DynamicError("Either a source document or an initial template must be specified");
+                    throw new XPathException("Either a source document or an initial template must be specified");
                 }
 
             } else {
-                // The input is a SAXSource or StreamSource, or
+                // The input is a SAXSource or StreamSource or AugmentedSource, or
                 // a DOMSource with wrap=no: build the document tree
 
                 Builder sourceBuilder = makeBuilder();
-                Sender sender = new Sender(makePipelineConfiguration());
+                Sender sender = new Sender(sourceBuilder.getPipelineConfiguration());
                 Receiver r = sourceBuilder;
                 if (config.isStripsAllWhiteSpace() || executable.stripsWhitespace() ||
                         validationMode == Validation.STRICT || validationMode == Validation.LAX) {
@@ -1419,6 +1613,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
                     ((AugmentedSource)source).close();
                 }
                 DocumentInfo doc = (DocumentInfo)sourceBuilder.getCurrentRoot();
+                sourceBuilder.reset();
                 registerDocument(doc, source.getSystemId());
                 startNode = doc;
             }
@@ -1448,6 +1643,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
             if (close) {
                 ((AugmentedSource)source).close();
             }
+            principalResultURI = null;
         }
     }
 
@@ -1465,7 +1661,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      */
 
     public NodeInfo prepareInputTree(Source source) {
-        NodeInfo start = unravel(source, getConfiguration());
+        NodeInfo start = getConfiguration().unravel(source);
         if (executable.stripsWhitespace()) {
             DocumentInfo docInfo = start.getDocumentRoot();
             StrippedDocument strippedDoc = new StrippedDocument(docInfo, makeStripper(null));
@@ -1478,32 +1674,14 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      * Get a NodeInfo corresponding to a DOM Node, either by wrapping or unwrapping the DOM Node.
      * <p>
      * This method is intended for internal use.
+     * @param source the wrapped or unwrapped DOM Node
+     * @param config the Saxon configuration
+     * @return a Saxon NodeInfo object obtained by wrapping or unwrapping the supplied DOM node.
+     * @deprecated since 9.0: use {@link Configuration#unravel}
      */
 
     public static NodeInfo unravel(Source source, Configuration config) {
-        List externalObjectModels = config.getExternalObjectModels();
-        for (int m=0; m<externalObjectModels.size(); m++) {
-            ExternalObjectModel model = (ExternalObjectModel)externalObjectModels.get(m);
-            NodeInfo node = model.unravel(source, config);
-            if (node != null) {
-                if (node.getConfiguration() != config) {
-                    throw new IllegalArgumentException("Externally supplied Node belongs to the wrong Configuration");
-                }
-                return node;
-            }
-        }
-        if (source instanceof NodeInfo) {
-            if (((NodeInfo)source).getConfiguration() != config) {
-                throw new IllegalArgumentException("Externally supplied NodeInfo belongs to the wrong Configuration");
-            }
-            return (NodeInfo)source;
-        }
-        if (source instanceof DOMSource) {
-            throw new IllegalArgumentException("When a DOMSource is used, saxon8-dom.jar must be on the classpath");
-        } else {
-            throw new IllegalArgumentException("A source of class " +
-                    source.getClass() + " is not recognized by any registered object model");
-        }
+        return config.unravel(source);
     }
 
     /**
@@ -1525,8 +1703,27 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     throws TransformerException {
         // System.err.println("*** TransformDocument");
         if (executable==null) {
-            throw new DynamicError("Stylesheet has not been compiled");
+            throw new XPathException("Stylesheet has not been compiled");
         }
+
+        if (getMessageEmitter() == null) {
+            Receiver me = makeMessageEmitter();
+            setMessageEmitter(me);
+            if (me instanceof Emitter && ((Emitter)me).getWriter()==null) {
+                try {
+                    ((Emitter)me).setWriter(new OutputStreamWriter(System.err));
+                } catch (Exception err) {
+                    // This has been known to fail on .NET because the default encoding set for the
+                    // .NET environment is not supported by the Java class library. So we'll try again
+                    try {
+                        ((Emitter)me).setWriter(new OutputStreamWriter(System.err, "utf8"));
+                    } catch (UnsupportedEncodingException e) {
+                        throw new XPathException(e);
+                    }
+                }
+            }
+        }
+        getMessageEmitter().open();
 
         // Determine whether we need to close the output stream at the end. We
         // do this if the Result object is a StreamResult and is supplied as a
@@ -1541,7 +1738,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         }
 
         XPathContextMajor initialContext = newXPathContext();
-        initialContext.setOrigin(this);
+        initialContext.setOriginatingConstructType(Location.CONTROLLER);
 
         if (startNode != null) {
 
@@ -1551,21 +1748,24 @@ public class Controller extends Transformer implements InstructionInfoProvider {
             if (startNode.getConfiguration()==null) {
                 // must be a non-standard document implementation
                 throw new TransformerException("The supplied source document must be associated with a Configuration");
-                //sourceDoc.setConfiguration(getConfiguration());
             }
 
-            if (startNode.getNamePool() != preparedStylesheet.getTargetNamePool()) {
-                throw new DynamicError("Source document and stylesheet must use the same name pool");
+            if (!startNode.getConfiguration().isCompatible(preparedStylesheet.getConfiguration())) {
+                throw new XPathException(
+                        "Source document and stylesheet must use the same or compatible Configurations",
+                        SaxonErrorCode.SXXP0004);
             }
             SequenceIterator currentIter = SingletonIterator.makeIterator(startNode);
-            currentIter.next();
+            if (initialTemplate != null) {
+                currentIter.next();
+            }
             initialContext.setCurrentIterator(currentIter);
         }
 
         initializeController();
 
         // In tracing/debugging mode, evaluate all the global variables first
-        if (getConfiguration().getTraceListener() != null) {
+        if (traceListener != null) {
             preEvaluateGlobals(initialContext);
         }
 
@@ -1591,17 +1791,22 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
         initialContext.changeOutputDestination(props, result, true,
                 Configuration.XSLT, Validation.PRESERVE, null);
-        //initialContext.getReceiver().startDocument(0);
 
         // Process the source document using the handlers that have been set up
 
         if (initialTemplate == null) {
-            AxisIterator single = SingletonIterator.makeIterator(startNode);
-            initialContext.setCurrentIterator(single);
+//            SequenceIterator single = SingletonIterator.makeIterator(startNode);
+//            initialContext.setCurrentIterator(single);    
             initialContextItem = startNode;
+            final Mode mode = getRuleManager().getMode(initialMode, false);
+            if (mode == null || (initialMode != null && mode.isEmpty())) {
+                throw new XPathException("Requested initial mode " +
+                        (initialMode == null ? "" : initialMode.getDisplayName()) +
+                        " does not exist", "XTDE0045");
+            }
             TailCall tc = ApplyTemplates.applyTemplates(
                                 initialContext.getCurrentIterator(),
-                                getRuleManager().getMode(initialMode),
+                                mode,
                                 null, null, initialContext, false, 0);
             while (tc != null) {
                 tc = tc.processLeavingTail();
@@ -1609,7 +1814,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         } else {
             Template t = initialTemplate;
             XPathContextMajor c2 = initialContext.newContext();
-            c2.setOrigin(this);
+            initialContext.setOriginatingConstructType(Location.CONTROLLER);
             c2.openStackFrame(t.getStackFrameMap());
             c2.setLocalParameters(new ParameterSet());
             c2.setTunnelParameters(new ParameterSet());
@@ -1628,7 +1833,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         if (out instanceof ComplexContentOutputter && ((ComplexContentOutputter)out).contentHasBeenWritten()) {
             if (principalResultURI != null) {
                 if (!checkUniqueOutputDestination(principalResultURI)) {
-                    DynamicError err = new DynamicError(
+                    XPathException err = new XPathException(
                             "Cannot write more than one result document to the same URI, or write to a URI that has been read: " +
                             result.getSystemId());
                     err.setErrorCode("XTDE1490");
@@ -1641,6 +1846,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
 
         out.endDocument();
         out.close();
+        getMessageEmitter().close();
 
         if (mustClose && result instanceof StreamResult) {
             OutputStream os = ((StreamResult)result).getOutputStream();
@@ -1648,7 +1854,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
                 try {
                     os.close();
                 } catch (java.io.IOException err) {
-                    throw new DynamicError(err);
+                    throw new XPathException(err);
                 }
             }
         }
@@ -1659,14 +1865,18 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      * Pre-evaluate global variables (when debugging/tracing).
      * <p>
      * This method is intended for internal use.
+     * @param context the dynamic context for evaluating the global variables
+     * @throws XPathException if a dynamic error occurs while evaluating the global variables.
      */
 
     public void preEvaluateGlobals(XPathContext context) throws XPathException {
-        IntHashMap vars = getExecutable().getCompiledGlobalVariables();
-        Iterator iter = vars.valueIterator();
-        while (iter.hasNext()) {
-            GlobalVariable var = (GlobalVariable)iter.next();
-            var.evaluateVariable(context);
+        HashMap vars = getExecutable().getCompiledGlobalVariables();
+        if (vars != null) {
+            Iterator iter = vars.values().iterator();
+            while (iter.hasNext()) {
+                GlobalVariable var = (GlobalVariable)iter.next();
+                var.evaluateVariable(context);
+            }
         }
     }
 
@@ -1766,9 +1976,21 @@ public class Controller extends Transformer implements InstructionInfoProvider {
             parameters = new GlobalParameterSet();
         }
 
-        int fingerprint = namePool.allocateClarkName(expandedName);
-        parameters.put(fingerprint, value);
+        parameters.put(StructuredQName.fromClarkName(expandedName), value);
 
+    }
+
+    /**
+     * Supply a parameter using Saxon-specific representations of the name and value
+     * @param qName The structured representation of the parameter name
+     * @param value The value of the parameter, or null to remove a previously set value
+     */
+
+    public void setParameter(StructuredQName qName, ValueRepresentation value) {
+        if (parameters == null) {
+            parameters = new GlobalParameterSet();
+        }
+        parameters.put(qName, value);
     }
 
     /**
@@ -1793,36 +2015,59 @@ public class Controller extends Transformer implements InstructionInfoProvider {
         if (parameters==null) {
             return null;
         }
-        int f = namePool.allocateClarkName(expandedName);
-        return parameters.get(f);
+        return parameters.get(StructuredQName.fromClarkName(expandedName));
+    }
+
+    /**
+     * Get an iterator over the names of global parameters that have been defined
+     * @return an Iterator whose items are strings in the form of Clark names, that is {uri}local
+     */
+
+    public Iterator iterateParameters() {
+        if (parameters == null) {
+            return Collections.EMPTY_LIST.iterator();
+        }
+        int k = parameters.getNumberOfKeys();
+        List list = new ArrayList(k);
+        Collection keys = parameters.getKeys();
+        for (Iterator it = keys.iterator(); it.hasNext();) {
+            StructuredQName qName = (StructuredQName)it.next();
+            String clarkName = qName.getClarkName();
+            list.add(clarkName);
+        }
+        return list.iterator();
     }
 
     /**
      * Set the current date and time for this query or transformation.
      * This method is provided primarily for testing purposes, to allow tests to be run with
      * a fixed date and time. The supplied date/time must include a timezone, which is used
-     * as the implicit timezone. Calls are ignored if a current date/time has already been
-     * established by calling getCurrentDateTime().
+     * as the implicit timezone.
      *
      * <p>Note that comparisons of date/time values currently use the implicit timezone
      * taken from the system clock, not from the value supplied here.</p>
+     *
+     * @param dateTime the date/time value to be used as the current date and time
+     * @throws IllegalStateException if a current date/time has already been
+     * established by calling getCurrentDateTime(), or by a previous call on setCurrentDateTime()
      */
 
     public void setCurrentDateTime(DateTimeValue dateTime) throws XPathException {
         if (currentDateTime==null) {
             if (dateTime.getComponent(Component.TIMEZONE) == null) {
-                throw new DynamicError("No timezone is present in supplied value of current date/time");
+                throw new XPathException("No timezone is present in supplied value of current date/time");
             }
             currentDateTime = dateTime;
             dateTimePreset = true;
+        } else {
+            throw new IllegalStateException(
+                    "Current date and time can only be set once, and cannot subsequently be changed");
         }
     }
 
     /**
      * Get the current date and time for this query or transformation.
      * All calls during one transformation return the same answer.
-     * <p>
-     * This method is intended for internal use.
      *
      * @return Get the current date and time. This will deliver the same value
      *      for repeated calls within the same transformation
@@ -1833,6 +2078,15 @@ public class Controller extends Transformer implements InstructionInfoProvider {
             currentDateTime = new DateTimeValue(new GregorianCalendar(), true);
         }
         return currentDateTime;
+    }
+
+    /**
+     * Get the implicit timezone for this query or transformation
+     * @return the implicit timezone as an offset in minutes
+     */
+
+    public int getImplicitTimezone() {
+        return getCurrentDateTime().getTimezoneInMinutes();
     }
 
     /////////////////////////////////////////
@@ -1882,15 +2136,22 @@ public class Controller extends Transformer implements InstructionInfoProvider {
     }
 
     /**
-     * Get diagnostic information about this context.
-     * <p>
-     * This method is intended for internal use.
+     * Indicate whether document projection should be used, and supply the PathMap used to control it.
+     * Note: this is available only under Saxon-SA.
+     * @param pathMap a path map to be used for projecting source documents
      */
 
-    public InstructionInfo getInstructionInfo() {
-        InstructionDetails details = new InstructionDetails();
-        details.setConstructType(Location.CONTROLLER);
-        return details;
+    public void setUseDocumentProjection(PathMap pathMap) {
+        this.pathMap = pathMap;
+    }
+
+    /**
+     * Get the path map used for document projection, if any.
+     * @return the path map to be used for document projection, if one has been supplied; otherwise null
+     */
+
+    public PathMap getPathMapForDocumentProjection() {
+        return pathMap;
     }
 
     /**
@@ -1906,7 +2167,7 @@ public class Controller extends Transformer implements InstructionInfoProvider {
      */
 
     public void setClassLoader(ClassLoader loader) {
-        this.classLoader = loader;
+        classLoader = loader;
     }
 
     /**

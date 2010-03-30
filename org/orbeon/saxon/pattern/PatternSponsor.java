@@ -3,14 +3,10 @@ package org.orbeon.saxon.pattern;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.SchemaType;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.type.TypeHierarchy;
+import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.BooleanValue;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 
-import java.io.PrintStream;
 import java.util.Iterator;
 
 /**
@@ -28,9 +24,14 @@ import java.util.Iterator;
  * the context node. However, it is not currently evaluated in that way.</p>
  */
 
-public class PatternSponsor implements Expression {
+public class PatternSponsor extends Expression {
 
     private Pattern pattern;
+
+    /**
+     * Create a sponsor expression for a pattern
+     * @param pattern the pattern being wrapped
+     */
 
     public PatternSponsor(Pattern pattern) {
         this.pattern = pattern;
@@ -38,6 +39,7 @@ public class PatternSponsor implements Expression {
 
     /**
      * Get the wrapped pattern
+     * @return the wrapped pattern
      */
 
     public Pattern getPattern() {
@@ -59,12 +61,13 @@ public class PatternSponsor implements Expression {
      * as a different expression). The default implementation does nothing.
      *
      * @return the simplified expression
-     * @throws org.orbeon.saxon.trans.StaticError if an error is discovered during expression
+     * @throws XPathException if an error is discovered during expression
      *                                        rewriting
+     * @param visitor an expression visitor
      */
 
-    public Expression simplify(StaticContext env) throws XPathException {
-        pattern = pattern.simplify(env);
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        pattern = pattern.simplify(visitor);
         return this;
     }
 
@@ -74,19 +77,17 @@ public class PatternSponsor implements Expression {
      * <p>This method is called after all references to functions and variables have been resolved
      * to the declaration of the function or variable, and after all type checking has been done.</p>
      *
-     * @param opt             the optimizer in use. This provides access to supporting functions; it also allows
-     *                        different optimization strategies to be used in different circumstances.
-     * @param env             the static context of the expression
+     * @param visitor an expression visitor
      * @param contextItemType the static type of "." at the point where this expression is invoked.
      *                        The parameter is set to null if it is known statically that the context item will be undefined.
      *                        If the type of the context item is not known statically, the argument is set to
      *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
      * @return the original expression, rewritten if appropriate to optimize execution
-     * @throws org.orbeon.saxon.trans.StaticError if an error is discovered during this phase
+     * @throws XPathException if an error is discovered during this phase
      *                                        (typically a type error)
      */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
         return this;
     }
 
@@ -102,7 +103,7 @@ public class PatternSponsor implements Expression {
      * to the declaration of the function or variable. However, the types of such functions and
      * variables may not be accurately known if they have not been explicitly declared.</p>
      *
-     * @param env             the static context of the expression
+     * @param visitor an expression visitor
      * @param contextItemType the static type of "." at the point where this expression is invoked.
      *                        The parameter is set to null if it is known statically that the context item will be undefined.
      *                        If the type of the context item is not known statically, the argument is set to
@@ -110,13 +111,27 @@ public class PatternSponsor implements Expression {
      * @return the original expression, rewritten to perform necessary
      *         run-time type checks, and to perform other type-related
      *         optimizations
-     * @throws org.orbeon.saxon.trans.StaticError if an error is discovered during this phase
+     * @throws XPathException if an error is discovered during this phase
      *                                        (typically a type error)
      */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        pattern = pattern.analyze(env, contextItemType);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        pattern = pattern.analyze(visitor, contextItemType);
         return this;
+    }
+
+    protected int computeCardinality() {
+        return StaticProperty.ALLOWS_ZERO_OR_MORE;
+    }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        throw new UnsupportedOperationException("copy");
     }
 
     /**
@@ -142,15 +157,13 @@ public class PatternSponsor implements Expression {
     }
 
     /**
-     * Get the static properties of this expression (other than its type). The result is
-     * bit-signficant. These properties are used for optimizations. In general, if
-     * property bit is set, it is true, but if it is unset, the value is unknown.
-     *
-     * @return a set of flags indicating static properties of this expression
+     * Treat all subexpressions as being evaluated repeatedly
+     * @param child
+     * @return
      */
 
-    public int getSpecialProperties() {
-        return 0;
+    public boolean hasLoopingSubexpression(Expression child) {
+        return true;
     }
 
     /**
@@ -181,11 +194,11 @@ public class PatternSponsor implements Expression {
      *
      * @return a value such as Type.STRING, Type.BOOLEAN, Type.NUMBER,
      *         Type.NODE, or Type.ITEM (meaning not known at compile time)
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
-        return Type.BOOLEAN_TYPE;
+        return BuiltInAtomicType.BOOLEAN;
     }
 
     /**
@@ -218,6 +231,18 @@ public class PatternSponsor implements Expression {
     }
 
     /**
+     * Replace one subexpression by a replacement subexpression
+     * @param original the original subexpression
+     * @param replacement the replacement subexpression
+     * @return true if the original subexpression is found
+     */
+
+    public boolean replaceSubExpression(Expression original, Expression replacement) {
+        return pattern.replaceSubExpression(original, replacement);
+    }
+
+
+    /**
      * Get the container that immediately contains this expression. This method
      * returns null for an outermost expression; it also return null in the case
      * of literal values. For an XPath expression occurring within an XSLT stylesheet,
@@ -227,7 +252,7 @@ public class PatternSponsor implements Expression {
      *         if there is no containing expression or if the containing expression is unknown.
      */
 
-    public Container getParentExpression() {
+    public Container getContainer() {
         return pattern;
     }
 
@@ -284,10 +309,8 @@ public class PatternSponsor implements Expression {
 
     public boolean effectiveBooleanValue(XPathContext context) throws XPathException {
         Item contextItem = context.getContextItem();
-        if (contextItem instanceof NodeInfo) {
-            return pattern.matches((NodeInfo)contextItem, context);
-        }
-        return false;
+        return contextItem instanceof NodeInfo
+                && pattern.matches((NodeInfo)contextItem, context);
     }
 
     /**
@@ -308,8 +331,8 @@ public class PatternSponsor implements Expression {
      *                            expression is not xs:string?
      */
 
-    public String evaluateAsString(XPathContext context) throws XPathException {
-        return evaluateItem(context).getStringValue();
+    public CharSequence evaluateAsString(XPathContext context) throws XPathException {
+        return evaluateItem(context).getStringValueCS();
     }
 
     /**
@@ -324,16 +347,14 @@ public class PatternSponsor implements Expression {
     }
 
     /**
-     * Diagnostic print of expression structure. The expression is written to the System.err
-     * output stream
-     *
-     * @param level indentation level for this expression
-     @param out   Output destination
-     @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "pattern " + pattern.toString());
+    public void explain(ExpressionPresenter out) {
+        out.startElement("pattern");
+        out.emitAttribute("match", pattern.toString());
+        out.endElement();
     }
 
     /**

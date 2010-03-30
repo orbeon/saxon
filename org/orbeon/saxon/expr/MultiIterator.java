@@ -10,9 +10,14 @@ public class MultiIterator implements Iterator {
     private Iterator[] array;
     private int current;
 
+    /**
+     * Create an iterator that concatenates a number of supplied iterators
+     * @param array the iterators to be concatenated
+     */
+
     public MultiIterator(Iterator[] array) {
         this.array = array;
-        this.current = 0;
+        current = 0;
     }
 
     /**

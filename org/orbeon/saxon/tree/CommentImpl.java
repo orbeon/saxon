@@ -55,6 +55,16 @@ final class CommentImpl extends NodeImpl {
         out.comment(comment, locationId, 0);
     }
 
+
+    /**
+     * Replace the string-value of this node
+     *
+     * @param stringValue the new string value
+     */
+
+    public void replaceStringValue(CharSequence stringValue) {
+        comment = stringValue.toString();
+    }
 }
 
 

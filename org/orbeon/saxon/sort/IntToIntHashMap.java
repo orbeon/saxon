@@ -9,7 +9,7 @@ import java.io.Serializable;
  * @author Dominique Devienne
  * @author Michael Kay: created this class based on IntHashMap
  */
-public class IntToIntHashMap implements Serializable {
+public class IntToIntHashMap implements Serializable, IntToIntMap {
 
     /**
      * Initializes a map with a capacity of 8 and a load factor of 0,25.
@@ -48,6 +48,8 @@ public class IntToIntHashMap implements Serializable {
 
     /**
      * Set the value to be returned to indicate an unused entry
+     * @param defaultValue the value to be returned by {@link #get(int)} if no entry
+     * exists for the supplied key
      */
     public void setDefaultValue(int defaultValue) {
         _defaultValue = defaultValue;
@@ -55,6 +57,8 @@ public class IntToIntHashMap implements Serializable {
 
     /**
      * Get the default value used to indicate an unused entry
+     * @return the value to be returned by {@link #get(int)} if no entry
+     * exists for the supplied key
      */
 
     public int getDefaultValue() {
@@ -78,14 +82,14 @@ public class IntToIntHashMap implements Serializable {
      * @return true if the key is mapped
      */
     public boolean find(int key) {
-        return _filled[indexOf(key)] ? true : false;
+        return _filled[indexOf(key)];
     }
 
     /**
      * Gets the value for this key.
      *
      * @param key Key
-     * @return the value, null if not found.
+     * @return the value, or the default value if not found.
      */
     public int get(int key) {
         int i = indexOf(key);
@@ -149,6 +153,15 @@ public class IntToIntHashMap implements Serializable {
         }
     }
 
+    /**
+     * Get an iterator over the integer key values held in the hash map
+     * @return an iterator whose next() call returns the key values (in arbitrary order)
+     */
+
+    public IntIterator keyIterator() {
+        return new IntToIntHashMapKeyIterator();
+    }
+
 
     ///////////////////////////////////////////////////////////////////////////
     // private
@@ -203,7 +216,7 @@ public class IntToIntHashMap implements Serializable {
         double factor = (_factor < 0.01) ? 0.01 : (_factor > 0.99) ? 0.99 : _factor;
         int nbit, nmax;
         for (nbit = 1, nmax = 2; nmax * factor < capacity && nmax < NMAX; ++nbit, nmax *= 2) {
-            ;
+            // no-op
         }
         int nold = _nmax;
         if (nmax == nold) {
@@ -228,6 +241,34 @@ public class IntToIntHashMap implements Serializable {
                     put(key[i], value[i]);
                 }
             }
+        }
+    }
+
+     /**
+     * Iterator over keys
+     */
+    private class IntToIntHashMapKeyIterator implements IntIterator, Serializable {
+
+        private int i = 0;
+        private static final long serialVersionUID = -5978261613309710617L;
+
+        public IntToIntHashMapKeyIterator() {
+            i = 0;
+        }
+
+        public boolean hasNext() {
+            while (i < _key.length) {
+                if (_filled[i]) {
+                    return true;
+                } else {
+                    i++;
+                }
+            }
+            return false;
+        }
+
+        public int next() {
+            return _key[i++];
         }
     }
 

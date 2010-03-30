@@ -14,26 +14,21 @@ import org.orbeon.saxon.value.StringValue;
 
 public class StringJoin extends SystemFunction {
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        Expression exp = super.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression exp = super.optimize(visitor, contextItemType);
         if (exp instanceof StringJoin) {
-            return ((StringJoin)exp).simplifySingleton(env);
+            return ((StringJoin)exp).simplifySingleton();
         } else {
             return exp;
         }
     }
 
-    private Expression simplifySingleton(StaticContext env) {
+    private Expression simplifySingleton() {
         int card = argument[0].getCardinality();
         if (!Cardinality.allowsMany(card)) {
             if (Cardinality.allowsZero(card)) {
-                FunctionCall f = SystemFunction.makeSystemFunction("string", 1, env.getNamePool());
-                Expression[] args = {argument[0]};
-                f.setArguments(args);
-                f.setParentExpression(getParentExpression());
-                return f;
+                return SystemFunction.makeSystemFunction("string", new Expression[]{argument[0]});
             } else {
-                ComputedExpression.setParentExpression(argument[0], getParentExpression());
                 return argument[0];
             }
         }
@@ -51,7 +46,7 @@ public class StringJoin extends SystemFunction {
             return StringValue.EMPTY_STRING;
         }
 
-        String first = it.getStringValue();
+        CharSequence first = it.getStringValueCS();
 
         it = iter.next();
         if (it==null) {
@@ -75,6 +70,8 @@ public class StringJoin extends SystemFunction {
             sb.append(it.getStringValueCS());
         }
     }
+
+    // TODO: allow the output of string-join to be streamed to the serializer
 
 }
 

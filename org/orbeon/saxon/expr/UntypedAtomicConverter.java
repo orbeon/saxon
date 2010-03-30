@@ -1,11 +1,11 @@
 package org.orbeon.saxon.expr;
 
 import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.pattern.NodeTest;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.*;
 
@@ -18,6 +18,7 @@ public final class UntypedAtomicConverter extends UnaryExpression {
 
     private AtomicType requiredItemType;
     private boolean allConverted;
+    private boolean singleton = false;
 
     /**
      * Constructor
@@ -38,12 +39,32 @@ public final class UntypedAtomicConverter extends UnaryExpression {
     }
 
     /**
+     * Get the item type to which untyped atomic items must be converted
+     * @return the required item type
+     */
+
+    public ItemType getRequiredItemType() {
+        return requiredItemType;
+    }
+
+    /**
+     * Determine whether all items are to be converted, or only the subset that are untypedAtomic
+     * @return true if all items are to be converted
+     */
+
+    public boolean areAllItemsConverted() {
+        return allConverted;
+    }
+
+    /**
      * Determine the data type of the items returned by the expression
      *
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
+        ItemType it = operand.getItemType(th);
+        singleton = it.isAtomicType() && !Cardinality.allowsMany(operand.getCardinality());
         if (allConverted) {
             return requiredItemType;
         } else {
@@ -51,36 +72,52 @@ public final class UntypedAtomicConverter extends UnaryExpression {
         }
     }
 
+    public int computeCardinality() {
+        if (singleton) {
+            return StaticProperty.ALLOWS_ZERO_OR_ONE;
+        } else {
+            return super.computeCardinality();
+        }
+    }
+
     /**
      * Type-check the expression
      */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
         if (allConverted && requiredItemType.isNamespaceSensitive()) {
-            StaticError err = new StaticError("Cannot convert untypedAtomic values to QNames or NOTATIONs");
+            XPathException err = new XPathException("Cannot convert untypedAtomic values to QNames or NOTATIONs");
             err.setErrorCode("XPTY0004");
             err.setIsTypeError(true);
             err.setLocator(this);
             throw err;
         }
-        operand = operand.typeCheck(env, contextItemType);
-        if (operand instanceof Value) {
-            return ((Value)SequenceExtent.makeSequenceExtent(iterate(env.makeEarlyEvaluationContext()))).reduce();
+        operand = visitor.typeCheck(operand, contextItemType);
+        if (operand instanceof Literal) {
+            return Literal.makeLiteral(
+                    ((Value)SequenceExtent.makeSequenceExtent(
+                            iterate(visitor.getStaticContext().makeEarlyEvaluationContext()))).reduce());
         }
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
         ItemType type = operand.getItemType(th);
         if (type instanceof NodeTest) {
             return this;
         }
-        if (type == Type.ANY_ATOMIC_TYPE || type instanceof AnyItemType ||
-                type == Type.UNTYPED_ATOMIC_TYPE) {
+        if (type.equals(BuiltInAtomicType.ANY_ATOMIC) || type instanceof AnyItemType ||
+                type.equals(BuiltInAtomicType.UNTYPED_ATOMIC)) {
             return this;
         }
         // the sequence can't contain any untyped atomic values, so there's no need for a converter
-        ComputedExpression.setParentExpression(operand, getParentExpression());
         return operand;
     }
 
+//    public Expression promote(PromotionOffer offer) throws XPathException {
+//        // Don't try to loop-lift an UntypedAtomicConverter. This is because the type-checking on the
+//        // resulting variable is not good enough to prevent a new UntypedAtomicConverter being added, ad infinitum.
+//        // Bug 1930319
+//        operand = doPromotion(operand, offer);
+//        return this;
+//    }
 
     /**
      * Determine the special properties of this expression
@@ -90,7 +127,17 @@ public final class UntypedAtomicConverter extends UnaryExpression {
 
     public int computeSpecialProperties() {
         int p = super.computeSpecialProperties();
-        return p | StaticProperty.NON_CREATIVE;
+        return p | StaticProperty.NON_CREATIVE | StaticProperty.NOT_UNTYPED;
+    }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new UntypedAtomicConverter(getBaseExpression().copy(), requiredItemType, allConverted);
     }
 
     /**
@@ -102,15 +149,13 @@ public final class UntypedAtomicConverter extends UnaryExpression {
         ItemMappingFunction converter = new ItemMappingFunction() {
             public Item map(Item item) throws XPathException {
                 if (item instanceof UntypedAtomicValue) {
-                    AtomicValue val = ((UntypedAtomicValue)item).convert(requiredItemType, context, true);
-                    if (val instanceof ValidationErrorValue) {
-                        ValidationException vex = ((ValidationErrorValue)val).getException();
-                        if (vex.getLineNumber() == -1) {
-                            vex.setLocator(ExpressionTool.getLocator(UntypedAtomicConverter.this));
-                        }
-                        throw vex;
+                    ConversionResult val = ((UntypedAtomicValue)item).convert(requiredItemType, true, context);
+                    if (val instanceof ValidationFailure) {
+                        ValidationFailure vex = (ValidationFailure)val;
+                        vex.setLocator(UntypedAtomicConverter.this);
+                        throw vex.makeException();
                     }
-                    return val;
+                    return (AtomicValue)val;
                 } else {
                     return item;
                 }
@@ -118,6 +163,7 @@ public final class UntypedAtomicConverter extends UnaryExpression {
         };
         return new ItemMappingIterator(base, converter);
     }
+
 
     /**
      * Evaluate as an Item. This should only be called if the UntypedAtomicConverter has cardinality zero-or-one
@@ -129,46 +175,31 @@ public final class UntypedAtomicConverter extends UnaryExpression {
             return null;
         }
         if (item instanceof UntypedAtomicValue) {
-            try {
-                AtomicValue val = ((UntypedAtomicValue)item).convert(requiredItemType, context, true);
-                if (val instanceof ValidationErrorValue) {
-                    throw ((ValidationErrorValue)val).getException();
-                }
-                return val;
-            } catch (XPathException e) {
-                if (e.getLocator() == null) {
-                    e.setLocator(this);
-                }
-                throw e;
+            ConversionResult val = ((UntypedAtomicValue)item).convert(requiredItemType, true, context);
+            if (val instanceof ValidationFailure) {
+                ValidationFailure err = (ValidationFailure)val;
+                err.setLocator(this);
+                throw err.makeException();
+            } else {
+                return (AtomicValue)val;
             }
         } else {
             return item;
         }
     }
 
-    /**
-     * Implement the mapping function
+     /**
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-//    public Object map(Item item) throws XPathException {
-//        if (item instanceof UntypedAtomicValue) {
-//            Value val = ((UntypedAtomicValue)item).convert(requiredItemType, context, true);
-//            if (val instanceof ValidationErrorValue) {
-//                throw ((ValidationErrorValue)val).getException();
-//            }
-//            return val;
-//        } else {
-//            return item;
-//        }
-//    }
-
-    /**
-     * Give a string representation of the operator for use in diagnostics
-     *
-     * @param config
-     * @return the operator, as a string
-     */
-
+    public void explain(ExpressionPresenter out) {
+        out.startElement("convertUntypedAtomic");
+        out.emitAttribute("to", requiredItemType.toString(out.getConfiguration().getNamePool()));
+        out.emitAttribute("all", allConverted ? "true" : "false");
+        operand.explain(out);
+        out.endElement();
+    }
     protected String displayOperator(Configuration config) {
         return "convert untyped atomic items to " + requiredItemType.toString(config.getNamePool());
     }

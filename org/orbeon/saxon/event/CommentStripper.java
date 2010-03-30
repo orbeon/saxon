@@ -2,6 +2,7 @@ package org.orbeon.saxon.event;
 
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.om.FastStringBuffer;
+import org.orbeon.saxon.tinytree.CompressedWhitespace;
 
 /**
   * The CommentStripper class is a filter that removes all comments and processing instructions.
@@ -13,6 +14,7 @@ import org.orbeon.saxon.om.FastStringBuffer;
 
 public class CommentStripper extends ProxyReceiver {
 
+    private CompressedWhitespace savedWhitespace = null;
     private FastStringBuffer buffer = new FastStringBuffer(200);
 
     /**
@@ -20,7 +22,7 @@ public class CommentStripper extends ProxyReceiver {
     */
 
     public CommentStripper() {}
-
+    static int seq = 0;
 
     public void startElement (int nameCode, int typeCode, int locationId, int properties)
     throws XPathException {
@@ -38,11 +40,28 @@ public class CommentStripper extends ProxyReceiver {
     }
 
     /**
-    * Callback interface for SAX: not for application use
+     * Handle a text node. Because we're often handling stylesheets on this path, whitespace text
+     * nodes will often be stripped but we can't strip them immediately because of the case
+     * [element]   [!-- comment --]text[/element], where the space before the comment is considered
+     * significant. But it's worth going to some effort to avoid uncompressing the whitespace in the
+     * more common case, so that it can easily be detected and stripped downstream.
     */
 
     public void characters (CharSequence chars, int locationId, int properties) throws XPathException {
-        buffer.append(chars);
+        if (chars instanceof CompressedWhitespace) {
+            if (buffer.length() == 0 && savedWhitespace == null) {
+                savedWhitespace = (CompressedWhitespace)chars;
+            } else {
+                ((CompressedWhitespace)chars).uncompress(buffer);
+            }
+        } else {
+            if (savedWhitespace != null) {
+                savedWhitespace.uncompress(buffer);
+                savedWhitespace = null;
+            }
+            buffer.append(chars);
+        }
+
     }
 
     /**
@@ -64,8 +83,11 @@ public class CommentStripper extends ProxyReceiver {
     private void flush() throws XPathException {
         if (buffer.length() > 0) {
             nextReceiver.characters(buffer, 0, 0);
-            buffer.setLength(0);
+        } else if (savedWhitespace != null) {
+            nextReceiver.characters(savedWhitespace, 0, 0);
         }
+        savedWhitespace = null;
+        buffer.setLength(0);
     }
 
 }

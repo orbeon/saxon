@@ -1,10 +1,13 @@
 package org.orbeon.saxon.style;
+
 import org.orbeon.saxon.event.SaxonOutputKeys;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.instruct.ResultDocument;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trans.SaxonErrorCode;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.value.Whitespace;
 
 import javax.xml.transform.OutputKeys;
 import java.util.HashMap;
@@ -18,7 +21,7 @@ import java.util.StringTokenizer;
 
 public class XSLOutput extends StyleElement {
 
-    private int fingerprint = -1;
+    private StructuredQName outputFormatName;
     private String method = null;
     private String version = null;
     private String indent = null;
@@ -31,6 +34,8 @@ public class XSLOutput extends StyleElement {
     private String cdataElements = null;
     private String includeContentType = null;
     private String nextInChain = null;
+    private String suppressIndentation = null;
+    private String doubleSpace = null;
     private String representation = null;
     private String indentSpaces = null;
     private String byteOrderMark = null;
@@ -50,48 +55,52 @@ public class XSLOutput extends StyleElement {
         for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-			if (f==StandardNames.NAME) {
-        		nameAtt = atts.getValue(a).trim();
-			} else if (f==StandardNames.METHOD) {
-        		method = atts.getValue(a).trim();
-        	} else if (f==StandardNames.VERSION) {
-        		version = atts.getValue(a).trim();
-        	} else if (f==StandardNames.BYTE_ORDER_MARK) {
-                byteOrderMark = atts.getValue(a).trim();
-            } else if (f==StandardNames.ENCODING) {
-        		encoding = atts.getValue(a).trim();
-        	} else if (f==StandardNames.OMIT_XML_DECLARATION) {
-        		omitDeclaration = atts.getValue(a).trim();
-        	} else if (f==StandardNames.STANDALONE) {
-        		standalone = atts.getValue(a).trim();
-        	} else if (f==StandardNames.DOCTYPE_PUBLIC) {
-        		doctypePublic = atts.getValue(a).trim();
-        	} else if (f==StandardNames.DOCTYPE_SYSTEM) {
-        		doctypeSystem = atts.getValue(a).trim();
-        	} else if (f==StandardNames.CDATA_SECTION_ELEMENTS) {
+			if (f.equals(StandardNames.NAME)) {
+        		nameAtt = Whitespace.trim(atts.getValue(a));
+			} else if (f.equals(StandardNames.METHOD)) {
+        		method = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.VERSION)) {
+        		version = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.BYTE_ORDER_MARK)) {
+                byteOrderMark = Whitespace.trim(atts.getValue(a));
+            } else if (f.equals(StandardNames.ENCODING)) {
+        		encoding = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.OMIT_XML_DECLARATION)) {
+        		omitDeclaration = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.STANDALONE)) {
+        		standalone = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.DOCTYPE_PUBLIC)) {
+        		doctypePublic = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.DOCTYPE_SYSTEM)) {
+        		doctypeSystem = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.CDATA_SECTION_ELEMENTS)) {
         		cdataElements = atts.getValue(a);
-        	} else if (f==StandardNames.INDENT) {
-        		indent = atts.getValue(a).trim();
-        	} else if (f==StandardNames.MEDIA_TYPE) {
-        		mediaType = atts.getValue(a).trim();
-        	} else if (f==StandardNames.INCLUDE_CONTENT_TYPE) {
-        		includeContentType = atts.getValue(a).trim();
-        	} else if (f==StandardNames.NORMALIZATION_FORM) {
-        		normalizationForm = atts.getValue(a).trim();
-        	} else if (f==StandardNames.ESCAPE_URI_ATTRIBUTES) {
-        		escapeURIAttributes = atts.getValue(a).trim();
-            } else if (f==StandardNames.USE_CHARACTER_MAPS) {
+        	} else if (f.equals(StandardNames.INDENT)) {
+        		indent = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.MEDIA_TYPE)) {
+        		mediaType = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.INCLUDE_CONTENT_TYPE)) {
+        		includeContentType = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.NORMALIZATION_FORM)) {
+        		normalizationForm = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.ESCAPE_URI_ATTRIBUTES)) {
+        		escapeURIAttributes = Whitespace.trim(atts.getValue(a));
+            } else if (f.equals(StandardNames.USE_CHARACTER_MAPS)) {
         		useCharacterMaps = atts.getValue(a);
-            } else if (f==StandardNames.UNDECLARE_PREFIXES) {
+            } else if (f.equals(StandardNames.UNDECLARE_PREFIXES)) {
         		undeclareNamespaces = atts.getValue(a);
-            } else if (f==StandardNames.SAXON_CHARACTER_REPRESENTATION) {
-        		representation = atts.getValue(a).trim();
-        	} else if (f==StandardNames.SAXON_INDENT_SPACES) {
-        		indentSpaces = atts.getValue(a).trim();
-        	} else if (f==StandardNames.SAXON_NEXT_IN_CHAIN) {
-        		nextInChain = atts.getValue(a).trim();
-            } else if (f==StandardNames.SAXON_REQUIRE_WELL_FORMED) {
-                requireWellFormed = atts.getValue(a).trim();
+            } else if (f.equals(StandardNames.SAXON_CHARACTER_REPRESENTATION)) {
+        		representation = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.SAXON_INDENT_SPACES)) {
+        		indentSpaces = Whitespace.trim(atts.getValue(a));
+       	    } else if (f.equals(StandardNames.SAXON_SUPPRESS_INDENTATION)) {
+        		suppressIndentation = Whitespace.trim(atts.getValue(a));
+            } else if (f.equals(StandardNames.SAXON_DOUBLE_SPACE)) {
+        		doubleSpace = Whitespace.trim(atts.getValue(a));
+            } else if (f.equals(StandardNames.SAXON_NEXT_IN_CHAIN)) {
+        		nextInChain = Whitespace.trim(atts.getValue(a));
+            } else if (f.equals(StandardNames.SAXON_REQUIRE_WELL_FORMED)) {
+                requireWellFormed = Whitespace.trim(atts.getValue(a));
         	} else {
         	    String attributeURI = getNamePool().getURI(nc);
         	    if ("".equals(attributeURI) ||
@@ -109,7 +118,7 @@ public class XSLOutput extends StyleElement {
         }
         if (nameAtt!=null) {
             try {
-                fingerprint = makeNameCode(nameAtt.trim()) & 0xfffff;
+                outputFormatName = makeQName(nameAtt);
             } catch (NamespaceException err) {
                 compileError(err.getMessage(), "XTSE1570");
             } catch (XPathException err) {
@@ -120,11 +129,11 @@ public class XSLOutput extends StyleElement {
 
     /**
      * Get the name of the xsl:output declaration
-     * @return the name, as a namepool fingerprint; or -1 for an unnamed output declaration
+     * @return the name, as a structured QName; or null for an unnamed output declaration
      */
 
-    public int getOutputFingerprint() {
-        return fingerprint;
+    public StructuredQName getFormatQName() {
+        return outputFormatName;
     }
 
     public void validate() throws XPathException {
@@ -138,8 +147,12 @@ public class XSLOutput extends StyleElement {
 
 
     /**
-    * Validate the properties,
-    * and return the values as additions to a supplied Properties object.
+     * Validate the properties,
+     * and return the values as additions to a supplied Properties object.
+     * @param details the Properties object to be populated with property values
+     * @param precedences a HashMap to be populated with information about the precedence
+     * of the property values: the key is the property name as a Clark name, the value
+     * is a boxed integer giving the property's import precedence
     */
 
     protected void gatherOutputProperties(Properties details, HashMap precedences)
@@ -155,7 +168,7 @@ public class XSLOutput extends StyleElement {
                 try {
                     parts = getConfiguration().getNameChecker().getQNameParts(method);
                     String prefix = parts[0];
-                    if (prefix.equals("")) {
+                    if (prefix.length() == 0) {
                         compileError("method must be xml, html, xhtml, or text, or a prefixed name", "XTSE1570");
                     } else {
                         String uri = getURIForPrefix(prefix, false);
@@ -197,7 +210,7 @@ public class XSLOutput extends StyleElement {
         if (indentSpaces != null) {
             try {
                 Integer.parseInt(indentSpaces);
-                details.put(OutputKeys.INDENT, "yes");
+                details.setProperty(OutputKeys.INDENT, "yes");
                 checkAndPut(SaxonOutputKeys.INDENT_SPACES, indentSpaces, details, precedences);
                 //details.put(SaxonOutputKeys.INDENT_SPACES, indentSpaces);
             } catch (NumberFormatException err) {
@@ -206,30 +219,45 @@ public class XSLOutput extends StyleElement {
             }
         }
 
+        if (suppressIndentation != null) {
+            String existing = details.getProperty(SaxonOutputKeys.SUPPRESS_INDENTATION);
+            if (existing==null) {
+                existing = "";
+            }
+            String s = ResultDocument.parseListOfElementNames(
+                    suppressIndentation, this, false, getConfiguration().getNameChecker(), "XTSE0280");
+            details.setProperty(SaxonOutputKeys.SUPPRESS_INDENTATION, existing+s);
+        }
+
+        if (doubleSpace != null) {
+            String existing = details.getProperty(SaxonOutputKeys.DOUBLE_SPACE);
+            if (existing==null) {
+                existing = "";
+            }
+            String s = ResultDocument.parseListOfElementNames(
+                    doubleSpace, this, false, getConfiguration().getNameChecker(), "XTSE0280");
+            details.setProperty(SaxonOutputKeys.DOUBLE_SPACE, existing+s);
+        }
+
         if (encoding != null) {
             checkAndPut(OutputKeys.ENCODING, encoding, details, precedences);
-            //details.put(OutputKeys.ENCODING, encoding);
         }
 
         if (mediaType != null) {
             checkAndPut(OutputKeys.MEDIA_TYPE, mediaType, details, precedences);
-            //details.put(OutputKeys.MEDIA_TYPE, mediaType);
         }
 
         if (doctypeSystem != null) {
             checkAndPut(OutputKeys.DOCTYPE_SYSTEM, doctypeSystem, details, precedences);
-            //details.put(OutputKeys.DOCTYPE_SYSTEM, doctypeSystem);
         }
 
         if (doctypePublic != null) {
             checkAndPut(OutputKeys.DOCTYPE_PUBLIC, doctypePublic, details, precedences);
-            //details.put(OutputKeys.DOCTYPE_PUBLIC, doctypePublic);
         }
 
         if (omitDeclaration != null) {
             if (omitDeclaration.equals("yes") || omitDeclaration.equals("no")) {
                 checkAndPut(OutputKeys.OMIT_XML_DECLARATION, omitDeclaration, details, precedences);
-                //details.put(OutputKeys.OMIT_XML_DECLARATION, omitDeclaration);
             } else {
                 compileError("omit-xml-declaration attribute must be 'yes' or 'no'", "XTSE0020");
             }
@@ -238,7 +266,6 @@ public class XSLOutput extends StyleElement {
         if (standalone != null) {
             if (standalone.equals("yes") || standalone.equals("no") || standalone.equals("omit")) {
                 checkAndPut(OutputKeys.STANDALONE, standalone, details, precedences);
-                //details.put(OutputKeys.STANDALONE, standalone);
             } else {
                 compileError("standalone attribute must be 'yes' or 'no' or 'omit'", "XTSE0020");
             }
@@ -249,30 +276,16 @@ public class XSLOutput extends StyleElement {
             if (existing==null) {
                 existing = "";
             }
-            String s = "";
-            StringTokenizer st = new StringTokenizer(cdataElements);
-            while (st.hasMoreTokens()) {
-                String displayname = st.nextToken();
-                try {
-                    String[] parts = getConfiguration().getNameChecker().getQNameParts(displayname);
-                    String uri = getURIForPrefix(parts[0], true);
-                    if (uri == null) {
-                        undeclaredNamespaceError(parts[0], "XTSE0280");
-                    }
-                    s += " {" + uri + '}' + parts[1];
-                } catch (QNameException err) {
-                    compileError("Invalid CDATA element name. " + err.getMessage(), "XTSE0280");
-                }
-
-                details.put(OutputKeys.CDATA_SECTION_ELEMENTS, existing+s);
-            }
+            String s = ResultDocument.parseListOfElementNames(
+                    cdataElements, this, false, getConfiguration().getNameChecker(), "XTSE0280");
+            details.setProperty(OutputKeys.CDATA_SECTION_ELEMENTS, existing+s);
         }
 
         if (normalizationForm != null && !normalizationForm.equals("none")) {
             // At this stage we check only that the normalization-form is syntactically valid,
             // not that it is one of the supported values. The latter check is done only if we
             // are actually serializing.
-            if (XML11Char.isXML11ValidNmtoken(normalizationForm)) {
+            if (Name11Checker.getInstance().isValidNmtoken(normalizationForm)) {
 //            if (normalizationForm.equals("NFC") || normalizationForm.equals("NFD") ||
 //                   normalizationForm.equals("NFKC") || normalizationForm.equals("NFKD") ) {
                 checkAndPut(SaxonOutputKeys.NORMALIZATION_FORM, normalizationForm, details, precedences);
@@ -292,7 +305,7 @@ public class XSLOutput extends StyleElement {
 
         if (useCharacterMaps != null) {
             String s = prepareCharacterMaps(this, useCharacterMaps, details);
-            details.put(SaxonOutputKeys.USE_CHARACTER_MAPS, s);
+            details.setProperty(SaxonOutputKeys.USE_CHARACTER_MAPS, s);
         }
 
         if (representation != null) {
@@ -342,7 +355,7 @@ public class XSLOutput extends StyleElement {
             while (iter.hasNext()) {
                 String attName = (String)iter.next();
                 String data = (String)userAttributes.get(attName);
-                details.put(attName, data);
+                details.setProperty(attName, data);
             }
         }
 
@@ -351,6 +364,10 @@ public class XSLOutput extends StyleElement {
     /**
      * Add an output property to the list of properties after checking that it is consistent
      * with other properties
+     * @param property the name of the property
+     * @param value the value of the ptoperty
+     * @param props the list of properties to be updated
+     * @param precedences the import precedence of each property
      */
 
     public void checkAndPut(String property, String value, Properties props, HashMap precedences)
@@ -378,6 +395,8 @@ public class XSLOutput extends StyleElement {
 
     /**
      * Process the use-character-maps attribute
+     * @param element the stylesheet element on which the use-character-maps attribute appears
+     * @param useCharacterMaps the value of the use-character-maps attribute
      * @param details The existing output properties
      * @return the augmented value of the use-character-maps attribute in Clark notation
      * @throws XPathException if the value is invalid
@@ -392,26 +411,19 @@ public class XSLOutput extends StyleElement {
             existing = "";
         }
         String s = "";
-        StringTokenizer st = new StringTokenizer(useCharacterMaps);
+        StringTokenizer st = new StringTokenizer(useCharacterMaps, " \t\n\r", false);
         while (st.hasMoreTokens()) {
             String displayname = st.nextToken();
             try {
-                String[] parts = element.getConfiguration().getNameChecker().getQNameParts(displayname);
-                String uri = element.getURIForPrefix(parts[0], false);
-                if (uri == null) {
-                    element.undeclaredNamespaceError(parts[0], "XTSE0280");
-                }
-                int nameCode = element.getTargetNamePool().allocate(parts[0], uri, parts[1]);
-                XSLCharacterMap ref =
-                        principal.getCharacterMap(nameCode & 0xfffff);
+                StructuredQName qName = element.makeQName(displayname);
+                XSLCharacterMap ref = principal.getCharacterMap(qName);
                 if (ref == null) {
                     element.compileError("No character-map named '" + displayname + "' has been defined", "XTSE1590");
                 }
-                s += " {" + uri + '}' + parts[1];
-            } catch (QNameException err) {
-                element.compileError("Invalid character-map name. " + err.getMessage(), "XTSE1590");
+                s += " " + qName.getClarkName();
+            } catch (NamespaceException err) {
+                element.undeclaredNamespaceError(err.getPrefix(), "XTSE0280");
             }
-
         }
         existing = s + existing;
         return existing;

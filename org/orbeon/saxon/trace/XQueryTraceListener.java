@@ -1,6 +1,7 @@
 package org.orbeon.saxon.trace;
 
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.om.StandardNames;
 
 /**
  * A Simple trace listener for XQuery that writes messages (by default) to System.err

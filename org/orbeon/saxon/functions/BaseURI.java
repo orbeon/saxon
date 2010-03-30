@@ -1,6 +1,6 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.ExpressionVisitor;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
@@ -16,11 +16,12 @@ public class BaseURI extends SystemFunction {
     /**
     * Simplify and validate.
     * This is a pure function so it can be simplified in advance if the arguments are known
-    */
+     * @param visitor an expression visitor
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
         useContextItemAsDefault();
-        return simplifyArguments(env);
+        return simplifyArguments(visitor);
     }
 
     /**

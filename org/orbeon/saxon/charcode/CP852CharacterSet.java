@@ -129,21 +129,37 @@ public class CP852CharacterSet implements CharacterSet {
     }
 }
 
-/*
-(C) Z. Wagner -- Ice Bear Soft, 11 Oct 2001
-http://icebearsoft.euweb.cz
+//
+// The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");
+// you may not use this file except in compliance with the License. You may obtain a copy of the
+// License at http://www.mozilla.org/MPL/
+//
+// Software distributed under the License is distributed on an "AS IS" basis,
+// WITHOUT WARRANTY OF ANY KIND, either express or implied.
+// See the License for the specific language governing rights and limitations under the License.
+//
+// The Original Code is: all this file.
+//
+// The Initial Developer of the Original Code is Zdenek Wagner [zdenek.wagner@gmail.com].
+//
+// Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
+//
+// Contributor(s): none.
+//
 
-This package is free software. Its use and distribution should follow
-the Library General Public Licence (see http://www.gnu.org). Since this licence
-is void in the Czech Republic, the users may opt to use a modified version
-available from http://www.zastudena.cz
+/**
 
-The character mapping was obtained by conversion a character table of all non-US characters from
-CP852 into UNICODE entities using a simple stylesheet and saxon with the following attribute in
-xsl:output
+ Originally contributed in 2001.
 
-saxon:character-representation="dec;dec"
+ In releases prior to Saxon 9.0, this code was present under a different license. It has been
+ recontributed under the Mozilla license by the original author on 2007-10-21.
 
-The class was tested by reverse conversion of the generated table to native representation as well
-as by transformation of several texts which use Czech and Slovak accented characters.
+ The character mapping was obtained by conversion a character table of all non-US characters from
+ CP852 into UNICODE entities using a simple stylesheet and saxon with the following attribute in
+ xsl:output
+
+ saxon:character-representation="dec;dec"
+
+ The class was tested by reverse conversion of the generated table to native representation as well
+ as by transformation of several texts which use Czech and Slovak accented characters.
 */

@@ -151,12 +151,14 @@ public interface PullProvider {
     /**
      * Set configuration information. This must only be called before any events
      * have been read.
+     * @param pipe the pipeline configuration
      */
 
     public void setPipelineConfiguration(PipelineConfiguration pipe);
 
     /**
      * Get configuration information.
+     * @return the pipeline configuration
      */
 
     public PipelineConfiguration getPipelineConfiguration();
@@ -212,7 +214,9 @@ public interface PullProvider {
      *
      * <p>Namespaces may be read before or after reading the attributes of an element,
      * but must not be read after the first child node has been read, or after calling
-     * one of the methods skipToMatchingEnd(), getStringValue(), or getTypedValue().</p>*
+     * one of the methods skipToMatchingEnd(), getStringValue(), or getTypedValue().</p>
+     *
+     * @return the namespace declarations associated with the current START_ELEMENT event.
      */
 
     public NamespaceDeclarations getNamespaceDeclarations() throws XPathException;
@@ -222,6 +226,7 @@ public interface PullProvider {
      * a START_DOCUMENT or START_ELEMENT event. This call returns the matching
      * END_DOCUMENT or END_ELEMENT event; the next call on next() will return
      * the event following the END_DOCUMENT or END_ELEMENT.
+     * @return the matching END_DOCUMENT or END_ELEMENT event
      * @throws IllegalStateException if the method is called at any time other than
      * immediately after a START_DOCUMENT or START_ELEMENT event.
      */
@@ -302,6 +307,7 @@ public interface PullProvider {
      * Get an atomic value. This call may be used only when the last event reported was
      * ATOMIC_VALUE. This indicates that the PullProvider is reading a sequence that contains
      * a free-standing atomic value; it is never used when reading the content of a node.
+     * @return the atomic value
      */
 
     public AtomicValue getAtomicValue();
@@ -312,6 +318,8 @@ public interface PullProvider {
      * should identify the location in the lexical XML source. For a constructed document, it should
      * identify the location in the query or stylesheet that caused the node to be created.
      * A value of null can be returned if no location information is available.
+     * @return the SourceLocator giving the location of the current event, or null if
+     * no location information is available
      */
 
     public SourceLocator getSourceLocator();

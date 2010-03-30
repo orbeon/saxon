@@ -1,18 +1,33 @@
 package org.orbeon.saxon.sort;
 
-import org.orbeon.saxon.value.CalendarValue;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.trans.NoDynamicContextException;
 import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.value.CalendarValue;
 
 /**
  * A comparer specifically for comparing two date, time, or dateTime values
  */
 public class CalendarValueComparer implements AtomicComparer {
 
-    private Configuration config;
+    private XPathContext context;
 
-    public CalendarValueComparer(Configuration config) {
-        this.config = config;
+    public CalendarValueComparer(XPathContext context) {
+        this.context = context;
+    }
+
+    /**
+     * Supply the dynamic context in case this is needed for the comparison
+     *
+     * @param context the dynamic evaluation context
+     * @return either the original AtomicComparer, or a new AtomicComparer in which the context
+     *         is known. The original AtomicComparer is not modified
+     * @throws org.orbeon.saxon.trans.NoDynamicContextException
+     *          if the context is an "early evaluation" (compile-time) context
+     */
+
+    public AtomicComparer provideContext(XPathContext context) {
+        return new CalendarValueComparer(context);
     }
 
     /**
@@ -30,8 +45,13 @@ public class CalendarValueComparer implements AtomicComparer {
      * @throws ClassCastException if the objects are not comparable
      */
 
-    public int compare(Object a, Object b) {
-        return ((CalendarValue)a).compareTo((CalendarValue)b, config);
+    public int compareAtomicValues(AtomicValue a, AtomicValue b) throws NoDynamicContextException {
+        if (a == null) {
+            return (b == null ? 0 : -1);
+        } else if (b == null) {
+            return +1;
+        }
+        return ((CalendarValue)a).compareTo((CalendarValue)b, context);
     }
 
     /**
@@ -47,8 +67,8 @@ public class CalendarValueComparer implements AtomicComparer {
      * @throws ClassCastException if the objects are not comparable
      */
 
-    public boolean comparesEqual(AtomicValue a, AtomicValue b) {
-        return compare(a, b) == 0;
+    public boolean comparesEqual(AtomicValue a, AtomicValue b) throws NoDynamicContextException {
+        return compareAtomicValues(a, b) == 0;
     }
 
     /**
@@ -57,8 +77,8 @@ public class CalendarValueComparer implements AtomicComparer {
      * comparison keys should reflect the ordering of the underlying objects.
      */
 
-    public ComparisonKey getComparisonKey(AtomicValue a) {
-        return ((CalendarValue)a).getComparisonKey(config);
+    public ComparisonKey getComparisonKey(AtomicValue a) throws NoDynamicContextException {
+        return ((CalendarValue)a).getComparisonKey(context);
     }
 }
 

@@ -1,8 +1,9 @@
 package org.orbeon.saxon.om;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.event.Stripper;
+import org.orbeon.saxon.pattern.NodeKindTest;
+
+import java.util.Iterator;
 
 /**
   * A StrippedDocument represents a view of a real Document in which selected
@@ -15,9 +16,9 @@ public class StrippedDocument extends StrippedNode implements DocumentInfo {
     private boolean preservesSpace;
 
     public StrippedDocument(DocumentInfo doc, Stripper stripper) {
-        this.node = doc;
-        this.parent = null;
-        this.docWrapper = this;
+        node = doc;
+        parent = null;
+        docWrapper = this;
         this.stripper = stripper;
         preservesSpace = findPreserveSpace(doc);
     }
@@ -75,6 +76,17 @@ public class StrippedDocument extends StrippedNode implements DocumentInfo {
         } else {
             return makeWrapper(n, this, null);
         }
+    }
+
+    /**
+     * Get the list of unparsed entities defined in this document
+     * @return an Iterator, whose items are of type String, containing the names of all
+     *         unparsed entities defined in this document. If there are no unparsed entities or if the
+     *         information is not available then an empty iterator is returned
+     */
+
+    public Iterator getUnparsedEntityNames() {
+        return ((DocumentInfo)node).getUnparsedEntityNames();
     }
 
     /**

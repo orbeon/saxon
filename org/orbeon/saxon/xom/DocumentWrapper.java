@@ -11,6 +11,8 @@ import nu.xom.Element;
 import nu.xom.Node;
 
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Collections;
 
 /**
  * The root node of an XPath tree. (Or equivalently, the tree itself).
@@ -48,7 +50,7 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
 		if (root.getParent() != null)
 			throw new IllegalArgumentException("root node must not have a parent node");
 		this.baseURI = baseURI;
-		this.docWrapper = this;
+        docWrapper = this;
 		setConfiguration(config);
 	}
 
@@ -76,13 +78,12 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
 	 * call NamePool.allocateDocumentNumber(), and return the relevant document
 	 * number when getDocumentNumber() is subsequently called.
 	 *
-	 * @param config
-	 *            The configuration to be used
+	 * @param config The configuration to be used
 	 */
 
 	public void setConfiguration(Configuration config) {
 		this.config = config;
-		this.documentNumber = config.getDocumentNumberAllocator().allocateDocumentNumber();
+        documentNumber = config.getDocumentNumberAllocator().allocateDocumentNumber();
 	}
 
     /**
@@ -163,15 +164,21 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
 	}
 
     /**
+     * Get the list of unparsed entities defined in this document
+     * @return an Iterator, whose items are of type String, containing the names of all
+     *         unparsed entities defined in this document. If there are no unparsed entities or if the
+     *         information is not available then an empty iterator is returned
+     */
+
+    public Iterator getUnparsedEntityNames() {
+        return Collections.EMPTY_LIST.iterator();
+    }    
+
+    /**
 	 * Get the unparsed entity with a given name
 	 *
-	 * @param name
-	 *            the name of the entity
+	 * @param name the name of the entity
 	 * @return null: XOM does not provide access to unparsed entities
-	 * @return if the entity exists, return an array of two Strings, the first
-	 *         holding the system ID of the entity, the second holding the
-	 *         public ID if there is one, or null if not. If the entity does not
-	 *         exist, return null.
 	 */
 
 	public String[] getUnparsedEntity(String name) {

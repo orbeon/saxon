@@ -1,25 +1,24 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.trace.InstructionInfo;
 import org.orbeon.saxon.event.SequenceReceiver;
 import org.orbeon.saxon.instruct.LocalParam;
 import org.orbeon.saxon.instruct.ParameterSet;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.om.ValueRepresentation;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.regex.RegexIterator;
 import org.orbeon.saxon.sort.GroupIterator;
-import org.orbeon.saxon.trace.InstructionInfoProvider;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.sort.StringCollator;
 import org.orbeon.saxon.trans.Mode;
-import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.trans.NoDynamicContextException;
 import org.orbeon.saxon.trans.Rule;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.value.DateTimeValue;
 
 import javax.xml.transform.Result;
-import java.util.Comparator;
 import java.util.Properties;
+import java.util.Iterator;
 
 /**
 * This class represents a context in which an XPath expression is evaluated.
@@ -29,14 +28,16 @@ public interface XPathContext {
 
 
     /**
-    * Construct a new context as a copy of another. The new context is effectively added
-    * to the top of a stack, and contains a pointer to the previous context
-    */
+     * Construct a new context as a copy of another. The new context is effectively added
+     * to the top of a stack, and contains a pointer to the previous context
+     * @return a new context, created as a copy of this context
+     */
 
     public XPathContextMajor newContext();
 
     /**
-    * Construct a new context without copying (used for the context in a function call)
+     * Construct a new context without copying (used for the context in a function call)
+     * @return a new clean context
     */
 
     public XPathContextMajor newCleanContext();
@@ -44,15 +45,10 @@ public interface XPathContext {
     /**
      * Construct a new minor context. A minor context can only hold new values of the focus
      * (currentIterator) and current output destination.
+     * @return a new minor context
      */
 
     public XPathContextMinor newMinorContext();
-
-    /**
-     * Get the XSLT-specific part of the context
-     */
-
-    public XPathContextMajor.XSLTContext getXSLTContext();
 
     /**
      * Get the local (non-tunnel) parameters that were passed to the current function or template
@@ -72,11 +68,12 @@ public interface XPathContext {
     /**
      * Set the creating expression (for use in diagnostics). The origin is generally set to "this" by the
      * object that creates the new context. It's up to the debugger to determine whether this information
-     * is useful. Where possible, the object will be an {@link InstructionInfoProvider}, allowing information
+     * is useful. Where possible, the object will be an {@link Expression}, allowing information
      * about the calling instruction to be obtained.
+     * @param expr the expression that created this context object
      */
 
-    public void setOrigin(InstructionInfoProvider expr);
+    public void setOrigin(InstructionInfo expr);
 
     /**
      * Set the type of creating expression (for use in diagnostics). When a new context is created, either
@@ -89,36 +86,43 @@ public interface XPathContext {
 
     /**
      * Get information about the creating expression or other construct.
+     * @return information about the creating expression
      */
 
-    public InstructionInfoProvider getOrigin();
+    public InstructionInfo getOrigin();
 
     /**
      * Get the type of location from which this context was created.
+     * @return the type of location. (The integer codes that are used are often fingerprints of instruction
+     * names, but not always. For details of the codes, see the standard trace listener which interprets them)
      */
 
     public int getOriginatingConstructType();
 
     /**
-    * Get the Controller. May return null when running outside XSLT or XQuery
+     * Get the Controller. May return null when running outside XSLT or XQuery
+     * @return the controller for this query or transformation
     */
 
     public Controller getController();
 
     /**
      * Get the Configuration
+     * @return the Saxon configuration object
      */
 
     public Configuration getConfiguration();
 
     /**
      * Get the Name Pool
+     * @return the name pool
      */
 
     public NamePool getNamePool();
 
     /**
      * Set the calling XPathContext
+     * @param caller the XPathContext of the calling expression
      */
 
     public void setCaller(XPathContext caller);
@@ -126,13 +130,16 @@ public interface XPathContext {
     /**
      * Get the calling XPathContext (the next one down the stack). This will be null if unknown, or
      * if the bottom of the stack has been reached.
+     * @return the XPathContext of the calling expression
      */
 
     public XPathContext getCaller();
 
     /**
-    * Set a new sequence iterator.
-    */
+     * Set a new sequence iterator.
+     * @param iter the current iterator. The context item, position, and size are determined by reference
+     * to the current iterator.
+     */
 
     public void setCurrentIterator(SequenceIterator iter);
 
@@ -148,13 +155,13 @@ public interface XPathContext {
     /**
      * Get the context position (the position of the context item)
      * @return the context position (starting at one)
-     * @throws DynamicError if the context position is undefined
+     * @throws XPathException if the context position is undefined
     */
 
-    public int getContextPosition() throws DynamicError;
+    public int getContextPosition() throws XPathException;
 
     /**
-    * Get the context item
+     * Get the context item
      * @return the context item, or null if the context item is undefined
     */
 
@@ -166,37 +173,44 @@ public interface XPathContext {
      */
 
     public int getLast() throws XPathException;
+
     /**
-    * Determine whether the context position is the same as the context size
-    * that is, whether position()=last()
+     * Determine whether the context position is the same as the context size
+     * that is, whether position()=last(). In many cases this has better performance
+     * than a direct comparison, because it does not require reading to the end of the
+     * sequence.
+     * @return true if the context position is the same as the context size.
     */
 
     public boolean isAtLast() throws XPathException;
 
     /**
-    * Get a named collation
-    * @throws XPathException if the collation is not recognized
-    */
+     * Get a named collation
+     * @param name the name (URI) of the required collation
+     * @return a StringCollator representing the collation
+     * @throws XPathException if the collation is not recognized
+     */
 
-    public Comparator getCollation(String name) throws XPathException;
+    public StringCollator getCollation(String name) throws XPathException;
 
     /**
-    * Get the default collation
-    */
+     * Get the default collation
+     * @return a StringCollator representing the default collation
+     */
 
-    public Comparator getDefaultCollation();
+    public StringCollator getDefaultCollation();
 
     /**
     * Use local parameter. This is called when a local xsl:param element is processed.
     * If a parameter of the relevant name was supplied, it is bound to the xsl:param element.
     * Otherwise the method returns false, so the xsl:param default will be evaluated
-    * @param fingerprint    The fingerprint of the parameter name
+    * @param qName    The fingerprint of the parameter name
     * @param binding        The XSLParam element to bind its value to
     * @param isTunnel      True if a tunnel parameter is required, else false
     * @return true if a parameter of this name was supplied, false if not
     */
 
-    public boolean useLocalParameter(int fingerprint,
+    public boolean useLocalParameter(StructuredQName qName,
                                      LocalParam binding,
                                      boolean isTunnel) throws XPathException;
 
@@ -210,13 +224,19 @@ public interface XPathContext {
     public StackFrame getStackFrame();
 
      /**
-     * Get the value of a local variable, identified by its slot number
+      * Get the value of a local variable, identified by its slot number
+      * @param slotnumber the slot number allocated at compile time to the variable,
+      * which identifies its position within the local stack frame
+      * @return the value of the variable.
      */
 
     public ValueRepresentation evaluateLocalVariable(int slotnumber);
 
     /**
      * Set the value of a local variable, identified by its slot number
+     * @param slotnumber the slot number allocated at compile time to the variable,
+     * which identifies its position within the local stack frame
+     * @param value the value of the variable
      */
 
     public void setLocalVariable(int slotnumber, ValueRepresentation value);
@@ -231,34 +251,37 @@ public interface XPathContext {
      * @param props properties defining the output format
      * @param result Details of the new output destination
      * @param isFinal true if the destination is a final result tree
-     *     (either the principal output or a secondary result tree); false if
-     * @param hostLanguage
+     *     (either the principal output or a secondary result tree); false if not
+     * @param hostLanguage typically XSLT or XQuery
+     * @param validation validation mode: strict, lax, preserve, or strip
+     * @param schemaType type against which the output must be validated
      */
 
     public void changeOutputDestination(Properties props,
                                         Result result,
                                         boolean isFinal,
-                                        int hostLanguage, int validation,
+                                        int hostLanguage,
+                                        int validation,
                                         SchemaType schemaType) throws XPathException;
 
     /**
-     * Set the receiver to which output is to be written, marking it as a temporary (non-final)
+     * Set the SequenceReceiver to which output is to be written, marking it as a temporary (non-final)
      * output destination.
-     * @param out The SequenceOutputter to be used
+     * @param out The SequenceReceiver to be used
      */
 
     public void setTemporaryReceiver(SequenceReceiver out);
 
     /**
-     * Change the Receiver to which output is written
+     * Change the SequenceReceiver to which output is written
+     * @param receiver the SequenceReceiver to be used
      */
 
     public void setReceiver(SequenceReceiver receiver);
 
     /**
      * Get the Receiver to which output is currently being written.
-     *
-     * @return the current Receiver
+     * @return the current SequenceReceiver
      */
     public SequenceReceiver getReceiver();
 
@@ -291,6 +314,32 @@ public interface XPathContext {
      */
 
     public RegexIterator getCurrentRegexIterator();
+
+    /**
+     * Get the current date and time
+     * @return the current date and time. All calls within a single query or transformation
+     * will return the same value
+     */
+
+    public DateTimeValue getCurrentDateTime() throws NoDynamicContextException;
+
+    /**
+     * Get the implicit timezone
+     * @return the implicit timezone. This will be the timezone of the current date and time, and
+     * all calls within a single query or transformation will return the same value. The result is
+     * expressed as an offset from UTC in minutes.
+     */
+
+    public int getImplicitTimezone() throws NoDynamicContextException;
+
+    /**
+     * Get the context stack. This method returns an iterator whose items are instances of
+     * {@link org.orbeon.saxon.trace.ContextStackFrame}, starting with the top-most stackframe and
+     * ending at the point the query or transformation was invoked by a calling application.
+     * @return an iterator over a copy of the run-time call stack
+     */
+
+    public Iterator iterateStackFrames();
 
 }
 

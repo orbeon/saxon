@@ -6,32 +6,76 @@ import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 
-import java.io.PrintStream;
 import java.util.Iterator;
 
 /**
- * This class implements the rules for an XSLT simple content constructor, which are used in constructing
+ * This class implements the rules for an XSLT (or XQuery) simple content constructor, which are used in constructing
  * the string value of an attribute node, text node, comment node, etc, from the value of the select
  * expression or the contained sequence constructor.
  */
 
-public class SimpleContentConstructor extends ComputedExpression {
+public class SimpleContentConstructor extends Expression {
 
     Expression select;
     Expression separator;
     boolean isSingleton = false;
     boolean isAtomic = false;
 
+    /**
+     * Create a SimpleContentConstructor
+     * @param select the select expression (which computes a sequence of strings)
+     * @param separator the separator expression (which computes a value to separate adjacent strings)
+     */
+
     public SimpleContentConstructor(Expression select, Expression separator) {
         this.select = select;
         this.separator = separator;
         adoptChildExpression(select);
         adoptChildExpression(separator);
+        select.setFlattened(true);
+    }
+
+    /**
+     * Get the select expression
+     * @return the select expression
+     */
+
+    public Expression getSelectExpression() {
+        return select;
+    }
+
+    /**
+     * Get the separator expression
+     * @return the separator expression
+     */
+
+    public Expression getSeparatorExpression() {
+        return separator;
+    }
+
+    /**
+     * Determine whether the select expression is a singleton (an expression returning zero or one items)
+     * @return true if the select expression will always be of length zero or one
+     */
+
+    public boolean isSingleton() {
+        return isSingleton;
+    }
+
+    /**
+     * Determine if the select expression is atomic
+     * @return true if the select expression always returns atomic values
+     */
+
+    public boolean isAtomic() {
+        return isAtomic;
     }
 
     /**
@@ -44,22 +88,61 @@ public class SimpleContentConstructor extends ComputedExpression {
 
     }
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        select = select.typeCheck(env, contextItemType);
-        separator = separator.typeCheck(env, contextItemType);
+    /**
+     * Copy an expression. This makes a deep copy.
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new SimpleContentConstructor(select.copy(), separator.copy());
+    }
+
+    /**
+     * Simplify an expression. This performs any static optimization (by rewriting the expression
+     * as a different expression). The default implementation does nothing.
+     *
+     * @return the simplified expression
+     * @throws org.orbeon.saxon.trans.XPathException
+     *          if an error is discovered during expression
+     *          rewriting
+     * @param visitor an expression visitor
+     */
+
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        select = visitor.simplify(select);
+        if (select instanceof Literal && ((Literal)select).getValue() instanceof AtomicValue) {
+            return select;
+        }
+        separator = visitor.simplify(separator);
+        return this;
+    }
+
+
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        select = visitor.typeCheck(select, contextItemType);
+        separator = visitor.typeCheck(separator, contextItemType);
         if (!Cardinality.allowsMany(select.getCardinality())) {
             isSingleton = true;
         }
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
         if (select.getItemType(th).isAtomicType()) {
             isAtomic = true;
+        }
+        select.setFlattened(true);
+        if (select instanceof Literal && separator instanceof Literal) {
+            XPathContext c = visitor.getStaticContext().makeEarlyEvaluationContext();
+            return new Literal(Value.asValue(evaluateItem(c)));
         }
         return this;
     }
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        select = select.optimize(opt, env, contextItemType);
-        separator = separator.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        select = visitor.optimize(select, contextItemType);
+        separator = visitor.optimize(separator, contextItemType);
+        if (select instanceof Literal && separator instanceof Literal) {
+            XPathContext c = visitor.getStaticContext().makeEarlyEvaluationContext();
+            return Literal.makeLiteral(Value.asValue(evaluateItem(c)));
+        }
         return this;
     }
 
@@ -74,46 +157,25 @@ public class SimpleContentConstructor extends ComputedExpression {
      *
      * @return a value such as Type.STRING, Type.BOOLEAN, Type.NUMBER,
      *         Type.NODE, or Type.ITEM (meaning not known at compile time)
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
-        return Type.STRING_TYPE;
+        return BuiltInAtomicType.STRING;
     }
 
     /**
-     * Diagnostic print of expression structure. The expression is written to the System.err
-     * output stream
-     *
-     * @param level indentation level for this expression
-     @param out   Output destination
-     @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "construct simple content");
-        select.display(level+1, out, config);
-        separator.display(level+1, out, config);
+    public void explain(ExpressionPresenter out) {
+        out.startElement("simpleContentConstructor");
+        select.explain(out);
+        separator.explain(out);
+        out.endElement();
     }
 
-    /**
-     * Simplify an expression. This performs any static optimization (by rewriting the expression
-     * as a different expression). The default implementation does nothing.
-     *
-     * @return the simplified expression
-     * @throws org.orbeon.saxon.trans.XPathException
-     *          if an error is discovered during expression
-     *          rewriting
-     */
-
-    public Expression simplify(StaticContext env) throws XPathException {
-        select = select.simplify(env);
-        if (select instanceof AtomicValue) {
-            return select;
-        }
-        separator = separator.simplify(env);
-        return this;
-    }
 
      /**
      * Get the immediate sub-expressions of this expression. Default implementation
@@ -200,7 +262,7 @@ public class SimpleContentConstructor extends ComputedExpression {
             if (item == null || item instanceof StringValue) {
                 return item;
             } else if (item instanceof AtomicValue) {
-                return ((AtomicValue)item).convert(Type.STRING, context);
+                return ((AtomicValue)item).convert(BuiltInAtomicType.STRING, true, context).asAtomic();
             } else {
                 iter = SingletonIterator.makeIterator(item);
             }
@@ -256,6 +318,7 @@ public class SimpleContentConstructor extends ComputedExpression {
                     sb.append(sep);
                 }
                 first = false;
+                prevText = false;
                 sb.append(item.getStringValueCS());
             }
         }

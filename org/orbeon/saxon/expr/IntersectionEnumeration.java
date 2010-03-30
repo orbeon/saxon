@@ -31,8 +31,8 @@ public class IntersectionEnumeration implements SequenceIterator {
 
     public IntersectionEnumeration(SequenceIterator p1, SequenceIterator p2,
                                     NodeOrderComparer comparer ) throws XPathException {
-        this.e1 = p1;
-        this.e2 = p2;
+        e1 = p1;
+        e2 = p2;
         this.comparer = comparer;
 
         // move to the first node in each input nodeset
@@ -42,8 +42,10 @@ public class IntersectionEnumeration implements SequenceIterator {
     }
 
     /**
-    * Get the next item from one of the input sequences,
-    * checking that it is a node.
+     * Get the next item from one of the input sequences,
+     * checking that it is a node.
+     * @param iter the iterator from which the next item is to be taken
+     * @return the next value returned by that iterator
     */
 
     private NodeInfo next(SequenceIterator iter) throws XPathException {
@@ -52,7 +54,7 @@ public class IntersectionEnumeration implements SequenceIterator {
     }
 
     public Item next() throws XPathException {
-        // main merge loop: iterate whichever set has the lower value, returning when a pair
+        // main merge loop: iterate whichever sequence has the lower value, returning when a pair
         // is found that match.
 
         if (nextNode1 == null || nextNode2 == null) {
@@ -84,6 +86,11 @@ public class IntersectionEnumeration implements SequenceIterator {
 
     public int position() {
         return position;
+    }
+
+    public void close() {
+        e1.close();
+        e2.close();
     }
 
     public SequenceIterator getAnother() throws XPathException {

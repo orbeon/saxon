@@ -1,10 +1,13 @@
 package org.orbeon.saxon.value;
-import org.orbeon.saxon.Err;
+import org.orbeon.saxon.trans.Err;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.sort.StringCollator;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.trans.SaxonErrorCode;
-import org.orbeon.saxon.type.*;
+import org.orbeon.saxon.type.AtomicType;
+import org.orbeon.saxon.type.BuiltInAtomicType;
+import org.orbeon.saxon.type.ConversionResult;
+import org.orbeon.saxon.type.ValidationFailure;
 
 /**
  * A boolean XPath value
@@ -30,6 +33,7 @@ public final class BooleanValue extends AtomicValue implements Comparable {
 
     private BooleanValue(boolean value) {
         this.value = value;
+        typeLabel = BuiltInAtomicType.BOOLEAN;
     }
 
     /**
@@ -45,13 +49,37 @@ public final class BooleanValue extends AtomicValue implements Comparable {
     }
 
     /**
+     * Create a new Boolean value with a user-supplied type label.
+     * It is the caller's responsibility to ensure that the value is valid for the subtype
+     * @param value the boolean value
+     * @param typeLabel the type label, xs:boolean or a subtype
+     */
+
+    public BooleanValue(boolean value, AtomicType typeLabel) {
+        this.value = value;
+        this.typeLabel = typeLabel;
+    }
+
+    /**
+     * Create a copy of this atomic value (usually so that the type label can be changed).
+     * The type label of the copy will be reset to the primitive type.
+     * @param typeLabel the atomic type label to be added to the copied value
+     */
+
+    public AtomicValue copyAsSubType(AtomicType typeLabel) {
+        BooleanValue v = new BooleanValue(value);
+        v.typeLabel = typeLabel;
+        return v;
+    }
+
+    /**
      * Convert a string to a boolean value, using the XML Schema rules (including
      * whitespace trimming)
      * @param s the input string
-     * @return the relevant BooleanValue if validation succeeds; or an ErrorValue if not.
+     * @return the relevant BooleanValue if validation succeeds; or a ValidationFailure if not.
      */
 
-    public static AtomicValue fromString(CharSequence s) {
+    public static ConversionResult fromString(CharSequence s) {
         // implementation designed to avoid creating new objects
         s = Whitespace.trimWhitespace(s);
         int len = s.length();
@@ -71,10 +99,10 @@ public final class BooleanValue extends AtomicValue implements Comparable {
                 return FALSE;
             }
         }
-        ValidationException err = new ValidationException(
+        ValidationFailure err = new ValidationFailure(
                             "The string " + Err.wrap(s, Err.VALUE) + " cannot be cast to a boolean");
         err.setErrorCode("FORG0001");
-        return new ValidationErrorValue(err);
+        return err;
     }
 
     /**
@@ -89,46 +117,53 @@ public final class BooleanValue extends AtomicValue implements Comparable {
     /**
      * Get the effective boolean value of this expression
      *
-     * @param context dynamic evaluation context, not used in this
-     *     implementation
      * @return the boolean value
      */
-    public boolean effectiveBooleanValue(XPathContext context) {
+    public boolean effectiveBooleanValue() {
         return value;
+    }
+
+    /**
+     * Determine the primitive type of the value. This delivers the same answer as
+     * getItemType().getPrimitiveItemType(). The primitive types are
+     * the 19 primitive types of XML Schema, plus xs:integer, xs:dayTimeDuration and xs:yearMonthDuration,
+     * and xs:untypedAtomic. For external objects, the result is AnyAtomicType.
+     */
+
+    public BuiltInAtomicType getPrimitiveType() {
+        return BuiltInAtomicType.BOOLEAN;
     }
 
     /**
      * Convert to target data type
      * @param requiredType an integer identifying the required atomic type
-     * @param context
+     * @param context XPath dynamic context
      * @return an AtomicValue, a value of the required type
      */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, XPathContext context) {
+    public ConversionResult convertPrimitive(BuiltInAtomicType requiredType, boolean validate, XPathContext context) {
         switch(requiredType.getPrimitiveType()) {
-        case Type.BOOLEAN:
-        case Type.ANY_ATOMIC:
-        case Type.ITEM:
+        case StandardNames.XS_BOOLEAN:
+        case StandardNames.XS_ANY_ATOMIC_TYPE:
             return this;
-        case Type.NUMBER:
-        case Type.INTEGER:
-            return (value ? IntegerValue.PLUS_ONE : IntegerValue.ZERO);
-        case Type.DECIMAL:
+        case StandardNames.XS_NUMERIC:
+        case StandardNames.XS_INTEGER:
+            return (value ? Int64Value.PLUS_ONE : Int64Value.ZERO);
+        case StandardNames.XS_DECIMAL:
             return (value ? DecimalValue.ONE : DecimalValue.ZERO);
-        case Type.FLOAT:
+        case StandardNames.XS_FLOAT:
             return (value ? FloatValue.ONE : FloatValue.ZERO);
-        case Type.DOUBLE:
+        case StandardNames.XS_DOUBLE:
             return (value ? DoubleValue.ONE : DoubleValue.ZERO);
-        case Type.STRING:
+        case StandardNames.XS_STRING:
             return (value ? StringValue.TRUE : StringValue.FALSE);
-        case Type.UNTYPED_ATOMIC:
+        case StandardNames.XS_UNTYPED_ATOMIC:
             return new UntypedAtomicValue(getStringValueCS());
         default:
-            ValidationException err = new ValidationException("Cannot convert boolean to " +
+            ValidationFailure err = new ValidationFailure("Cannot convert boolean to " +
                                      requiredType.getDisplayName());
             err.setErrorCode("XPTY0004");
-            err.setIsTypeError(true);
-            return new ValidationErrorValue(err);
+            return err;
         }
     }
 
@@ -142,16 +177,6 @@ public final class BooleanValue extends AtomicValue implements Comparable {
     }
 
     /**
-     * Determine the data type of the expression
-     * @return Type.BOOLEAN,
-     * @param th
-     */
-
-    public ItemType getItemType(TypeHierarchy th) {
-        return Type.BOOLEAN_TYPE;
-    }
-
-    /**
      * Convert to Java object (for passing to external functions)
      *
      * @param target the Java class to which conversion is required
@@ -159,56 +184,76 @@ public final class BooleanValue extends AtomicValue implements Comparable {
      * @return An object of the specified Java class
      */
 
-    public Object convertToJava(Class target, XPathContext context) throws XPathException {
-        if (target==Object.class) {
-            return Boolean.valueOf(value);
-        } else if (target.isAssignableFrom(BooleanValue.class)) {
-            return this;
-        } else if (target==boolean.class) {
-            return Boolean.valueOf(value);
-        } else if (target==Boolean.class) {
-            return Boolean.valueOf(value);
-        } else if (target==String.class || target==CharSequence.class) {
-            return getStringValue();
-        } else if (target==double.class) {
-            return new Double((double)(value ? 1 : 0));
-        } else if (target==Double.class) {
-            return new Double((double)(value ? 1 : 0));
-        } else if (target==float.class) {
-            return new Float((float)(value ? 1 : 0));
-        } else if (target==Float.class) {
-            return new Float((float)(value ? 1 : 0));
-        } else if (target==long.class) {
-            return new Long((long)(value ? 1 : 0));
-        } else if (target==Long.class) {
-            return new Long((long)(value ? 1 : 0));
-        } else if (target==int.class) {
-            return new Integer(value ? 1 : 0);
-        } else if (target==Integer.class) {
-            return new Integer(value ? 1 : 0);
-        } else if (target==short.class) {
-            return new Short((short)(value ? 1 : 0));
-        } else if (target==Short.class) {
-            return new Short((short)(value ? 1 : 0));
-        } else if (target==byte.class) {
-            return new Byte((byte)(value ? 1 : 0));
-        } else if (target==Byte.class) {
-            return new Byte((byte)(value ? 1 : 0));
-        } else if (target==char.class) {
-            return new Character(value ? '1' : '0');
-        } else if (target==Character.class) {
-            return new Character(value ? '1' : '0');
-        } else {
-            Object o = super.convertToJava(target, context);
-            if (o == null) {
-                DynamicError err = new DynamicError("Conversion of xs:boolean to " + target.getName() +
-                        " is not supported");
-                err.setXPathContext(context);
-                err.setErrorCode(SaxonErrorCode.SXJE0001);
-                throw err;
-            }
-            return o;
+//    public Object convertAtomicToJava(Class target, XPathContext context) throws XPathException {
+//        if (target==Object.class) {
+//            return Boolean.valueOf(value);
+//        } else if (target.isAssignableFrom(BooleanValue.class)) {
+//            return this;
+//        } else if (target==boolean.class) {
+//            return Boolean.valueOf(value);
+//        } else if (target==Boolean.class) {
+//            return Boolean.valueOf(value);
+//        } else {
+//            Object o = super.convertSequenceToJava(target, context);
+//            if (o == null) {
+//                XPathException err = new XPathException("Conversion of xs:boolean to " + target.getName() +
+//                        " is not supported");
+//                err.setXPathContext(context);
+//                err.setErrorCode(SaxonErrorCode.SXJE0001);
+//                throw err;
+//            }
+//            return o;
+//        }
+//    }
+
+
+    /**
+     * Get a Comparable value that implements the XML Schema ordering comparison semantics for this value.
+     * The default implementation returns "this". This is overridden for particular atomic types.
+     * <p/>
+     * <p>In the case of data types that are partially ordered, the returned Comparable extends the standard
+     * semantics of the compareTo() method by returning the value {@link #INDETERMINATE_ORDERING} when there
+     * is no defined order relationship between two given values.</p>
+     *
+     * @return a Comparable that follows XML Schema comparison rules
+     */
+
+    public Comparable getSchemaComparable() {
+        return new BooleanComparable();
+    }
+
+    private class BooleanComparable implements Comparable {
+
+        public boolean asBoolean() {
+            return BooleanValue.this.getBooleanValue();
         }
+
+        public int compareTo(Object o) {
+            return equals(o) ? 0 : INDETERMINATE_ORDERING;
+        }
+
+        public boolean equals(Object o) {
+            return o instanceof BooleanComparable && asBoolean() == ((BooleanComparable)o).asBoolean();
+        }
+
+        public int hashCode() {
+            return asBoolean() ? 9999999 : 8888888;
+        }
+
+    }
+
+    /**
+     * Get a Comparable value that implements the XPath ordering comparison semantics for this value.
+     * Returns null if the value is not comparable according to XPath rules. The default implementation
+     * returns null. This is overridden for types that allow ordered comparisons in XPath: numeric, boolean,
+     * string, date, time, dateTime, yearMonthDuration, dayTimeDuration, and anyURI.
+     * @param ordered
+     * @param collator
+     * @param context
+     */
+
+    public Object getXPathComparable(boolean ordered, StringCollator collator, XPathContext context) {
+        return this;
     }
 
     /**
@@ -226,8 +271,8 @@ public final class BooleanValue extends AtomicValue implements Comparable {
         if (!(other instanceof BooleanValue)) {
             throw new ClassCastException("Boolean values are not comparable to " + other.getClass());
         }
-        if (this.value == ((BooleanValue)other).value) return 0;
-        if (this.value) return +1;
+        if (value == ((BooleanValue)other).value) return 0;
+        if (value) return +1;
         return -1;
     }
 
@@ -240,8 +285,8 @@ public final class BooleanValue extends AtomicValue implements Comparable {
      * @throws ClassCastException if other value is not xs:boolean or derived therefrom
      */
     public boolean equals(Object other) {
-        BooleanValue val = (BooleanValue)((AtomicValue)other).getPrimitiveValue();
-        return (this.value == val.value);
+        BooleanValue val = (BooleanValue)other;
+        return (value == val.value);
     }
 
     /**

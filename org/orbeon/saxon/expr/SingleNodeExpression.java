@@ -4,7 +4,6 @@ import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.om.SingletonIterator;
 import org.orbeon.saxon.pattern.AnyNodeTest;
-import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.TypeHierarchy;
@@ -15,22 +14,22 @@ import org.orbeon.saxon.type.TypeHierarchy;
 * A node set expression that will always return zero or one nodes
 */
 
-public abstract class SingleNodeExpression extends ComputedExpression {
+public abstract class SingleNodeExpression extends Expression {
 
     /**
     * Type-check the expression.
     */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
         if (contextItemType == null) {
-            StaticError err = new StaticError("Cannot select a node here: the context item is undefined");
+            XPathException err = new XPathException("Cannot select a node here: the context item is undefined");
             err.setErrorCode("XPDY0002");
             err.setIsTypeError(true);
             err.setLocator(this);
             throw err;
         }
         if (contextItemType.isAtomicType()) {
-            StaticError err = new StaticError("Cannot select a node here: the context item is an atomic value");
+            XPathException err = new XPathException("Cannot select a node here: the context item is an atomic value");
             err.setErrorCode("XPTY0020");
             err.setIsTypeError(true);
             err.setLocator(this);
@@ -45,21 +44,19 @@ public abstract class SingleNodeExpression extends ComputedExpression {
      * <p>This method is called after all references to functions and variables have been resolved
      * to the declaration of the function or variable, and after all type checking has been done.</p>
      *
-     * @param opt             the optimizer in use. This provides access to supporting functions; it also allows
-     *                        different optimization strategies to be used in different circumstances.
-     * @param env             the static context of the expression
+     * @param visitor an expression visitor
      * @param contextItemType the static type of "." at the point where this expression is invoked.
      *                        The parameter is set to null if it is known statically that the context item will be undefined.
      *                        If the type of the context item is not known statically, the argument is set to
      *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
      * @return the original expression, rewritten if appropriate to optimize execution
-     * @throws org.orbeon.saxon.trans.StaticError if an error is discovered during this phase
+     * @throws XPathException if an error is discovered during this phase
      *                                        (typically a type error)
      */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
         // repeat the check: in XSLT insufficient information is available the first time
-        return typeCheck(env, contextItemType);
+        return typeCheck(visitor, contextItemType);
     }
 
 
@@ -74,7 +71,7 @@ public abstract class SingleNodeExpression extends ComputedExpression {
     /**
     * Determine the data type of the items returned by this expression
     * @return Type.NODE
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {

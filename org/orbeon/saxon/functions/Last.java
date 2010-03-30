@@ -1,26 +1,42 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.ExpressionVisitor;
 import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.value.IntegerValue;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.value.Int64Value;
 
 /**
-* Implement the XPath 1.0 function last()
+* Implement the XPath 2.0 function last()
 */
 
-
 public class Last extends SystemFunction {
+
+    // TODO: eliminate last() as a run-time expression: rewrite all uses statically
+    // For example SEQ[last()-1] becomes let $s := SEQ return item-at($s, count($s) - 1)
+    // (Not clear that this is possible with calls linked to xsl:apply-templates)
 
     /**
     * preEvaluate: this method suppresses compile-time evaluation by doing nothing
     * (because the value of the expression depends on the runtime context)
-    */
+     * @param visitor an expression visitor
+     */
 
-    public Expression preEvaluate(StaticContext env) {
+    public Expression preEvaluate(ExpressionVisitor visitor) {
         return this;
+    }
+
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        if (contextItemType == null) {
+            XPathException err = new XPathException("The context for last() is undefined");
+            err.setErrorCode("XPDY0002");
+            err.setIsTypeError(true);
+            err.setLocator(this);
+            throw err;
+        }
+        return super.typeCheck(visitor, contextItemType);
     }
 
     /**
@@ -28,7 +44,7 @@ public class Last extends SystemFunction {
     */
 
     public Item evaluateItem(XPathContext c) throws XPathException {
-        return new IntegerValue(c.getLast());
+        return Int64Value.makeIntegerValue(c.getLast());
     }
 
     /**

@@ -1,11 +1,9 @@
 package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.ErrorExpression;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.om.ValueRepresentation;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 
 /**
@@ -34,22 +32,29 @@ public final class GlobalParam extends GlobalVariable {
     public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException {
         Controller controller = context.getController();
         Bindery b = controller.getBindery();
-        boolean wasSupplied = b.useGlobalParameter(getVariableFingerprint(), this, context);
+        boolean wasSupplied;
+        try {
+            wasSupplied = b.useGlobalParameter(
+                    getVariableQName(), getSlotNumber(), getRequiredType(), context);
+        } catch (XPathException e) {
+            e.setLocator(this);
+            throw e;
+        }
 
         ValueRepresentation val = b.getGlobalVariableValue(this);
         if (wasSupplied || val!=null) {
             return val;
         } else {
             if (isRequiredParam()) {
-                DynamicError e = new DynamicError("No value supplied for required parameter $" +
-                        context.getNamePool().getDisplayName(getVariableFingerprint()));
+                XPathException e = new XPathException("No value supplied for required parameter $" +
+                        getVariableQName().getDisplayName());
                 e.setXPathContext(context);
                 e.setLocator(getSourceLocator());
-                e.setErrorCode("XTDE0050");
+                e.setErrorCode(isXSLT() ? "XTDE0050" : "XPDY0002");
                 throw e;
             } else if (isImplicitlyRequiredParam()) {
-                DynamicError e = new DynamicError("A value must be supplied for parameter $" +
-                        context.getNamePool().getDisplayName(getVariableFingerprint()) +
+                XPathException e = new XPathException("A value must be supplied for parameter $" +
+                        getVariableQName().getDisplayName() +
                         " because there is no default value for the required type");
                 e.setXPathContext(context);
                 e.setLocator(getSourceLocator());
@@ -71,10 +76,10 @@ public final class GlobalParam extends GlobalVariable {
             } catch (XPathException err) {
                 b.setExecuting(this, false);
                 if (err instanceof XPathException.Circularity) {
-                    DynamicError e = new DynamicError("Circular definition of parameter " + getVariableName());
+                    XPathException e = new XPathException("Circular definition of parameter " +
+                            getVariableQName().getDisplayName());
                     e.setXPathContext(context);
-                    int lang = getHostLanguage();
-                    e.setErrorCode(lang == Configuration.XQUERY ? "XQST0054" : "XTDE0640");
+                    e.setErrorCode(isXSLT() ? "XTDE0640" : "XQST0054");
                     // Detect it more quickly the next time (in a pattern, the error is recoverable)
                     select = new ErrorExpression(e);
                     throw e;

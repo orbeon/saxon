@@ -2,19 +2,16 @@ package org.orbeon.saxon.expr;
 
 import org.orbeon.saxon.functions.*;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.sort.AtomicComparer;
-import org.orbeon.saxon.sort.CodepointCollator;
-import org.orbeon.saxon.sort.GenericAtomicComparer;
-import org.orbeon.saxon.trans.DynamicError;
-import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.sort.*;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.type.AtomicType;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.type.TypeHierarchy;
+import org.orbeon.saxon.trans.NoDynamicContextException;
+import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.*;
 
-import java.util.Comparator;
+import java.io.IOException;
+import java.io.ObjectInputStream;
 
 /**
  * ValueComparison: a boolean expression that compares two atomic values
@@ -22,13 +19,13 @@ import java.util.Comparator;
  * eq, ne, lt, le, gt, ge
  */
 
-public final class ValueComparison extends BinaryExpression implements ComparisonExpression {
+public final class ValueComparison extends BinaryExpression implements ComparisonExpression, Negatable {
 
     private AtomicComparer comparer;
-    // TODO: stylesheet compilation will fail if this is a RuleBasedCollator
     private BooleanValue resultWhenEmpty = null;
-    private boolean operand0MaybeUntyped = true;
-    private boolean operand1MaybeUntyped = true;
+    //private boolean operand0MaybeUntyped = true;
+    //private boolean operand1MaybeUntyped = true;
+    private boolean needsRuntimeComparabilityCheck;
 
     /**
      * Create a relational expression identifying the two operands and the operator
@@ -43,7 +40,29 @@ public final class ValueComparison extends BinaryExpression implements Compariso
     }
 
     /**
-     * Get the AtomicComparer used to compare atomic values. This encapsulates any collation that is used
+     * Deserialization method ensures that there is only one BooleanValue.TRUE and only one BooleanValue.FALSE
+     * @param in the input stream
+     */
+
+    private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+        in.defaultReadObject();
+        if (resultWhenEmpty != null) {
+            resultWhenEmpty = (resultWhenEmpty.getBooleanValue() ? BooleanValue.TRUE : BooleanValue.FALSE);
+        }
+    }
+
+    /**
+     * Set the AtomicComparer used to compare atomic values
+     * @param comparer the AtomicComparer
+     */
+
+    public void setAtomicComparer(AtomicComparer comparer) {
+        this.comparer = comparer;
+    }
+
+    /**
+     * Get the AtomicComparer used to compare atomic values. This encapsulates any collation that is used.
+     * Note that the comparer is always known at compile time.
      */
 
     public AtomicComparer getAtomicComparer() {
@@ -72,6 +91,7 @@ public final class ValueComparison extends BinaryExpression implements Compariso
 
     /**
      * Set the result to be returned if one of the operands is an empty sequence
+     * @param value the result to be returned if an operand is empty. Supply null to mean the empty sequence.
      */
 
     public void setResultWhenEmpty(BooleanValue value) {
@@ -80,6 +100,7 @@ public final class ValueComparison extends BinaryExpression implements Compariso
 
     /**
      * Get the result to be returned if one of the operands is an empty sequence
+     * @return BooleanValue.TRUE, BooleanValue.FALSE, or null (meaning the empty sequence)
      */
 
     public BooleanValue getResultWhenEmpty() {
@@ -87,46 +108,70 @@ public final class ValueComparison extends BinaryExpression implements Compariso
     }
 
     /**
+     * Determine whether a run-time check is needed to check that the types of the arguments
+     * are comparable
+     * @return true if a run-time check is needed
+     */
+
+    public boolean needsRuntimeComparabilityCheck() {
+        return needsRuntimeComparabilityCheck;
+    }
+
+    /**
      * Type-check the expression
      */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
 
-        operand0 = operand0.typeCheck(env, contextItemType);
-        if (operand0 instanceof EmptySequence) {
-            return (resultWhenEmpty == null ? operand0 : resultWhenEmpty);
+        NamePool namePool = visitor.getConfiguration().getNamePool();
+        TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
+        StaticContext env = visitor.getStaticContext();
+
+        operand0 = visitor.typeCheck(operand0, contextItemType);
+        if (Literal.isEmptySequence(operand0)) {
+            return (resultWhenEmpty == null ? operand0 : Literal.makeLiteral(resultWhenEmpty));
         }
 
-        operand1 = operand1.typeCheck(env, contextItemType);
-        if (operand1 instanceof EmptySequence) {
-            return (resultWhenEmpty == null ? operand1 : resultWhenEmpty);
+        operand1 = visitor.typeCheck(operand1, contextItemType);
+        if (Literal.isEmptySequence(operand1)) {
+            return (resultWhenEmpty == null ? operand1 : Literal.makeLiteral(resultWhenEmpty));
         }
 
         final SequenceType optionalAtomic = SequenceType.OPTIONAL_ATOMIC;
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
 
-        RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0, null);
-        role0.setSourceLocator(this);
-        operand0 = TypeChecker.staticTypeCheck(operand0, optionalAtomic, false, role0, env);
+        RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0);
+        //role0.setSourceLocator(this);
+        operand0 = TypeChecker.staticTypeCheck(operand0, optionalAtomic, false, role0, visitor);
 
-        RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1, null);
-        role1.setSourceLocator(this);
-        operand1 = TypeChecker.staticTypeCheck(operand1, optionalAtomic, false, role1, env);
+        RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1);
+        //role1.setSourceLocator(this);
+        operand1 = TypeChecker.staticTypeCheck(operand1, optionalAtomic, false, role1, visitor);
 
         AtomicType t0 = operand0.getItemType(th).getAtomizedItemType();
         AtomicType t1 = operand1.getItemType(th).getAtomizedItemType();
 
-        int p0 = t0.getPrimitiveType();
-        if (p0 == Type.UNTYPED_ATOMIC) {
-            p0 = Type.STRING;
-        }
-        int p1 = t1.getPrimitiveType();
-        if (p1 == Type.UNTYPED_ATOMIC) {
-            p1 = Type.STRING;
+        if (t0.isExternalType() || t1.isExternalType()) {
+            XPathException err = new XPathException("Cannot perform comparisons involving external objects");
+            err.setIsTypeError(true);
+            err.setErrorCode("XPTY0004");
+            err.setLocator(this);
+            throw err;
         }
 
-        operand0MaybeUntyped = th.relationship(t0, Type.UNTYPED_ATOMIC_TYPE) != TypeHierarchy.DISJOINT;
-        operand1MaybeUntyped = th.relationship(t1, Type.UNTYPED_ATOMIC_TYPE) != TypeHierarchy.DISJOINT;
+        BuiltInAtomicType p0 = (BuiltInAtomicType)t0.getPrimitiveItemType();
+        if (p0.equals(BuiltInAtomicType.UNTYPED_ATOMIC)) {
+            p0 = BuiltInAtomicType.STRING;
+        }
+        BuiltInAtomicType p1 = (BuiltInAtomicType)t1.getPrimitiveItemType();
+        if (p1.equals(BuiltInAtomicType.UNTYPED_ATOMIC)) {
+            p1 = BuiltInAtomicType.STRING;
+        }
+
+        //operand0MaybeUntyped = th.relationship(p0, BuiltInAtomicType.UNTYPED_ATOMIC) != TypeHierarchy.DISJOINT;
+        //operand1MaybeUntyped = th.relationship(p1, BuiltInAtomicType.UNTYPED_ATOMIC) != TypeHierarchy.DISJOINT;
+
+        needsRuntimeComparabilityCheck =
+                p0.equals(BuiltInAtomicType.ANY_ATOMIC) || p1.equals(BuiltInAtomicType.ANY_ATOMIC);
 
         if (!Type.isComparable(p0, p1, Token.isOrderedOperator(operator))) {
             boolean opt0 = Cardinality.allowsZero(operand0.getCardinality());
@@ -140,13 +185,14 @@ public final class ValueComparison extends BinaryExpression implements Compariso
                 if (opt0) which = "the first operand is";
                 if (opt1) which = "the second operand is";
                 if (opt0 && opt1) which = "one or both operands are";
-                env.issueWarning("Comparison of " + t0.toString(env.getNamePool()) + (opt0 ? "?" : "") + " to " + t1.toString(env.getNamePool()) +
-                        (opt1 ? "?" : "") + " will fail unless " + which + " empty", this);
 
+                visitor.getStaticContext().issueWarning("Comparison of " + t0.toString(namePool) +
+                        (opt0 ? "?" : "") + " to " + t1.toString(namePool) +
+                        (opt1 ? "?" : "") + " will fail unless " + which + " empty", this);
+                needsRuntimeComparabilityCheck = true;
             } else {
-                StaticError err =
-                        new StaticError("Cannot compare " + t0.toString(env.getNamePool()) +
-                        " to " + t1.toString(env.getNamePool()));
+                XPathException err = new XPathException("Cannot compare " + t0.toString(namePool) +
+                        " to " + t1.toString(namePool));
                 err.setIsTypeError(true);
                 err.setErrorCode("XPTY0004");
                 err.setLocator(this);
@@ -154,15 +200,15 @@ public final class ValueComparison extends BinaryExpression implements Compariso
             }
         }
         if (!(operator == Token.FEQ || operator == Token.FNE)) {
-            if (!Type.isOrdered(p0)) {
-                StaticError err = new StaticError("Type " + t0.toString(env.getNamePool()) + " is not an ordered type");
+            if (!p0.isOrdered()) {
+                XPathException err = new XPathException("Type " + t0.toString(env.getNamePool()) + " is not an ordered type");
                 err.setErrorCode("XPTY0004");
                 err.setIsTypeError(true);
                 err.setLocator(this);
                 throw err;
             }
-            if (!Type.isOrdered(p1)) {
-                StaticError err = new StaticError("Type " + t1.toString(env.getNamePool()) + " is not an ordered type");
+            if (!p1.isOrdered()) {
+                XPathException err = new XPathException("Type " + t1.toString(env.getNamePool()) + " is not an ordered type");
                 err.setErrorCode("XPTY0004");
                 err.setIsTypeError(true);
                 err.setLocator(this);
@@ -170,11 +216,15 @@ public final class ValueComparison extends BinaryExpression implements Compariso
             }
         }
 
-        Comparator comp = env.getCollation(env.getDefaultCollationName());
-        if (comp == null) {
-            comp = CodepointCollator.getInstance();
+        if (comparer == null) {
+            final String defaultCollationName = env.getDefaultCollationName();
+            StringCollator comp = env.getCollation(defaultCollationName);
+            if (comp == null) {
+                comp = CodepointCollator.getInstance();
+            }
+            comparer = GenericAtomicComparer.makeAtomicComparer(
+                    p0, p1, comp, env.getConfiguration().getConversionContext());
         }
-        comparer = GenericAtomicComparer.makeAtomicComparer(p0, p1, comp, env.getConfiguration());
         return this;
     }
 
@@ -184,99 +234,186 @@ public final class ValueComparison extends BinaryExpression implements Compariso
      * <p>This method is called after all references to functions and variables have been resolved
      * to the declaration of the function or variable, and after all type checking has been done.</p>
      *
-     * @param opt             the optimizer in use. This provides access to supporting functions; it also allows
-     *                        different optimization strategies to be used in different circumstances.
-     * @param env             the static context of the expression
+     * @param visitor an expression visitor
      * @param contextItemType the static type of "." at the point where this expression is invoked.
      *                        The parameter is set to null if it is known statically that the context item will be undefined.
      *                        If the type of the context item is not known statically, the argument is set to
      *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
      * @return the original expression, rewritten if appropriate to optimize execution
-     * @throws org.orbeon.saxon.trans.StaticError if an error is discovered during this phase
+     * @throws XPathException if an error is discovered during this phase
      *                                        (typically a type error)
      */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
 
-        operand0 = operand0.optimize(opt, env, contextItemType);
-        operand1 = operand1.optimize(opt, env, contextItemType);
+        Optimizer opt = visitor.getConfiguration().getOptimizer();
+        TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
+
+        operand0 = visitor.optimize(operand0, contextItemType);
+        operand1 = visitor.optimize(operand1, contextItemType);
+
+        Value value0 = null;
+        Value value1 = null;
+
+        if (operand0 instanceof Literal) {
+            value0 = ((Literal)operand0).getValue();
+        }
+
+        if (operand1 instanceof Literal) {
+            value1 = ((Literal)operand1).getValue();
+        }
 
         // evaluate the expression now if both arguments are constant
 
-        if ((operand0 instanceof Value) && (operand1 instanceof Value)) {
-            return (AtomicValue) evaluateItem(env.makeEarlyEvaluationContext());
+        if ((value0 != null) && (value1 != null)) {
+            try {
+                AtomicValue r = (AtomicValue)evaluateItem(visitor.getStaticContext().makeEarlyEvaluationContext());
+                //noinspection RedundantCast
+                return Literal.makeLiteral(r == null ? (Value)EmptySequence.getInstance() : (Value)r);
+            } catch (NoDynamicContextException e) {
+                // early evaluation failed, typically because the implicit context isn't available.
+                // Try again at run-time
+                return this;
+            }
         }        
 
         // optimise count(x) eq 0 (or gt 0, ne 0, eq 0, etc)
 
-        if (Aggregate.isCountFunction(operand0) &&
-                operand1 instanceof AtomicValue) {
-            if (isZero(operand1)) {
+        if (Aggregate.isCountFunction(operand0) && Literal.isAtomic(operand1)) {
+            if (isZero(value1)) {
                 if (operator == Token.FEQ || operator == Token.FLE) {
                     // rewrite count(x)=0 as empty(x)
-                    FunctionCall fn = SystemFunction.makeSystemFunction("empty", 1, env.getNamePool());
-                    Expression[] args = new Expression[1];
-                    args[0] = ((FunctionCall) operand0).argument[0];
-                    fn.setArguments(args);
-                    fn.setParentExpression(getParentExpression());
-                    return fn;
+                    Expression result = SystemFunction.makeSystemFunction(
+                            "empty", new Expression[]{((FunctionCall) operand0).argument[0]});
+                    opt.trace("Rewrite count()=0 as:", result);
+                    return result;
                 } else if (operator == Token.FNE || operator == Token.FGT) {
                     // rewrite count(x)!=0, count(x)>0 as exists(x)
-                    FunctionCall fn = SystemFunction.makeSystemFunction("exists", 1, env.getNamePool());
-                    Expression[] args = new Expression[1];
-                    args[0] = ExpressionTool.unsorted(opt, ((FunctionCall) operand0).argument[0], false);
-                    fn.setArguments(args);
-                    fn.setParentExpression(getParentExpression());
-                    return fn;
+                    Expression arg = ExpressionTool.unsorted(opt, ((FunctionCall)operand0).argument[0], false);
+                    Expression result = SystemFunction.makeSystemFunction("exists", new Expression[] {arg});
+                    opt.trace("Rewrite count()>0 as:", result);
+                    return result;
                 } else if (operator == Token.FGE) {
                     // rewrite count(x)>=0 as true()
-                    return BooleanValue.TRUE;
+                    return Literal.makeLiteral(BooleanValue.TRUE);
                 } else {  // singletonOperator == Token.FLT
                     // rewrite count(x)<0 as false()
-                    return BooleanValue.FALSE;
+                    return Literal.makeLiteral(BooleanValue.FALSE);
                 }
-            } else if (operand1 instanceof IntegerValue &&
+            } else if (value1 instanceof Int64Value &&
                     (operator == Token.FGT || operator == Token.FGE)) {
                 // rewrite count(x) gt n as exists(x[n+1])
                 //     and count(x) ge n as exists(x[n])
-                long val = ((IntegerValue) operand1).longValue();
+                long val = ((Int64Value) value1).longValue();
                 if (operator == Token.FGT) {
                     val++;
                 }
-                FunctionCall fn = SystemFunction.makeSystemFunction("exists", 1, env.getNamePool());
-                Expression[] args = new Expression[1];
-                FilterExpression filter =
-                        new FilterExpression(((FunctionCall) operand0).argument[0],
-                                new IntegerValue(val));
-                args[0] = filter;
-                fn.setArguments(args);
-                fn.setParentExpression(getParentExpression());
-                return fn;
+                FilterExpression filter = new FilterExpression(((FunctionCall) operand0).argument[0],
+                                Literal.makeLiteral(Int64Value.makeIntegerValue(val)));
+                ExpressionTool.copyLocationInfo(this, filter);
+                Expression result = SystemFunction.makeSystemFunction("exists", new Expression[]{filter});
+                opt.trace("Rewrite count()>=N as:", result);
+                return result;
             }
         }
 
         // optimise (0 eq count(x)), etc
 
-        if (Aggregate.isCountFunction(operand1) && isZero(operand0)) {
+        if (Aggregate.isCountFunction(operand1) && isZero(value0)) {
             ValueComparison vc =
                     new ValueComparison(operand1, Token.inverse(operator), operand0);
-            vc.setParentExpression(getParentExpression());
-            return vc.typeCheck(env, contextItemType).optimize(opt, env, contextItemType);
+            ExpressionTool.copyLocationInfo(this, vc);
+            return visitor.optimize(visitor.typeCheck(vc, contextItemType), contextItemType);
         }
 
         // optimise string-length(x) = 0, >0, !=0 etc
 
         if ((operand0 instanceof StringLength) &&
-                (((StringLength) operand0).getNumberOfArguments() == 1) && isZero(operand1)) {
-            ((StringLength) operand0).setShortcut();
+                (((StringLength) operand0).getNumberOfArguments() == 1) &&
+                isZero(value1)) {
+            Expression arg = (((StringLength)operand0).getArguments()[0]);
+            switch (operator) {
+                case Token.FEQ:
+                case Token.FLE:
+                    return SystemFunction.makeSystemFunction("not", new Expression[]{arg});
+                case Token.FNE:
+                case Token.FGT:
+                    return SystemFunction.makeSystemFunction("boolean", new Expression[]{arg});
+                case Token.FGE:
+                    return Literal.makeLiteral(BooleanValue.TRUE);
+                case Token.FLT:
+                    return Literal.makeLiteral(BooleanValue.FALSE);
+            }
         }
 
         // optimise (0 = string-length(x)), etc
 
         if ((operand1 instanceof StringLength) &&
-                (((StringLength) operand1).getNumberOfArguments() == 1) && isZero(operand0)) {
-            ((StringLength) operand1).setShortcut();
+                        (((StringLength) operand1).getNumberOfArguments() == 1) &&
+                        isZero(value0)) {
+            Expression arg = (((StringLength)operand1).getArguments()[0]);
+            switch (operator) {
+                case Token.FEQ:
+                case Token.FGE:
+                    return SystemFunction.makeSystemFunction("not", new Expression[]{arg});
+                case Token.FNE:
+                case Token.FLT:
+                    return SystemFunction.makeSystemFunction("boolean", new Expression[]{arg});
+                case Token.FLE:
+                    return Literal.makeLiteral(BooleanValue.TRUE);
+                case Token.FGT:
+                    return Literal.makeLiteral(BooleanValue.FALSE);
+            }
         }
+
+        // optimise string="" etc
+        // Note we can change S!="" to boolean(S) for cardinality zero-or-one, but we can only
+        // change S="" to not(S) for cardinality exactly-one.
+
+        int p0 = operand0.getItemType(th).getPrimitiveType();
+        if ((p0 == StandardNames.XS_STRING ||
+                p0 == StandardNames.XS_ANY_URI ||
+                p0 == StandardNames.XS_UNTYPED_ATOMIC) &&
+                operand1 instanceof Literal &&
+                ((Literal)operand1).getValue() instanceof StringValue &&
+                ((StringValue)((Literal)operand1).getValue()).isZeroLength() &&
+                comparer instanceof CodepointCollatingComparer) {
+
+            switch (operator) {
+                case Token.FNE:
+                case Token.FGT:
+                    return SystemFunction.makeSystemFunction("boolean", new Expression[]{operand0});
+                case Token.FEQ:
+                case Token.FLE:
+                    if (operand0.getCardinality() == StaticProperty.EXACTLY_ONE) {
+                        return SystemFunction.makeSystemFunction("not", new Expression[]{operand0});
+                    }
+            }
+        }
+
+        // optimize "" = string etc
+
+        int p1 = operand1.getItemType(th).getPrimitiveType();
+        if ((p1 == StandardNames.XS_STRING ||
+                p1 == StandardNames.XS_ANY_URI ||
+                p1 == StandardNames.XS_UNTYPED_ATOMIC) &&
+                operand0 instanceof Literal &&
+                ((Literal)operand0).getValue() instanceof StringValue &&
+                ((StringValue)((Literal)operand0).getValue()).isZeroLength() &&
+                comparer instanceof CodepointCollatingComparer) {
+
+            switch (operator) {
+                case Token.FNE:
+                case Token.FLT:
+                    return SystemFunction.makeSystemFunction("boolean", new Expression[]{operand1});
+                case Token.FEQ:
+                case Token.FGE:
+                    if (operand1.getCardinality() == StaticProperty.EXACTLY_ONE) {
+                        return SystemFunction.makeSystemFunction("not", new Expression[]{operand1});
+                    }
+            }
+        }
+
 
         // optimise [position()=last()] etc
 
@@ -285,19 +422,17 @@ public final class ValueComparison extends BinaryExpression implements Compariso
                 case Token.FEQ:
                 case Token.FGE:
                     IsLastExpression iletrue = new IsLastExpression(true);
-                    iletrue.setParentExpression(getParentExpression());
-                    iletrue.setLocationId(getLocationId());
+                    ExpressionTool.copyLocationInfo(this, iletrue);
                     return iletrue;
                 case Token.FNE:
                 case Token.FLT:
                     IsLastExpression ilefalse = new IsLastExpression(false);
-                    ilefalse.setParentExpression(getParentExpression());
-                    ilefalse.setLocationId(getLocationId());
+                    ExpressionTool.copyLocationInfo(this, ilefalse);
                     return ilefalse;
                 case Token.FGT:
-                    return BooleanValue.FALSE;
+                    return Literal.makeLiteral(BooleanValue.FALSE);
                 case Token.FLE:
-                    return BooleanValue.TRUE;
+                    return Literal.makeLiteral(BooleanValue.TRUE);
             }
         }
         if ((operand0 instanceof Last) && (operand1 instanceof Position)) {
@@ -305,120 +440,32 @@ public final class ValueComparison extends BinaryExpression implements Compariso
                 case Token.FEQ:
                 case Token.FLE:
                     IsLastExpression iletrue = new IsLastExpression(true);
-                    iletrue.setParentExpression(getParentExpression());
-                    iletrue.setLocationId(getLocationId());
+                    ExpressionTool.copyLocationInfo(this, iletrue);
                     return iletrue;
                 case Token.FNE:
                 case Token.FGT:
                     IsLastExpression ilefalse = new IsLastExpression(false);
-                    ilefalse.setParentExpression(getParentExpression());
-                    ilefalse.setLocationId(getLocationId());
+                    ExpressionTool.copyLocationInfo(this, ilefalse);
                     return ilefalse;
                 case Token.FLT:
-                    return BooleanValue.FALSE;
+                    return Literal.makeLiteral(BooleanValue.FALSE);
                 case Token.FGE:
-                    return BooleanValue.TRUE;
-            }
-        }
-
-        // optimise [position() < n] etc
-
-        if (operand0 instanceof Position) {
-            boolean isInteger = (operand1 instanceof IntegerValue);
-            int pos = 0;
-            if (isInteger) {
-                pos = (int) ((IntegerValue) operand1).longValue();
-                if (pos < 0) {
-                    pos = 0;
-                }
-            }
-            switch (operator) {
-                case Token.FEQ:
-                    return makePositionRange(operand1);
-                case Token.FGE:
-                    return makeOpenPositionRange(operand1);
-                case Token.FNE:
-                    if (isInteger && pos == 1) {
-                        return makePositionRange(2, Integer.MAX_VALUE);
-                    } else {
-                        break;
-                    }
-                case Token.FLT:
-                    if (isInteger) {
-                        return makePositionRange(1, pos - 1);
-                    } else {
-                        break;
-                    }
-                case Token.FGT:
-                    if (isInteger) {
-                        return makePositionRange(pos + 1, Integer.MAX_VALUE);
-                    } else {
-                        break;
-                    }
-                case Token.FLE:
-                    if (isInteger) {
-                        return makePositionRange(1, pos);
-                    } else {
-                        break;
-                    }
-            }
-        }
-
-        if (operand1 instanceof Position) {
-            int pos = 0;
-            boolean isInteger = (operand0 instanceof IntegerValue);
-            if (isInteger) {
-                pos = (int) ((IntegerValue) operand0).longValue();
-                if (pos < 0) {
-                    pos = 0;
-                }
-            }
-
-            switch (operator) {
-                case Token.FEQ:
-                    return makePositionRange(operand0);
-                case Token.FLE:
-                    return makeOpenPositionRange(operand0);
-                case Token.FNE:
-                    if (isInteger && pos == 1) {
-                        return makePositionRange(2, Integer.MAX_VALUE);
-                    } else {
-                        break;
-                    }
-                case Token.FGT:
-                    if (isInteger) {
-                        return makePositionRange(1, pos - 1);
-                    } else {
-                        break;
-                    }
-                case Token.FLT:
-                    if (isInteger) {
-                        return makePositionRange(pos + 1, Integer.MAX_VALUE);
-                    } else {
-                        break;
-                    }
-                case Token.FGE:
-                    if (isInteger) {
-                        return makePositionRange(1, pos);
-                    } else {
-                        break;
-                    }
+                    return Literal.makeLiteral(BooleanValue.TRUE);
             }
         }
 
         // optimize comparison against an integer constant
 
-        TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
-        if (operand1 instanceof IntegerValue &&
+        if (value1 instanceof Int64Value &&
                 operand0.getCardinality() == StaticProperty.EXACTLY_ONE &&
-                th.isSubType(operand0.getItemType(th), Type.NUMBER_TYPE)) {
-            return new CompareToIntegerConstant(operand0, operator, ((IntegerValue) operand1).longValue());
+                th.isSubType(operand0.getItemType(th), BuiltInAtomicType.NUMERIC)) {
+            return new CompareToIntegerConstant(operand0, operator, ((Int64Value)value1).longValue());
         }
 
-        if (operand0 instanceof IntegerValue &&
+        if (value0 instanceof Int64Value &&
                 operand1.getCardinality() == StaticProperty.EXACTLY_ONE &&
-                th.isSubType(operand1.getItemType(th), Type.NUMBER_TYPE)) {
-            return new CompareToIntegerConstant(operand1, Token.inverse(operator), ((IntegerValue) operand0).longValue());
+                th.isSubType(operand1.getItemType(th), BuiltInAtomicType.NUMERIC)) {
+            return new CompareToIntegerConstant(operand1, Token.inverse(operator), ((Int64Value) value0).longValue());
         }
 
         // optimize generate-id(X) = generate-id(Y) as "X is Y"
@@ -437,53 +484,40 @@ public final class ValueComparison extends BinaryExpression implements Compariso
                                 Token.IS,
                                 f1.argument[0]);
                 id.setGenerateIdEmulation(true);
-                id.setLocationId(getLocationId());
-                id.setParentExpression(getParentExpression());
-                return id.simplify(env).typeCheck(env, contextItemType).optimize(opt, env, contextItemType);
+                ExpressionTool.copyLocationInfo(this, id);
+                return visitor.optimize(visitor.typeCheck(visitor.simplify(id), contextItemType), contextItemType);
             }
         }
-
 
         return this;
     }
 
-    private PositionRange makePositionRange(int min, int max) {
-        PositionRange pr = new PositionRange(min, max);
-        pr.setParentExpression(getParentExpression());
-        pr.setLocationId(getLocationId());
-        return pr;
+
+    /**
+     * Check whether this specific instance of the expression is negatable
+     *
+     * @return true if it is
+     */
+
+    public boolean isNegatable(ExpressionVisitor visitor) {
+        // Expression is not negatable if it might involve NaN
+        TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
+        return !maybeNaN(operand0, th) && !maybeNaN(operand1, th);
     }
 
-    private PositionRange makeOpenPositionRange(Expression min) {
-        PositionRange pr = new PositionRange(min, null);
-        pr.setParentExpression(getParentExpression());
-        pr.setLocationId(getLocationId());
-        return pr;
-    }
-
-    private Expression makePositionRange(Expression pos) {
-        if (pos instanceof Position) {
-            // position() = position() is always true. Arises in conformance tests!
-            return BooleanValue.TRUE;
-        }
-        if ((pos.getDependencies() &
-                (StaticProperty.DEPENDS_ON_POSITION | StaticProperty.DEPENDS_ON_CONTEXT_ITEM)) != 0) {
-            // no optimization possible for expressions like [position() = .]
-            return this;
-        }
-        PositionRange pr = new PositionRange(pos);
-        pr.setParentExpression(getParentExpression());
-        pr.setLocationId(getLocationId());
-        return pr;
+    private boolean maybeNaN(Expression exp, TypeHierarchy th) {
+        return th.relationship(exp.getItemType(th), BuiltInAtomicType.DOUBLE) != TypeHierarchy.DISJOINT ||
+                th.relationship(exp.getItemType(th), BuiltInAtomicType.FLOAT) != TypeHierarchy.DISJOINT;
     }
 
     /**
      * Return the negation of this value comparison: that is, a value comparison that returns true()
      * if and only if the original returns false(). The result must be the same as not(this) even in the
      * case where one of the operands is ().
+     * @return the inverted comparison
      */
 
-    public ValueComparison negate() {
+    public Expression negate() {
         ValueComparison vc = new ValueComparison(operand0, Token.negate(operator), operand1);
         vc.comparer = comparer;
         if (resultWhenEmpty == null || resultWhenEmpty == BooleanValue.FALSE) {
@@ -491,21 +525,36 @@ public final class ValueComparison extends BinaryExpression implements Compariso
         } else {
             vc.resultWhenEmpty = BooleanValue.FALSE;
         }
-        vc.setLocationId(getLocationId());
+        ExpressionTool.copyLocationInfo(this, vc);
         return vc;
     }
 
 
     /**
      * Test whether an expression is constant zero
+     * @param v the value to be tested
+     * @return true if the operand is the constant zero (of any numeric data type)
      */
 
-    private static boolean isZero(Expression exp) {
-        if (exp instanceof NumericValue) {
-            return ((NumericValue) exp).compareTo(0) == 0;
-        } else {
-            return false;
-        }
+    private static boolean isZero(Value v) {
+        return v instanceof NumericValue && ((NumericValue)v).compareTo(0) == 0;
+    }
+
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        ValueComparison vc = new ValueComparison(operand0.copy(), operator, operand1.copy());
+        vc.comparer = comparer;
+        vc.resultWhenEmpty = resultWhenEmpty;
+        //vc.operand0MaybeUntyped = operand0MaybeUntyped;
+        //vc.operand1MaybeUntyped = operand1MaybeUntyped;
+        vc.needsRuntimeComparabilityCheck = needsRuntimeComparabilityCheck;
+        return vc;
     }
 
     /**
@@ -521,69 +570,73 @@ public final class ValueComparison extends BinaryExpression implements Compariso
             if (v0 == null) {
                 return (resultWhenEmpty == BooleanValue.TRUE);  // normally false
             }
-            if (operand0MaybeUntyped && v0 instanceof UntypedAtomicValue) {
-                v0 = new StringValue(((UntypedAtomicValue) v0).getStringValueCS());
-            }
+//            if (operand0MaybeUntyped && v0 instanceof UntypedAtomicValue) {
+//                // commmented out 2007-12-03 - not really necessary? If not, can lose the untyped0MaybeUntyped variables
+//                v0 = new StringValue(v0.getStringValueCS());
+//            }
             AtomicValue v1 = ((AtomicValue) operand1.evaluateItem(context));
             if (v1 == null) {
                 return (resultWhenEmpty == BooleanValue.TRUE);  // normally false
             }
-            if (operand1MaybeUntyped && v1 instanceof UntypedAtomicValue) {
-                v1 = new StringValue(((UntypedAtomicValue) v1).getStringValueCS());
+//            if (operand1MaybeUntyped && v1 instanceof UntypedAtomicValue) {
+//                v1 = new StringValue(v1.getStringValueCS());
+//            }
+            if (needsRuntimeComparabilityCheck &&
+                    !Type.isComparable(v0.getPrimitiveType(), v1.getPrimitiveType(), Token.isOrderedOperator(operator))) {
+                XPathException e2 = new XPathException("Cannot compare " + Type.displayTypeName(v0) +
+                    " to " + Type.displayTypeName(v1));
+                e2.setErrorCode("XPTY0004");
+                e2.setIsTypeError(true);
+                throw e2;
             }
-            return compare(v0, operator, v1, comparer);
-        } catch (DynamicError e) {
+            return compare(v0, operator, v1, comparer.provideContext(context));
+        } catch (XPathException e) {
             // re-throw the exception with location information added
-            if (e.getXPathContext() == null) {
-                e.setXPathContext(context);
-            }
-            if (e.getLocator() == null) {
-                e.setLocator(this);
-            }
+            e.maybeSetLocation(this);
+            e.maybeSetContext(context);
             throw e;
+        } catch (ClassCastException err) {
+            throw new XPathException("CCE", this);
         }
     }
 
     /**
      * Compare two atomic values, using a specified operator and collation
      *
-     * @param v1       the first operand
+     * @param v0       the first operand
      * @param op       the operator, as defined by constants such as {@link Token#FEQ} or
      *                 {@link Token#FLT}
-     * @param v2       the second operand
+     * @param v1       the second operand
      * @param collator the Collator to be used when comparing strings
-     * @throws org.orbeon.saxon.trans.DynamicError
-     *          if the values are not comparable
+     * @return the result of the comparison: -1 for LT, 0 for EQ, +1 for GT
+     * @throws XPathException if the values are not comparable
      */
 
-    static boolean compare(AtomicValue v1, int op, AtomicValue v2, AtomicComparer collator)
-            throws DynamicError {
-        // TODO: do the NaN tests in the comparers where it actually arises
-        if (v1 instanceof NumericValue && ((NumericValue) v1).isNaN()) {
-            return (op == Token.FNE);
-        }
-        if (v2 instanceof NumericValue && ((NumericValue) v2).isNaN()) {
+    static boolean compare(AtomicValue v0, int op, AtomicValue v1, AtomicComparer collator)
+            throws XPathException {
+        if (v0.isNaN() || v1.isNaN()) {
             return (op == Token.FNE);
         }
         try {
             switch (op) {
                 case Token.FEQ:
-                    return collator.comparesEqual(v1, v2);
+                    return collator.comparesEqual(v0, v1);
                 case Token.FNE:
-                    return !collator.comparesEqual(v1, v2);
+                    return !collator.comparesEqual(v0, v1);
                 case Token.FGT:
-                    return collator.compare(v1, v2) > 0;
+                    return collator.compareAtomicValues(v0, v1) > 0;
                 case Token.FLT:
-                    return collator.compare(v1, v2) < 0;
+                    return collator.compareAtomicValues(v0, v1) < 0;
                 case Token.FGE:
-                    return collator.compare(v1, v2) >= 0;
+                    return collator.compareAtomicValues(v0, v1) >= 0;
                 case Token.FLE:
-                    return collator.compare(v1, v2) <= 0;
+                    return collator.compareAtomicValues(v0, v1) <= 0;
                 default:
                     throw new UnsupportedOperationException("Unknown operator " + op);
             }
         } catch (ClassCastException err) {
-            DynamicError e2 = new DynamicError("Cannot compare " + v1.getItemType(null) + " to " + v2.getItemType(null));
+            XPathException e2 = new XPathException("Cannot compare " + Type.displayTypeName(v0) +
+                    " to " + Type.displayTypeName(v1));
             e2.setErrorCode("XPTY0004");
             e2.setIsTypeError(true);
             throw e2;
@@ -600,29 +653,33 @@ public final class ValueComparison extends BinaryExpression implements Compariso
 
     public Item evaluateItem(XPathContext context) throws XPathException {
         try {
-            AtomicValue v1 = (AtomicValue) operand0.evaluateItem(context);
+            AtomicValue v0 = (AtomicValue) operand0.evaluateItem(context);
+            if (v0 == null) {
+                return resultWhenEmpty;
+            }
+//            if (v0 instanceof UntypedAtomicValue) {
+//                v0 = v0.convert(BuiltInAtomicType.STRING, true, context).asAtomic();
+//            }
+            AtomicValue v1 = (AtomicValue) operand1.evaluateItem(context);
             if (v1 == null) {
                 return resultWhenEmpty;
             }
-            if (v1 instanceof UntypedAtomicValue) {
-                v1 = v1.convert(Type.STRING, context);
+//            if (v1 instanceof UntypedAtomicValue) {
+//                v1 = v1.convert(BuiltInAtomicType.STRING, true, context).asAtomic();
+//            }
+            if (needsRuntimeComparabilityCheck &&
+                    !Type.isComparable(v0.getPrimitiveType(), v1.getPrimitiveType(), Token.isOrderedOperator(operator))) {
+                XPathException e2 = new XPathException("Cannot compare " + Type.displayTypeName(v0) +
+                    " to " + Type.displayTypeName(v1));
+                e2.setErrorCode("XPTY0004");
+                e2.setIsTypeError(true);
+                throw e2;
             }
-            AtomicValue v2 = (AtomicValue) operand1.evaluateItem(context);
-            if (v2 == null) {
-                return resultWhenEmpty;
-            }
-            if (v2 instanceof UntypedAtomicValue) {
-                v2 = v2.convert(Type.STRING, context);
-            }
-            return BooleanValue.get(compare(v1, operator, v2, comparer));
-        } catch (DynamicError e) {
+            return BooleanValue.get(compare(v0, operator, v1, comparer.provideContext(context)));
+        } catch (XPathException e) {
             // re-throw the exception with location information added
-            if (e.getXPathContext() == null) {
-                e.setXPathContext(context);
-            }
-            if (e.getLocator() == null) {
-                e.setLocator(this);
-            }
+            e.maybeSetLocation(this);
+            e.maybeSetContext(context);
             throw e;
         }
     }
@@ -631,12 +688,12 @@ public final class ValueComparison extends BinaryExpression implements Compariso
     /**
      * Determine the data type of the expression
      *
-     * @param th
+     * @param th the type hierarchy cache
      * @return Type.BOOLEAN
      */
 
     public ItemType getItemType(TypeHierarchy th) {
-        return Type.BOOLEAN_TYPE;
+        return BuiltInAtomicType.BOOLEAN;
     }
 
     /**

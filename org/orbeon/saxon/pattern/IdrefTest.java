@@ -1,139 +1,77 @@
 package org.orbeon.saxon.pattern;
-import org.orbeon.saxon.om.ExtendedNodeInfo;
-import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.tinytree.TinyTree;
-import org.orbeon.saxon.type.AtomicType;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.type.TypeHierarchy;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.trans.XPathException;
+
+import java.io.Serializable;
 
 /**
- * NodeTest is an interface that enables a test of whether a node matches particular
- * conditions. IdrefTest is a test that cannot be represented directly in XPath or
+ * IdrefTest is a test that cannot be represented directly in XPath or
  * XSLT patterns, but which is used internally for matching IDREF nodes: it tests
  * whether the node has the is-idref property
- * <p>
- * Beware: The TypeHierarchy.computeRelationship() method does not work with this kind of ItemType.
- * </p>
   *
   * @author Michael H. Kay
   */
 
-public class IdrefTest extends NodeTest {
+public class IdrefTest implements PatternFinder, Serializable {
 
-	private int kind;          // element or attribute
+    private static IdrefTest THE_INSTANCE = new IdrefTest();
+
+    /**
+     * Get the singleton instance of this class
+     */
+
+    public static IdrefTest getInstance() {
+        return THE_INSTANCE;
+    }
 
     /**
      * Create a IdrefTest
-     * @param nodeKind the kind of nodes to be matched: always elements or attributes
      */
 
-	public IdrefTest(int nodeKind) {
-		this.kind = nodeKind;
-	}
-
-    public ItemType getSuperType(TypeHierarchy th) {
-        return NodeKindTest.makeNodeKindTest(kind);
-    }
+	private IdrefTest() {}
 
     /**
-    * Test whether this node test is satisfied by a given node
-    * @param nodeKind The type of node to be matched
-     * @param fingerprint identifies the expanded name of the node to be matched
-     * @param annotation The actual content type of the node
-     */
-
-    public boolean matches(int nodeKind, int fingerprint, int annotation) {
-        // used only while evaluating path expressions, so not applicable
-        return false;
-    }
-
-    /**
-     * Test whether this node test is satisfied by a given node on a TinyTree. The node
-     * must be a document, element, text, comment, or processing instruction node.
-     * This method is provided
-     * so that when navigating a TinyTree a node can be rejected without
-     * actually instantiating a NodeInfo object.
-     *
-     * @param tree   the TinyTree containing the node
-     * @param nodeNr the number of the node within the TinyTree (never an attribute)
-     * @return true if the node matches the NodeTest, otherwise false
-     */
-
-    public boolean matches(TinyTree tree, int nodeNr) {
-        if (tree.getNodeKind(nodeNr) != kind) {
-            return false;
-        }
-        return tree.isIdrefElement(nodeNr);
-    }
-
-    /**
-     * Test whether this node test is satisfied by a given node. This alternative
-     * method is used in the case of nodes where calculating the fingerprint is expensive,
-     * for example DOM or JDOM nodes.
-     * @param node the node to be matched
-     */
-
-    public boolean matches(NodeInfo node) {
-        if (node instanceof ExtendedNodeInfo) {
-            return ((ExtendedNodeInfo)node).isIdref();
-        }
-        return false;
-    }
-
-    /**
-    * Determine the default priority of this node test when used on its own as a Pattern
-    */
-
-    public final double getDefaultPriority() {
-    	return 0;
-    }
-
-    /**
-    * Determine the types of nodes to which this pattern applies. Used for optimisation.
-    * @return the type of node matched by this pattern. e.g. Type.ELEMENT or Type.TEXT
-    */
-
-    public int getPrimitiveType() {
-        return kind;
-    }
-
-    /**
-     * Get a mask indicating which kinds of nodes this NodeTest can match. This is a combination
-     * of bits: 1<<Type.ELEMENT for element nodes, 1<<Type.TEXT for text nodes, and so on.
-     */
-
-    public int getNodeKindMask() {
-        return 1<<kind;
-    }
-
-    /**
-     * Get the item type of the atomic values that will be produced when an item
-     * of this type is atomized (assuming that atomization succeeds)
-     */
-
-    public AtomicType getAtomizedItemType() {
-        return Type.ANY_ATOMIC_TYPE;
-    }
-
-    public String toString() {
-        return (kind == Type.ELEMENT ? "is-idref(element)" : "is-idref(attribute)");
-    }
-
-    /**
-      * Returns a hash code value for the object.
+      * Select nodes in a document using this PatternFinder.
+      * @param doc the document node at the root of a tree
+      * @param context the dynamic evaluation context
+      * @return an iterator over the selected nodes in the document.
       */
 
-     public int hashCode() {
-         return kind<<20 ^ 836283;
+     public SequenceIterator selectNodes(DocumentInfo doc, final XPathContext context) throws XPathException {
+
+         AxisIterator allElements = doc.iterateAxis(Axis.DESCENDANT, NodeKindTest.ELEMENT);
+         MappingFunction atts = new MappingFunction() {
+             public SequenceIterator map(Item item) {
+                 return new PrependIterator((NodeInfo)item, ((NodeInfo)item).iterateAxis(Axis.ATTRIBUTE));
+             }
+         };
+         SequenceIterator allAttributes = new MappingIterator(allElements, atts);
+         ItemMappingFunction test = new ItemMappingFunction() {
+             public Item map(Item item) {
+                 if ((matches((NodeInfo)item))) {
+                     return item;
+                 } else {
+                     return null;
+                 }
+             }
+         };
+         return new ItemMappingIterator(allAttributes, test);
+
      }
 
     /**
-     * Indicates whether some other object is "equal to" this one.
+     * Test whether this node test is satisfied by a given node.
+     * @param node the node to be matched
      */
-    public boolean equals(Object other) {
-        return other instanceof IdrefTest &&
-                ((IdrefTest)other).kind == kind;
+
+    private boolean matches(NodeInfo node) {
+        return node.isIdref();
+    }
+
+
+    public String toString() {
+        return "is-idref()";
     }
 
 }

@@ -1,16 +1,18 @@
 package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.*;
-import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.trace.InstructionInfo;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.om.NamespaceResolver;
+import org.orbeon.saxon.om.QNameException;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.om.StructuredQName;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.AnyItemType;
 import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.TypeHierarchy;
 
-import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 
 /**
@@ -30,7 +32,7 @@ public class CallTemplate extends Instruction {
     * Construct a CallTemplate instruction.
     * @param template the Template object identifying the template to be called, in the normal
     * case where this is known statically
-    * @param useTailRecursion
+    * @param useTailRecursion true if the call is potentially tail recursive
     * @param calledTemplateExpression expression to calculate the name of the template to be called
     * at run-time, this supports the saxon:allow-avt option
     * @param nsContext the static namespace context of the instruction, needed only in the case
@@ -50,8 +52,10 @@ public class CallTemplate extends Instruction {
     }
 
    /**
-     * Set the actual parameters on the call
-     */
+    * Set the actual parameters on the call
+    * @param actualParams the parameters that are not tunnel parameters
+    * @param tunnelParams the tunnel parameters
+    */
 
     public void setActualParameters(
                         WithParam[] actualParams,
@@ -79,13 +83,13 @@ public class CallTemplate extends Instruction {
      * implementation adds the template property, which identities the template to be called
      */
 
-    public InstructionInfo getInstructionInfo() {
-        InstructionDetails details = (InstructionDetails)super.getInstructionInfo();
-        if (template != null) {
-            details.setProperty("template", template);
-        }
-        return details;
-    }
+//    public InstructionInfo getInstructionInfo() {
+//        InstructionDetails details = (InstructionDetails)super.getInstructionInfo();
+//        if (template != null) {
+//            details.setProperty("template", template);
+//        }
+//        return details;
+//    }
 
     /**
      * Simplify an expression. This performs any static optimization (by rewriting the expression
@@ -94,35 +98,76 @@ public class CallTemplate extends Instruction {
      * @exception XPathException if an error is discovered during expression
      *     rewriting
      * @return the simplified expression
+     * @param visitor an expression visitor
      */
 
-    public Expression simplify(StaticContext env) throws XPathException {
-        WithParam.simplify(actualParams, env);
-        WithParam.simplify(tunnelParams, env);
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        WithParam.simplify(actualParams, visitor);
+        WithParam.simplify(tunnelParams, visitor);
         if (calledTemplateExpression != null) {
-            calledTemplateExpression = calledTemplateExpression.simplify(env);
+            calledTemplateExpression = visitor.simplify(calledTemplateExpression);
         }
         return this;
     }
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        WithParam.typeCheck(actualParams, env, contextItemType);
-        WithParam.typeCheck(tunnelParams, env, contextItemType);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        WithParam.typeCheck(actualParams, visitor, contextItemType);
+        WithParam.typeCheck(tunnelParams, visitor, contextItemType);
         if (calledTemplateExpression != null) {
-            calledTemplateExpression = calledTemplateExpression.typeCheck(env, contextItemType);
+            calledTemplateExpression = visitor.typeCheck(calledTemplateExpression, contextItemType);
             adoptChildExpression(calledTemplateExpression);
         }
         return this;
     }
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        WithParam.optimize(opt, actualParams, env, contextItemType);
-        WithParam.optimize(opt, tunnelParams, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        WithParam.optimize(visitor, actualParams, contextItemType);
+        WithParam.optimize(visitor, tunnelParams, contextItemType);
         if (calledTemplateExpression != null) {
-            calledTemplateExpression = calledTemplateExpression.optimize(opt, env, contextItemType);
+            calledTemplateExpression = visitor.optimize(calledTemplateExpression, contextItemType);
             adoptChildExpression(calledTemplateExpression);
         }
         return this;
+    }
+
+
+    /**
+     * Get the cardinality of the sequence returned by evaluating this instruction
+     *
+     * @return the static cardinality
+     */
+
+    public int computeCardinality() {
+        if (template == null) {
+            return StaticProperty.ALLOWS_ZERO_OR_MORE;
+        } else {
+            return template.getRequiredType().getCardinality();
+        }
+    }
+
+    /**
+     * Get the item type of the items returned by evaluating this instruction
+     *
+     * @param th the type hierarchy cache
+     * @return the static item type of the instruction
+     */
+
+    public ItemType getItemType(TypeHierarchy th) {
+        if (template == null) {
+            return AnyItemType.getInstance();
+        } else {
+            return template.getRequiredType().getPrimaryType();
+        }
+    }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        throw new UnsupportedOperationException("copy");
     }
 
     public int getIntrinsicDependencies() {
@@ -214,8 +259,7 @@ public class CallTemplate extends Instruction {
                 tc = tc.processLeavingTail();
             }
         } catch (StackOverflowError e) {
-            DynamicError err = new DynamicError(
-                    "Too many nested template or function calls. The stylesheet may be looping.");
+            XPathException err = new XPathException("Too many nested template or function calls. The stylesheet may be looping.");
             err.setLocator(this);
             err.setXPathContext(context);
             throw err;
@@ -256,13 +300,9 @@ public class CallTemplate extends Instruction {
         }
 
         // clear all the local variables: they are no longer needed
-        StackFrame frame = context.getStackFrame();
-        ValueRepresentation[] vars = frame.getStackFrameValues();
-        for (int i=0; i<vars.length; i++) {
-            vars[i] = null;
-        }
+        Arrays.fill(context.getStackFrame().getStackFrameValues(), null);
 
-        return new CallTemplatePackage(target, params, tunnels, context);
+        return new CallTemplatePackage(target, params, tunnels, this, context);
     }
 
     /**
@@ -277,7 +317,7 @@ public class CallTemplate extends Instruction {
     public Template getTargetTemplate(XPathContext context) throws XPathException {
         if (calledTemplateExpression != null) {
             Controller controller = context.getController();
-            String qname = calledTemplateExpression.evaluateAsString(context);
+            CharSequence qname = calledTemplateExpression.evaluateAsString(context);
 
             String prefix;
             String localName;
@@ -293,8 +333,8 @@ public class CallTemplate extends Instruction {
             if (uri==null) {
   		        dynamicError("Namespace prefix " + prefix + " has not been declared", "XTSE0650", context);
   		    }
-            int fprint = controller.getNamePool().getFingerprint(uri, localName);
-            Template target = controller.getExecutable().getNamedTemplate(fprint);
+            StructuredQName qName = new StructuredQName("", uri, localName);
+            Template target = controller.getExecutable().getNamedTemplate(qName);
             if (target==null) {
             	dynamicError("Template " + qname + " has not been defined", "XTSE0650", context);
             }
@@ -304,18 +344,39 @@ public class CallTemplate extends Instruction {
         }
     }
 
+
+    public StructuredQName getObjectName() {
+        return (template==null ? null : template.getTemplateName());
+    }
+
     /**
-     * Diagnostic print of expression structure. The expression is written to the System.err
-     * output stream
-     *
-     * @param level indentation level for this expression
-     @param out
-     @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "call-template");
+    public void explain(ExpressionPresenter out) {
+        out.startElement("callTemplate");
+        if (template != null) {
+            out.emitAttribute("name",
+                    (template.getTemplateName() == null ? "null" : template.getTemplateName().getDisplayName()));
+        } else {
+            out.startSubsidiaryElement("name");
+            calledTemplateExpression.explain(out);
+            out.endSubsidiaryElement();
+        }
+        if (actualParams != null && actualParams.length > 0) {
+            out.startSubsidiaryElement("withParams");
+            WithParam.displayExpressions(actualParams, out);
+            out.endSubsidiaryElement();
+        }
+        if (tunnelParams != null && tunnelParams.length > 0) {
+            out.startSubsidiaryElement("tunnelParams");
+            WithParam.displayExpressions(tunnelParams, out);
+            out.endSubsidiaryElement();
+        }
+        out.endElement();
     }
+
 
     /**
     * A CallTemplatePackage is an object that encapsulates the name of a template to be called,
@@ -324,29 +385,33 @@ public class CallTemplate extends Instruction {
     * template to execute in a finite stack size
     */
 
-    private class CallTemplatePackage implements TailCall {
+    public static class CallTemplatePackage implements TailCall {
 
         private Template target;
         private ParameterSet params;
         private ParameterSet tunnelParams;
+        private Instruction instruction;
         private XPathContext evaluationContext;
 
         /**
-        * Construct a CallTemplatePackage that contains information about a call.
-        * @param template the Template to be called
-        * @param params the parameters to be supplied to the called template
-        * @param evaluationContext saved context information from the Controller (current mode, etc)
-        * which must be reset to ensure that the template is called with all the context information
-        * intact
-        */
+         * Construct a CallTemplatePackage that contains information about a call.
+         * @param template the Template to be called
+         * @param params the parameters to be supplied to the called template
+         * @param tunnelParams the tunnel parameter supplied to the called template
+         * @param evaluationContext saved context information from the Controller (current mode, etc)
+         * which must be reset to ensure that the template is called with all the context information
+         * intact
+         */
 
         public CallTemplatePackage(Template template,
                                    ParameterSet params,
                                    ParameterSet tunnelParams,
+                                   Instruction instruction,
                                    XPathContext evaluationContext) {
-            this.target = template;
+            target = template;
             this.params = params;
             this.tunnelParams = tunnelParams;
+            this.instruction = instruction;
             this.evaluationContext = evaluationContext;
         }
 
@@ -365,15 +430,14 @@ public class CallTemplate extends Instruction {
             // local variables are held. It should be possible to avoid creating a new context, and instead
             // to update the existing one in situ.
             XPathContextMajor c2 = evaluationContext.newContext();
-            c2.setOrigin(CallTemplate.this);
+            c2.setOrigin(instruction);
             c2.setLocalParameters(params);
             c2.setTunnelParameters(tunnelParams);
             c2.openStackFrame(target.getStackFrameMap());
 
             // System.err.println("Tail call on template");
 
-            TailCall tc = target.expand(c2);
-            return tc;
+            return target.expand(c2);
         }
     }
 

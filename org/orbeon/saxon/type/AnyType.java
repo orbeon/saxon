@@ -3,12 +3,10 @@ package org.orbeon.saxon.type;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.StaticProperty;
-import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.om.SingletonIterator;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.value.UntypedAtomicValue;
 import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.sort.IntHashSet;
 
 import java.io.Serializable;
 
@@ -35,6 +33,28 @@ public final class AnyType implements ComplexType, Serializable {
 
     public static AnyType getInstance() {
         return theInstance;
+    }
+
+    /**
+     * Get the local name of this type
+     *
+     * @return the local name of this type definition, if it has one. Return null in the case of an
+     *         anonymous type.
+     */
+
+    public String getName() {
+        return "anyType";
+    }
+
+    /**
+     * Get the target namespace of this type
+     *
+     * @return the target namespace of this type definition, if it has one. Return null in the case
+     *         of an anonymous type, and in the case of a global type defined in a no-namespace schema.
+     */
+
+    public String getTargetNamespace() {
+        return NamespaceConstant.SCHEMA;
     }
 
     /**
@@ -257,6 +277,16 @@ public final class AnyType implements ComplexType, Serializable {
         return "xs:anyType";
     }
 
+
+    /**
+     * Get the URI of the schema document containing the definition of this type
+     * @return null for a built-in type
+     */
+
+    public String getSystemId() {
+        return null;
+    }
+
     /**
      * Test whether this is the same type as another type. They are considered to be the same type
      * if they are derived from the same type definition in the original XML representation (which
@@ -311,13 +341,14 @@ public final class AnyType implements ComplexType, Serializable {
      * Test whether this complex type subsumes another complex type. The algorithm
      * used is as published by Thompson and Tobin, XML Europe 2003.
      * @param sub the other type (the type that is derived by restriction, validly or otherwise)
+     * @param compiler
      * @return null indicating that this type does indeed subsume the other; or a string indicating
      * why it doesn't.
      */
 
-    public String subsumes(ComplexType sub) {
-        return null;
-    }
+//    public String subsumes(ComplexType sub, ISchemaCompiler compiler) {
+//        return null;
+//    }
 
     /**
      * Check that this type is validly derived from a given type
@@ -329,7 +360,9 @@ public final class AnyType implements ComplexType, Serializable {
      */
 
     public void checkTypeDerivationIsOK(SchemaType type, int block) throws SchemaException {
-        throw new SchemaException("Cannot derive xs:anyType from another type");
+        if (!(type instanceof AnyType)) {
+            throw new SchemaException("Cannot derive xs:anyType from another type");
+        }
     }
 
     /**
@@ -340,9 +373,10 @@ public final class AnyType implements ComplexType, Serializable {
      * if none exists and lax validation is permitted by the wildcard.
      *
      * @param fingerprint Identifies the name of the child element within this content model
+     * @param considerExtensions
      */
 
-    public SchemaType getElementParticleType(int fingerprint) {
+    public SchemaType getElementParticleType(int fingerprint, boolean considerExtensions) {
         return this;
     }
 
@@ -355,9 +389,10 @@ public final class AnyType implements ComplexType, Serializable {
      * If there is no such particle, return zero.
      *
      * @param fingerprint Identifies the name of the child element within this content model
+     * @param searchExtensionTypes
      */
 
-    public int getElementParticleCardinality(int fingerprint) {
+    public int getElementParticleCardinality(int fingerprint, boolean searchExtensionTypes) {
         return StaticProperty.ALLOWS_ZERO_OR_MORE;
     }
 
@@ -373,6 +408,46 @@ public final class AnyType implements ComplexType, Serializable {
 
     public SchemaType getAttributeUseType(int fingerprint) {
         return AnySimpleType.getInstance();
+    }
+
+    /**
+     * Return true if this type (or any known type derived from it by extension) allows the element
+     * to have one or more attributes.
+     * @return true if attributes are allowed
+     */
+
+    public boolean allowsAttributes() {
+        return true;
+    }
+
+    /**
+     * Get a list of all the names of elements that can appear as children of an element having this
+     * complex type, as integer fingerprints. If the list is unbounded (because of wildcards or the use
+     * of xs:anyType), return null.
+     *
+     * @param children an integer set, initially empty, which on return will hold the fingerprints of all permitted
+     *                 child elements; if the result contains the value -1, this indicates that it is not possible to enumerate
+     *                 all the children, typically because of wildcards. In this case the other contents of the set should
+     *                 be ignored.
+     */
+
+     public void gatherAllPermittedChildren(IntHashSet children) throws SchemaException {
+        children.add(-1);
+    }
+
+    /**
+     * Get a list of all the names of elements that can appear as descendants of an element having this
+     * complex type, as integer fingerprints. If the list is unbounded (because of wildcards or the use
+     * of xs:anyType), return null.
+     *
+     * @param descendants an integer set, initially empty, which on return will hold the fingerprints of all permitted
+     *                    descendant elements; if the result contains the value -1, this indicates that it is not possible to enumerate
+     *                    all the descendants, typically because of wildcards. In this case the other contents of the set should
+     *                    be ignored.
+     */
+
+    public void gatherAllPermittedDescendants(IntHashSet descendants) throws SchemaException {
+        descendants.add(-1);
     }
 }
 

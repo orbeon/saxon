@@ -1,17 +1,15 @@
 package org.orbeon.saxon.style;
 
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.Err;
-import org.orbeon.saxon.expr.ComputedExpression;
-import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.trans.Err;
+import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.instruct.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.value.AnyURIValue;
 import org.orbeon.saxon.value.EmptySequence;
-import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.Whitespace;
 
 
 /**
@@ -61,17 +59,17 @@ public class XSLElement extends StyleElement {
         for (int a = 0; a < atts.getLength(); a++) {
             int nc = atts.getNameCode(a);
             String f = getNamePool().getClarkName(nc);
-            if (f == StandardNames.NAME) {
-                nameAtt = atts.getValue(a).trim();
-            } else if (f == StandardNames.NAMESPACE) {
+            if (f.equals(StandardNames.NAME)) {
+                nameAtt = Whitespace.trim(atts.getValue(a));
+            } else if (f.equals(StandardNames.NAMESPACE)) {
                 namespaceAtt = atts.getValue(a);
-            } else if (f == StandardNames.VALIDATION) {
-                validationAtt = atts.getValue(a).trim();
-            } else if (f == StandardNames.TYPE) {
-                typeAtt = atts.getValue(a).trim();
-            } else if (f == StandardNames.INHERIT_NAMESPACES) {
-                inheritAtt = atts.getValue(a).trim();
-            } else if (f == StandardNames.USE_ATTRIBUTE_SETS) {
+            } else if (f.equals(StandardNames.VALIDATION)) {
+                validationAtt = Whitespace.trim(atts.getValue(a));
+            } else if (f.equals(StandardNames.TYPE)) {
+                typeAtt = Whitespace.trim(atts.getValue(a));
+            } else if (f.equals(StandardNames.INHERIT_NAMESPACES)) {
+                inheritAtt = Whitespace.trim(atts.getValue(a));
+            } else if (f.equals(StandardNames.USE_ATTRIBUTE_SETS)) {
                 use = atts.getValue(a);
             } else {
                 checkUnknownAttribute(nc);
@@ -82,21 +80,21 @@ public class XSLElement extends StyleElement {
             reportAbsence("name");
         } else {
             elementName = makeAttributeValueTemplate(nameAtt);
-            if (elementName instanceof StringValue) {
-                if (!getConfiguration().getNameChecker().isQName(((StringValue)elementName).getStringValue())) {
+            if (elementName instanceof StringLiteral) {
+                if (!getConfiguration().getNameChecker().isQName(((StringLiteral)elementName).getStringValue())) {
                     compileError("Element name " +
-                            Err.wrap(((StringValue)elementName).getStringValue(), Err.ELEMENT) +
+                            Err.wrap(((StringLiteral)elementName).getStringValue(), Err.ELEMENT) +
                             " is not a valid QName", "XTDE0820");
                     // to prevent duplicate error messages:
-                    elementName = new StringValue("saxon-error-element");
+                    elementName = new StringLiteral("saxon-error-element");
                 }
             }
         }
 
         if (namespaceAtt != null) {
             namespace = makeAttributeValueTemplate(namespaceAtt);
-            if (namespace instanceof StringValue) {
-                if (!AnyURIValue.isValidURI(((StringValue)namespace).getStringValue())) {
+            if (namespace instanceof StringLiteral) {
+                if (!AnyURIValue.isValidURI(((StringLiteral)namespace).getStringValue())) {
                     compileError("The value of the namespace attribute must be a valid URI", "XTDE0835");
                 }
             }
@@ -120,6 +118,7 @@ public class XSLElement extends StyleElement {
                 compileError("The @type attribute is available only with a schema-aware XSLT processor", "XTSE1660");
             }
             schemaType = getSchemaType(typeAtt);
+            validation = Validation.BY_TYPE;
         }
 
         if (typeAtt != null && validationAtt != null) {
@@ -138,7 +137,6 @@ public class XSLElement extends StyleElement {
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
         if (use != null) {
             attributeSets = getAttributeSets(use, null);        // find any referenced attribute sets
         }
@@ -152,8 +150,8 @@ public class XSLElement extends StyleElement {
 
         // deal specially with the case where the element name is known statically
 
-        if (elementName instanceof StringValue) {
-            CharSequence qName = ((StringValue)elementName).getStringValueCS();
+        if (elementName instanceof StringLiteral) {
+            CharSequence qName = ((StringLiteral)elementName).getStringValue();
 
             String[] parts;
             try {
@@ -164,20 +162,20 @@ public class XSLElement extends StyleElement {
             }
 
             String nsuri = null;
-            if (namespace instanceof StringValue) {
-                nsuri = ((StringValue)namespace).getStringValue();
-                if (nsuri.equals("")) {
+            if (namespace instanceof StringLiteral) {
+                nsuri = ((StringLiteral)namespace).getStringValue();
+                if (nsuri.length() == 0) {
                     parts[0] = "";
                 }
             } else if (namespace == null) {
                 nsuri = getURIForPrefix(parts[0], true);
                 if (nsuri == null) {
-                    undeclaredNamespaceError(parts[0], "XTDE0280");
+                    undeclaredNamespaceError(parts[0], "XTDE0830");
                 }
             }
             if (nsuri != null) {
                 // Local name and namespace are both known statically: generate a FixedElement instruction
-                int nameCode = getTargetNamePool().allocate(parts[0], nsuri, parts[1]);
+                int nameCode = getNamePool().allocate(parts[0], nsuri, parts[1]);
                 FixedElement inst = new FixedElement(nameCode,
                         null,
                         inheritNamespaces,
@@ -192,17 +190,14 @@ public class XSLElement extends StyleElement {
                         content = use;
                     } else {
                         content = Block.makeBlock(use, content);
-                        if (content instanceof ComputedExpression) {
-                            ((ComputedExpression)content).setLocationId(
+                        content.setLocationId(
                                     allocateLocationId(getSystemId(), getLineNumber()));
-                        }
                     }
                 }
                 if (content == null) {
-                    content = EmptySequence.getInstance();
+                    content = new Literal(EmptySequence.getInstance());
                 }
                 inst.setContentExpression(content);
-                ExpressionTool.makeParentReferences(inst);
                 return inst;
             }
         } else {
@@ -217,6 +212,7 @@ public class XSLElement extends StyleElement {
         ComputedElement inst = new ComputedElement(elementName,
                 namespace,
                 nsContext,
+                //(nsContext==null ? null : nsContext.getURIForPrefix("", true)),
                 schemaType,
                 validation,
                 inheritNamespaces,
@@ -228,17 +224,14 @@ public class XSLElement extends StyleElement {
                 content = use;
             } else {
                 content = Block.makeBlock(use, content);
-                if (content instanceof ComputedExpression) {
-                    ((ComputedExpression)content).setLocationId(
+                content.setLocationId(
                             allocateLocationId(getSystemId(), getLineNumber()));
-                }
             }
         }
         if (content == null) {
-            content = EmptySequence.getInstance();
+            content = new Literal(EmptySequence.getInstance());
         }
         inst.setContentExpression(content);
-        ExpressionTool.makeParentReferences(inst);
         return inst;
     }
 

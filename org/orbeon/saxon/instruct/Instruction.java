@@ -3,11 +3,11 @@ import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.event.PipelineConfiguration;
 import org.orbeon.saxon.event.SequenceOutputter;
-import org.orbeon.saxon.event.SequenceReceiver;
 import org.orbeon.saxon.expr.*;
-import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.trace.InstructionInfo;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.om.EmptyIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.SingletonIterator;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
@@ -23,7 +23,7 @@ import javax.xml.transform.SourceLocator;
 * the source instruction was located.
 */
 
-public abstract class Instruction extends ComputedExpression implements SourceLocator, TailCallReturner {
+public abstract class Instruction extends Expression implements SourceLocator, TailCallReturner {
 
     /**
     * Constructor
@@ -41,17 +41,19 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
     }
 
     /**
-    * Get the namecode of the instruction for use in diagnostics
+     * Get the namecode of the instruction for use in diagnostics
+     * @return a code identifying the instruction: typically but not always
+     * the fingerprint of a name in the XSLT namespace
     */
 
     public int getInstructionNameCode() {
         return -1;
-    };
+    }
 
     /**
      * Get the item type of the items returned by evaluating this instruction
      * @return the static item type of the instruction
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
@@ -93,15 +95,14 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
                 tc = tc.processLeavingTail();
             }
         } catch (XPathException err) {
-            if (err.getLocator() == null || err.getLocator().getLineNumber() == -1) {
-                err.setLocator(this);
-            }
+            err.maybeSetLocation(this);
             throw err;
         }
     }
 
     /**
      * Get a SourceLocator identifying the location of this instruction
+     * @return the location of this instruction in the source stylesheet or query
      */
 
     public SourceLocator getSourceLocator() {
@@ -109,46 +110,30 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
     }
 
     /**
-    * Construct an exception with diagnostic information. Note that this method
-    * returns the exception, it does not throw it: that is up to the caller.
-    * @param error The exception containing information about the error
-    * @param context The controller of the transformation
-    * @return an exception based on the supplied exception, but with location information
-    * added relating to this instruction
-    */
+     * Construct an exception with diagnostic information. Note that this method
+     * returns the exception, it does not throw it: that is up to the caller.
+     * @param loc the location of the error
+     * @param error The exception containing information about the error
+     * @param context The controller of the transformation
+     * @return an exception based on the supplied exception, but with location information
+     * added relating to this instruction
+     */
 
     protected static XPathException dynamicError(SourceLocator loc, XPathException error, XPathContext context) {
-        if (error instanceof TerminationException) return error;
-        if (error.getLocator()==null ||
-                (error.getLocator() instanceof ExpressionLocation &&
-                        context.getController().getExecutable().getHostLanguage() != Configuration.XQUERY) ||
-                error.getLocator().getLineNumber()==-1) {
-            // If the exception has no location information, construct a new
-            // exception containing the required information
-            try {
-                DynamicError de = new DynamicError(error.getMessage(),
-                                                loc,
-                                                error.getException());
-                if (error instanceof DynamicError) {
-                    de.setErrorCode(error.getErrorCodeLocalPart());
-                    if (((DynamicError)error).getXPathContext()==null) {
-                        de.setXPathContext(context);
-                    } else {
-                        de.setXPathContext(((DynamicError)error).getXPathContext());
-                    }
-                }
-                return de;
-            } catch (Exception secondaryError) {
-                // currently happens when running XQuery
-                return error;
-            }
+        if (error instanceof TerminationException) {
+            return error;
         }
+        error.maybeSetLocation(loc);
+        error.maybeSetContext(context);
         return error;
     }
 
     /**
      * Assemble a ParameterSet. Method used by instructions that have xsl:with-param
      * children. This method is used for the non-tunnel parameters.
+     * @param context the XPath dynamic context
+     * @param actualParams the set of with-param parameters that specify tunnel="no"
+     * @return a ParameterSet
      */
 
     protected static ParameterSet assembleParams(XPathContext context,
@@ -159,7 +144,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
         }
         ParameterSet params = new ParameterSet(actualParams.length);
         for (int i=0; i<actualParams.length; i++) {
-            params.put(actualParams[i].getVariableFingerprint(),
+            params.put(actualParams[i].getParameterId(),
                        actualParams[i].getSelectValue(context));
         }
         return params;
@@ -168,6 +153,9 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
     /**
      * Assemble a ParameterSet. Method used by instructions that have xsl:with-param
      * children. This method is used for the tunnel parameters.
+     * @param context the XPath dynamic context
+     * @param actualParams the set of with-param parameters that specify tunnel="yes"
+     * @return a ParameterSet
      */
 
     protected static ParameterSet assembleTunnelParams(XPathContext context,
@@ -182,7 +170,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
             return newParams;
         }
         for (int i=0; i<actualParams.length; i++) {
-            newParams.put(actualParams[i].getVariableFingerprint(),
+            newParams.put(actualParams[i].getParameterId(),
                           actualParams[i].getSelectValue(context));
         }
         return newParams;
@@ -195,9 +183,10 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
      * @exception org.orbeon.saxon.trans.XPathException if an error is discovered during expression
      *     rewriting
      * @return the simplified expression
+     * @param visitor an expression visitor
      */
 
-     public abstract Expression simplify(StaticContext env) throws XPathException;
+     public abstract Expression simplify(ExpressionVisitor visitor) throws XPathException;
 
     /**
      * Get the static properties of this expression (other than its type). The result is
@@ -219,6 +208,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
     /**
      * Determine whether this instruction creates new nodes.
      * This implementation returns a default value of false
+     * @return true if the instruction creates new nodes (or if it can't be proved that it doesn't)
      */
 
     public boolean createsNewNodes() {
@@ -278,7 +268,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
         int m = getImplementationMethod();
         if ((m & EVALUATE_METHOD) != 0) {
                 throw new AssertionError(
-                        "evaluateItem() is not implemented in the subclass " + this.getClass());
+                        "evaluateItem() is not implemented in the subclass " + getClass());
         } else if ((m & ITERATE_METHOD) != 0) {
             return iterate(context).next();
         } else {
@@ -286,7 +276,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
             XPathContext c2 = context.newMinorContext();
             c2.setOrigin(this);
             SequenceOutputter seq = controller.allocateSequenceOutputter(1);
-            final PipelineConfiguration pipe = controller.makePipelineConfiguration();
+            PipelineConfiguration pipe = controller.makePipelineConfiguration();
             pipe.setHostLanguage(getHostLanguage());
             seq.setPipelineConfiguration(pipe);
             c2.setTemporaryReceiver(seq);
@@ -322,7 +312,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
                 return SingletonIterator.makeIterator(item);
             }
         } else if ((m & ITERATE_METHOD) != 0) {
-            throw new AssertionError("iterate() is not implemented in the subclass " + this.getClass());
+            throw new AssertionError("iterate() is not implemented in the subclass " + getClass());
         } else {
             Controller controller = context.getController();
             XPathContext c2 = context.newMinorContext();
@@ -355,7 +345,7 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
      *     expression is (), this method returns "".
      */
 
-    public final String evaluateAsString(XPathContext context) throws XPathException {
+    public final CharSequence evaluateAsString(XPathContext context) throws XPathException {
         Item item = evaluateItem(context);
         if (item==null) {
             return "";
@@ -364,37 +354,23 @@ public abstract class Instruction extends ComputedExpression implements SourceLo
         }
     }
 
-    public InstructionInfo getInstructionInfo() {
-        InstructionDetails details = new InstructionDetails();
-        details.setSystemId(getSystemId());
-        details.setLineNumber(getLineNumber());
-        details.setConstructType(getInstructionNameCode());
-        return details;
-    }
+//    public InstructionInfo getInstructionInfo() {
+//        InstructionDetails details = new InstructionDetails();
+//        details.setSystemId(getSystemId());
+//        details.setLineAndColumn(getLineNumber());
+//        details.setConstructType(getInstructionNameCode());
+//        return details;
+//    }
+
 
     /**
-     * Static method to append an item that results from evaluating an expression to the current
-     * result receiver. The method checks to see whether the item returned from the expression is
-     * actually a function-call-package representing the result of a tail call optimization; if so,
-     * the tail function calls are complete and the final result is passed on.
-     * @param it the item: possibly a FunctionCallPackage
-     * @param out the Receiver
-     * @throws XPathException
+     * Get the type of this expression for use in tracing and diagnostics
+     *
+     * @return the type of expression, as enumerated in class {@link org.orbeon.saxon.trace.Location}
      */
 
-    public static void appendItem(Item it, SequenceReceiver out, int locationId) throws XPathException {
-        //// If this call to xsl:sequence is in a template (rather than a function) it may
-        //// be marked as a tail call; in this situation we need to evaluate the returned
-        //// function call package. Doing so may return further function call packages, which also need
-        //// to be processed. This has to be iterative rather than recursive to avoid consuming stack space.
-       // while (true) {
-            if (it == null) {
-                return;
-            } else {
-                out.append(it, locationId, NodeInfo.ALL_NAMESPACES);
-                return;
-            }
-        //}
+    public int getConstructType() {
+        return getInstructionNameCode();
     }
 
     /**

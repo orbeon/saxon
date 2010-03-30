@@ -1,22 +1,23 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.Err;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.trans.Err;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.SlotManager;
-import org.orbeon.saxon.om.AttributeCollection;
-import org.orbeon.saxon.om.Axis;
-import org.orbeon.saxon.om.NamespaceException;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.Pattern;
 import org.orbeon.saxon.sort.CodepointCollator;
+import org.orbeon.saxon.sort.StringCollator;
 import org.orbeon.saxon.trans.KeyDefinition;
 import org.orbeon.saxon.trans.KeyManager;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.type.BuiltInAtomicType;
+import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.Whitespace;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Comparator;
 
 /**
 * Handler for xsl:key elements in stylesheet. <br>
@@ -27,6 +28,7 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
     private Pattern match;
     private Expression use;
     private String collationName;
+    private StructuredQName keyName;
     SlotManager stackFrameMap;
                 // needed if variables are used
     /**
@@ -34,7 +36,7 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
       * @return true: yes, it may contain a sequence constructor
       */
 
-    public boolean mayContainSequenceConstructor() {
+                public boolean mayContainSequenceConstructor() {
         return true;
     }
 
@@ -57,14 +59,14 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-			if (f==StandardNames.NAME) {
-        		nameAtt = atts.getValue(a).trim();
-        	} else if (f==StandardNames.USE) {
+			if (f.equals(StandardNames.NAME)) {
+        		nameAtt = Whitespace.trim(atts.getValue(a)) ;
+        	} else if (f.equals(StandardNames.USE)) {
         		useAtt = atts.getValue(a);
-        	} else if (f==StandardNames.MATCH) {
+        	} else if (f.equals(StandardNames.MATCH)) {
         		matchAtt = atts.getValue(a);
-        	} else if (f==StandardNames.COLLATION) {
-        		collationName = atts.getValue(a).trim();
+        	} else if (f.equals(StandardNames.COLLATION)) {
+        		collationName = Whitespace.trim(atts.getValue(a)) ;
         	} else {
         		checkUnknownAttribute(nc);
         	}
@@ -75,7 +77,8 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
             return;
         }
         try {
-            setObjectNameCode(makeNameCode(nameAtt.trim()));
+            keyName = makeQName(nameAtt);
+            setObjectName(keyName);
         } catch (NamespaceException err) {
             compileError(err.getMessage(), "XTSE0280");
         } catch (XPathException err) {
@@ -93,6 +96,24 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
         }
     }
 
+    public StructuredQName getKeyName() {
+    	//We use null to mean "not yet evaluated"
+        try {
+        	if (getObjectName()==null) {
+        		// allow for forwards references
+        		String nameAtt = getAttributeValue(StandardNames.NAME);
+        		if (nameAtt != null) {
+        			setObjectName(makeQName(nameAtt));
+                }
+            }
+            return getObjectName();
+        } catch (NamespaceException err) {
+            return null;          // the errors will be picked up later
+        } catch (XPathException err) {
+            return null;
+        }
+    }
+
     public void validate() throws XPathException {
 
         stackFrameMap = getConfiguration().makeSlotManager();
@@ -104,12 +125,12 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
             }
             try {
                 RoleLocator role =
-                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:key/use", 0, null);
-                role.setSourceLocator(new ExpressionLocation(this));
+                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:key/use", 0);
+                //role.setSourceLocator(new ExpressionLocation(this));
                 use = TypeChecker.staticTypeCheck(
                                 use,
-                                SequenceType.makeSequenceType(Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE),
-                                false, role, getStaticContext());
+                                SequenceType.makeSequenceType(BuiltInAtomicType.ANY_ATOMIC, StaticProperty.ALLOWS_ZERO_OR_MORE),
+                                false, role, makeExpressionVisitor());
             } catch (XPathException err) {
                 compileError(err);
             }
@@ -123,7 +144,7 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
 
         // Do a further check that the use expression makes sense in the context of the match pattern
         if (use != null) {
-            use = use.typeCheck(getStaticContext(), match.getNodeTest());
+            use = makeExpressionVisitor().typeCheck(use, match.getNodeTest());
         }
 
         if (collationName != null) {
@@ -145,8 +166,9 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
     }
 
     public Expression compile(Executable exec) throws XPathException {
-
-        Comparator collator = null;
+        StaticContext env = getStaticContext();
+        Configuration config = env.getConfiguration();
+        StringCollator collator = null;
         if (collationName != null) {
             collator = getPrincipalStylesheet().findCollation(collationName);
             if (collator==null) {
@@ -158,47 +180,58 @@ public class XSLKey extends StyleElement implements StylesheetProcedure {
                 collator = null;
                 collationName = null;
 
-            } else if (!getConfiguration().getPlatform().canReturnCollationKeys(collator)) {
+            } else if (!Configuration.getPlatform().canReturnCollationKeys(collator)) {
                 compileError("The collation used for xsl:key must be capable of generating collation keys", "XTSE1210");
             }
         }
 
         if (use==null) {
             Expression body = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
+
             try {
-                use = new Atomizer(body.simplify(getStaticContext()),
-                        getStaticContext().getConfiguration());
+                use = new Atomizer(makeExpressionVisitor().simplify(body), config);
             } catch (XPathException e) {
                 compileError(e);
             }
 
             try {
                 RoleLocator role =
-                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:key/use", 0, null);
-                role.setSourceLocator(new ExpressionLocation(this));
+                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:key/use", 0);
+                //role.setSourceLocator(new ExpressionLocation(this));
                 use = TypeChecker.staticTypeCheck(
                                 use,
-                                SequenceType.makeSequenceType(Type.ANY_ATOMIC_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE),
-                                false, role, getStaticContext());
+                                SequenceType.makeSequenceType(BuiltInAtomicType.ANY_ATOMIC, StaticProperty.ALLOWS_ZERO_OR_MORE),
+                                false, role, makeExpressionVisitor());
                 // Do a further check that the use expression makes sense in the context of the match pattern
-                use = use.typeCheck(getStaticContext(), match.getNodeTest());
+                use = makeExpressionVisitor().typeCheck(use, match.getNodeTest());
+
 
             } catch (XPathException err) {
                 compileError(err);
             }
         }
-
+        final TypeHierarchy th = config.getTypeHierarchy();
+        BuiltInAtomicType useType = (BuiltInAtomicType)use.getItemType(th).getPrimitiveItemType();
+        if (backwardsCompatibleModeIsEnabled()) {
+            if (!useType.equals(BuiltInAtomicType.STRING) && !useType.equals(BuiltInAtomicType.UNTYPED_ATOMIC)) {
+                use = new AtomicSequenceConverter(use, BuiltInAtomicType.STRING);
+                useType = BuiltInAtomicType.STRING;
+            }
+        }
         allocateSlots(use);
+        allocatePatternSlots(match, stackFrameMap);
+        //allocateSlots(new PatternSponsor(match));
 
 
         KeyManager km = getPrincipalStylesheet().getKeyManager();
         KeyDefinition keydef = new KeyDefinition(match, use, collationName, collator);
+        keydef.setIndexedItemType(useType);
         keydef.setStackFrameMap(stackFrameMap);
         keydef.setLocation(getSystemId(), getLineNumber());
         keydef.setExecutable(getExecutable());
         keydef.setBackwardsCompatible(backwardsCompatibleModeIsEnabled());
         try {
-            km.addKeyDefinition(getObjectFingerprint(), keydef, exec.getConfiguration());
+            km.addKeyDefinition(keyName, keydef, exec.getConfiguration());
         } catch (XPathException err) {
             compileError(err);
         }

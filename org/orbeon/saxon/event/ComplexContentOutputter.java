@@ -1,12 +1,11 @@
 package org.orbeon.saxon.event;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.trans.Err;
 import org.orbeon.saxon.expr.ExpressionLocation;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.Err;
 
 /**
  * This class is used for generating complex content, that is, the content of an
@@ -22,12 +21,9 @@ import org.orbeon.saxon.Err;
  * @author Michael H. Kay
  */
 
-
-
 public final class ComplexContentOutputter extends SequenceReceiver {
 
-//    private NamePool pool;
-    private Receiver receiver;
+    private Receiver nextReceiver;
             // the next receiver in the output pipeline
 
     private int pendingStartTag = -2;
@@ -36,7 +32,9 @@ public final class ComplexContentOutputter extends SequenceReceiver {
     private int level = -1; // records the number of startDocument or startElement events
                             // that have not yet been closed. Note that startDocument and startElement
                             // events may be arbitrarily nested; startDocument and endDocument
-                            // are ignore unless they occur at the outermost level.
+                            // are ignored unless they occur at the outermost level, except that they
+                            // still change the level number
+    private boolean[] currentLevelIsDocument = new boolean[20];
     private Boolean elementIsInNullNamespace;
     private int[] pendingAttCode = new int[20];
     private int[] pendingAttType = new int[20];
@@ -55,31 +53,48 @@ public final class ComplexContentOutputter extends SequenceReceiver {
     private int startElementLocationId;
     private boolean declaresDefaultNamespace;
     private int hostLanguage = Configuration.XSLT;
+    private boolean started = false;
+
+    /**
+     * Create a ComplexContentOutputter
+     */
 
     public ComplexContentOutputter() {}
 
-    public void setPipelineConfiguration(PipelineConfiguration pipelineConfiguration) {
-        super.setPipelineConfiguration(pipelineConfiguration);
+    public void setPipelineConfiguration(PipelineConfiguration pipe) {
+        if (pipelineConfiguration != pipe) {
+            pipelineConfiguration = pipe;
+            if (nextReceiver != null) {
+                nextReceiver.setPipelineConfiguration(pipe);
+            }
+        }
     }
 
+    /**
+     * Set the host language
+     * @param language the host language, for example {@link Configuration#XQUERY}
+     */
+
     public void setHostLanguage(int language) {
-        this.hostLanguage = language;
+        hostLanguage = language;
     }
 
     /**
      * Set the receiver (to handle the next stage in the pipeline) directly
+     * @param receiver the receiver to handle the next stage in the pipeline
      */
 
     public void setReceiver(Receiver receiver) {
-        this.receiver = receiver;
+        this.nextReceiver = receiver;
     }
 
     /**
      * Test whether any content has been written to this ComplexContentOutputter
+     * @return true if content has been written
      */
 
     public boolean contentHasBeenWritten() {
-        return pendingStartTag != -2;
+        return started;
     }
 
     /**
@@ -87,7 +102,7 @@ public final class ComplexContentOutputter extends SequenceReceiver {
      */
 
     public void open() throws XPathException {
-        receiver.open();
+        nextReceiver.open();
         previousAtomic = false;
     }
 
@@ -98,12 +113,18 @@ public final class ComplexContentOutputter extends SequenceReceiver {
     public void startDocument(int properties) throws XPathException {
         level++;
         if (level == 0) {
-            receiver.startDocument(properties);
+            nextReceiver.startDocument(properties);
         } else if (pendingStartTag >= 0) {
             startContent();
             pendingStartTag = -2;
         }
         previousAtomic = false;
+        if (currentLevelIsDocument.length < level+1) {
+            boolean[] b2 = new boolean[level*2];
+            System.arraycopy(currentLevelIsDocument, 0, b2, 0, level);
+            currentLevelIsDocument = b2;
+        }
+        currentLevelIsDocument[level] = true;
     }
 
     /**
@@ -112,7 +133,7 @@ public final class ComplexContentOutputter extends SequenceReceiver {
 
     public void endDocument() throws XPathException {
         if (level == 0) {
-            receiver.endDocument();
+            nextReceiver.endDocument();
         }
         level--;
     }
@@ -135,7 +156,7 @@ public final class ComplexContentOutputter extends SequenceReceiver {
         if (pendingStartTag >= 0) {
             startContent();
         }
-        receiver.characters(s, locationId, properties);
+        nextReceiver.characters(s, locationId, properties);
     }
 
     /**
@@ -148,7 +169,7 @@ public final class ComplexContentOutputter extends SequenceReceiver {
     public void startElement(int nameCode, int typeCode, int locationId, int properties) throws XPathException {
         // System.err.println("StartElement " + nameCode);
         level++;
-
+        started = true;
         if (pendingStartTag >= 0) {
             startContent();
         }
@@ -158,8 +179,15 @@ public final class ComplexContentOutputter extends SequenceReceiver {
         pendingNSListSize = 0;
         pendingStartTag = nameCode;
         elementIsInNullNamespace = null; // meaning not yet computed
+        declaresDefaultNamespace = false;
         currentSimpleType = typeCode;
         previousAtomic = false;
+        if (currentLevelIsDocument.length < level+1) {
+            boolean[] b2 = new boolean[level*2];
+            System.arraycopy(currentLevelIsDocument, 0, b2, 0, level);
+            currentLevelIsDocument = b2;
+        }
+        currentLevelIsDocument[level] = false;
     }
 
 
@@ -178,10 +206,11 @@ public final class ComplexContentOutputter extends SequenceReceiver {
     throws XPathException {
 
         // System.err.println("Write namespace prefix=" + (nscode>>16) + " uri=" + (nscode&0xffff));
+        NamePool pool = getNamePool();
         if (pendingStartTag < 0) {
             throw NoOpenStartTagException.makeNoOpenStartTagException(
                     Type.NAMESPACE,
-                    getNamePool().getPrefixFromNamespaceCode(nscode),
+                    pool.getPrefixFromNamespaceCode(nscode),
                     hostLanguage,
                     pendingStartTag == -2,
                     getPipelineConfiguration().isSerializing()
@@ -189,7 +218,7 @@ public final class ComplexContentOutputter extends SequenceReceiver {
         }
 
         // elimination of namespaces already present on an outer element of the
-        // result tree is now done by the NamespaceReducer.
+        // result tree is done by the NamespaceReducer.
 
         // Handle declarations whose prefix is duplicated for this element.
 
@@ -202,10 +231,16 @@ public final class ComplexContentOutputter extends SequenceReceiver {
             }
         	if ((nscode>>16) == (pendingNSList[i]>>16)) {
         	    if (rejectDuplicates) {
-        	        DynamicError err = new DynamicError("Cannot create two namespace nodes with the same name");
+                    String prefix = pool.getPrefixFromNamespaceCode(nscode);
+                    String uri1 = pool.getURIFromNamespaceCode(nscode);
+                    String uri2 = pool.getURIFromNamespaceCode(pendingNSList[i]);
+                    XPathException err = new XPathException("Cannot create two namespace nodes with the same prefix mapped to different URIs (prefix=" +
+                            (prefix.length() == 0 ? "\"\"" : prefix) + ", URI=" +
+                            (uri1.length() == 0 ? "\"\"" : uri1) + ", URI=" +
+                            (uri2.length() == 0 ? "\"\"" : uri2) + ")");
                     err.setErrorCode("XTDE0430");
                     throw err;
-        	    } else {
+                } else {
         		    // same prefix, do a quick exit
         		    return;
         		}
@@ -219,11 +254,10 @@ public final class ComplexContentOutputter extends SequenceReceiver {
             declaresDefaultNamespace = true;
             if (elementIsInNullNamespace == null) {
                 elementIsInNullNamespace = Boolean.valueOf(
-                        getNamePool().getURI(pendingStartTag) == NamespaceConstant.NULL);
+                        pool.getURI(pendingStartTag).equals(NamespaceConstant.NULL));
             }
             if (elementIsInNullNamespace.booleanValue()) {
-                DynamicError err = new DynamicError(
-                        "Cannot output a namespace node for the default namespace when the element is in no namespace");
+                XPathException err = new XPathException("Cannot output a namespace node for the default namespace when the element is in no namespace");
                 err.setErrorCode("XTDE0440");
                 throw err;
             }
@@ -259,15 +293,16 @@ public final class ComplexContentOutputter extends SequenceReceiver {
         if (pendingStartTag < 0) {
             // The complexity here is in identifying the right error message and error code
 
-            DynamicError err = NoOpenStartTagException.makeNoOpenStartTagException(
+            XPathException err = NoOpenStartTagException.makeNoOpenStartTagException(
                     Type.ATTRIBUTE,
                     getNamePool().getDisplayName(nameCode),
                     hostLanguage,
-                    pendingStartTag == -2,
+                    level<0 || currentLevelIsDocument[level],
                     getPipelineConfiguration().isSerializing());
-            err.setLocator(new ExpressionLocation(
-                    getPipelineConfiguration().getLocationProvider(),
-                    locationId));
+            LocationProvider lp = getPipelineConfiguration().getLocationProvider();
+            if (lp != null) {
+                err.setLocator(new ExpressionLocation(lp, locationId));
+            }
             throw err;
         }
 
@@ -284,7 +319,7 @@ public final class ComplexContentOutputter extends SequenceReceiver {
                     pendingAttProp[a] = properties;
                     return;
                 } else {
-                    DynamicError err = new DynamicError("Cannot create an element having two attributes with the same name: " +
+                    XPathException err = new XPathException("Cannot create an element having two attributes with the same name: " +
                             Err.wrap(getNamePool().getDisplayName(nameCode), Err.ATTRIBUTE));
                     err.setErrorCode("XQDY0025");
                     throw err;
@@ -322,11 +357,15 @@ public final class ComplexContentOutputter extends SequenceReceiver {
     }
 
 	/**
-	* Check that the prefix for an element or attribute is acceptable, allocating a substitute
-	* prefix if not. The prefix is acceptable unless a namespace declaration has been
-	* written that assignes this prefix to a different namespace URI. This method
-	* also checks that the element or attribute namespace has been declared, and declares it
-	* if not.
+	 * Check that the prefix for an element or attribute is acceptable, allocating a substitute
+	 * prefix if not. The prefix is acceptable unless a namespace declaration has been
+	 * written that assignes this prefix to a different namespace URI. This method
+	 * also checks that the element or attribute namespace has been declared, and declares it
+	 * if not.
+     * @param nameCode the proposed name, including proposed prefix
+     * @param seq sequence number, used for generating a substitute prefix when necessary
+     * @return a nameCode to use in place of the proposed nameCode (or the original nameCode
+     * if no change is needed)
 	*/
 
 	private int checkProposedPrefix(int nameCode, int seq) throws XPathException {
@@ -362,10 +401,13 @@ public final class ComplexContentOutputter extends SequenceReceiver {
     }
 
     /**
-    * It is possible for a single output element to use the same prefix to refer to different
-    * namespaces. In this case we have to generate an alternative prefix for uniqueness. The
-    * one we generate is based on the sequential position of the element/attribute: this is
-    * designed to ensure both uniqueness (with a high probability) and repeatability
+     * It is possible for a single output element to use the same prefix to refer to different
+     * namespaces. In this case we have to generate an alternative prefix for uniqueness. The
+     * one we generate is based on the sequential position of the element/attribute: this is
+     * designed to ensure both uniqueness (with a high probability) and repeatability
+     * @param nscode the proposed namespace code
+     * @param seq sequence number for use in the substitute prefix
+     * @return a prefix to use in place of the one originally proposed
     */
 
     private String getSubstitutePrefix(int nscode, int seq) {
@@ -381,11 +423,13 @@ public final class ComplexContentOutputter extends SequenceReceiver {
         //System.err.println("Write end tag " + this + " : " + name);
         if (pendingStartTag >= 0) {
             startContent();
+        } else {
+            pendingStartTag = -2;
         }
 
         // write the end tag
 
-        receiver.endElement();
+        nextReceiver.endElement();
         level--;
         previousAtomic = false;
     }
@@ -398,7 +442,7 @@ public final class ComplexContentOutputter extends SequenceReceiver {
         if (pendingStartTag >= 0) {
             startContent();
         }
-        receiver.comment(comment, locationId, properties);
+        nextReceiver.comment(comment, locationId, properties);
         previousAtomic = false;
     }
 
@@ -410,7 +454,7 @@ public final class ComplexContentOutputter extends SequenceReceiver {
         if (pendingStartTag >= 0) {
             startContent();
         }
-        receiver.processingInstruction(target, data, locationId, properties);
+        nextReceiver.processingInstruction(target, data, locationId, properties);
         previousAtomic = false;
     }
 
@@ -419,11 +463,13 @@ public final class ComplexContentOutputter extends SequenceReceiver {
      * @param item the item to be appended
      * @param locationId the location of the calling instruction, for diagnostics
      * @param copyNamespaces if the item is an element node, this indicates whether its namespaces
+* need to be copied. Values are {@link org.orbeon.saxon.om.NodeInfo#ALL_NAMESPACES}, {@link org.orbeon.saxon.om.NodeInfo#LOCAL_NAMESPACES},
+* {@link org.orbeon.saxon.om.NodeInfo#NO_NAMESPACES}
      */
 
     public void append(Item item, int locationId, int copyNamespaces) throws XPathException {
         if (item == null) {
-            return;
+            //return;
         } else if (item instanceof AtomicValue) {
             if (previousAtomic) {
                 characters(" ", locationId, 0);
@@ -431,12 +477,15 @@ public final class ComplexContentOutputter extends SequenceReceiver {
             characters(item.getStringValueCS(), locationId, 0);
             previousAtomic = true;
         } else if (((NodeInfo)item).getNodeKind() == Type.DOCUMENT) {
+            startDocument(0);
             SequenceIterator iter = ((NodeInfo)item).iterateAxis(Axis.CHILD);
             while (true) {
                 Item it = iter.next();
                 if (it == null) break;
                 append(it, locationId, copyNamespaces);
             }
+            endDocument();
+            previousAtomic = false;
         } else {
             try {
                 ((NodeInfo)item).copy(this, copyNamespaces, true, locationId);
@@ -455,7 +504,7 @@ public final class ComplexContentOutputter extends SequenceReceiver {
 
     public void close() throws XPathException {
         // System.err.println("Close " + this + " using emitter " + emitter.getClass());
-        receiver.close();
+        nextReceiver.close();
         previousAtomic = false;
     }
 
@@ -471,6 +520,7 @@ public final class ComplexContentOutputter extends SequenceReceiver {
             return;
         }
 
+        started = true;
         int props = startElementProperties;
         int elcode = pendingStartTag;
         if (declaresDefaultNamespace || NamePool.getPrefixIndex(elcode) != 0) {
@@ -478,7 +528,7 @@ public final class ComplexContentOutputter extends SequenceReceiver {
             elcode = checkProposedPrefix(pendingStartTag, 0);
             props = startElementProperties | ReceiverOptions.NAMESPACE_OK;
         }
-        receiver.startElement(elcode, currentSimpleType, startElementLocationId, props);
+        nextReceiver.startElement(elcode, currentSimpleType, startElementLocationId, props);
 
         for (int a=0; a<pendingAttListSize; a++) {
             int attcode = pendingAttCode[a];
@@ -488,18 +538,18 @@ public final class ComplexContentOutputter extends SequenceReceiver {
         }
 
         for (int n=0; n<pendingNSListSize; n++) {
-            receiver.namespace(pendingNSList[n], 0);
+            nextReceiver.namespace(pendingNSList[n], 0);
         }
 
         for (int a=0; a<pendingAttListSize; a++) {
-            receiver.attribute( pendingAttCode[a],
+            nextReceiver.attribute( pendingAttCode[a],
                                 pendingAttType[a],
                                 pendingAttValue[a],
                                 pendingAttLocation[a],
                                 pendingAttProp[a]);
         }
 
-        receiver.startContent();
+        nextReceiver.startContent();
 
         pendingAttListSize = 0;
         pendingNSListSize = 0;

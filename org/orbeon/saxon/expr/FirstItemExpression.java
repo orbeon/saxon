@@ -1,6 +1,6 @@
 package org.orbeon.saxon.expr;
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 
@@ -27,20 +27,18 @@ public final class FirstItemExpression extends UnaryExpression {
      * <p>This method is called after all references to functions and variables have been resolved
      * to the declaration of the function or variable, and after all type checking has been done.</p>
      *
-     * @param opt             the optimizer in use. This provides access to supporting functions; it also allows
-     *                        different optimization strategies to be used in different circumstances.
-     * @param env             the static context of the expression
+     * @param visitor an expresion visitor
      * @param contextItemType the static type of "." at the point where this expression is invoked.
      *                        The parameter is set to null if it is known statically that the context item will be undefined.
      *                        If the type of the context item is not known statically, the argument is set to
      *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
      * @return the original expression, rewritten if appropriate to optimize execution
-     * @throws org.orbeon.saxon.trans.StaticError if an error is discovered during this phase
+     * @throws XPathException if an error is discovered during this phase
      *                                        (typically a type error)
      */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        operand = operand.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.optimize(operand, contextItemType);
         // don't remove this expression just because the operand is known to be a singleton.
         // It might be that this expression was added to give early exit from evaluating the underlying expression
 //        if (!Cardinality.allowsMany(operand.getCardinality())) {
@@ -48,10 +46,9 @@ public final class FirstItemExpression extends UnaryExpression {
 //            return operand;
 //        }
         if (operand instanceof FirstItemExpression) {
-            ComputedExpression.setParentExpression(operand, getParentExpression());
             return operand;
         }
-        return this;
+        return super.optimize(visitor, contextItemType);
     }
 
     /**
@@ -80,20 +77,29 @@ public final class FirstItemExpression extends UnaryExpression {
     }
 
     /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new FirstItemExpression(getBaseExpression().copy());
+    }
+
+    /**
     * Evaluate the expression
     */
 
     public Item evaluateItem(XPathContext context) throws XPathException {
-        return operand.iterate(context).next();
+        SequenceIterator iter = operand.iterate(context);
+        Item result = iter.next();
+        iter.close();
+        return result;
     }
 
-    /**
-    * Diagnostic print of expression structure
-     * @param config
-     */
-
-    public String displayOperator(Configuration config) {
-        return "first item of";
+   
+    public String displayExpressionName() {
+        return "firstItem";
     }
 
 }

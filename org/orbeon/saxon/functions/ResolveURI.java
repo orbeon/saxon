@@ -1,16 +1,20 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.Err;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.trans.Err;
 import org.orbeon.saxon.Platform;
-import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.ExpressionVisitor;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.value.AnyURIValue;
+import org.orbeon.saxon.value.AtomicValue;
 
+import java.io.File;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 
 /**
 * This class supports the resolve-uri() functions in XPath 2.0
@@ -20,11 +24,35 @@ public class ResolveURI extends SystemFunction {
 
     String expressionBaseURI = null;
 
-    public void checkArguments(StaticContext env) throws XPathException {
+    public void checkArguments(ExpressionVisitor visitor) throws XPathException {
         if (expressionBaseURI == null) {
-            super.checkArguments(env);
-            expressionBaseURI = env.getBaseURI();
+            super.checkArguments(visitor);
+            expressionBaseURI = visitor.getStaticContext().getBaseURI();
+            if (expressionBaseURI == null && argument.length == 1) {
+                XPathException de = new XPathException("Base URI in static context of resolve-uri() is unknown");
+                de.setErrorCode("FONS0005");
+                throw de;
+            }
         }
+    }
+
+    /**
+     * Get the static base URI of the expression
+     */
+
+    public String getStaticBaseURI() {
+        return expressionBaseURI;
+    }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        ResolveURI d = (ResolveURI)super.copy();
+        d.expressionBaseURI = expressionBaseURI;
+        return d;
     }
 
     /**
@@ -32,37 +60,23 @@ public class ResolveURI extends SystemFunction {
     */
 
     public Item evaluateItem(XPathContext context) throws XPathException {
-//        URI relativeURI;
         AtomicValue arg0 = (AtomicValue)argument[0].evaluateItem(context);
         if (arg0 == null) {
             return null;
         }
         String relative = arg0.getStringValue();
-//        try {
-//            relativeURI = new URI(relative);
-//        } catch (URISyntaxException err) {
-//            dynamicError("Relative URI " + Err.wrap(relative) + " is invalid: " + err.getMessage(),
-//                    "FORG0002", context);
-//            return null;
-//        }
-//        if (relativeURI.isAbsolute()) {
-//            return new StringValue(relative);
-//        }
-
         String base;
-//        URI baseURI;
         if (argument.length == 2) {
-            base = argument[1].evaluateAsString(context);
+            base = argument[1].evaluateAsString(context).toString();
         } else {
             base = expressionBaseURI;
             if (expressionBaseURI == null) {
-                dynamicError("Base URI in static context is unknown",
-                        "FONS0005", context);
+                dynamicError("Base URI in static context of resolve-uri() is unknown", "FONS0005", context);
                 return null;
             }
         }
 
-        Platform platform = context.getConfiguration().getPlatform();
+        Platform platform = Configuration.getPlatform();
         try {
             URI resolved = platform.makeAbsolute(relative,  base);
             return new AnyURIValue(resolved.toString());
@@ -70,66 +84,55 @@ public class ResolveURI extends SystemFunction {
             dynamicError("Base URI " + Err.wrap(base) + " is invalid: " + err.getMessage(),
                     "FORG0002", context);
             return null;
-        } 
-
-//        try {
-//            baseURI = new URI(base);
-//        } catch (URISyntaxException err) {
-//            dynamicError("Base URI " + Err.wrap(base) + " is invalid: " + err.getMessage(),
-//                    "FORG0002", context);
-//            return null;
-//        }
-
-//        URI resolvedURI = baseURI.resolve(relativeURI);
-//        return new AnyURIValue(resolvedURI.toString());
+        }
     }
 
+    /**
+    * If a system ID can't be parsed as a URL, try to expand it as a relative
+    * URI using the current directory as the base URI.
+    */
 
-    public Item evaluateItemOLD(XPathContext context) throws XPathException {
-        URI relativeURI;
-        AtomicValue arg0 = (AtomicValue)argument[0].evaluateItem(context);
-        if (arg0 == null) {
-            return null;
+    public static String tryToExpand(String systemId) {
+        if (systemId==null) {
+            systemId = "";
         }
-        String relative = arg0.getStringValue();
-        try {
-            relativeURI = new URI(relative);
-        } catch (URISyntaxException err) {
-            dynamicError("Relative URI " + Err.wrap(relative) + " is invalid: " + err.getMessage(),
-                    "FORG0002", context);
-            return null;
-        }
-        if (relativeURI.isAbsolute()) {
-            return new StringValue(relative);
-        }
+	    try {
+	        new URL(systemId);
+	        return systemId;   // all is well
+	    } catch (MalformedURLException err) {
+	        String dir;
+	        try {
+	            dir = System.getProperty("user.dir");
+	        } catch (Exception geterr) {
+	            // this doesn't work when running an applet
+	            return systemId;
+	        }
+	        if (!(dir.endsWith("/") || systemId.startsWith("/"))) {
+	            dir = dir + '/';
+	        }
 
-        String base;
-        URI baseURI;
-        if (argument.length == 2) {
-            base = argument[1].evaluateAsString(context);
-        } else {
-            base = expressionBaseURI;
-            if (expressionBaseURI == null) {
-                dynamicError("Base URI in static context is unknown",
-                        "FONS0005", context);
-                return null;
-            }
+            URI currentDirectoryURI = new File(dir).toURI();
+            URI baseURI = currentDirectoryURI.resolve(systemId);
+            return baseURI.toString();
+
+	    }
+	}
+
+    /**
+     * Replace spaces by %20
+     */
+
+    public static String escapeSpaces(String s) {
+        // It's not entirely clear why we have to escape spaces by hand, and not other special characters;
+        // it's just that tests with a variety of filenames show that this approach seems to work.
+        if (s == null) return s;
+        int i = s.indexOf(' ');
+        if (i < 0) {
+            return s;
         }
-        try {
-            baseURI = new URI(base);
-        } catch (URISyntaxException err) {
-            dynamicError("Base URI " + Err.wrap(base) + " is invalid: " + err.getMessage(),
-                    "FORG0002", context);
-            return null;
-        }
-//        if (!baseURI.isAbsolute()) {
-//            // this rule has been removed from the spec (April 2005)
-//            dynamicError("Base URI " + Err.wrap(base) + " is not an absolute URI",
-//                    "FORG0009", context);
-//            return null;
-//        }
-        URI resolvedURI = baseURI.resolve(relativeURI);
-        return new AnyURIValue(resolvedURI.toString());
+        return (i == 0 ? "" : s.substring(0, i))
+                + "%20"
+                + (i == s.length()-1 ? "" : escapeSpaces(s.substring(i+1)));
     }
 
 }

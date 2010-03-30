@@ -6,6 +6,9 @@ import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.type.Type;
 import org.jdom.Document;
 
+import java.util.Iterator;
+import java.util.Collections;
+
 /**
   * The root node of an XPath tree. (Or equivalently, the tree itself).<P>
   * This class should have been named Root; it is used not only for the root of a document,
@@ -95,6 +98,17 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
     public NodeInfo selectID(String id) {
         return null;
     }
+
+    /**
+     * Get the list of unparsed entities defined in this document
+     * @return an Iterator, whose items are of type String, containing the names of all
+     *         unparsed entities defined in this document. If there are no unparsed entities or if the
+     *         information is not available then an empty iterator is returned
+     */
+
+    public Iterator getUnparsedEntityNames() {
+        return Collections.EMPTY_LIST.iterator();
+    }    
 
     /**
     * Get the unparsed entity with a given name

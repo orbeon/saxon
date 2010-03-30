@@ -1,9 +1,11 @@
 package org.orbeon.saxon.event;
 import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.FeatureKeys;
+import org.orbeon.saxon.expr.ExpressionLocation;
 import org.orbeon.saxon.om.NameChecker;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.tinytree.CharSlice;
 import org.orbeon.saxon.tinytree.CompressedWhitespace;
 import org.orbeon.saxon.trans.XPathException;
@@ -12,7 +14,10 @@ import org.orbeon.saxon.value.Whitespace;
 import org.xml.sax.*;
 import org.xml.sax.ext.LexicalHandler;
 
+import javax.xml.transform.Result;
 import javax.xml.transform.TransformerException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.HashMap;
@@ -23,17 +28,21 @@ import java.util.HashMap;
   * as strings to numeric name codes, for which purpose it needs access to a name
   * pool. The class also performs the function of assembling adjacent text nodes.
   * <p>The class was previously named ContentEmitter.</p>
+  * <p>If the input stream contains the processing instructions assigned by JAXP to switch
+  * disable-output-escaping on or off, these will be reflected in properties set in the corresponding
+  * characters events. In this case adjacent text nodes will not be combined.
   * @author Michael H. Kay
   */
 
 public class ReceivingContentHandler
-        implements ContentHandler, LexicalHandler, DTDHandler, SaxonLocator, SourceLocationProvider
+        implements ContentHandler, LexicalHandler, DTDHandler //, SaxonLocator, SourceLocationProvider
 {
     private NamePool pool;
     private PipelineConfiguration pipe;
     private Receiver receiver;
     private boolean inDTD = false;	// true while processing the DTD
     private Locator locator;        // a SAX Locator
+    private LocalLocator localLocator = new LocalLocator();
 
     // buffer for accumulating character data, until the next markup event is received
 
@@ -54,6 +63,18 @@ public class ReceivingContentHandler
 
     private boolean retainDTDAttributeTypes = false;
 
+    // determine whether DTD attribute value defaults should be suppressed
+
+    private boolean suppressDTDAttributeDefaults = false;
+
+    // indicate that escaping is allowed to be disabled using the JAXP-defined processing instructions
+
+    private boolean allowDisableOutputEscaping = false;
+
+    // indicate that escaping is disabled
+
+    private boolean escapingDisabled = false;
+
     /**
      * A local cache is used to avoid allocating namecodes for the same name more than once.
      * This reduces contention on the NamePool. This is a two-level hashmap: the first level
@@ -64,9 +85,12 @@ public class ReceivingContentHandler
     private HashMap cache = new HashMap(10);
     private HashMap noNamespaceMap;
 
+    private static Class attributes2class;
+    private static Method isSpecifiedMethod;
+
 
     /**
-    * create a ReceivingContentHandler and initialise variables
+    * Create a ReceivingContentHandler and initialise variables
     */
 
     public ReceivingContentHandler() {
@@ -87,25 +111,55 @@ public class ReceivingContentHandler
         slice.setLength(0);
         namespacesUsed = 0;
         locator = null;
+        allowDisableOutputEscaping = false;
+        escapingDisabled = false;
     }
 
-	public void setReceiver(Receiver e) {
-		receiver = e;
-        //receiver = new TracingFilter(e);
+    /**
+     * Set the receiver to which events are passed. ReceivingContentHandler is essentially a translator
+     * that takes SAX events as input and produces Saxon Receiver events as output; these Receiver events
+     * are passed to the supplied Receiver
+     * @param receiver the Receiver of events
+     */
+
+    public void setReceiver(Receiver receiver) {
+		this.receiver = receiver;
+        //receiver = new TracingFilter(receiver);
 	}
+
+    /**
+     * Set the pipeline configuration
+     * @param pipe the pipeline configuration. This holds a reference to the Saxon configuration, as well as
+     * information that can vary from one pipeline to another, for example the LocationProvider which resolves
+     * the location of events in a source document
+     */
 
     public void setPipelineConfiguration(PipelineConfiguration pipe) {
         this.pipe = pipe;
-        pipe.setLocationProvider(this);
+        pipe.setLocationProvider(localLocator);
         Configuration config = pipe.getConfiguration();
-        this.pool = config.getNamePool();
+        pool = config.getNamePool();
         ignoreIgnorable = config.getStripsWhiteSpace() != Whitespace.NONE;
         retainDTDAttributeTypes = config.isRetainDTDAttributeTypes();
+        suppressDTDAttributeDefaults = !pipe.isExpandAttributeDefaults();
+        Boolean b = (Boolean)config.getConfigurationProperty(FeatureKeys.USE_PI_DISABLE_OUTPUT_ESCAPING);
+        allowDisableOutputEscaping = b.booleanValue();
     }
+
+    /**
+     * Get the pipeline configuration
+     * @return the pipeline configuration as supplied to
+    {@link #setPipelineConfiguration(PipelineConfiguration)}
+     */
 
     public PipelineConfiguration getPipelineConfiguration() {
         return pipe;
     }
+
+    /**
+     * Get the Configuration object
+     * @return the Saxon configuration
+     */
 
     public Configuration getConfiguration() {
         return pipe.getConfiguration();
@@ -115,6 +169,9 @@ public class ReceivingContentHandler
      * Set whether "ignorable whitespace" should be ignored. This method is effective only
      * if called after setPipelineConfiguration, since the default value is taken from the
      * configuration.
+     * @param ignore true if ignorable whitespace (whitespace in element content that is notified
+     * via the {@link #ignorableWhitespace(char[], int, int)} method) should be ignored, false if
+     * it should be treated as ordinary text.
      */
 
     public void setIgnoreIgnorableWhitespace(boolean ignore) {
@@ -125,6 +182,7 @@ public class ReceivingContentHandler
      * Determine whether "ignorable whitespace" is ignored. This returns the value that was set
      * using {@link #setIgnoreIgnorableWhitespace} if that has been called; otherwise the value
      * from the configuration.
+     * @return true if ignorable whitespace is being ignored
      */
 
     public boolean isIgnoringIgnorableWhitespace() {
@@ -132,15 +190,15 @@ public class ReceivingContentHandler
     }
 
     /**
-    * Callback interface for SAX: not for application use
-    */
+     * Receive notification of the beginning of a document.
+     */
 
     public void startDocument () throws SAXException {
         // System.err.println("ReceivingContentHandler#startDocument");
         try {
             charsUsed = 0;
             namespacesUsed = 0;
-            pipe.setLocationProvider(this);
+            pipe.setLocationProvider(localLocator);
             receiver.setPipelineConfiguration(pipe);
             receiver.open();
             receiver.startDocument(0);
@@ -150,7 +208,7 @@ public class ReceivingContentHandler
     }
 
     /**
-    * Callback interface for SAX: not for application use
+    * Receive notification of the end of a document
     */
 
     public void endDocument () throws SAXException {
@@ -168,7 +226,8 @@ public class ReceivingContentHandler
     }
 
     /**
-    * Callback interface for SAX: not for application use
+     * Supply a locator that can be called to give information about location in the source document
+     * being parsed.
     */
 
     public void setDocumentLocator (Locator locator) {
@@ -176,7 +235,7 @@ public class ReceivingContentHandler
     }
 
     /**
-    * Callback interface for SAX: not for application use
+    * Notify a namespace prefix to URI binding
     */
 
     public void startPrefixMapping(String prefix, String uri) throws SAXException {
@@ -195,18 +254,21 @@ public class ReceivingContentHandler
     }
 
     /**
-    * Callback interface for SAX: not for application use
+    * Notify that a namespace binding is going out of scope
     */
 
     public void endPrefixMapping(String prefix) throws SAXException {}
 
     /**
-    * Callback interface for SAX: not for application use
+    * Notify an element start event, including all the associated attributes
     */
+
     public void startElement (String uri, String localname, String rawname, Attributes atts)
     throws SAXException
     {
-//        System.err.println("ReceivingContentHandler#startElement " + uri + "," + localname + "," + rawname + " at line " + locator.getLineNumber());
+//        System.err.println("ReceivingContentHandler#startElement " +
+//                uri + "," + localname + "," + rawname +
+//                " at line " + locator.getLineNumber() + " of " + locator.getSystemId());
         //for (int a=0; a<atts.getLength(); a++) {
         //     System.err.println("  Attribute " + atts.getURI(a) + "/" + atts.getLocalName(a) + "/" + atts.getQName(a));
         //}
@@ -214,14 +276,14 @@ public class ReceivingContentHandler
             flush();
 
     		int nameCode = getNameCode(uri, localname, rawname);
-    		receiver.startElement(nameCode, StandardNames.XDT_UNTYPED, 0, 0);
+    		receiver.startElement(nameCode, StandardNames.XS_UNTYPED, 0, ReceiverOptions.NAMESPACE_OK);
 
     		for (int n=0; n<namespacesUsed; n++) {
     		    receiver.namespace(namespaces[n], 0);
     		}
 
     		for (int a=0; a<atts.getLength(); a++) {
-                int properties = 0;
+                int properties = ReceiverOptions.NAMESPACE_OK;
                 String qname = atts.getQName(a);
                 if (qname.startsWith("xmlns") && (qname.equals("xmlns") || qname.startsWith("xmlns:"))) {
                     // We normally configure the parser so that it doesn't notify namespaces as attributes.
@@ -231,12 +293,49 @@ public class ReceivingContentHandler
                     // we'll cross that bridge when we come to it.
                     continue;
                 }
-    		    int attCode = getNameCode(atts.getURI(a), atts.getLocalName(a), atts.getQName(a));
+                // TODO: JDK15: eliminate use of reflection for Attributes2.isSpecified()
+                if (suppressDTDAttributeDefaults) {
+                    if (attributes2class == null) {
+                        try {
+                            attributes2class = getConfiguration().getClass("org.xml.sax.ext.Attributes2", false, null);
+                            //noinspection RedundantArrayCreation
+                            isSpecifiedMethod = attributes2class.getMethod("isSpecified", new Class[]{String.class});
+                        } catch (XPathException e) {
+                            suppressDTDAttributeDefaults = false;
+                            attributes2class = null;
+                        } catch (NoSuchMethodException e) {
+                            suppressDTDAttributeDefaults = false;
+                            attributes2class = null;
+                        }
+                    }
+
+                    if (suppressDTDAttributeDefaults) {
+                        if (attributes2class.isAssignableFrom(atts.getClass())) {
+                            try {
+                                //noinspection RedundantArrayCreation
+                                Boolean specified = (Boolean)isSpecifiedMethod.invoke(atts, new Object[]{qname});
+                                //if (!((Attributes2)atts).isSpecified(a)) {
+                                if (!specified.booleanValue()) {
+                                    // skip this attribute
+                                    continue;
+                                }
+                            } catch (IllegalAccessException e) {
+                                suppressDTDAttributeDefaults = false;
+                            } catch (InvocationTargetException e) {
+                                suppressDTDAttributeDefaults = false;
+                            }
+                        } else {
+                            // XML parser doesn't report whether attributes were defaulted, so we give up
+                            suppressDTDAttributeDefaults = false;
+                        }
+                    }
+                }
+                int attCode = getNameCode(atts.getURI(a), atts.getLocalName(a), atts.getQName(a));
     		    String type = atts.getType(a);
-    		    int typeCode = StandardNames.XDT_UNTYPED_ATOMIC;
+    		    int typeCode = StandardNames.XS_UNTYPED_ATOMIC;
                 if (retainDTDAttributeTypes) {
                     if (type.equals("CDATA")) {
-                        // no action
+                        // common case, no action
                     } else if (type.equals("ID")) {
                         typeCode = StandardNames.XS_ID;
                     } else if (type.equals("IDREF")) {
@@ -253,7 +352,9 @@ public class ReceivingContentHandler
                         typeCode = StandardNames.XS_ENTITIES;
                     }
                 } else {
-                    if (type.equals("ID")) {
+                    if (type.equals("CDATA")) {
+                        // common case, do nothing
+                    } else if (type.equals("ID")) {
                         typeCode = StandardNames.XS_ID | NodeInfo.IS_DTD_TYPE;
                     } else if (type.equals("IDREF")) {
                         typeCode = StandardNames.XS_IDREF | NodeInfo.IS_DTD_TYPE;
@@ -278,16 +379,25 @@ public class ReceivingContentHandler
         }
     }
 
+    /**
+     * Get the NamePool name code associated with a name appearing in the document
+     * @param uri the namespace URI
+     * @param localname the local part of the name
+     * @param rawname the lexical QName
+     * @return the NamePool name code, newly allocated if necessary
+     * @throws SAXException if the information supplied by the SAX parser is insufficient
+     */
+
     private int getNameCode(String uri, String localname, String rawname) throws SAXException {
         // System.err.println("URI=" + uri + " local=" + " raw=" + rawname);
         // The XML parser isn't required to report the rawname (qname), though all known parsers do.
         // If none is provided, we give up
-        if (rawname.equals("")) {
+        if (rawname.length() == 0) {
             throw new SAXException("Saxon requires an XML parser that reports the QName of each element");
         }
         // It's also possible (especially when using a TransformerHandler) that the parser
         // has been configured to report the QName rather than the localname+URI
-        if (localname.equals("")) {
+        if (localname.length() == 0) {
             throw new SAXException("Parser configuration problem: namespace reporting is not enabled");
         }
 
@@ -296,11 +406,11 @@ public class ReceivingContentHandler
         // when the same name is used repeatedly. We also get a tiny improvement by avoiding the first hash
         // table lookup for names in the null namespace.
 
-        HashMap map2 = (uri.equals("") ? noNamespaceMap : (HashMap)cache.get(uri));
+        HashMap map2 = (uri.length() == 0 ? noNamespaceMap : (HashMap)cache.get(uri));
         if (map2 == null) {
             map2 = new HashMap(50);
             cache.put(uri, map2);
-            if (uri.equals("")) {
+            if (uri.length() == 0) {
                 noNamespaceMap = map2;
             }
         }
@@ -323,7 +433,7 @@ public class ReceivingContentHandler
 
 
     /**
-    * Callback interface for SAX: not for application use
+    * Report the end of an element (the close tag)
     */
 
     public void endElement (String uri, String localname, String rawname) throws SAXException {
@@ -332,7 +442,7 @@ public class ReceivingContentHandler
             flush();
             receiver.endElement();
         } catch (ValidationException err) {
-            err.setLocator(locator);
+            err.maybeSetLocation(ExpressionLocation.makeFromSax(locator));
             if (!err.hasBeenReported()) {
                 try {
                     pipe.getErrorListener().fatalError(err);
@@ -348,7 +458,8 @@ public class ReceivingContentHandler
     }
 
     /**
-    * Callback interface for SAX: not for application use
+     * Report character data. Note that contiguous character data may be reported as a sequence of
+     * calls on this method, with arbitrary boundaries
     */
 
     public void characters (char ch[], int start, int length) throws SAXException {
@@ -366,7 +477,8 @@ public class ReceivingContentHandler
     }
 
     /**
-    * Callback interface for SAX: not for application use
+     * Report character data classified as "Ignorable whitespace", that is, whitespace text nodes
+     * appearing as children of elements with an element-only content model
     */
 
     public void ignorableWhitespace (char ch[], int start, int length) throws SAXException {
@@ -376,7 +488,7 @@ public class ReceivingContentHandler
     }
 
     /**
-    * Callback interface for SAX: not for application use<BR>
+    * Notify the existence of a processing instruction
     */
 
     public void processingInstruction (String name, String remainder) throws SAXException {
@@ -384,14 +496,25 @@ public class ReceivingContentHandler
             flush();
             if (!inDTD) {
                 if (name==null) {
-                	// trick used by some SAX1 parsers to notify a comment
+                	// trick used by the old James Clark xp parser to notify a comment
                 	comment(remainder.toCharArray(), 0, remainder.length());
                 } else {
                     // some parsers allow through PI names containing colons
                     if (!getConfiguration().getNameChecker().isValidNCName(name)) {
                         throw new SAXException("Invalid processing instruction name (" + name + ')');
                     }
-                	receiver.processingInstruction(name, Whitespace.removeLeadingWhitespace(remainder), 0, 0);
+                    if (allowDisableOutputEscaping) {
+                        if (name.equals(Result.PI_DISABLE_OUTPUT_ESCAPING)) {
+                            //flush();
+                            escapingDisabled = true;
+                            return;
+                        } else if (name.equals(Result.PI_ENABLE_OUTPUT_ESCAPING)) {
+                            //flush();
+                            escapingDisabled = false;
+                            return;
+                        }
+                    }
+                    receiver.processingInstruction(name, Whitespace.removeLeadingWhitespace(remainder), 0, 0);
                 }
             }
         } catch (XPathException err) {
@@ -400,7 +523,8 @@ public class ReceivingContentHandler
     }
 
     /**
-    * Callback interface for SAX (part of LexicalHandler interface): not for application use
+     * Notify the existence of a comment. Note that in SAX this is part of LexicalHandler interface
+     * rather than the ContentHandler interface.
     */
 
     public void comment (char ch[], int start, int length) throws SAXException {
@@ -422,18 +546,25 @@ public class ReceivingContentHandler
         if (charsUsed > 0) {
             slice.setLength(charsUsed);
             CharSequence cs = CompressedWhitespace.compress(slice);
-            receiver.characters(cs, 0, ReceiverOptions.WHOLE_TEXT_NODE);
+            receiver.characters(cs, 0,
+                    escapingDisabled ? ReceiverOptions.DISABLE_ESCAPING : ReceiverOptions.WHOLE_TEXT_NODE);
             charsUsed = 0;
+            escapingDisabled = false;
         }
     }
+
+    /**
+     * Notify a skipped entity. Saxon ignores this event
+     */
 
     public void skippedEntity(String name) throws SAXException {}
 
     // No-op methods to satisfy lexical handler interface
 
 	/**
-	* Register the start of the DTD. Comments in the DTD are skipped because they
-	* are not part of the XPath data model
+	 * Register the start of the DTD. Saxon ignores the DTD; however, it needs to know when the DTD starts and
+     * ends so that it can ignore comments in the DTD, which are reported like any other comment, but which
+     * are skipped because they are not part of the XPath data model
 	*/
 
     public void startDTD (String name, String publicId, String systemId) throws SAXException {
@@ -449,13 +580,13 @@ public class ReceivingContentHandler
 		inDTD = false;
     }
 
-    public void startEntity (String name) throws SAXException {};
+    public void startEntity (String name) throws SAXException {}
 
-    public void endEntity (String name)	throws SAXException {};
+    public void endEntity (String name)	throws SAXException {}
 
-    public void startCDATA () throws SAXException {};
+    public void startCDATA () throws SAXException {}
 
-    public void endCDATA ()	throws SAXException {};
+    public void endCDATA ()	throws SAXException {}
 
     //////////////////////////////////////////////////////////////////////////////
     // Implement DTDHandler interface
@@ -481,10 +612,17 @@ public class ReceivingContentHandler
         String uri = systemId;
         if (locator!=null) {
             try {
-                String baseURI = locator.getSystemId();
-                URI absoluteURI = new URI(baseURI).resolve(systemId);
-                uri = absoluteURI.toString();
-            } catch (URISyntaxException err) {}
+                URI suppliedURI = new URI(systemId);
+                if (!suppliedURI.isAbsolute()) {
+                    String baseURI = locator.getSystemId();
+                    if (baseURI != null) {
+                        URI absoluteURI = new URI(baseURI).resolve(systemId);
+                        uri = absoluteURI.toString();
+                    }
+                }
+            } catch (URISyntaxException err) {
+                uri = systemId; // fallback
+            }
         }
         try {
             receiver.setUnparsedEntity(name, uri, publicId);
@@ -493,68 +631,76 @@ public class ReceivingContentHandler
         }
     }
 
-    // implement the SaxonLocator interface. This is needed to bridge a SAX Locator to a JAXP SourceLocator
 
-    /**
-     * Return the public identifier for the current document event.
-     * @return A string containing the system identifier, or
-     *         null if none is available.
-     */
 
-    public String getSystemId() {
-        if (locator == null) {
-            return null;
-        } else {
-            return locator.getSystemId();
+
+    private class LocalLocator implements SaxonLocator, SourceLocationProvider {
+
+        // This class is needed to bridge a SAX Locator to a JAXP SourceLocator
+
+        /**
+         * Return the system identifier for the current document event.
+         * @return A string containing the system identifier, or
+         *         null if none is available.
+         */
+
+        public String getSystemId() {
+            return (locator == null ? null : locator.getSystemId());
         }
-    }
 
-    /**
-     * Return the public identifier for the current document event.
-     * @return A string containing the public identifier, or
-     *         null if none is available.
-     */
+        /**
+         * Return the public identifier for the current document event.
+         * @return A string containing the public identifier, or
+         *         null if none is available.
+         */
 
-    public String getPublicId() {
-        if (locator==null) {
-            return null;
-        } else {
-            return locator.getPublicId();
+        public String getPublicId() {
+            return (locator==null ? null : locator.getPublicId());
         }
-    }
 
-    /**
-     * Return the line number where the current document event ends.
-     * @return The line number, or -1 if none is available.
-     */
+        /**
+         * Return the line number where the current document event ends.
+         * @return The line number, or -1 if none is available.
+         */
 
-    public int getLineNumber() {
-        if (locator==null) {
-            return -1;
-        } else {
-            return locator.getLineNumber();
+        public int getLineNumber() {
+            return (locator==null ? -1 : locator.getLineNumber());
         }
-    }
 
-    /**
-     * Return the character position where the current document event ends.
-     * @return The column number, or -1 if none is available.
-     */
+        /**
+         * Return the character position where the current document event ends.
+         * @return The column number, or -1 if none is available.
+         */
 
-    public int getColumnNumber() {
-        if (locator==null) {
-            return -1;
-        } else {
-            return locator.getColumnNumber();
+        public int getColumnNumber() {
+            return (locator==null ? -1 : locator.getColumnNumber());
         }
-    }
 
-    public String getSystemId(int locationId) {
-        return getSystemId();
-    }
+        /**
+         * Get the line number within the document or module containing a particular location
+         *
+         * @param locationId identifier of the location in question (as passed down the Receiver pipeline)
+         * @return the line number within the document or module.
+         */
 
-    public int getLineNumber(int locationId) {
-        return getLineNumber();
+        public int getLineNumber(long locationId) {
+            return (locator==null ? -1 : locator.getLineNumber());
+        }
+
+        public int getColumnNumber(long locationId) {
+            return (locator==null ? -1 : locator.getColumnNumber());
+        } 
+
+        /**
+         * Get the URI of the document or module containing a particular location
+         *
+         * @param locationId identifier of the location in question (as passed down the Receiver pipeline)
+         * @return the URI of the document or module.
+         */
+
+        public String getSystemId(long locationId) {
+            return (locator == null ? null : locator.getSystemId());
+        }
     }
 
 }   // end of class ReceivingContentHandler

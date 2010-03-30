@@ -1,30 +1,49 @@
 package org.orbeon.saxon.om;
 
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.pattern.AnyNodeTest;
 import org.orbeon.saxon.pattern.NodeTest;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.Value;
+
+import javax.xml.transform.SourceLocator;
 
 /**
  * This class represents a node that is a virtual copy of another node: that is, it behaves as a node that's the
- * same as another node, but has different identity. It is implemented by means of a reference to the node of which
+ * same as another node, but has different identity. Moreover, this class can create a virtual copy of a subtree,
+ * so that the parent of the virtual copy is null rather than being a virtual copy of the parent of the original.
+ * This means that none of the axes when applied to the virtual copy is allowed to stray outside the subtree.
+ * The virtual copy is implemented by means of a reference to the node of which
  * it is a copy, but methods that are sensitive to node identity return a different result.
  */
 
-public class VirtualCopy implements NodeInfo {
+public class VirtualCopy implements NodeInfo, SourceLocator {
 
-    protected String baseURI;
+    protected String systemId;
     protected int documentNumber;
     protected NodeInfo original;
     protected VirtualCopy parent;
     protected NodeInfo root;        // the node forming the root of the subtree that was copied
 
+    /**
+     * Protected constructor: create a virtual copy of a node
+     * @param base the node to be copied
+     */
+
     protected VirtualCopy(NodeInfo base) {
-        this.original = base;
+        original = base;
+        systemId = base.getBaseURI();
     }
+
+    /**
+     * Public factory method: create a virtual copy of a node
+     * @param original the node to be copied
+     * @param root the root of the tree containing the node to be copied
+     * @return the virtual copy. If the original was already a virtual copy, this will be a virtual copy
+     * of the real underlying node.
+     */
 
     public static VirtualCopy makeVirtualCopy(NodeInfo original, NodeInfo root) {
 
@@ -44,6 +63,24 @@ public class VirtualCopy implements NodeInfo {
         vc.root = root;
         return vc;
     }
+
+    /**
+     * Wrap a node in a VirtualCopy.
+     * This method is designed for subclassing
+     * @param node the node to be wrapped
+     */
+
+    protected VirtualCopy wrap(NodeInfo node) {
+        return new VirtualCopy(node);
+    }
+
+    /**
+     * Set the unique document number of the virtual document. This method must be called to ensure
+     * that nodes in the virtual copy have unique node identifiers
+     * @param documentNumber the document number to be allocated. This can be obtained from the
+     * {@link org.orbeon.saxon.om.DocumentNumberAllocator} which is accessible from the Configuration using
+     * {@link org.orbeon.saxon.Configuration#getDocumentNumberAllocator()}
+     */
 
     public void setDocumentNumber(int documentNumber) {
         this.documentNumber = documentNumber;
@@ -93,12 +130,8 @@ public class VirtualCopy implements NodeInfo {
       */
 
      public boolean equals(Object other) {
-        if (other instanceof NodeInfo) {
-            return isSameNodeInfo((NodeInfo)other);
-        } else {
-            return false;
-        }
-    }
+       return other instanceof NodeInfo && isSameNodeInfo((NodeInfo)other);
+   }
 
      /**
       * The hashCode() method obeys the contract for hashCode(): that is, if two objects are equal
@@ -122,7 +155,7 @@ public class VirtualCopy implements NodeInfo {
      */
 
     public String getSystemId() {
-        return baseURI;
+        return systemId;
     }
 
     /**
@@ -133,7 +166,7 @@ public class VirtualCopy implements NodeInfo {
      */
 
     public String getBaseURI() {
-        return baseURI;
+        return Navigator.getBaseURI(this);
     }
 
     /**
@@ -145,6 +178,15 @@ public class VirtualCopy implements NodeInfo {
 
     public int getLineNumber() {
         return original.getLineNumber();
+    }
+
+   /**
+     * Get column number
+     * @return the column number of the node in its original source document; or -1 if not available
+     */
+
+    public int getColumnNumber() {
+        return original.getColumnNumber();
     }
 
     /**
@@ -306,7 +348,7 @@ public class VirtualCopy implements NodeInfo {
             if (basep == null) {
                 return null;
             }
-            parent = new VirtualCopy(basep);
+            parent = wrap(basep);
             parent.setDocumentNumber(documentNumber);
         }
         return parent;
@@ -336,7 +378,7 @@ public class VirtualCopy implements NodeInfo {
      *                   defined in class org.orbeon.saxon.om.Axis
      * @param nodeTest   A pattern to be matched by the returned nodes; nodes
      *                   that do not match this pattern are not included in the result
-     * @return a NodeEnumeration that scans the nodes reached by the axis in
+     * @return an AxisIterator that scans the nodes reached by the axis in
      *         turn.
      * @throws UnsupportedOperationException if the namespace axis is
      *                                       requested and this axis is not supported for this implementation.
@@ -356,7 +398,7 @@ public class VirtualCopy implements NodeInfo {
         } else {
             root = this.root;
         }
-        return new VirtualCopier(original.iterateAxis(axisNumber, nodeTest), newParent, root);
+        return makeCopier(original.iterateAxis(axisNumber, nodeTest), newParent, root);
     }
 
     /**
@@ -460,18 +502,6 @@ public class VirtualCopy implements NodeInfo {
     }
 
     /**
-     * Output all namespace nodes associated with this element. Does nothing if
-     * the node is not an element.
-     *
-     * @param out              The relevant outputter
-     * @param includeAncestors True if namespaces declared on ancestor
-     */
-
-    public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors) throws XPathException {
-        original.sendNamespaceDeclarations(out, includeAncestors);
-    }
-
-    /**
      * Get all namespace undeclarations and undeclarations defined on this element.
      *
      * @param buffer If this is non-null, and the result array fits in this buffer, then the result
@@ -502,7 +532,7 @@ public class VirtualCopy implements NodeInfo {
      * @param systemId The system identifier as a URL string.
      */
     public void setSystemId(String systemId) {
-        baseURI = systemId;
+        this.systemId = systemId;
     }
 
     /**
@@ -533,6 +563,63 @@ public class VirtualCopy implements NodeInfo {
         return original.atomize();
     }
 
+
+    /**
+     * Determine whether this node has the is-id property
+     *
+     * @return true if the node is an ID
+     */
+
+    public boolean isId() {
+        return original.isId();
+    }
+
+    /**
+     * Determine whether this node has the is-idref property
+     *
+     * @return true if the node is an IDREF or IDREFS element or attribute
+     */
+
+    public boolean isIdref() {
+        return original.isIdref();
+    }
+
+    /**
+     * Determine whether the node has the is-nilled property
+     *
+     * @return true if the node has the is-nilled property
+     */
+
+    public boolean isNilled() {
+        return original.isNilled();
+    }
+
+    /**
+     * Return the public identifier for the current document event.
+     * <p/>
+     * <p>The return value is the public identifier of the document
+     * entity or of the external parsed entity in which the markup that
+     * triggered the event appears.</p>
+     * @return A string containing the public identifier, or
+     *         null if none is available.
+     * @see #getSystemId
+     */
+    public String getPublicId() {
+        return (original instanceof SourceLocator ? ((SourceLocator)original).getPublicId() : null);
+    }
+
+    /**
+     * Create an iterator that makes and returns virtual copies of nodes on the original tree
+     * @param axis the axis to be navigated
+     * @param newParent the parent of the nodes in the new virtual tree (may be null)
+     * @param root the root of the virtual tree
+     * @return the iterator that does the copying
+     */
+
+    protected VirtualCopier makeCopier(AxisIterator axis, VirtualCopy newParent, NodeInfo root) {
+        return new VirtualCopier(axis, newParent, root);
+    }
+
     /**
      * VirtualCopier implements the XPath axes as applied to a VirtualCopy node. It works by
      * applying the requested axis to the node of which this is a copy. There are two
@@ -541,12 +628,12 @@ public class VirtualCopy implements NodeInfo {
      * the original copied node must be truncated.
      */
 
-    private class VirtualCopier implements AxisIterator, AtomizableIterator {
+    protected class VirtualCopier implements AxisIterator {
 
-        private AxisIterator base;
+        protected AxisIterator base;
         private VirtualCopy parent;
-        private NodeInfo subtreeRoot;
-        private Item current;
+        protected NodeInfo subtreeRoot;
+        private NodeInfo current;
 
         public VirtualCopier(AxisIterator base, VirtualCopy parent, NodeInfo subtreeRoot) {
             this.base = base;
@@ -555,21 +642,16 @@ public class VirtualCopy implements NodeInfo {
         }
 
         /**
-         * Indicate that any nodes returned in the sequence will be atomized. This
-         * means that if it wishes to do so, the implementation can return the typed
-         * values of the nodes rather than the nodes themselves. The implementation
-         * is free to ignore this hint.
-         *
-         * @param atomizing true if the caller of this iterator will atomize any
-         *                  nodes that are returned, and is therefore willing to accept the typed
-         *                  value of the nodes instead of the nodes themselves.
+         * Move to the next node, without returning it. Returns true if there is
+         * a next node, false if the end of the sequence has been reached. After
+         * calling this method, the current node may be retrieved using the
+         * current() function.
          */
 
-        public void setIsAtomizing(boolean atomizing) {
-            if (base instanceof AtomizableIterator) {
-                ((AtomizableIterator)base).setIsAtomizing(atomizing);
-            }
+        public boolean moveNext() {
+            return (next() != null);
         }
+
 
         /**
          * Get the next item in the sequence. <BR>
@@ -578,20 +660,19 @@ public class VirtualCopy implements NodeInfo {
          */
 
         public Item next() {
-            Item next = base.next();
-
-            if (next instanceof NodeInfo) {
+            NodeInfo next = (NodeInfo)base.next();
+            if (next != null) {
                 if (subtreeRoot != null) {
                     // we're only interested in nodes within the subtree that was copied.
                     // Assert: once we find a node outside this subtree, all further nodes will also be outside
                     //         the subtree.
-                    if (!isAncestorOrSelf(subtreeRoot, ((NodeInfo)next))) {
+                    if (!isAncestorOrSelf(subtreeRoot, next)) {
                         return null;
                     }
                 }
-                VirtualCopy vc = VirtualCopy.makeVirtualCopy(((NodeInfo)next), root);
+                VirtualCopy vc = createCopy(next, root);
                 vc.parent = parent;
-                vc.baseURI = baseURI;
+                vc.systemId = systemId;
                 vc.documentNumber = documentNumber;
                 next = vc;
             }
@@ -621,6 +702,45 @@ public class VirtualCopy implements NodeInfo {
             return base.position();
         }
 
+        public void close() {
+            base.close();
+        }
+
+        /**
+         * Return an iterator over an axis, starting at the current node.
+         *
+         * @param axis the axis to iterate over, using a constant such as
+         *             {@link Axis#CHILD}
+         * @param test a predicate to apply to the nodes before returning them.
+         * @throws NullPointerException if there is no current node
+         */
+
+        public AxisIterator iterateAxis(byte axis, NodeTest test) {
+            return current.iterateAxis(axis, test);
+        }
+
+        /**
+         * Return the atomized value of the current node.
+         *
+         * @return the atomized value.
+         * @throws NullPointerException if there is no current node
+         */
+
+        public Value atomize() throws XPathException {
+            return current.atomize();
+        }
+
+        /**
+         * Return the string value of the current node.
+         *
+         * @return the string value, as an instance of CharSequence.
+         * @throws NullPointerException if there is no current node
+         */
+
+        public CharSequence getStringValue() {
+            return current.getStringValueCS();
+        }
+
         /**
          * Get another iterator over the same sequence of items, positioned at the
          * start of the sequence
@@ -636,18 +756,21 @@ public class VirtualCopy implements NodeInfo {
          * Get properties of this iterator, as a bit-significant integer.
          *
          * @return the properties of this iterator. This will be some combination of
-         *         properties such as {@link GROUNDED}, {@link LAST_POSITION_FINDER},
-         *         and {@link LOOKAHEAD}. It is always
+         *         properties such as {@link #GROUNDED}, {@link #LAST_POSITION_FINDER},
+         *         and {@link #LOOKAHEAD}. It is always
          *         acceptable to return the value zero, indicating that there are no known special properties.
          *         It is acceptable for the properties of the iterator to change depending on its state.
          */
 
         public int getProperties() {
-            return ATOMIZABLE;
+            return 0;
         }
 
         /**
          * Test whether a node is an ancestor-or-self of another
+         * @param a the putative ancestor
+         * @param d the putative descendant
+         * @return true if a is an ancestor of d
          */
 
         private boolean isAncestorOrSelf(NodeInfo a, NodeInfo d) {
@@ -660,6 +783,18 @@ public class VirtualCopy implements NodeInfo {
                     return false;
                 }
             }
+        }
+
+        /**
+         * Method to create the virtual copy of a node encountered when navigating. This method
+         * is separated out so that it can be overridden in a subclass.
+         * @param node the node to be copied
+         * @param root the root of the tree
+         * @return the virtual copy
+         */
+
+        protected VirtualCopy createCopy(NodeInfo node, NodeInfo root) {
+            return VirtualCopy.makeVirtualCopy(node, root);
         }
 
     }

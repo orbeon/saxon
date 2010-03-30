@@ -1,21 +1,27 @@
 package org.orbeon.saxon.tree;
 import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.value.Whitespace;
 import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.event.Builder;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Collections;
 
 /**
   * A node in the XML parse tree representing the Document itself (or equivalently, the root
-  * node of the Document).<P>
+  * node of the Document).
+ *
+ * <p>A DocumentImpl object may either represent a real document node, or it may represent an imaginary
+ * container for a parentless element.</p>
   * @author Michael H. Kay
   */
 
-public final class DocumentImpl extends ParentNodeImpl
-    implements DocumentInfo {
+public final class DocumentImpl extends ParentNodeImpl implements DocumentInfo {
 
     //private static int nextDocumentNumber = 0;
 
@@ -30,13 +36,19 @@ public final class DocumentImpl extends ParentNodeImpl
     private Configuration config;
     private LineNumberMap lineNumberMap;
     private SystemIdMap systemIdMap = new SystemIdMap();
+    private boolean imaginary = false;
+
+    /**
+     * Create a DocumentImpl
+     */
 
     public DocumentImpl() {
         parent = null;
     }
 
 	/**
-	* Set the Configuration that contains this document
+	 * Set the Configuration that contains this document
+     * @param config the Saxon configuration
 	*/
 
 	public void setConfiguration(Configuration config) {
@@ -46,6 +58,7 @@ public final class DocumentImpl extends ParentNodeImpl
 
     /**
      * Get the configuration previously set using setConfiguration
+     * @return the Saxon configuration
      */
 
     public Configuration getConfiguration() {
@@ -60,7 +73,36 @@ public final class DocumentImpl extends ParentNodeImpl
 		return config.getNamePool();
 	}
 
-	/**
+    /**
+     * Get a Builder suitable for building nodes that can be attached to this document.
+     * @return a new TreeBuilder
+     */
+
+    public Builder newBuilder() {
+        TreeBuilder builder = new TreeBuilder();
+        builder.setAllocateSequenceNumbers(false);
+        return builder;
+    }
+
+    /**
+     * Set whether this is an imaginary document node
+     * @param imaginary if true, this is an imaginary node - the tree is really rooted at the topmost element
+     */
+
+    public void setImaginary(boolean imaginary) {
+        this.imaginary = imaginary;
+    }
+
+    /**
+     * Ask whether this is an imaginary document node
+     * @return true if this is an imaginary node - the tree is really rooted at the topmost element
+     */
+
+    public boolean isImaginary() {
+        return imaginary;
+    }
+
+    /**
 	* Get the unique document number
 	*/
 
@@ -80,7 +122,19 @@ public final class DocumentImpl extends ParentNodeImpl
     }
 
     /**
-    * Set the system id of this node
+     * Copy the system ID and line number map from another document
+     * (used when grafting a simplified stylesheet)
+     * @param original the document whose system ID and line number maps are to be grafted
+     * onto this tree
+     */
+
+    public void graftLocationMap(DocumentImpl original) {
+        systemIdMap = original.systemIdMap;
+        lineNumberMap = original.lineNumberMap;
+    }
+
+    /**
+    * Set the system id (base URI) of this node
     */
 
     public void setSystemId(String uri) {
@@ -100,6 +154,7 @@ public final class DocumentImpl extends ParentNodeImpl
 
     /**
      * Set the base URI of this document node
+     * @param uri the new base URI
      */
 
     public void setBaseURI(String uri) {
@@ -107,7 +162,8 @@ public final class DocumentImpl extends ParentNodeImpl
     }
 
     /**
-    * Get the base URI of this root node. 
+    * Get the base URI of this root node.
+     * @return the base URI
     */
 
     public String getBaseURI() {
@@ -120,6 +176,8 @@ public final class DocumentImpl extends ParentNodeImpl
 
     /**
     * Set the system id of an element in the document
+     * @param seq the sequence number of the element
+     * @param uri the system identifier (base URI) of the element
     */
 
     void setSystemId(int seq, String uri) {
@@ -132,6 +190,8 @@ public final class DocumentImpl extends ParentNodeImpl
 
     /**
     * Get the system id of an element in the document
+     * @param seq the sequence number of the element
+     * @return the systemId (base URI) of the element
     */
 
     String getSystemId(int seq) {
@@ -145,29 +205,50 @@ public final class DocumentImpl extends ParentNodeImpl
 
     public void setLineNumbering() {
         lineNumberMap = new LineNumberMap();
-        lineNumberMap.setLineNumber(sequence, 0);
+        lineNumberMap.setLineAndColumn(sequence, 0, -1);
     }
 
     /**
-    * Set the line number for an element. Ignored if line numbering is off.
+     * Set the line number for an element. Ignored if line numbering is off.
+     * @param sequence the sequence number of the element
+     * @param line the line number of the element
+     * @param column the column number of the element
     */
 
-    void setLineNumber(int sequence, int line) {
-        if (lineNumberMap != null) {
-            lineNumberMap.setLineNumber(sequence, line);
+    void setLineAndColumn(int sequence, int line, int column) {
+        if (lineNumberMap != null && sequence >= 0) {
+            lineNumberMap.setLineAndColumn(sequence, line, column);
         }
     }
 
     /**
-    * Get the line number for an element. Return -1 if line numbering is off.
+     * Get the line number for an element.
+     * @param sequence the sequence number of the element
+     * @return the line number for an element. Return -1 if line numbering is off, or if
+     * the element was added subsequent to document creation by use of XQuery update
     */
 
     int getLineNumber(int sequence) {
-        if (lineNumberMap != null) {
+        if (lineNumberMap != null && sequence >= 0) {
             return lineNumberMap.getLineNumber(sequence);
         }
         return -1;
     }
+
+    /**
+    * Get the column number for an element.
+     * @param sequence the sequence number of the element
+     * @return the column number for an element. Return -1 if line numbering is off, or if
+     * the element was added subsequent to document creation by use of XQuery update
+    */
+
+    int getColumnNumber(int sequence) {
+        if (lineNumberMap != null && sequence >= 0) {
+            return lineNumberMap.getColumnNumber(sequence);
+        }
+        return -1;
+    }
+
 
     /**
     * Get the line number of this root node.
@@ -233,8 +314,18 @@ public final class DocumentImpl extends ParentNodeImpl
     }
 
     /**
-    * Get a character string that uniquely identifies this node
-    *  @param buffer a buffer into which will be placed a string based on the document number
+     * Get the physical root of the tree. This may be an imaginary document node: this method
+     * should be used only when control information held at the physical root is required
+     * @return the document node, which may be imaginary
+     */
+
+    public DocumentImpl getPhysicalRoot() {
+        return this;
+    }
+
+    /**
+     * Get a character string that uniquely identifies this node
+     *  @param buffer a buffer into which will be placed a string based on the document number
      *
      */
 
@@ -244,7 +335,9 @@ public final class DocumentImpl extends ParentNodeImpl
     }
 
     /**
-    * Get a list of all elements with a given name fingerprint
+     * Get a list of all elements with a given name fingerprint
+     * @param fingerprint the fingerprint of the required element name
+     * @return an iterator over all the elements with this name
     */
 
     AxisIterator getAllElements(int fingerprint) {
@@ -265,16 +358,44 @@ public final class DocumentImpl extends ParentNodeImpl
             }
             elementList.put(elkey, list);
         }
-        return new ListIterator(list);
+        return new NodeListIterator(list);
+    }
+
+    /**
+     * Remove a node from any indexes when it is detached from the tree
+     * @param node the node to be removed from all indexes
+     */
+
+    public void deIndex(NodeImpl node) {
+        // TODO: remove from xsl:key indexes (can exist in XQuery as a result of optimization!)
+        if (node instanceof ElementImpl) {
+            if (elementList!=null) {
+                Integer elkey = new Integer(node.getFingerprint());
+                ArrayList list = (ArrayList)elementList.get(elkey);
+                if (list==null) {
+                    return;
+                }
+                list.remove(node);
+            }
+            if (node.isId()) {
+                deregisterID(node.getStringValue());
+            }
+        } else if (node instanceof AttributeImpl) {
+            if (node.isId()) {
+                deregisterID(node.getStringValue());
+            }
+        }
     }
 
     /**
     * Index all the ID attributes. This is done the first time the id() function
-    * is used on this document
+    * is used on this document, or the first time that id() is called after a sequence of updates
     */
 
     private void indexIDs() {
-        if (idTable!=null) return;      // ID's are already indexed
+        if (idTable!=null) {
+            return;      // ID's are already indexed
+        }
         idTable = new HashMap(256);
         NameChecker checker = getConfiguration().getNameChecker();
 
@@ -282,12 +403,13 @@ public final class DocumentImpl extends ParentNodeImpl
         NodeImpl root = curr;
         while(curr!=null) {
             if (curr.getNodeKind()==Type.ELEMENT) {
+                //noinspection ConstantConditions
                 ElementImpl e = (ElementImpl)curr;
                 AttributeCollection atts = e.getAttributeList();
                 for (int i=0; i<atts.getLength(); i++) {
-                    if (atts.isId(i) && checker.isValidNCName(atts.getValue(i).trim())) {
+                    if (atts.isId(i) && checker.isValidNCName(Whitespace.trim(atts.getValue(i)))) {
                         // don't index any invalid IDs - these can arise when using a non-validating parser
-                        registerID(e, atts.getValue(i).trim());
+                        registerID(e, Whitespace.trim(atts.getValue(i)));
                     }
                 }
             }
@@ -296,18 +418,20 @@ public final class DocumentImpl extends ParentNodeImpl
     }
 
     /**
-    * Register a unique element ID. Fails if there is already an element with that ID.
+    * Register a unique element ID. Does nothing if there is already an element with that ID.
     * @param e The Element having a particular unique ID value
     * @param id The unique ID value
     */
 
-    private void registerID(NodeInfo e, String id) {
+    protected void registerID(NodeInfo e, String id) {
         // the XPath spec (5.2.1) says ignore the second ID if it's not unique
+        if (idTable == null) {
+            idTable = new HashMap(256);
+        }
         Object old = idTable.get(id);
         if (old==null) {
             idTable.put(id, e);
         }
-
     }
 
     /**
@@ -322,8 +446,24 @@ public final class DocumentImpl extends ParentNodeImpl
     }
 
     /**
-    * Set an unparsed entity URI associated with this document. For system use only, while
-    * building the document.
+     * Remove the entry for a given ID (when nodes are deleted). Does nothing if the id value is not
+     * present in the index.
+     * @param id The id value
+     */
+
+    protected void deregisterID(String id) {
+        id = Whitespace.trim(id);
+        if (idTable != null) {
+            idTable.remove(id);
+        }
+    }
+
+    /**
+     * Set an unparsed entity URI associated with this document. For system use only, while
+     * building the document.
+     * @param name the entity name
+     * @param uri the system identifier of the unparsed entity
+     * @param publicId the public identifier of the unparsed entity
     */
 
     void setUnparsedEntity(String name, String uri, String publicId) {
@@ -335,6 +475,21 @@ public final class DocumentImpl extends ParentNodeImpl
         ids[0] = uri;
         ids[1] = publicId;
         entityTable.put(name, ids);
+    }
+
+    /**
+     * Get the list of unparsed entities defined in this document
+     * @return an Iterator, whose items are of type String, containing the names of all
+     *         unparsed entities defined in this document. If there are no unparsed entities or if the
+     *         information is not available then an empty iterator is returned
+     */
+
+    public Iterator getUnparsedEntityNames() {
+        if (entityTable == null) {
+            return Collections.EMPTY_LIST.iterator();
+        } else {
+            return entityTable.keySet().iterator();
+        }
     }
 
     /**
@@ -366,6 +521,16 @@ public final class DocumentImpl extends ParentNodeImpl
         out.endDocument();
     }
 
+
+    /**
+     * Replace the string-value of this node
+     *
+     * @param stringValue the new string value
+     */
+
+    public void replaceStringValue(CharSequence stringValue) {
+        throw new UnsupportedOperationException("Cannot replace the value of a document node");
+    }
 }
 
 //

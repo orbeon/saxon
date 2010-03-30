@@ -3,7 +3,7 @@ package org.orbeon.saxon.expr;
 import org.orbeon.saxon.event.LocationProvider;
 import org.orbeon.saxon.event.SaxonLocator;
 import org.orbeon.saxon.instruct.LocationMap;
-import org.orbeon.saxon.instruct.InstructionDetails;
+import org.xml.sax.Locator;
 
 import javax.xml.transform.SourceLocator;
 import java.io.Serializable;
@@ -14,17 +14,54 @@ import java.io.Serializable;
 
 public class ExpressionLocation implements SaxonLocator, Serializable {
 
+    private String systemId;
+    private int lineNumber;
+    private int columnNumber = -1;
+
+    /**
+     * Create an ExpressionLocation
+     */
+
     public ExpressionLocation() {}
+
+    /**
+     * Create an ExpressionLocation, taking the data from a supplied JAXP SourceLocator
+     * @param loc the JAXP SourceLocator
+     */
 
     public ExpressionLocation(SourceLocator loc) {
         systemId = loc.getSystemId();
         lineNumber = loc.getLineNumber();
+        columnNumber = loc.getColumnNumber();
     }
 
-    public ExpressionLocation(LocationProvider provider, int locationId) {
+    /**
+     * Create an ExpressionLocation, taking the data from a supplied SAX Locator
+     * @param loc the SAX Locator
+     */
+
+    public static ExpressionLocation makeFromSax(Locator loc) {
+        return new ExpressionLocation(loc.getSystemId(), loc.getLineNumber(), loc.getColumnNumber());
+    }
+
+    /**
+     * Create an ExpressionLocation, taking the data from a supplied locationId along with a
+     * LocationProvider to interpret its meaning
+     * @param provider the LocationProvider
+     * @param locationId the locationId
+     */
+
+    public ExpressionLocation(LocationProvider provider, long locationId) {
         systemId = provider.getSystemId(locationId);
         lineNumber = provider.getLineNumber(locationId);
     }
+
+    /**
+     * Create an ExpressionLocation corresponding to a given module, line number, and column number
+     * @param systemId the module URI
+     * @param lineNumber the line number
+     * @param columnNumber the column number
+     */
 
     public ExpressionLocation(String systemId, int lineNumber, int columnNumber) {
         this.systemId = systemId;
@@ -32,49 +69,91 @@ public class ExpressionLocation implements SaxonLocator, Serializable {
         this.columnNumber = columnNumber;
     }
 
-    private String systemId;
-//    private String publicId;
-    private int lineNumber;
-    private int columnNumber = -1;
+    /**
+     * Get the system ID (the module URI)
+     * @return the system ID
+     */
 
     public String getSystemId() {
         return systemId;
     }
 
+    /**
+     * Get the Public ID
+     * @return always null in this implementation
+     */
+
     public String getPublicId() {
         return null;
     }
+
+    /**
+     * Get the line number
+     * @return the line number
+     */
 
     public int getLineNumber() {
         return lineNumber;
     }
 
+    /**
+     * Get the column number
+     * @return the column number
+     */
+
     public int getColumnNumber() {
         return columnNumber;
     }
+
+    /**
+     * Set the systemId (the module URI)
+     * @param systemId the systemId
+     */
 
     public void setSystemId(String systemId) {
         this.systemId = systemId;
     }
 
-    public void setPublicId(String publicId) {
-//        this.publicId = publicId;
-    }
+    /**
+     * Set the line number
+     * @param lineNumber the line number within the module
+     */
 
     public void setLineNumber(int lineNumber) {
         this.lineNumber = lineNumber;
     }
 
+    /**
+     * Set the column number
+     * @param columnNumber  the column number
+     */
+
     public void setColumnNumber(int columnNumber) {
         this.columnNumber = columnNumber;
     }
 
-    public String getSystemId(int locationId) {
+    /**
+     * Get the system Id corresponding to a given location Id
+     * @param locationId the location Id
+     * @return the system Id
+     */
+
+    public String getSystemId(long locationId) {
         return getSystemId();
     }
 
-    public int getLineNumber(int locationId) {
+    /**
+     * Get the line number corresponding to a given location Id
+     * @param locationId the location Id
+     * @return the line number
+     */
+
+    public int getLineNumber(long locationId) {
         return getLineNumber();
+    }
+
+    public int getColumnNumber(long locationId) {
+        return getColumnNumber();
     }
 
     /**
@@ -83,7 +162,7 @@ public class ExpressionLocation implements SaxonLocator, Serializable {
      * @param locationProvider The object that understands how to interpret the locationId
      * @return a SaxonLocator containing the location information
      */
-    public static SaxonLocator getSourceLocator(int locationId, LocationProvider locationProvider) {
+    public static SaxonLocator getSourceLocator(long locationId, LocationProvider locationProvider) {
         SaxonLocator locator;
         if (locationProvider instanceof LocationMap && locationId != 0) {
             // this is typically true when validating output documents
@@ -97,13 +176,15 @@ public class ExpressionLocation implements SaxonLocator, Serializable {
         } else {
             // return a dummy location object providing no information. This can happen for example
             // if a built-in template rule writes invalid output before the transformation properly begins.
-            return new InstructionDetails();
+            return new ExpressionLocation();
         }
         return locator;
     }
 
     /**
      * Truncate a URI to its last component
+     * @param uri the URI to be truncated
+     * @return the last component of the supplied URI
      */
 
     public static String truncateURI(String uri) {

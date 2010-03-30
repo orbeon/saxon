@@ -19,6 +19,10 @@ import java.io.Serializable;
   * <p>As well as being used to support XSLT pattern matching, NodeTests act as predicates in
   * axis steps, and also act as item types for type matching.</p>
   *
+  * <p>For use in user-written application calling {@link NodeInfo#iterateAxis(byte, NodeTest)},
+ * it is possible to write a user-defined subclass of <code>NodeTest</code> that implements
+ * a single method, {@link #matches(int, int, int)}</p>
+  *
   * @author Michael H. Kay
   */
 
@@ -43,7 +47,7 @@ public abstract class NodeTest implements ItemType, Serializable {
     /**
      * Get the type from which this item type is derived by restriction. This
      * is the supertype in the XPath type heirarchy, as distinct from the Schema
-     * base type: this means that the supertype of xs:boolean is xdt:anyAtomicType,
+     * base type: this means that the supertype of xs:boolean is xs:anyAtomicType,
      * whose supertype is item() (rather than xs:anySimpleType).
      * <p>
      * In fact the concept of "supertype" is not really well-defined, because the types
@@ -51,7 +55,7 @@ public abstract class NodeTest implements ItemType, Serializable {
      * is that it returns a type that strictly subsumes this type, ideally as narrowly
      * as possible.
      * @return the supertype, or null if this type is item()
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getSuperType(TypeHierarchy th) {
@@ -120,22 +124,24 @@ public abstract class NodeTest implements ItemType, Serializable {
 
     public AtomicType getAtomizedItemType() {
         // This is overridden for a ContentTypeTest
-        return Type.ANY_ATOMIC_TYPE;
+        return BuiltInAtomicType.ANY_ATOMIC;
     }
 
     /**
      * Test whether this node test is satisfied by a given node on a TinyTree. The node
      * must be a document, element, text, comment, or processing instruction node.
-     * This method is provided
-     * so that when navigating a TinyTree a node can be rejected without
-     * actually instantiating a NodeInfo object.
+     * This method is provided so that when navigating a TinyTree a node can be rejected without
+     * actually instantiating a NodeInfo object. The default implementation instantiates the node
+     * and then calls the method {@link #matches(NodeInfo)}
      * @param tree the TinyTree containing the node
      * @param nodeNr the number of the node within the TinyTree
      * @return true if the node matches the NodeTest, otherwise false
      *
     */
 
-    public abstract boolean matches(TinyTree tree, int nodeNr);
+    public boolean matches(TinyTree tree, int nodeNr) {
+        return matches(tree.getNode(nodeNr));
+    }
 
     /**
      * Test whether this node test is satisfied by a given node. This method is only
@@ -158,18 +164,25 @@ public abstract class NodeTest implements ItemType, Serializable {
     /**
      * Test whether this node test is satisfied by a given node. This alternative
      * method is used in the case of nodes where calculating the fingerprint is expensive,
-     * for example DOM or JDOM nodes.
+     * for example DOM or JDOM nodes. The default implementation calls the method
+     * {@link #matches(int, int, int)}
      * @param node the node to be matched
      */
 
-    public abstract boolean matches(NodeInfo node);
+    public boolean matches(NodeInfo node) {
+        return matches(node.getNodeKind(), node.getFingerprint(), node.getTypeAnnotation());
+    }
 
     /**
      * Get a mask indicating which kinds of nodes this NodeTest can match. This is a combination
-     * of bits: 1<<Type.ELEMENT for element nodes, 1<<Type.TEXT for text nodes, and so on.
+     * of bits: 1<<Type.ELEMENT for element nodes, 1<<Type.TEXT for text nodes, and so on. The default
+     * implementation indicates that nodes of all kinds are matched.
      */
 
-    public abstract int getNodeKindMask();
+    public int getNodeKindMask() {
+        return 1<<Type.ELEMENT | 1<<Type.TEXT | 1<<Type.COMMENT | 1<<Type.PROCESSING_INSTRUCTION |
+                1<<Type.ATTRIBUTE | 1<<Type.NAMESPACE | 1<<Type.DOCUMENT;
+    }
 
     /**
      * Get the content type allowed by this NodeTest (that is, the type annotation of the matched nodes).
@@ -207,6 +220,8 @@ public abstract class NodeTest implements ItemType, Serializable {
     public String toString(NamePool pool) {
         return toString();
     }
+
+
 
 }
 

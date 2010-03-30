@@ -1,82 +1,95 @@
 package org.orbeon.saxon.expr;
+
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.event.SequenceReceiver;
-import org.orbeon.saxon.instruct.InstructionDetails;
+import org.orbeon.saxon.evpull.EmptyEventIterator;
+import org.orbeon.saxon.evpull.EventIterator;
 import org.orbeon.saxon.instruct.UserFunction;
-import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.trace.InstructionInfo;
-import org.orbeon.saxon.trace.InstructionInfoProvider;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.StructuredQName;
+import org.orbeon.saxon.om.ValueRepresentation;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trace.Location;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AnyItemType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.*;
 
-import java.io.PrintStream;
-
 
 /**
- * This class represents a call to a function defined in the stylesheet or query.
- * It is used for all user-defined functions in XQuery, and for a limited class of
- * user-defined functions in XSLT: those that can be reduced to the evaluation
- * of a single expression.
+ * This class represents a call to a user-defined function in the stylesheet or query.
 */
 
-public class UserFunctionCall extends FunctionCall implements InstructionInfoProvider {
+public class UserFunctionCall extends FunctionCall {
 
     private SequenceType staticType;
     private UserFunction function;
-    private boolean tailRecursive = false;
+    private boolean tailCall = false;
+        // indicates only that this is a tail call, not necessarily a recursive tail call
     private boolean confirmed = false;
         // A functionCall is confirmed if the function being called has been located. Generally in this
         // case the value of 'function' will be non-null; but in XSLT it is possible to look-ahead to confirm
         // a function binding before the relevant function is actually compiled.
     private int[] argumentEvaluationModes = null;
 
+    /**
+     * Create a function call to a user-written function in a query or stylesheet
+     */
+
     public UserFunctionCall() {}
 
     /**
-    * Set the static type
-    */
+     * Set the static type
+     * @param type the static type
+     */
 
     public void setStaticType(SequenceType type) {
         staticType = type;
     }
 
     /**
-    * Create the reference to the function to be called, and validate for consistency
-    */
+     * Create the reference to the function to be called
+     * @param compiledFunction the function being called
+     */
 
-    public void setFunction(UserFunction compiledFunction,
-                            StaticContext env) throws XPathException {
+    public void setFunction(UserFunction compiledFunction) {
         function = compiledFunction;
         confirmed = true;
     }
 
     /**
-    * Check the function call against the declared function signature
-    */
+     * Check the function call against the declared function signature
+     * @param compiledFunction the function being called
+     * @param visitor an expression visitor
+     */
 
     public void checkFunctionCall(UserFunction compiledFunction,
-                            StaticContext env) throws XPathException {
+                            ExpressionVisitor visitor) throws XPathException {
+        Executable executable = visitor.getExecutable();
+        boolean isXSLT = executable != null && executable.getHostLanguage() == Configuration.XSLT;
         int n = compiledFunction.getNumberOfArguments();
         for (int i=0; i<n; i++) {
             RoleLocator role = new RoleLocator(
-                    RoleLocator.FUNCTION, new Integer(compiledFunction.getFunctionNameCode()), i, env.getNamePool());
-            role.setSourceLocator(this);
+                    RoleLocator.FUNCTION, compiledFunction.getFunctionName(), i);
+            if (isXSLT) {
+                role.setErrorCode("XTTE0790");
+            }
+            //role.setSourceLocator(this);
             argument[i] = TypeChecker.staticTypeCheck(
                                 argument[i],
                                 compiledFunction.getArgumentType(i),
                                 false,
-                                role, env);
+                                role, visitor);
         }
     }
 
 
     /**
      * Get the function that is being called by this function call
+     * @return the function being called
      */
 
     public UserFunction getFunction() {
@@ -85,6 +98,7 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
 
     /**
      * Set this function as confirmed (the function being called is known to exist) or not
+     * @param conf true if the function being called is known to exist
      */
 
     public void setConfirmed(boolean conf) {
@@ -93,6 +107,7 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
 
     /**
      * Determine whether this function call is confirmed
+     * @return true if the function being called is known to exist
      */
 
     public boolean isConfirmed() {
@@ -100,7 +115,27 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
     }
 
     /**
+     * Determine whether this is a tail call (not necessarily a recursive tail call)
+     * @return true if this function call is a tail call
+     */
+
+    public boolean isTailCall() {
+        return tailCall;
+    }
+
+    /**
+     * Determine whether this is a recursive tail call
+     * @return true if this function call is a recursive tail call
+     */
+
+    public boolean isRecursiveTailCall() {
+        return tailCall && getContainer() == function;
+    }
+
+
+    /**
      * Get the arguments (the expressions supplied in the function call)
+     * @return the actual expressions used as arguments in the function call
      */
 
     public Expression[] getArguments() {
@@ -111,24 +146,48 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
     * Method called during the type checking phase
     */
 
-    public void checkArguments(StaticContext env) throws XPathException {
+    public void checkArguments(ExpressionVisitor visitor) throws XPathException {
         // these checks are now done in setFunction(), at the time when the function
         // call is bound to an actual function
+    }
+
+   /**
+     * Get the qualified of the function being called
+     * @return the qualified name
+     */
+
+    public final StructuredQName getFunctionName() {
+        StructuredQName n = super.getFunctionName();
+        if (n == null) {
+            return function.getFunctionName();
+        } else {
+            return n;
+        }
+    }
+
+    /**
+     * Get the evaluation modes that have been determined for each of the arguments
+     * @return an array of integers representing the evaluation modes, one for each argument
+     */
+
+    public int[] getArgumentEvaluationModes() {
+        return argumentEvaluationModes;
     }
 
     /**
     * Pre-evaluate a function at compile time. This version of the method suppresses
     * early evaluation by doing nothing.
-    */
+     * @param visitor an expression visitor
+     */
 
-    public Expression preEvaluate(StaticContext env) {
+    public Expression preEvaluate(ExpressionVisitor visitor) {
         return this;
     }
 
     /**
     * Determine the data type of the expression, if possible
     * @return Type.ITEM (meaning not known in advance)
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
@@ -145,6 +204,42 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
     }
 
     /**
+     * Determine whether this is an updating expression as defined in the XQuery update specification
+     *
+     * @return true if this is an updating expression
+     */
+
+    public boolean isUpdatingExpression() {
+        return function.isUpdating();
+    }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        if (function == null) {
+            // not bound yet, we have no way to register the new copy with the XSLFunction
+            throw new UnsupportedOperationException("copy");
+        }
+        UserFunctionCall ufc = new UserFunctionCall();
+        ufc.setFunction(function);
+        ufc.setStaticType(staticType);
+        Expression[] a2 = new Expression[argument.length];
+        for (int i=0; i<argument.length; i++) {
+            a2[i] = argument[i].copy();
+        }
+        ufc.argument = a2;
+        if (argumentEvaluationModes != null) {
+            int[] am2 = new int[argumentEvaluationModes.length];
+            System.arraycopy(argumentEvaluationModes, 0, am2, 0, am2.length);
+            ufc.argumentEvaluationModes = am2;
+        }
+        return ufc;
+    }
+
+    /**
     * Determine the cardinality of the result
     */
 
@@ -157,32 +252,39 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
         }
     }
 
-    /**
-    * Simplify the function call
-    */
-
-     public Expression simplify(StaticContext env) throws XPathException {
-        for (int i=0; i<argument.length; i++) {
-            argument[i] = argument[i].simplify(env);
-        }
-        return this;
-    }
-
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        Expression e = super.typeCheck(env, contextItemType);
-        if (e == this && function != null) {
-            computeArgumentEvaluationModes();
-        }
-        return e;        
-    }
-
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        Expression e = super.optimize(opt, env, contextItemType);
-        if (e == this && function != null) {
-            computeArgumentEvaluationModes();
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression e = super.typeCheck(visitor, contextItemType);
+        if (function != null) {
+            if (e == this) {
+                computeArgumentEvaluationModes();
+            }
+            if (staticType == SequenceType.ANY_SEQUENCE) {
+                // try to get a better type
+                staticType = function.getResultType(visitor.getConfiguration().getTypeHierarchy());
+            }
         }
         return e;
     }
+
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression e = super.optimize(visitor, contextItemType);
+        if (e == this && function != null) {
+            computeArgumentEvaluationModes();
+            // TODO: in XSLT, a function call that is a forwards reference is not being inlined, because function==null
+            // at the time optimize() is called.
+            Expression e2 = visitor.getConfiguration().getOptimizer().tryInlineFunctionCall(
+                    this, visitor, contextItemType);
+            if (e2 != this) {
+                return visitor.optimize(e2, contextItemType);
+            }
+            return e2;
+        }
+        return e;
+    }
+
+    /**
+     * Compute the evaluation mode of each argument
+     */
 
     public void computeArgumentEvaluationModes() {
         argumentEvaluationModes = new int[argument.length];
@@ -191,28 +293,59 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
             if (refs == 0) {
                 // the argument is never referenced, so don't evaluate it
                 argumentEvaluationModes[i] = ExpressionTool.RETURN_EMPTY_SEQUENCE;
+            } else if (function.getParameterDefinitions()[i].isIndexedVariable()) {
+                argumentEvaluationModes[i] = ExpressionTool.MAKE_INDEXED_VARIABLE;
             } else if ((argument[i].getDependencies() & StaticProperty.DEPENDS_ON_USER_FUNCTIONS) != 0) {
                 // if the argument contains a call to a user-defined function, then it might be a recursive call.
                 // It's better to evaluate it now, rather than waiting until we are on a new stack frame, as
                 // that can blow the stack if done repeatedly. (See test func42)
                 argumentEvaluationModes[i] = ExpressionTool.eagerEvaluationMode(argument[i]);
             } else {
-                argumentEvaluationModes[i] = ExpressionTool.lazyEvaluationMode(argument[i]);
+                int m = ExpressionTool.lazyEvaluationMode(argument[i]);
+                if (m == ExpressionTool.MAKE_CLOSURE && refs > 1) {
+                    m = ExpressionTool.MAKE_MEMO_CLOSURE;
+                }
+                argumentEvaluationModes[i] = m;
             }
         }
     }
 
+
     /**
-    * Mark tail-recursive calls on stylesheet functions. This marks the function call as tailRecursive if
+     * Add a representation of this expression to a PathMap. The PathMap captures a map of the nodes visited
+     * by an expression in a source tree.
+     * <p/>
+     * <p>The default implementation of this method assumes that an expression does no navigation other than
+     * the navigation done by evaluating its subexpressions, and that the subexpressions are evaluated in the
+     * same context as the containing expression. The method must be overridden for any expression
+     * where these assumptions do not hold. For example, implementations exist for AxisExpression, ParentExpression,
+     * and RootExpression (because they perform navigation), and for the doc(), document(), and collection()
+     * functions because they create a new navigation root. Implementations also exist for PathExpression and
+     * FilterExpression because they have subexpressions that are evaluated in a different context from the
+     * calling expression.</p>
+     *
+     * @param pathMap     the PathMap to which the expression should be added
+     * @param pathMapNodeSet the PathMapNodeSet to which the paths embodied in this expression should be added
+     * @return the pathMapNode representing the focus established by this expression, in the case where this
+     *         expression is the first operand of a path expression or filter expression. For an expression that does
+     *         navigation, it represents the end of the arc in the path map that describes the navigation route. For other
+     *         expressions, it is the same as the input pathMapNode.
+     */
+
+    public PathMap.PathMapNodeSet addToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodeSet) {
+        return addExternalFunctionCallToPathMap(pathMap, pathMapNodeSet);
+    }
+
+    /**
+     * Mark tail-recursive calls on stylesheet functions. This marks the function call as tailRecursive if
      * if is a call to the containing function, and in this case it also returns "true" to the caller to indicate
      * that a tail call was found.
     */
 
-    public boolean markTailFunctionCalls(int nameCode, int arity) {
-//        tailRecursive = ((nameCode & NamePool.FP_MASK) == (getFunctionNameCode() & NamePool.FP_MASK) &&
-//                arity == getNumberOfArguments());
-        tailRecursive = true;
-        return tailRecursive;
+    public int markTailFunctionCalls(StructuredQName qName, int arity) {
+        tailCall = true;
+        return (getFunctionName().equals(qName) &&
+               arity == getNumberOfArguments() ? 2 : 1);
     }
 
     // TODO: attempt to establish whether the function is capable of creating new nodes. This
@@ -239,11 +372,7 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
 
     public Item evaluateItem(XPathContext c) throws XPathException {
         ValueRepresentation val = callFunction(c);
-        if (val instanceof Item) {
-            return (Item)val;
-        } else {
-            return Value.getIterator(val).next();
-        }
+        return Value.asItem(val);
     }
 
     /**
@@ -256,6 +385,23 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
         return Value.getIterator(result);
     }
 
+
+    /**
+     * Evaluate an updating expression, adding the results to a Pending Update List.
+     * The default implementation of this method, which is used for non-updating expressions,
+     * throws an UnsupportedOperationException
+     *
+     * @param context the XPath dynamic evaluation context
+     * @param pul     the pending update list to which the results should be written
+     */
+
+    public void evaluatePendingUpdates(XPathContext context, PendingUpdateList pul) throws XPathException {
+        ValueRepresentation[] actualArgs = evaluateArguments(context);
+        XPathContextMajor c2 = context.newCleanContext();
+        c2.setOrigin(this);
+        function.callUpdating(actualArgs, c2, pul);
+    }
+
     /**
      * This is the method that actually does the function call
      * @param c the dynamic context
@@ -263,25 +409,24 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
      * @throws XPathException if dynamic errors occur
      */
     private ValueRepresentation callFunction(XPathContext c) throws XPathException {
-
         ValueRepresentation[] actualArgs = evaluateArguments(c);
 
-        if (tailRecursive) {
+        if (tailCall) {
             ((XPathContextMajor)c).requestTailCall(function, actualArgs);
             return EmptySequence.getInstance();
-            //return new FunctionCallPackage(function, actualArgs, c);
         }
 
         XPathContextMajor c2 = c.newCleanContext();
         c2.setOrigin(this);
+        c2.setTemporaryOutputState(true);
         try {
             return function.call(actualArgs, c2);
         } catch (StackOverflowError err) {
-            throw new DynamicError("Too many nested function calls. May be due to infinite recursion.", this);
+            throw new XPathException("Too many nested function calls. May be due to infinite recursion.", this);
         } catch (NullPointerException err) {
             if (function == null) {
                     throw new NullPointerException("Unbound function call " +
-                            c2.getConfiguration().getNamePool().getDisplayName(getFunctionNameCode()));
+                            function.getFunctionName().getDisplayName());
             } else {
                 throw err;
             }
@@ -290,13 +435,13 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
 
     /**
      * Process the function call in push mode
-     * @param context
+     * @param context the XPath dynamic context
      * @throws XPathException
      */
 
     public void process(XPathContext context) throws XPathException {
         ValueRepresentation[] actualArgs = evaluateArguments(context);
-        if (tailRecursive) {
+        if (tailCall) {
             ((XPathContextMajor)context).requestTailCall(function, actualArgs);
         } else {
             SequenceReceiver out = context.getReceiver();
@@ -306,6 +451,27 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
             function.process(actualArgs, c2);
         }
     }
+
+    /**
+     * Process the function call in pull mode
+     * @param context the XPath dynamic context
+     * @throws XPathException
+     */
+
+    public EventIterator iterateEvents(XPathContext context) throws XPathException {
+        ValueRepresentation[] actualArgs = evaluateArguments(context);
+        if (tailCall) {
+            ((XPathContextMajor)context).requestTailCall(function, actualArgs);
+            return EmptyEventIterator.getInstance();
+        } else {
+            SequenceReceiver out = context.getReceiver();
+            XPathContextMajor c2 = context.newCleanContext();
+            c2.setReceiver(out);
+            c2.setOrigin(this);
+            return function.iterateEvents(actualArgs, c2);
+        }
+    }
+
 
     private ValueRepresentation[] evaluateArguments(XPathContext c) throws XPathException {
         int numArgs = argument.length;
@@ -335,6 +501,9 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
      * Call the function dynamically. For this to be possible, the static arguments of the function call
      * must have been set up as SuppliedParameterReference objects. The actual arguments are placed on the
      * callee's stack, and the type conversion takes place "in situ".
+     * @param suppliedArguments the values to be used for the arguments of the function
+     * @param context the dynamic evaluation context
+     * @return the result of evaluating the function
      */
 
     public ValueRepresentation dynamicCall(ValueRepresentation[] suppliedArguments, XPathContext context) throws XPathException {
@@ -352,30 +521,74 @@ public class UserFunctionCall extends FunctionCall implements InstructionInfoPro
         return function.call(convertedArgs, c3);
     }
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "call " + getDisplayName(config.getNamePool()) +
-                (tailRecursive ? " (:tail call:)" : ""));
+    /**
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     */
+
+    public void explain(ExpressionPresenter out) {
+        out.startElement("functionCall");
+        out.emitAttribute("name", getDisplayName());
+        out.emitAttribute("tailCall", (tailCall ? "true" : "false"));
         for (int a=0; a<argument.length; a++) {
-            argument[a].display(level+1, out, config);
+            argument[a].explain(out);
         }
+        out.endElement();
     }
+
 
     /**
      * Get diagnostic information about this expression
      */
 
-    public InstructionInfo getInstructionInfo() {
-        InstructionDetails details = new InstructionDetails();
-        details.setConstructType(Location.FUNCTION_CALL);
-        details.setLineNumber(getLineNumber());
-        details.setSystemId(getSystemId());
-        details.setObjectNameCode(getFunctionNameCode());
-        details.setProperty("expression", this);
-        details.setProperty("target", function);
-        return details;
+//    public InstructionInfo getInstructionInfo() {
+//        InstructionDetails details = new InstructionDetails();
+//        details.setConstructType(Location.FUNCTION_CALL);
+//        details.setLineAndColumn(getLineNumber());
+//        details.setSystemId(getSystemId());
+//        details.setObjectName(getFunctionName());
+//        details.setProperty("expression", this);
+//        details.setProperty("target", function);
+//        return details;
+//    }
+
+    public int getConstructType() {
+        return Location.FUNCTION_CALL;
+    }
+
+    public Object getProperty(String name) {
+        if (name.equals("target")) {
+            return function;
+        }
+        return super.getProperty(name);
+    }
+
+    public StructuredQName getObjectName() {
+        return getFunctionName();
     }
 
 
+    /**
+     * Get the line number within the document or module containing a particular location
+     *
+     * @param locationId identifier of the location in question (as passed down the Receiver pipeline)
+     * @return the line number within the document or module.
+     */
+
+    public int getLineNumber(long locationId) {
+        return getLineNumber();
+    }
+
+    /**
+     * Get the URI of the document or module containing a particular location
+     *
+     * @param locationId identifier of the location in question (as passed down the Receiver pipeline)
+     * @return the URI of the document or module.
+     */
+
+    public String getSystemId(long locationId) {
+        return getSystemId();
+    }
 }
 
 //

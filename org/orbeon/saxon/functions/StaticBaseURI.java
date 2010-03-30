@@ -1,27 +1,28 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.ExpressionVisitor;
+import org.orbeon.saxon.expr.Literal;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AnyURIValue;
-import org.orbeon.saxon.value.EmptySequence;
 
 /**
-* This class supports the static-base-uri() function in XPath 2.0
- * (added by the working groups on 24 August 2004)
+ * This class supports the static-base-uri() function in XPath 2.0. The expressio
+ * is always evaluated at compile time.
 */
 
 public class StaticBaseURI extends CompileTimeFunction {
 
     /**
     * Compile time evaluation
-    */
+     * @param visitor an expression visitor
+     */
 
-    public Expression preEvaluate(StaticContext env) throws XPathException {
-        String baseURI = env.getBaseURI();
+    public Expression preEvaluate(ExpressionVisitor visitor) throws XPathException {
+        String baseURI = visitor.getStaticContext().getBaseURI();
         if (baseURI == null) {
-            return EmptySequence.getInstance();
+            return Literal.makeEmptySequence();
         }
-        return new AnyURIValue(baseURI);
+        return Literal.makeLiteral(new AnyURIValue(baseURI));
     }
 
 }

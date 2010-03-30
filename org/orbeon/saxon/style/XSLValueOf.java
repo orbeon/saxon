@@ -3,13 +3,15 @@ import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.ValueOf;
 import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.Whitespace;
 
 
 /**
@@ -48,11 +50,11 @@ public final class XSLValueOf extends XSLStringConstructor {
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-			if (f==StandardNames.DISABLE_OUTPUT_ESCAPING) {
-        		disableAtt = atts.getValue(a).trim();
-			} else if (f==StandardNames.SELECT) {
+			if (f.equals(StandardNames.DISABLE_OUTPUT_ESCAPING)) {
+        		disableAtt = Whitespace.trim(atts.getValue(a));
+			} else if (f.equals(StandardNames.SELECT)) {
         		selectAtt = atts.getValue(a);
-			} else if (f==StandardNames.SEPARATOR) {
+			} else if (f.equals(StandardNames.SEPARATOR)) {
         		separatorAtt = atts.getValue(a);
         	} else {
         		checkUnknownAttribute(nc);
@@ -80,7 +82,6 @@ public final class XSLValueOf extends XSLStringConstructor {
 
     public void validate() throws XPathException {
         super.validate();
-        checkWithinTemplate();
         select = typeCheck("select", select);
         separator = typeCheck("separator", separator);
     }
@@ -104,21 +105,20 @@ public final class XSLValueOf extends XSLStringConstructor {
             if (Cardinality.allowsMany(select.getCardinality())) {
                 select = new FirstItemExpression(select);
             }
-            if (!th.isSubType(select.getItemType(th), Type.STRING_TYPE)) {
-                select = new AtomicSequenceConverter(select, Type.STRING_TYPE);
+            if (!th.isSubType(select.getItemType(th), BuiltInAtomicType.STRING)) {
+                select = new AtomicSequenceConverter(select, BuiltInAtomicType.STRING);
             }
         } else {
             if (separator == null) {
                 if (select == null) {
-                    separator = StringValue.EMPTY_STRING;
+                    separator = new StringLiteral(StringValue.EMPTY_STRING);
                 } else {
-                    separator = StringValue.SINGLE_SPACE;
+                    separator = new StringLiteral(StringValue.SINGLE_SPACE);
                 }
             }
         }
         ValueOf inst = new ValueOf(select, disable, false);
         compileContent(exec, inst, separator);
-        ExpressionTool.makeParentReferences(inst);
         return inst;
     }
 

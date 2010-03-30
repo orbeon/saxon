@@ -49,9 +49,13 @@ public final class SequenceOutputter extends SequenceWriter {
         this.controller = controller;
 	}
 
+    /**
+     * Clear the contents of the SequenceOutputter and make it available for reuse
+     */
+
     public void reset() {
         list = new ArrayList(Math.max(list.size()+10, 50));
-        if (controller != null) {
+        if (controller != null && adviseReuse()) {
             controller.reuseSequenceOutputter(this);
         }
     }
@@ -84,7 +88,7 @@ public final class SequenceOutputter extends SequenceWriter {
      */
 
     public SequenceIterator iterate() {
-        if (list.size() == 0) {
+        if (list.isEmpty()) {
             return EmptyIterator.getInstance();
         } else {
             return new ListIterator(list);
@@ -104,7 +108,7 @@ public final class SequenceOutputter extends SequenceWriter {
      */
 
     public Item getFirstItem() {
-        if (list.size() == 0) {
+        if (list.isEmpty()) {
             return null;
         } else {
             return (Item)list.get(0);
@@ -116,7 +120,7 @@ public final class SequenceOutputter extends SequenceWriter {
      */
 
     public Item popLastItem() {
-        if (list.size() == 0) {
+        if (list.isEmpty()) {
             return null;
         } else {
             return (Item)list.remove(list.size()-1);

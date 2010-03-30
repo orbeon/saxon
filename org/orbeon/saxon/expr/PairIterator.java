@@ -12,6 +12,12 @@ public class PairIterator implements Iterator {
     private Object two;
     private int pos = 0;
 
+    /**
+     * Create an iterator over two objects
+     * @param one the first object to be returned
+     * @param two the second object to be returned
+     */
+
     public PairIterator(Object one, Object two) {
         this.one = one;
         this.two = two;

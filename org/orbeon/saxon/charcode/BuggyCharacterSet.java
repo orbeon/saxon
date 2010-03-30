@@ -1,7 +1,5 @@
 package org.orbeon.saxon.charcode;
 
-import org.orbeon.saxon.om.XMLChar;
-
 import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
@@ -69,8 +67,8 @@ public class BuggyCharacterSet implements CharacterSet {
                     return true;
                 }
             } else {
-                char[] ss = { XMLChar.highSurrogate(c),
-                              XMLChar.lowSurrogate(c) };
+                char[] ss = { UTF16.highSurrogate(c),
+                              UTF16.lowSurrogate(c) };
                 encoder.encode(CharBuffer.wrap(ss));
                 return true;
             }

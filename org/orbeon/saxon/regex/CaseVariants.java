@@ -2,6 +2,7 @@ package org.orbeon.saxon.regex;
 
 import org.orbeon.saxon.sort.IntHashMap;
 import org.orbeon.saxon.sort.IntToIntHashMap;
+import org.orbeon.saxon.sort.IntToIntMap;
 
 /**
  * This class holds data about the case-variants of Unicode characters. The data is automatically
@@ -14,7 +15,7 @@ public class CaseVariants {
     // Use one hashmap for characters with a single case variant, another for characters with multiple
     // case variants, to reduce the number of objects that need to be allocated
 
-    private static IntToIntHashMap monoVariants = new IntToIntHashMap(2500);
+    private static IntToIntMap monoVariants = new IntToIntHashMap(2500);
     private static IntHashMap polyVariants = new IntHashMap(100);
 
     private static void cv(int a, int b) {
@@ -75,6 +76,7 @@ public class CaseVariants {
 
 
     static {
+        cv(0x0041, 0x0061);
         cv(0x0042, 0x0062);
         cv(0x0043, 0x0063);
         cv(0x0044, 0x0064);

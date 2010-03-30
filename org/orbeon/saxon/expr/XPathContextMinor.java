@@ -8,17 +8,20 @@ import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.regex.RegexIterator;
 import org.orbeon.saxon.sort.CodepointCollator;
 import org.orbeon.saxon.sort.GroupIterator;
-import org.orbeon.saxon.trace.InstructionInfoProvider;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.sort.StringCollator;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.trace.ContextStackIterator;
 import org.orbeon.saxon.trans.Mode;
-import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.trans.Rule;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.value.DateTimeValue;
 import org.orbeon.saxon.value.Whitespace;
 
 import javax.xml.transform.Result;
-import java.util.Comparator;
 import java.util.Properties;
+import java.util.Iterator;
 
 /**
  * This class represents a minor change in the dynamic context in which an XPath expression is evaluated:
@@ -52,7 +55,7 @@ public class XPathContextMinor implements XPathContext {
     public XPathContextMajor newContext() {
         return XPathContextMajor.newContext(this);
     }
-
+    
     public XPathContextMinor newMinorContext() {
         XPathContextMinor c = new XPathContextMinor();
         c.controller = controller;
@@ -78,17 +81,9 @@ public class XPathContextMinor implements XPathContext {
     */
 
     public XPathContextMajor newCleanContext() {
-        XPathContextMajor c = new XPathContextMajor(this.getController());
+        XPathContextMajor c = new XPathContextMajor(getController());
         c.setCaller(this);
         return c;
-    }
-
-    /**
-     * Get the XSLT-specific part of the context
-     */
-
-    public XPathContextMajor.XSLTContext getXSLTContext() {
-        return getCaller().getXSLTContext();
     }
 
     /**
@@ -112,17 +107,17 @@ public class XPathContextMinor implements XPathContext {
     /**
      * Set the creating expression (for use in diagnostics). The origin is generally set to "this" by the
      * object that creates the new context. It's up to the debugger to determine whether this information
-     * is useful. Where possible, the object will be an {@link InstructionInfoProvider}, allowing information
+     * is useful. Where possible, the object will be an {@link Expression}, allowing information
      * about the calling instruction to be obtained.
      */
 
-    public void setOrigin(InstructionInfoProvider expr) {
+    public void setOrigin(InstructionInfo expr) {
         origin = expr;
     }
 
     /**
      * Set the type of creating expression (for use in diagnostics). When a new context is created, either
-     * this method or {@link #setOrigin} should be called.
+     * this method or {@link XPathContext#setOrigin} should be called.
      * @param loc The originating location: the argument must be one of the integer constants in class
      * {@link org.orbeon.saxon.trace.Location}
      */
@@ -136,10 +131,20 @@ public class XPathContextMinor implements XPathContext {
      */
 
     public int getOriginatingConstructType() {
-        if (origin instanceof InstructionInfoProvider) {
-            return ((InstructionInfoProvider)origin).getInstructionInfo().getConstructType();
-        } else {
+        if (origin == null) {
+            return -1;
+        }
+        if (origin instanceof Expression) {
+            if (origin instanceof PathExpression) {
+                return Location.PATH_EXPRESSION;
+            }
+            return ((Expression)origin).getConstructType();
+        } else if (origin instanceof Integer) {
             return ((Integer)origin).intValue();
+        } else if (origin instanceof InstructionInfo) {
+            return ((InstructionInfo)origin).getConstructType();
+        } else {
+            return -1;
         }
     }
 
@@ -147,9 +152,9 @@ public class XPathContextMinor implements XPathContext {
      * Get information about the creating expression or other construct.
      */
 
-    public InstructionInfoProvider getOrigin() {
-        if (origin instanceof InstructionInfoProvider) {
-            return (InstructionInfoProvider)origin;
+    public InstructionInfo getOrigin() {
+        if (origin instanceof InstructionInfo) {
+            return (InstructionInfo)origin;
         } else {
             return null;
         }
@@ -181,6 +186,7 @@ public class XPathContextMinor implements XPathContext {
 
     /**
      * Get a NameChecker for checking names against the XML 1.0 or XML 1.1 specification as appropriate
+     * @return the appropriate name checker
      */
 
     public final NameChecker getNameChecker() {
@@ -219,12 +225,12 @@ public class XPathContextMinor implements XPathContext {
     /**
      * Get the context position (the position of the context item)
      * @return the context position (starting at one)
-     * @throws DynamicError if the context position is undefined
+     * @throws XPathException if the context position is undefined
     */
 
-    public final int getContextPosition() throws DynamicError {
+    public final int getContextPosition() throws XPathException {
         if (currentIterator==null) {
-            DynamicError e = new DynamicError("The context position is currently undefined");
+            XPathException e = new XPathException("The context position is currently undefined");
             e.setXPathContext(this);
             e.setErrorCode("FONC0001");
             throw e;
@@ -255,7 +261,7 @@ public class XPathContextMinor implements XPathContext {
             return last;
         }
         if (currentIterator == null) {
-            DynamicError e = new DynamicError("The context size is currently undefined");
+            XPathException e = new XPathException("The context size is currently undefined");
             e.setXPathContext(this);
             e.setErrorCode("FONC0001");
             throw e;
@@ -290,11 +296,11 @@ public class XPathContextMinor implements XPathContext {
      * @throws XPathException if the collation is not recognized
     */
 
-    public final Comparator getCollation(String name) throws XPathException {
+    public final StringCollator getCollation(String name) throws XPathException {
         if (name.equals(NamespaceConstant.CODEPOINT_COLLATION_URI)) {
             return CodepointCollator.getInstance();
         }
-        Comparator collation = null;
+        StringCollator collation = null;
         if (controller != null) {
             collation = controller.getExecutable().getNamedCollation(name);
 
@@ -305,7 +311,7 @@ public class XPathContextMinor implements XPathContext {
             }
         }
         if (collation==null) {
-            DynamicError e = new DynamicError("Unknown collation " + name);
+            XPathException e = new XPathException("Unknown collation " + name);
             e.setErrorCode("FOCH0002"); // Caller may have to change this
             e.setXPathContext(this);
             throw e;
@@ -317,7 +323,7 @@ public class XPathContextMinor implements XPathContext {
     * Get the default collation
     */
 
-    public final Comparator getDefaultCollation() {
+    public final StringCollator getDefaultCollation() {
         if (controller != null) {
             return controller.getExecutable().getDefaultCollation();
         } else {
@@ -350,7 +356,12 @@ public class XPathContextMinor implements XPathContext {
      */
 
     public void setLocalVariable(int slotnumber, ValueRepresentation value) {
-        stackFrame.slots[slotnumber] = value;
+        try {
+            stackFrame.slots[slotnumber] = value;
+        } catch (ArrayIndexOutOfBoundsException e) {
+            throw new AssertionError("Internal error: invalid slot number for local variable " +
+                    (slotnumber == -999 ? "(No slot allocated)" : "(" + slotnumber + ")"));
+        }
     }
 
     /**
@@ -365,7 +376,7 @@ public class XPathContextMinor implements XPathContext {
      * @param result Details of the new output destination
      * @param isFinal true if the destination is a final result tree
      *     (either the principal output or a secondary result tree); false if
-     * @param hostLanguage
+     * @param hostLanguage the host language, for example {@link Configuration#XSLT}
      */
 
     public void changeOutputDestination(Properties props,
@@ -376,7 +387,7 @@ public class XPathContextMinor implements XPathContext {
                                         SchemaType schemaType)
     throws XPathException {
         if (isFinal && isTemporaryDestination) {
-            DynamicError err = new DynamicError("Cannot switch to a final result destination while writing a temporary tree");
+            XPathException err = new XPathException("Cannot switch to a final result destination while writing a temporary tree");
             err.setErrorCode("XTDE1480");
             throw err;
         }
@@ -405,29 +416,39 @@ public class XPathContextMinor implements XPathContext {
         SerializerFactory sf = getConfiguration().getSerializerFactory();
         Receiver receiver = sf.getReceiver(result, pipe, props);
 
-        // if this is the implicit XSLT result document, add a filter to check the first write
+        // if this is the implicit XSLT result document, and if the executable is capable
+        // of creating a secondary result document, then add a filter to check the first write
 
-        // TODO: this is necessary only for a stylesheet that contains an xsl:result-document instruction
-
+        boolean openNow = false;
         if ("yes".equals(props.getProperty(SaxonOutputKeys.IMPLICIT_RESULT_DOCUMENT))) {
-            receiver = new ImplicitResultChecker(receiver, controller);
+            if (controller.getExecutable().createsSecondaryResult()) {
+                receiver = new ImplicitResultChecker(receiver, controller);
+            } else {
+                openNow = true;
+            }
         }
+
+		// add a filter to remove duplicate namespaces
+
+        NamespaceReducer ne = new NamespaceReducer();
+        ne.setUnderlyingReceiver(receiver);
+        ne.setPipelineConfiguration(pipe);
+        //out.setReceiver(ne);
 
         // add a validator to the pipeline if required
 
         receiver = controller.getConfiguration().getDocumentValidator(
-                receiver, receiver.getSystemId(), validation,
-                Whitespace.NONE, schemaType);
+                ne, receiver.getSystemId(), validation,
+                Whitespace.NONE, schemaType, -1);
 
-		// add a filter to remove duplicate namespaces
+        out.setReceiver(receiver);
 
-		NamespaceReducer ne = new NamespaceReducer();
-		ne.setUnderlyingReceiver(receiver);
-		ne.setPipelineConfiguration(pipe);
-		out.setReceiver(ne);
-
-        //out.open();
         currentReceiver = out;
+        if (openNow) {
+            out.open();
+            out.startDocument(0);
+        }
+
     }
 
     /**
@@ -463,16 +484,16 @@ public class XPathContextMinor implements XPathContext {
     * Use local parameter. This is called when a local xsl:param element is processed.
     * If a parameter of the relevant name was supplied, it is bound to the xsl:param element.
     * Otherwise the method returns false, so the xsl:param default will be evaluated
-    * @param fingerprint    The fingerprint of the parameter name
+    * @param qName    The fingerprint of the parameter name
     * @param binding        The XSLParam element to bind its value to
     * @param isTunnel      True if a tunnel parameter is required, else false
     * @return true if a parameter of this name was supplied, false if not
     */
 
-    public boolean useLocalParameter(int fingerprint,
+    public boolean useLocalParameter(StructuredQName qName,
                                      LocalParam binding,
                                      boolean isTunnel) throws XPathException {
-        return getCaller().useLocalParameter(fingerprint, binding, isTunnel);
+        return getCaller().useLocalParameter(qName, binding, isTunnel);
     }
 
     /**
@@ -514,13 +535,47 @@ public class XPathContextMinor implements XPathContext {
         return getCaller().getCurrentRegexIterator();
     }
 
+   /**
+     * Get the current date and time for this query or transformation.
+     * All calls during one transformation return the same answer.
+     *
+     * @return Get the current date and time. This will deliver the same value
+     *      for repeated calls within the same transformation
+     */
+
+    public DateTimeValue getCurrentDateTime() {
+        return controller.getCurrentDateTime();
+    }
+
     /**
      * Get the implicit timezone, as a positive or negative offset from UTC in minutes.
      * The range is -14hours to +14hours
+     * @return the implicit timezone as an offset from UTC in minutes
      */
 
     public final int getImplicitTimezone() {
-        return getConfiguration().getImplicitTimezone();
+        return controller.getImplicitTimezone();
+    }
+
+    /**
+     * Mark the context as being in (or not in) temporary output state
+     * @param temp true to set temporary output state; false to unset it
+     */
+
+    public void setTemporaryOutputState(boolean temp) {
+        isTemporaryDestination = temp;
+    }
+
+    /**
+     * Get the context stack. This method returns an iterator whose items are instances of
+     * {@link org.orbeon.saxon.trace.ContextStackFrame}, starting with the top-most stackframe and
+     * ending at the point the query or transformation was invoked by a calling application.
+     *
+     * @return an iterator over a copy of the run-time call stack
+     */
+
+    public Iterator iterateStackFrames() {
+        return new ContextStackIterator(this);
     }
 
     // TODO: eliminate this class. A new XPathContextMinor is created under two circumstances,
@@ -533,6 +588,11 @@ public class XPathContextMinor implements XPathContext {
     // Perhaps we should try to do static allocation, so that fixed slots are allocated for different
     // minor-contexts within a Procedure, and a compiled expression that uses the focus knows which
     // slot to look in.
+
+    // It's also worth noting that with path expressions such as a/b/c/d the context object is essentially
+    // unused. It only gets used if there is a reference to the context such as ".", "position()", or "last()".
+    // We could potentially mark steps in a path expression at compile time where there is no need to create
+    // a context object.
 }
 
 //

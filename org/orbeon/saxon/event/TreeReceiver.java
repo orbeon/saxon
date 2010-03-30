@@ -11,33 +11,66 @@ import org.orbeon.saxon.type.Type;
  * only handles events relating to the building of trees. To do this, it has to
  * process any items added to the sequence using the append() interface; all other
  * events are passed through unchanged.
+ *
+ * <p>If atomic items are appended to the sequence, then adjacent atomic items are
+ * turned in to a text node by converting them to strings and adding a single space
+ * as a separator.</p>
+ *
+ * <p>If a document node is appended to the sequence, then the document node is ignored
+ * and its children are appended to the sequence.</p>
+ *
+ * <p>If any other node is appended to the sequence, then it is pushed to the result
+ * as a sequence of Receiver events, which may involve walking recursively through the
+ * contents of a tree.</p>
  */
 
 public class TreeReceiver extends SequenceReceiver {
-    private Receiver baseReceiver;
-    private boolean contentStarted = true;
+    private Receiver nextReceiver;
+    private int level = 0;
+    private boolean[] isDocumentLevel = new boolean[20];
+        // The sequence of events can include startElement/endElement pairs or startDocument/endDocument
+        // pairs at any level. A startDocument/endDocument pair is essentially ignored except at the
+        // outermost level, except that a namespace or attribute node cannot be sent when we're at a
+        // document level. See for example schema90963-err.xsl
+    private boolean inStartTag = false;
+
+    /**
+     * Create a TreeReceiver
+     * @param nextInChain the receiver to which events will be directed, after
+     * expanding append events into more primitive tree-based events
+     */
 
     public TreeReceiver(Receiver nextInChain) {
-        baseReceiver = nextInChain;
+        nextReceiver = nextInChain;
         previousAtomic = false;
         setPipelineConfiguration(nextInChain.getPipelineConfiguration());
     }
 
     public void setSystemId(String systemId) {
-        if (systemId != this.systemId) {
+        if (systemId != null && !systemId.equals(this.systemId)) {
             this.systemId = systemId;
-            if (baseReceiver != null) {
-                baseReceiver.setSystemId(systemId);
+            if (nextReceiver != null) {
+                nextReceiver.setSystemId(systemId);
+            }
+        }
+    }
+
+    public void setPipelineConfiguration(PipelineConfiguration pipe) {
+        if (pipelineConfiguration != pipe) {
+            pipelineConfiguration = pipe;
+            if (nextReceiver != null) {
+                nextReceiver.setPipelineConfiguration(pipe);
             }
         }
     }
 
     /**
      * Get the underlying Receiver (that is, the next one in the pipeline)
+     * @return the underlying Receiver
      */
 
     public Receiver getUnderlyingReceiver() {
-        return baseReceiver;
+        return nextReceiver;
     }
 
     /**
@@ -45,10 +78,10 @@ public class TreeReceiver extends SequenceReceiver {
      */
 
     public void open() throws XPathException {
-        if (baseReceiver == null) {
+        if (nextReceiver == null) {
             throw new IllegalStateException("TreeReceiver.open(): no underlying receiver provided");
         }
-        baseReceiver.open();
+        nextReceiver.open();
         previousAtomic = false;
     }
 
@@ -57,8 +90,8 @@ public class TreeReceiver extends SequenceReceiver {
      */
 
     public void close() throws XPathException {
-        if (baseReceiver != null) {
-            baseReceiver.close();
+        if (nextReceiver != null) {
+            nextReceiver.close();
         }
         previousAtomic = false;
     }
@@ -68,7 +101,15 @@ public class TreeReceiver extends SequenceReceiver {
     */
 
     public void startDocument(int properties) throws XPathException {
-        baseReceiver.startDocument(properties);
+        if (level == 0) {
+            nextReceiver.startDocument(properties);
+        }
+        if (isDocumentLevel.length - 1 < level) {
+            boolean[] d2 = new boolean[level*2];
+            System.arraycopy(isDocumentLevel, 0, d2, 0, level);
+            isDocumentLevel = d2;
+        }
+        isDocumentLevel[level++] = true;
     }
 
     /**
@@ -76,7 +117,10 @@ public class TreeReceiver extends SequenceReceiver {
      */
 
     public void endDocument() throws XPathException {
-        baseReceiver.endDocument();
+        level--;
+        if (level == 0) {
+            nextReceiver.endDocument();
+        }
     }
 
     /**
@@ -87,12 +131,18 @@ public class TreeReceiver extends SequenceReceiver {
      */
 
     public void startElement(int nameCode, int typeCode, int locationId, int properties) throws XPathException {
-        if (!contentStarted) {
+        if (inStartTag) {
             startContent();
         }
-        contentStarted = false;
-        baseReceiver.startElement(nameCode, typeCode, locationId, properties);
+        inStartTag = true;
+        nextReceiver.startElement(nameCode, typeCode, locationId, properties);
         previousAtomic = false;
+        if (isDocumentLevel.length - 1 < level) {
+            boolean[] d2 = new boolean[level*2];
+            System.arraycopy(isDocumentLevel, 0, d2, 0, level);
+            isDocumentLevel = d2;
+        }
+        isDocumentLevel[level++] = false;
     }
 
     /**
@@ -109,7 +159,14 @@ public class TreeReceiver extends SequenceReceiver {
      */
 
     public void namespace(int namespaceCode, int properties) throws XPathException {
-        baseReceiver.namespace(namespaceCode, properties);
+        boolean documentLevel = level==0 || isDocumentLevel[level-1];
+        if (documentLevel || !inStartTag) {
+            throw NoOpenStartTagException.makeNoOpenStartTagException(
+                    Type.NAMESPACE, getNamePool().getPrefixFromNamespaceCode(namespaceCode),
+                    getPipelineConfiguration().getHostLanguage(),
+                    documentLevel, getPipelineConfiguration().isSerializing());
+        }
+        nextReceiver.namespace(namespaceCode, properties);
         previousAtomic = false;
     }
 
@@ -127,7 +184,14 @@ public class TreeReceiver extends SequenceReceiver {
 
     public void attribute(int nameCode, int typeCode, CharSequence value, int locationId, int properties)
             throws XPathException {
-        baseReceiver.attribute(nameCode, typeCode, value, locationId, properties);
+        boolean documentLevel = level==0 || isDocumentLevel[level-1];
+        if (documentLevel || !inStartTag) {
+            throw NoOpenStartTagException.makeNoOpenStartTagException(
+                    Type.ATTRIBUTE, getNamePool().getDisplayName(nameCode),
+                    getPipelineConfiguration().getHostLanguage(),
+                    documentLevel, getPipelineConfiguration().isSerializing());
+        }
+        nextReceiver.attribute(nameCode, typeCode, value, locationId, properties);
         previousAtomic = false;
     }
 
@@ -140,8 +204,8 @@ public class TreeReceiver extends SequenceReceiver {
 
 
     public void startContent() throws XPathException {
-        contentStarted = true;
-        baseReceiver.startContent();
+        inStartTag = false;
+        nextReceiver.startContent();
         previousAtomic = false;
     }
 
@@ -150,11 +214,12 @@ public class TreeReceiver extends SequenceReceiver {
      */
 
     public void endElement() throws XPathException {
-        if (!contentStarted) {
+        if (inStartTag) {
             startContent();
         }
-        baseReceiver.endElement();
+        nextReceiver.endElement();
         previousAtomic = false;
+        level--;
     }
 
     /**
@@ -162,10 +227,12 @@ public class TreeReceiver extends SequenceReceiver {
      */
 
     public void characters(CharSequence chars, int locationId, int properties) throws XPathException {
-        if (!contentStarted) {
-            startContent();
+        if (chars.length() > 0) {
+            if (inStartTag) {
+                startContent();
+            }
+            nextReceiver.characters(chars, locationId, properties);
         }
-        baseReceiver.characters(chars, locationId, properties);
         previousAtomic = false;
     }
 
@@ -175,10 +242,10 @@ public class TreeReceiver extends SequenceReceiver {
      */
 
     public void processingInstruction(String target, CharSequence data, int locationId, int properties) throws XPathException {
-        if (!contentStarted) {
+        if (inStartTag) {
             startContent();
         }
-        baseReceiver.processingInstruction(target, data, locationId, properties);
+        nextReceiver.processingInstruction(target, data, locationId, properties);
         previousAtomic = false;
     }
 
@@ -187,10 +254,10 @@ public class TreeReceiver extends SequenceReceiver {
      */
 
     public void comment(CharSequence chars, int locationId, int properties) throws XPathException {
-        if (!contentStarted) {
+        if (inStartTag) {
             startContent();
         }
-        baseReceiver.comment(chars, locationId, properties);
+        nextReceiver.comment(chars, locationId, properties);
         previousAtomic = false;
     }
 
@@ -200,7 +267,7 @@ public class TreeReceiver extends SequenceReceiver {
      */
 
     public void setUnparsedEntity(String name, String uri, String publicId) throws XPathException {
-        baseReceiver.setUnparsedEntity(name, uri, publicId);
+        nextReceiver.setUnparsedEntity(name, uri, publicId);
     }
 
     /**
@@ -215,14 +282,17 @@ public class TreeReceiver extends SequenceReceiver {
             characters(item.getStringValueCS(), locationId, 0);
             previousAtomic = true;
         } else if (((NodeInfo)item).getNodeKind() == Type.DOCUMENT) {
+            startDocument(0); // needed to ensure that illegal namespaces or attributes in the content are caught
             SequenceIterator iter = ((NodeInfo)item).iterateAxis(Axis.CHILD);
             while (true) {
                 Item it = iter.next();
                 if (it == null) break;
-                append(it, locationId, NodeInfo.ALL_NAMESPACES);
+                append(it, locationId, copyNamespaces);
             }
+            previousAtomic = false;
+            endDocument();
         } else {
-            ((NodeInfo)item).copy(this, NodeInfo.ALL_NAMESPACES, true, locationId);
+            ((NodeInfo)item).copy(this, copyNamespaces, true, locationId);
             previousAtomic = false;
         }
     }

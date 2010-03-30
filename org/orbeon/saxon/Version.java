@@ -6,10 +6,10 @@ package org.orbeon.saxon;
 
 public final class Version {
 
-    private static final int[] STRUCTURED_VERSION = {8,8,0,1};
-    private static final String VERSION = "8.8";
-    private static final String BUILD = "090414"; //mmddhh
-    private static final String RELEASE_DATE = "2006-09-05";
+    private static final int[] STRUCTURED_VERSION = {9,1,0,8};
+    private static final String VERSION = "9.1.0.8";
+    private static final String BUILD = "102723"; //mmddhh
+    private static final String RELEASE_DATE = "2009-10-27";
 
     private Version() {
         // class is never instantiated
@@ -21,7 +21,7 @@ public final class Version {
      */
 
 
-    public static final String getProductName() {
+    public static String getProductName() {
         return "SAXON";
     }
 
@@ -30,16 +30,16 @@ public final class Version {
      * @return the version number of this version of Saxon, as a string
      */
 
-   public static final String getSchemaAwareProductVersion() {
+   public static String getSchemaAwareProductVersion() {
         return "SA " + getProductVersion();
     }
 
     /**
      * Get the user-visible version number of this version of the product
-     * @return the version number of this version of Saxon, as a string: for example "8.7.3"
+     * @return the version number of this version of Saxon, as a string: for example "9.0.1"
      */
 
-    public static final String getProductVersion() {
+    public static String getProductVersion() {
         return VERSION;
     }
 
@@ -47,10 +47,10 @@ public final class Version {
      * Get the four components of the structured version number. This is used in the .NET product
      * to locate an assembly in the dynamic assembly cache: the assumption is that the third
      * and fourth components represent implementation changes rather than interface changes
-     * @return  the four components of the version number, as an array: for example {8, 7, 3, 1}
+     * @return  the four components of the version number, as an array: for example {9, 0, 1, 1}
      */ 
 
-    public static final int[] getStructuredVersionNumber() {
+    public static int[] getStructuredVersionNumber() {
         return STRUCTURED_VERSION;
     }
 
@@ -59,7 +59,7 @@ public final class Version {
      * @return the release date, as an ISO 8601 string
      */
 
-    public static final String getReleaseDate() {
+    public static String getReleaseDate() {
         return RELEASE_DATE;
     }
 
@@ -68,7 +68,7 @@ public final class Version {
      * @return the string 2.0
      */
 
-    public static final String getXSLVersionString() {
+    public static String getXSLVersionString() {
         return "2.0";
     }
 
@@ -78,7 +78,7 @@ public final class Version {
      *     version
      */
 
-    public static final String getProductTitle() {
+    public static String getProductTitle() {
         return getProductName() + ' ' + getProductVersion() + " from Saxonica";
     }
 
@@ -87,7 +87,7 @@ public final class Version {
      * @return the string "http://saxon.sf.net/"
      */
 
-    public static final String getWebSiteAddress() {
+    public static String getWebSiteAddress() {
         return "http://www.saxonica.com/";
     }
 

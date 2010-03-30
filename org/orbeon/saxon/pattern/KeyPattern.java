@@ -1,47 +1,51 @@
 package org.orbeon.saxon.pattern;
-import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.expr.PromotionOffer;
-import org.orbeon.saxon.om.DocumentInfo;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.om.SequenceIterator;
+
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.trans.KeyDefinitionSet;
 import org.orbeon.saxon.trans.KeyManager;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.instruct.SlotManager;
 
 import java.util.Iterator;
 
 /**
-* A KeyPattern is a pattern of the form key(keyname, keyvalue)
-*/
+ * A KeyPattern is a pattern of the form key(keyname, keyvalue)
+ */
 
 public final class KeyPattern extends Pattern {
 
-    private int keyfingerprint;          // the fingerprint of the key name
-    private Expression keyexp;           // the value of the key
+    private StructuredQName keyName;     // the key name
+    private KeyDefinitionSet keySet;     // the set of keys corresponding to the key name
+    private Expression keyExpression;           // the value of the key
 
     /**
-    * Constructor
-    * @param namecode the name of the key
-    * @param key the value of the key: either a StringValue or a VariableReference
-    */
+     * Constructor
+     *
+     * @param keyName the name of the key
+     * @param key     the value of the key: either a StringValue or a VariableReference
+     */
 
-    public KeyPattern(int namecode, Expression key) {
-        keyfingerprint = namecode & 0xfffff;
-        keyexp = key;
+    public KeyPattern(StructuredQName keyName, Expression key) {
+        this.keyName = keyName;
+        keyExpression = key;
     }
 
     /**
-    * Type-check the pattern. This is needed for patterns that contain
-    * variable references or function calls.
-    * @return the optimised Pattern
-    */
+     * Type-check the pattern. This is needed for patterns that contain
+     * variable references or function calls.
+     *
+     * @return the optimised Pattern
+     */
 
-    public Pattern analyze(StaticContext env, ItemType contextItemType) throws XPathException {
-        keyexp = keyexp.typeCheck(env, contextItemType);
+    public Pattern analyze(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        keyExpression = visitor.typeCheck(keyExpression, contextItemType);
+        RoleLocator role = new RoleLocator(RoleLocator.FUNCTION, "key", 2);
+        keyExpression = TypeChecker.staticTypeCheck(keyExpression, SequenceType.ATOMIC_SEQUENCE, false, role, visitor);
+        keySet = visitor.getExecutable().getKeyManager().getKeyDefinitionSet(keyName);
         return this;
     }
 
@@ -51,7 +55,7 @@ public final class KeyPattern extends Pattern {
      */
 
     public int getDependencies() {
-        return keyexp.getDependencies();
+        return keyExpression.getDependencies();
     }
 
     /**
@@ -59,7 +63,7 @@ public final class KeyPattern extends Pattern {
      */
 
     public Iterator iterateSubExpressions() {
-        return keyexp.iterateSubExpressions();
+        return new MonoIterator(keyExpression);
     }
 
     /**
@@ -82,28 +86,54 @@ public final class KeyPattern extends Pattern {
      */
 
     public void promote(PromotionOffer offer) throws XPathException {
-        keyexp = keyexp.promote(offer);
+        keyExpression = keyExpression.promote(offer);
     }
 
-   /**
-    * Determine whether this Pattern matches the given Node.
-    * @param e The NodeInfo representing the Element or other node to be tested against the Pattern
-    * @return true if the node matches the Pattern, false otherwise
-    */
+    public boolean replaceSubExpression(Expression original, Expression replacement) {
+        if (keyExpression == original) {
+            keyExpression = replacement;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * Allocate slots to any variables used within the pattern
+     * @param env         the static context in the XSLT stylesheet
+     * @param slotManager the slot manager representing the stack frame for local variables
+     * @param nextFree    the next slot that is free to be allocated @return the next slot that is free to be allocated
+     */
+
+     public int allocateSlots(StaticContext env, SlotManager slotManager, int nextFree) {
+        return ExpressionTool.allocateSlots(keyExpression, nextFree, slotManager);
+    }
+
+    /**
+     * Determine whether this Pattern matches the given Node.
+     *
+     * @param e The NodeInfo representing the Element or other node to be tested against the Pattern
+     * @return true if the node matches the Pattern, false otherwise
+     */
 
     public boolean matches(NodeInfo e, XPathContext context) throws XPathException {
+        KeyDefinitionSet kds = keySet;
+        if (kds == null) {
+            // shouldn't happen
+            kds = context.getController().getExecutable().getKeyManager().getKeyDefinitionSet(keyName);
+        }
         DocumentInfo doc = e.getDocumentRoot();
-        if (doc==null) {
+        if (doc == null) {
             return false;
         }
         KeyManager km = context.getController().getKeyManager();
-        SequenceIterator iter = keyexp.iterate(context);
+        SequenceIterator iter = keyExpression.iterate(context);
         while (true) {
             Item it = iter.next();
             if (it == null) {
                 return false;
             }
-            SequenceIterator nodes = km.selectByKey(keyfingerprint, doc, (AtomicValue)it, context);
+            SequenceIterator nodes = km.selectByKey(kds, doc, (AtomicValue)it, context);
             while (true) {
                 NodeInfo n = (NodeInfo)nodes.next();
                 if (n == null) {
@@ -117,12 +147,32 @@ public final class KeyPattern extends Pattern {
     }
 
     /**
-    * Get a NodeTest that all the nodes matching this pattern must satisfy
-    */
+     * Get a NodeTest that all the nodes matching this pattern must satisfy
+     */
 
     public NodeTest getNodeTest() {
         return AnyNodeTest.getInstance();
     }
+
+    /**
+     * Determine whether this pattern is the same as another pattern
+     * @param other the other object
+     */
+
+    public boolean equals(Object other) {
+        return (other instanceof KeyPattern) &&
+                ((KeyPattern)other).keyName.equals(keyName) &&
+                ((KeyPattern)other).keyExpression.equals(keyExpression);
+    }
+
+    /**
+     * Hashcode supporting equals()
+     */
+
+    public int hashCode() {
+        return 0x87287310 ^ keyExpression.hashCode() & keyName.hashCode();
+    }
+
 
 }
 

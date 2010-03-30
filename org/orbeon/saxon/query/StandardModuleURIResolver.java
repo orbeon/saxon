@@ -1,8 +1,6 @@
 package org.orbeon.saxon.query;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.JavaPlatform;
 import org.orbeon.saxon.Platform;
-import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.transform.stream.StreamSource;
@@ -20,17 +18,29 @@ import java.net.URLConnection;
  * This class is the standard ModuleURIResolver used to implement the "import module" declaration
  * in a Query Prolog. It is used when no user-defined ModuleURIResolver has been specified, or when
  * the user-defined ModuleURIResolver decides to delegate to the standard ModuleURIResolver.
+ *
  * @author Michael H. Kay
 */
 
 public class StandardModuleURIResolver implements ModuleURIResolver {
 
-    private Configuration config;
+    private static StandardModuleURIResolver THE_INSTANCE = new StandardModuleURIResolver();
 
-    public StandardModuleURIResolver() {}
+    /**
+     * Get the singular instance of this class
+     * @return the singular instance of this class
+     */
 
-    public StandardModuleURIResolver(Configuration config) {
-        this.config = config;
+    public static StandardModuleURIResolver getInstance() {
+        return THE_INSTANCE;
+    }
+
+    /**
+     * Create a StandardModuleURIResolver
+     */
+
+    protected StandardModuleURIResolver() {
+
     }
 
     /**
@@ -45,17 +55,18 @@ public class StandardModuleURIResolver implements ModuleURIResolver {
      * imported. Each StreamSource must contain a
      * non-null absolute System ID which will be used as the base URI of the imported module,
      * and either an InputSource or a Reader representing the text of the module. 
-     * @throws org.orbeon.saxon.trans.XPathException if the module cannot be located
+     * @throws XPathException (error XQST0059) if the module cannot be located
     */
 
     public StreamSource[] resolve(String moduleURI, String baseURI, String[] locations) throws XPathException {
         if (locations.length == 0) {
-            StaticError err = new StaticError("Cannot locate module for namespace " + moduleURI);
+            XPathException err = new XPathException("Cannot locate module for namespace " + moduleURI);
             err.setErrorCode("XQST0059");
+            err.setIsStaticError(true);
             throw err;
         } else {
             // One or more locations given: import modules from all these locations
-            Platform platform = (config==null ? JavaPlatform.getInstance() : config.getPlatform());
+            Platform platform = Configuration.getPlatform();
             StreamSource[] sources = new StreamSource[locations.length];
             for (int m=0; m<locations.length; m++) {
                 String href = locations[m];
@@ -63,8 +74,9 @@ public class StandardModuleURIResolver implements ModuleURIResolver {
                 try {
                     absoluteURI = platform.makeAbsolute(href, baseURI);
                 } catch (URISyntaxException err) {
-                    StaticError se = new StaticError("Cannot resolve relative URI " + href, err);
+                    XPathException se = new XPathException("Cannot resolve relative URI " + href, err);
                     se.setErrorCode("XQST0059");
+                    se.setIsStaticError(true);
                     throw se;
                 }
                 sources[m] = getQuerySource(absoluteURI);
@@ -82,12 +94,12 @@ public class StandardModuleURIResolver implements ModuleURIResolver {
       * @param absoluteURI the absolute URI of the source query
       * @return a StreamSource containing a Reader or InputSource, as well as a systemID representing
       * the base URI of the query.
-      * @throws org.orbeon.saxon.trans.StaticError if the URIs are invalid or cannot be resolved or dereferenced, or
+      * @throws XPathException if the URIs are invalid or cannot be resolved or dereferenced, or
       * if any I/O error occurs
       */
 
-     private static StreamSource getQuerySource(URI absoluteURI)
-             throws StaticError {
+     protected StreamSource getQuerySource(URI absoluteURI)
+             throws XPathException {
 
          try {
              InputStream is;
@@ -143,8 +155,9 @@ public class StandardModuleURIResolver implements ModuleURIResolver {
              ss.setSystemId(absoluteURL.toString());
              return ss;
          } catch (IOException err) {
-             StaticError se = new StaticError(err);
+             XPathException se = new XPathException(err);
              se.setErrorCode("XQST0059");
+             se.setIsStaticError(true);
              throw se;
          }
 

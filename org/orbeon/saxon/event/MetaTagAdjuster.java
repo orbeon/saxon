@@ -3,8 +3,9 @@ package org.orbeon.saxon.event;
 import org.orbeon.saxon.om.AttributeCollectionImpl;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NamespaceConstant;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.value.Whitespace;
 
 import javax.xml.transform.OutputKeys;
 import java.util.Properties;
@@ -21,6 +22,7 @@ public class MetaTagAdjuster extends ProxyReceiver {
     int droppingMetaTags = -1;
     boolean inMetaTag = false;
     boolean foundHead = false;
+    String headPrefix = null;
     int metaCode;
     short requiredURICode = 0;
     AttributeCollectionImpl attributes;
@@ -104,6 +106,7 @@ public class MetaTagAdjuster extends ProxyReceiver {
             String localName = namePool.getLocalName(nameCode);
             if (uriCode == requiredURICode && comparesEqual(localName, "head")) {
                 foundHead = true;
+                headPrefix = namePool.getPrefix(nameCode);
             }
         }
 
@@ -143,16 +146,16 @@ public class MetaTagAdjuster extends ProxyReceiver {
             foundHead = false;
             NamePool namePool = getNamePool();
             nextReceiver.startContent();
-            int metaCode = namePool.allocate("", requiredURICode, "meta");
-            nextReceiver.startElement(metaCode, StandardNames.XDT_UNTYPED, 0, 0);
+            int metaCode = namePool.allocate(headPrefix, requiredURICode, "meta");
+            nextReceiver.startElement(metaCode, StandardNames.XS_UNTYPED, 0, 0);
             int httpEquivCode = namePool.allocate("", "", "http-equiv");
-            nextReceiver.attribute(httpEquivCode, StandardNames.XDT_UNTYPED_ATOMIC, "Content-Type", 0, 0);
+            nextReceiver.attribute(httpEquivCode, StandardNames.XS_UNTYPED_ATOMIC, "Content-Type", 0, 0);
             int contentCode = namePool.allocate("", "", "content");
-            nextReceiver.attribute(contentCode, StandardNames.XDT_UNTYPED_ATOMIC, mediaType + "; charset=" + encoding, 0, 0);
+            nextReceiver.attribute(contentCode, StandardNames.XS_UNTYPED_ATOMIC, mediaType + "; charset=" + encoding, 0, 0);
             nextReceiver.startContent();
             droppingMetaTags = level;
             seekingHead = false;
-            attributes = new AttributeCollectionImpl(namePool);
+            attributes = new AttributeCollectionImpl(getConfiguration());
             nextReceiver.endElement();
         }
         if (!inMetaTag) {
@@ -172,7 +175,7 @@ public class MetaTagAdjuster extends ProxyReceiver {
             for (int i=0; i<attributes.getLength(); i++) {
                 String name = attributes.getLocalName(i);
                 if (comparesEqual(name, "http-equiv")) {
-                    String value = attributes.getValue(i).trim();
+                    String value = Whitespace.trim(attributes.getValue(i));
                     if (value.equalsIgnoreCase("Content-Type")) {
                         // case-blind comparison even for XHTML
                         found = true;
@@ -182,7 +185,7 @@ public class MetaTagAdjuster extends ProxyReceiver {
             }
             if (!found) {
                 // this was a meta element, but not one of the kind that we discard
-                nextReceiver.startElement(metaCode, StandardNames.XDT_UNTYPED, 0, 0);
+                nextReceiver.startElement(metaCode, StandardNames.XS_UNTYPED, 0, 0);
                 for (int i=0; i<attributes.getLength(); i++) {
                     int nameCode = attributes.getNameCode(i);
                     int typeCode = attributes.getTypeAnnotation(i);

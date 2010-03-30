@@ -83,9 +83,26 @@ public interface SchemaType extends SchemaComponent {
     public static final int DERIVE_BY_SUBSTITUTION = 16;
 
     /**
+     * Get the local name of this type
+     * @return the local name of this type definition, if it has one. Return null in the case of an
+     * anonymous type.
+     */
+
+    public String getName();
+
+    /**
+     * Get the target namespace of this type
+     * @return the target namespace of this type definition, if it has one. Return null in the case
+     * of an anonymous type, and in the case of a global type defined in a no-namespace schema.
+     */
+
+    public String getTargetNamespace();
+
+    /**
      * Get the namecode of the name of this type. This includes the prefix from the original
      * type declaration: in the case of built-in types, there may be a conventional prefix
      * or there may be no prefix.
+     * @return the namecode. Returns an invented namecode for an anonymous type.
      */
 
     int getNameCode();
@@ -205,6 +222,8 @@ public interface SchemaType extends SchemaComponent {
      * Test whether this is the same type as another type. They are considered to be the same type
      * if they are derived from the same type definition in the original XML representation (which
      * can happen when there are multiple includes of the same file)
+     * @param other the other type
+     * @return true if this is the same type as other
      */
 
     boolean isSameType(SchemaType other);
@@ -227,8 +246,15 @@ public interface SchemaType extends SchemaComponent {
      * @throws SchemaException if the derivation is not allowed
      */
 
-    public void checkTypeDerivationIsOK(SchemaType base, int block) throws SchemaException, ValidationException;
-    // TODO: method no longer used, can delete its implementations once everything is tested
+    public void checkTypeDerivationIsOK(SchemaType base, int block) throws SchemaException;
+
+    /**
+     * Get the URI of the schema document where the type was originally defined.
+     * @return the URI of the schema document. Returns null if the information is unknown or if this
+     * is a built-in type
+     */
+
+    public String getSystemId();
 
 }
 

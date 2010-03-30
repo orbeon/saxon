@@ -1,12 +1,13 @@
 package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.ValueRepresentation;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.Closure;
 import org.orbeon.saxon.value.SequenceExtent;
 import org.orbeon.saxon.value.SequenceType;
 import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 
 /**
 * saxon:assign element in stylesheet.
@@ -50,6 +51,7 @@ public class Assign extends GeneralVariable implements BindingReference {
         switch (offer.action) {
             case PromotionOffer.RANGE_INDEPENDENT:
             case PromotionOffer.FOCUS_INDEPENDENT:
+            case PromotionOffer.EXTRACT_GLOBAL_VARIABLES:
                 return this;
 
             case PromotionOffer.REPLACE_CURRENT:
@@ -79,7 +81,7 @@ public class Assign extends GeneralVariable implements BindingReference {
         }
         ValueRepresentation value = getSelectValue(context);
         if (value instanceof Closure) {
-            value = SequenceExtent.makeSequenceExtent(((Closure)value).iterate(null));
+            value = SequenceExtent.makeSequenceExtent(((Closure)value).iterate());
         }
         if (binding instanceof GeneralVariable) {
             if (binding.isGlobal()) {
@@ -99,6 +101,20 @@ public class Assign extends GeneralVariable implements BindingReference {
 
     public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     */
+
+    public void explain(ExpressionPresenter out) {
+        out.startElement("assign");
+        out.emitAttribute("name", variableQName.getDisplayName());
+        if (select != null) {
+            select.explain(out);
+        }
+        out.endElement();
     }
 }
 

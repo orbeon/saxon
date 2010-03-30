@@ -27,7 +27,7 @@ import java.util.List;
  * @author Michael Kay: Saxon modifications.
  */
 class UnicodeDataGenerator {
-    static final String copyright = "Copyright © 1998-1999 Unicode, Inc.";
+    static final String copyright = "Copyright ï¿½ 1998-1999 Unicode, Inc.";
 
     /**
      * Testing flags

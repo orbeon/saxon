@@ -1,10 +1,8 @@
 package org.orbeon.saxon.dotnet;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.type.BuiltInAtomicType;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.type.TypeHierarchy;
+import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.om.StandardNames;
 
 
 /**
@@ -22,29 +20,29 @@ public class DotNetObjectValue extends ObjectValue {
     * Convert to target data type
     */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, XPathContext context) {
+    public ConversionResult convertPrimitive(BuiltInAtomicType requiredType, boolean validate, XPathContext context) {
         Object value = getObject();
         switch(requiredType.getPrimitiveType()) {
-        case Type.ANY_ATOMIC:
-        case Type.OBJECT:
+        case StandardNames.XS_ANY_ATOMIC_TYPE:
+        case StandardNames.SAXON_JAVA_LANG_OBJECT:
         case Type.ITEM:
             return this;
-        case Type.BOOLEAN:
+        case StandardNames.XS_BOOLEAN:
             return BooleanValue.get(
                     (value==null ? false : value.toString().length() > 0));
-        case Type.STRING:
+        case StandardNames.XS_STRING:
             return new StringValue(getStringValue());
-        case Type.UNTYPED_ATOMIC:
+        case StandardNames.XS_UNTYPED_ATOMIC:
             return new UntypedAtomicValue(getStringValue());
         default:
-            return new StringValue(getStringValue()).convertPrimitive(requiredType, validate, context);
+            return new StringValue(getStringValue()).convert(requiredType, validate, context);
         }
     }
 
     /**
     * Determine the data type of the expression
     * @return Type.OBJECT
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {

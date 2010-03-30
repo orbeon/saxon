@@ -2,8 +2,10 @@ package org.orbeon.saxon.trans;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.instruct.Template;
 import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.StructuredQName;
 import org.orbeon.saxon.pattern.Pattern;
 import org.orbeon.saxon.pattern.UnionPattern;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 
 import java.io.Serializable;
 import java.util.HashMap;
@@ -34,7 +36,7 @@ public final class RuleManager implements Serializable {
     */
 
     public void resetHandlers() {
-        defaultMode = new Mode(Mode.DEFAULT_MODE, -1);
+        defaultMode = new Mode(Mode.DEFAULT_MODE, Mode.DEFAULT_MODE_NAME);
         modes = new HashMap(5);
     }
 
@@ -47,28 +49,30 @@ public final class RuleManager implements Serializable {
     }
 
     /**
-    * Get the Mode object for a named mode. If there is not one already registered.
-    * a new Mode is created.
-    * @param modeNameCode The name code of the mode. Supply Mode.DEFAULT_MODE to get the default
-    * mode or Mode.ALL_MODES to get the Mode object containing "mode=all" rules
+     * Get the Mode object for a named mode. If there is not one already registered.
+     * a new Mode is created.
+     * @param modeName The name of the mode. Supply null to get the default
+     * mode or Mode.ALL_MODES to get the Mode object containing "mode=all" rules
+     * @param createIfAbsent if true, then if the mode does not already exist it will be created.
+     * If false, then if the mode does not already exist the method returns null.
      * @return the Mode with this name
-    */
+     */
 
-    public Mode getMode(int modeNameCode) {
-        if (modeNameCode==Mode.DEFAULT_MODE) {
+    public Mode getMode(StructuredQName modeName, boolean createIfAbsent) {
+        if (modeName == null || modeName.equals(Mode.DEFAULT_MODE_NAME)) {
             return defaultMode;
         }
-        if (modeNameCode==Mode.ALL_MODES) {
+        if (modeName.equals(Mode.ALL_MODES)) {
             if (omniMode==null) {
-                omniMode = new Mode(Mode.NAMED_MODE, modeNameCode);
+                omniMode = new Mode(Mode.NAMED_MODE, modeName);
             }
             return omniMode;
         }
-        Integer modekey = new Integer(modeNameCode & 0xfffff);
-        Mode m = (Mode)modes.get(modekey);
-        if (m==null) {
-            m = new Mode(omniMode, modeNameCode);
-            modes.put(modekey, m);
+        //Integer modekey = new Integer(modeNameCode & 0xfffff);
+        Mode m = (Mode)modes.get(modeName);
+        if (m == null && createIfAbsent) {
+            m = new Mode(omniMode, modeName);
+            modes.put(modeName, m);
             // when creating a specific mode, copy all the rules currently held
             // in the omniMode, as these apply to all modes
         }
@@ -124,16 +128,16 @@ public final class RuleManager implements Serializable {
             setHandler(p2, eh, mode, precedence, priority);
             return;
         }
-        mode.addRule(pattern, eh, precedence, priority);
+        mode.addRule(pattern, eh, precedence, priority, true);
 
         // if adding a rule to the omniMode (mode='all') add it to all
         // the other modes as well
         if (mode==omniMode) {
-            defaultMode.addRule(pattern, eh, precedence, priority);
+            defaultMode.addRule(pattern, eh, precedence, priority, false);
             Iterator iter = modes.values().iterator();
             while (iter.hasNext()) {
                 Mode m = (Mode)iter.next();
-                m.addRule(pattern, eh, precedence, priority);
+                m.addRule(pattern, eh, precedence, priority, false);
             }
         }
     }
@@ -192,6 +196,30 @@ public final class RuleManager implements Serializable {
             mode = defaultMode;
         }
         return mode.getNextMatchRule(node, currentRule, c);
+    }
+
+    /**
+     * Explain (that is, output the expression tree) all template rules
+     */
+
+    public void explainTemplateRules(ExpressionPresenter presenter) {
+        presenter.startElement("templateRules");
+        defaultMode.explainTemplateRules(presenter);
+        Iterator iter = modes.values().iterator();
+        while (iter.hasNext()) {
+            Mode mode = (Mode)iter.next();
+            int s = presenter.startElement("mode");
+            if (!mode.isDefaultMode()) {
+                presenter.emitAttribute("name", mode.getModeName().getDisplayName());
+            }
+            mode.explainTemplateRules(presenter);
+            int e = presenter.endElement();
+            if (s != e) {
+                throw new IllegalStateException("tree unbalanced");
+            }
+        }
+
+        presenter.endElement();
     }
 }
 

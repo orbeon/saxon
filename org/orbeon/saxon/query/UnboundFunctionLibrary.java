@@ -1,15 +1,13 @@
 package org.orbeon.saxon.query;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.expr.UserFunctionCall;
 import org.orbeon.saxon.functions.FunctionLibrary;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.om.StructuredQName;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.Configuration;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -21,6 +19,7 @@ import java.util.List;
 public class UnboundFunctionLibrary implements FunctionLibrary {
 
     private List unboundFunctionCalls = new ArrayList(20);
+    private List correspondingStaticContext = new ArrayList(20);
     private boolean resolving = false;
 
 	/**
@@ -34,14 +33,12 @@ public class UnboundFunctionLibrary implements FunctionLibrary {
      * Test whether a function with a given name and arity is available. This supports
      * the function-available() function in XSLT. Since this library is used only in XQuery,
      * and contains no real functions, we always return false
-     * @param uri  The URI of the function name
-     * @param local  The local part of the function name
+     * @param functionName the name of the function required
      * @param arity The number of arguments. This is set to -1 in the case of the single-argument
      * function-available() function; in this case the method should return true if there is some
-     * matching extension function, regardless of its arity.
      */
 
-    public boolean isAvailable(int fingerprint, String uri, String local, int arity) {
+    public boolean isAvailable(StructuredQName functionName, int arity) {
         return false;
     }
 
@@ -66,54 +63,57 @@ public class UnboundFunctionLibrary implements FunctionLibrary {
      * later when bindUnboundFunctionCalls() is called.
     */
 
-    public Expression bind(int nameCode, String uri, String local, Expression[] arguments) throws XPathException {
+    public Expression bind(StructuredQName functionName, Expression[] arguments, StaticContext env) throws XPathException {
         if (resolving) {
             return null;
         }
         UserFunctionCall ufc = new UserFunctionCall();
-        ufc.setFunctionNameCode(nameCode);
+        ufc.setFunctionName(functionName);
         ufc.setArguments(arguments);
         unboundFunctionCalls.add(ufc);
+        correspondingStaticContext.add(env);
         return ufc;
     }
 
      /**
-     * Bind function calls that could not be bound when first encountered. These
-     * will either be forwards references to functions declared later in the query,
-     * or errors. This method is for internal use.
-     * @throws org.orbeon.saxon.trans.StaticError if a function call refers to a function that has
-     * not been declared
+      * Bind function calls that could not be bound when first encountered. These
+      * will either be forwards references to functions declared later in the query,
+      * or errors. This method is for internal use.
+      * @param lib A library containing all the XQuery functions that have been declared;
+      * the method searches this library for this missing function call
+      * @param config The Saxon configuration
+      * @throws XPathException if a function call refers to a function that has
+      * not been declared
      */
 
     public void bindUnboundFunctionCalls(XQueryFunctionBinder lib, Configuration config) throws XPathException {
         resolving = true;
-        final NamePool pool = config.getNamePool();
-        Iterator iter = unboundFunctionCalls.iterator();
-        while (iter.hasNext()) {
-            UserFunctionCall ufc = (UserFunctionCall)iter.next();
-
+        for (int i=0; i<unboundFunctionCalls.size(); i++) {
+            UserFunctionCall ufc = (UserFunctionCall)unboundFunctionCalls.get(i);
+            QueryModule importingModule = (QueryModule)correspondingStaticContext.get(i);
+            correspondingStaticContext.set(i, null);    // for garbage collection purposes
             // The original UserFunctionCall is effectively a dummy: we weren't able to find a function
             // definition at the time. So we try again.
-            final int nc = ufc.getFunctionNameCode();
+            final StructuredQName q = ufc.getFunctionName();
             final int arity = ufc.getNumberOfArguments();
-            final String uri = pool.getURI(nc);
-            final String local = pool.getLocalName(nc);
 
-            XQueryFunction fd = lib.getDeclaration(nc, uri, local, ufc.getArguments());
+            XQueryFunction fd = lib.getDeclaration(q, ufc.getArguments());
             if (fd != null) {
                 fd.registerReference(ufc);
                 ufc.setStaticType(fd.getResultType());
                 ufc.setConfirmed(true);
-                // TODO: check for error XQST0036 (schema types in function signature not available in calling module)
+                // Check that the result type and all the argument types are in the static context of the
+                // calling module
+                importingModule.checkImportedFunctionSignature(fd);
             } else {
                 String msg = "Cannot find a matching " + arity +
-                                    "-argument function named " + pool.getClarkName(nc) + "()";
+                        "-argument function named " + q.getClarkName() + "()";
                 if (!config.isAllowExternalFunctions()) {
                     msg += ". Note: external function calls have been disabled";
                 }
-                StaticError err = new StaticError(msg,
-                        ExpressionTool.getLocator(ufc));
+                XPathException err = new XPathException(msg, ufc);
                 err.setErrorCode("XPST0017");
+                err.setIsStaticError(true);
                 throw err;
             }
         }
@@ -130,6 +130,7 @@ public class UnboundFunctionLibrary implements FunctionLibrary {
     public FunctionLibrary copy() {
         UnboundFunctionLibrary qfl = new UnboundFunctionLibrary();
         qfl.unboundFunctionCalls = new ArrayList(unboundFunctionCalls);
+        qfl.correspondingStaticContext = new ArrayList(correspondingStaticContext);
         return qfl;
     }
 

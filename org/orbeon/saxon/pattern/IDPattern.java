@@ -1,14 +1,13 @@
 package org.orbeon.saxon.pattern;
-import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.expr.PromotionOffer;
+import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.instruct.SlotManager;
 
 import java.util.StringTokenizer;
 import java.util.Iterator;
@@ -36,8 +35,10 @@ public final class IDPattern extends Pattern {
     * @return the optimised Pattern
     */
 
-    public Pattern analyze(StaticContext env, ItemType contextItemType) throws XPathException {
-        idExpression = idExpression.typeCheck(env, contextItemType);
+    public Pattern analyze(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        idExpression = visitor.typeCheck(idExpression, contextItemType);
+        RoleLocator role = new RoleLocator(RoleLocator.FUNCTION, "id", 1);
+        idExpression = TypeChecker.staticTypeCheck(idExpression, SequenceType.ATOMIC_SEQUENCE, false, role, visitor);
         return this;
     }
 
@@ -55,7 +56,7 @@ public final class IDPattern extends Pattern {
      */
 
     public Iterator iterateSubExpressions() {
-        return idExpression.iterateSubExpressions();
+        return new MonoIterator(idExpression);
     }
 
     /**
@@ -79,6 +80,26 @@ public final class IDPattern extends Pattern {
 
     public void promote(PromotionOffer offer) throws XPathException {
         idExpression = idExpression.promote(offer);
+    }
+
+    public boolean replaceSubExpression(Expression original, Expression replacement) {
+        if (idExpression == original) {
+            idExpression = replacement;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * Allocate slots to any variables used within the pattern
+     * @param env         the static context in the XSLT stylesheet
+     * @param slotManager the slot manager representing the stack frame for local variables
+     * @param nextFree    the next slot that is free to be allocated @return the next slot that is free to be allocated
+     */
+
+     public int allocateSlots(StaticContext env, SlotManager slotManager, int nextFree) {
+        return ExpressionTool.allocateSlots(idExpression, nextFree, slotManager);
     }
 
     /**
@@ -108,7 +129,7 @@ public final class IDPattern extends Pattern {
             if (element==null) return false;
             return (element.isSameNodeInfo(e));
         } else {
-            StringTokenizer tokenizer = new StringTokenizer(ids);
+            StringTokenizer tokenizer = new StringTokenizer(ids, " \t\n\r", false);
             while (tokenizer.hasMoreElements()) {
                 String id = (String)tokenizer.nextElement();
                 NodeInfo element = doc.selectID(id);
@@ -136,6 +157,24 @@ public final class IDPattern extends Pattern {
 
     public NodeTest getNodeTest() {
         return NodeKindTest.ELEMENT;
+    }
+
+    /**
+     * Determine whether this pattern is the same as another pattern
+     * @param other the other object
+     */
+
+    public boolean equals(Object other) {
+        return (other instanceof IDPattern) &&
+                ((IDPattern)other).idExpression.equals(idExpression);
+    }
+
+    /**
+     * Hashcode supporting equals()
+     */
+
+    public int hashCode() {
+        return 0x73108728 ^ idExpression.hashCode();
     }
 
 }

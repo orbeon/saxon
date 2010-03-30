@@ -1,8 +1,10 @@
 package org.orbeon.saxon.xpath;
 
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.functions.FunctionLibrary;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.om.StructuredQName;
 
 import javax.xml.namespace.QName;
 import javax.xml.xpath.XPathFunction;
@@ -45,16 +47,12 @@ public class XPathFunctionLibrary implements FunctionLibrary {
      /**
      * Test whether an XPath function with a given name and arity is available. This supports
      * the function-available() function in XSLT. It is thus never used, and always returns false
-     * @param fingerprint The code that identifies the function name in the NamePool. This must
-     * match the supplied URI and local name.
-     * @param uri  The URI of the function name
-     * @param local  The local part of the function name
-     * @param arity The number of arguments. This is set to -1 in the case of the single-argument
+     * @param functionName
+      * @param arity The number of arguments. This is set to -1 in the case of the single-argument
      * function-available() function; in this case the method should return true if there is some
-     * matching extension function, regardless of its arity.
-     */
+      */
 
-    public boolean isAvailable(int fingerprint, String uri, String local, int arity) {
+    public boolean isAvailable(StructuredQName functionName, int arity) {
         return false;
     }
 
@@ -62,23 +60,21 @@ public class XPathFunctionLibrary implements FunctionLibrary {
      * Bind a function, given the URI and local parts of the function name,
      * and the list of expressions supplied as arguments. This method is called at compile
      * time.
-     * @param nameCode The namepool code of the function name. This must match the supplied
-     * URI and local name.
-     * @param uri  The URI of the function name
-     * @param local  The local part of the function name
+     * @param functionName
      * @param staticArgs  The expressions supplied statically in the function call. The intention is
      * that the static type of the arguments (obtainable via getItemType() and getCardinality() may
      * be used as part of the binding algorithm.
+     * @param env
      * @return An object representing the extension function to be called, if one is found;
      * null if no extension function was found matching the required name, arity, or signature.
      */
 
-    public Expression bind(int nameCode, String uri, String local, Expression[] staticArgs)
+    public Expression bind(StructuredQName functionName, Expression[] staticArgs, StaticContext env)
             throws XPathException {
         if (resolver == null) {
             return null;
         }
-        QName name = new QName(uri, local);
+        QName name = new QName(functionName.getNamespaceURI(), functionName.getLocalName());
         XPathFunction function = resolver.resolveFunction(name, staticArgs.length);
         if (function == null) {
             return null;

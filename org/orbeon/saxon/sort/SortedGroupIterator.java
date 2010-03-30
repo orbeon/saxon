@@ -1,16 +1,14 @@
 package org.orbeon.saxon.sort;
 
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.LastPositionFinder;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.XPathContextMajor;
+import org.orbeon.saxon.instruct.Instruction;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.trace.InstructionInfoProvider;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.Configuration;
-
-import java.util.Comparator;
 
 /**
  * A SortedGroupIterator is a modified SortedIterator. It sorts a sequence of groups,
@@ -22,13 +20,13 @@ import java.util.Comparator;
 
 public class SortedGroupIterator extends SortedIterator implements GroupIterator {
 
-    private InstructionInfoProvider origin;
+    private Instruction origin;
 
     public SortedGroupIterator(XPathContext context, GroupIterator base,
-                               SortKeyDefinition[] sortKeys,
-                               Comparator[] comparators,
-                               InstructionInfoProvider origin) {
-        super(context, base, sortKeys, comparators);
+                               SortKeyEvaluator sortKeyEvaluator,
+                               AtomicComparer[] comparators,
+                               Instruction origin) {
+        super(context, base, sortKeyEvaluator, comparators);
         setHostLanguage(Configuration.XSLT);
         this.origin = origin;
         // add two items to each tuple, for the iterator over the items in the group,
@@ -73,24 +71,24 @@ public class SortedGroupIterator extends SortedIterator implements GroupIterator
             }
             int k = count*recordSize;
             nodeKeys[k] = item;
-            for (int n=0; n<sortkeys.length; n++) {
-                nodeKeys[k+n+1] = sortkeys[n].getSortKey().evaluateItem(c2);
+            for (int n=0; n<comparators.length; n++) {
+                nodeKeys[k+n+1] = sortKeyEvaluator.evaluateSortKey(n, c2);
             }
-            nodeKeys[k+sortkeys.length+1] = new Integer(count);
+            nodeKeys[k+comparators.length+1] = new Integer(count);
             // extra code added to superclass
-            nodeKeys[k+sortkeys.length+2] = ((GroupIterator)base).getCurrentGroupingKey();
-            nodeKeys[k+sortkeys.length+3] = ((GroupIterator)base).iterateCurrentGroup();
+            nodeKeys[k+comparators.length+2] = ((GroupIterator)base).getCurrentGroupingKey();
+            nodeKeys[k+comparators.length+3] = ((GroupIterator)base).iterateCurrentGroup();
             count++;
         }
     }
 
     public AtomicValue getCurrentGroupingKey() {
-        return (AtomicValue)nodeKeys[(index-1)*recordSize+sortkeys.length+2];
+        return (AtomicValue)nodeKeys[(position-1)*recordSize+comparators.length+2];
     }
 
     public SequenceIterator iterateCurrentGroup() throws XPathException {
         SequenceIterator iter =
-                (SequenceIterator)nodeKeys[(index-1)*recordSize+sortkeys.length+3];
+                (SequenceIterator)nodeKeys[(position-1)*recordSize+comparators.length+3];
         return iter.getAnother();
     }
 }

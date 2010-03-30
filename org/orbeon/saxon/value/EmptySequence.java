@@ -1,22 +1,19 @@
 package org.orbeon.saxon.value;
-import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.expr.StaticProperty;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.EmptyIterator;
+import org.orbeon.saxon.om.GroundedValue;
+import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.pattern.NoNodeTest;
+import org.orbeon.saxon.pattern.EmptySequenceTest;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.TypeHierarchy;
-
-import java.io.PrintStream;
 
 /**
 * An EmptySequence object represents a sequence containing no members.
 */
 
 
-public final class EmptySequence extends Value {
+public final class EmptySequence extends Value implements GroundedValue {
 
     // This class has a single instance
     private static EmptySequence THE_INSTANCE = new EmptySequence();
@@ -37,29 +34,29 @@ public final class EmptySequence extends Value {
     }
 
     /**
-     * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
-     * This method indicates which of these methods is prefered.
-     */
-
-    public int getImplementationMethod() {
-        return EVALUATE_METHOD;
-    }
-
-    /**
     * Return an iteration over the sequence
     */
 
-    public SequenceIterator iterate(XPathContext context) {
+    public SequenceIterator iterate() {
         return EmptyIterator.getInstance();
     }
 
     /**
-    * Determine the item type
-     * @param th
+     * Return the value in the form of an Item
+     * @return the value in the form of an Item
+     */
+
+    public Item asItem() {
+        return null;
+    }
+
+    /**
+     * Determine the item type
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
-        return NoNodeTest.getInstance();
+        return EmptySequenceTest.getInstance();
     }
 
     /**
@@ -68,18 +65,6 @@ public final class EmptySequence extends Value {
 
     public int getCardinality() {
         return StaticProperty.EMPTY;
-    }
-
-    /**
-    * Get the static properties of this expression (other than its type). The result is
-    * bit-signficant. These properties are used for optimizations. In general, if
-    * property bit is set, it is true, but if it is unset, the value is unknown.
-    */
-
-    public int getSpecialProperties() {
-        return  StaticProperty.ORDERED_NODESET |
-                StaticProperty.SINGLE_DOCUMENT_NODESET |
-                StaticProperty.CONTEXT_DOCUMENT_NODESET;
     }
 
     /**
@@ -107,30 +92,44 @@ public final class EmptySequence extends Value {
     }
 
     /**
-    * Evaluate as a string. Returns the string value of the first value in the sequence
-    * @return "" always
-    */
-
-//    public String getStringValue() throws XPathException {
-//        return "";
-//    }
-
-    /**
     * Get the effective boolean value - always false
     */
 
-    public boolean effectiveBooleanValue(XPathContext context) {
+    public boolean effectiveBooleanValue() {
         return false;
     }
 
-    /**
-    * Diagnostic print of expression structure
-    */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "()" );
+    /**
+     * Get the n'th item in the sequence (starting from 0). This is defined for all
+     * Values, but its real benefits come for a sequence Value stored extensionally
+     * (or for a MemoClosure, once all the values have been read)
+     *
+     * @param n position of the required item, counting from zero.
+     * @return the n'th item in the sequence, where the first item in the sequence is
+     *         numbered zero. If n is negative or >= the length of the sequence, returns null.
+     */
+
+    public Item itemAt(int n) {
+        return null;
     }
 
+    /**
+     * Get a subsequence of the value
+     *
+     * @param min    the index of the first item to be included in the result, counting from zero.
+     *               A negative value is taken as zero. If the value is beyond the end of the sequence, an empty
+     *               sequence is returned
+     * @param length the number of items to be included in the result. Specify Integer.MAX_VALUE to
+     *               get the subsequence up to the end of the base sequence. If the value is negative, an empty sequence
+     *               is returned. If the value goes off the end of the sequence, the result returns items up to the end
+     *               of the sequence
+     * @return the required subsequence. If min is
+     */
+
+    public GroundedValue subsequence(int min, int length) {
+        return this;
+    }
 }
 
 //

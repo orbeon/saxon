@@ -9,7 +9,6 @@ import org.orbeon.saxon.pattern.CombinedNodeTest;
 import org.orbeon.saxon.pattern.ContentTypeTest;
 import org.orbeon.saxon.pattern.NameTest;
 import org.orbeon.saxon.pattern.NodeKindTest;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
@@ -38,7 +37,7 @@ public class TypeCheckingFilter extends ProxyReceiver {
         // used to avoid repeated checking when a template creates large numbers of elements of the same type
 
     public void setRequiredType(ItemType type, int cardinality, RoleLocator role) {
-        this.itemType = type;
+        itemType = type;
         this.cardinality = cardinality;
         this.role = role;
     }
@@ -216,9 +215,8 @@ public class TypeCheckingFilter extends ProxyReceiver {
 
     public void close() throws XPathException {
         if (count == 0 && !Cardinality.allowsZero(cardinality)) {
-            DynamicError err = new DynamicError(
-                        "An empty sequence is not allowed as the " +
-                        role.getMessage());
+            XPathException err = new XPathException("An empty sequence is not allowed as the " +
+                    role.getMessage());
             String errorCode = role.getErrorCode();
             err.setErrorCode(errorCode);
             if (!"XPDY0050".equals(errorCode)) {
@@ -247,11 +245,11 @@ public class TypeCheckingFilter extends ProxyReceiver {
         }
     }
 
-    private void checkItemType(ItemType type, int locationId) throws DynamicError {
+    private void checkItemType(ItemType type, long locationId) throws XPathException {
         if (!getConfiguration().getTypeHierarchy().isSubType(type, itemType)) {
             String message = role.composeErrorMessage(itemType, type, getNamePool());
             String errorCode = role.getErrorCode();
-            DynamicError err = new DynamicError(message);
+            XPathException err = new XPathException(message);
             err.setErrorCode(errorCode);
             if (!"XPDY0050".equals(errorCode)) {
                 err.setIsTypeError(true);
@@ -262,11 +260,10 @@ public class TypeCheckingFilter extends ProxyReceiver {
         }
     }
 
-    private void checkAllowsMany(int locationId) throws XPathException {
+    private void checkAllowsMany(long locationId) throws XPathException {
         if (!Cardinality.allowsMany(cardinality)) {
-            DynamicError err = new DynamicError(
-                        "A sequence of more than one item is not allowed as the " +
-                        role.getMessage());
+            XPathException err = new XPathException("A sequence of more than one item is not allowed as the " +
+                    role.getMessage());
             String errorCode = role.getErrorCode();
             err.setErrorCode(errorCode);
             if (!"XPDY0050".equals(errorCode)) {

@@ -1,14 +1,14 @@
 package org.orbeon.saxon.codenorm;
 
-import org.orbeon.saxon.om.XMLChar;
 import org.orbeon.saxon.sort.IntHashMap;
-import org.orbeon.saxon.sort.IntToIntHashMap;
+import org.orbeon.saxon.sort.IntToIntMap;
+import org.orbeon.saxon.charcode.UTF16;
 
 import java.util.BitSet;
 
 /**
  * Accesses the Normalization Data used for Forms C and D.
- * <p>Copyright © 1998-1999 Unicode, Inc. All Rights Reserved.<br>
+ * <p>Copyright ï¿½ 1998-1999 Unicode, Inc. All Rights Reserved.<br>
  * The Unicode Consortium makes no expressed or implied warranty of any
  * kind, and assumes no liability for errors or omissions.
  * No liability is assumed for incidental and consequential damages
@@ -16,7 +16,7 @@ import java.util.BitSet;
  * @author Mark Davis
  */
 public class NormalizerData {
-    static final String copyright = "Copyright © 1998-1999 Unicode, Inc.";
+    static final String copyright = "Copyright ï¿½ 1998-1999 Unicode, Inc.";
 
     /**
     * Constant for use in getPairwiseComposition
@@ -38,8 +38,8 @@ public class NormalizerData {
     * characters don't combine, returns NOT_COMPOSITE.
     * Only has to worry about BMP characters, since those are the only ones that can ever compose.
     * @param   first   first character (e.g. 'c')
-    * @param   second   second character (e.g. '¸' cedilla)
-    * @return          composite (e.g. 'ç')
+    * @param   second   second character (e.g. 'ï¿½' cedilla)
+    * @return          composite (e.g. 'ï¿½')
     */
     public char getPairwiseComposition(int first, int second) {
     	if (first < 0 || first > 0x10FFFF || second < 0 || second > 0x10FFFF) return NOT_COMPOSITE;
@@ -67,8 +67,8 @@ public class NormalizerData {
             if (ch<65536) {
                 buffer.append((char)ch);
             } else {  // output a surrogate pair
-                buffer.append(XMLChar.highSurrogate(ch));
-                buffer.append(XMLChar.lowSurrogate(ch));
+                buffer.append(UTF16.highSurrogate(ch));
+                buffer.append(UTF16.lowSurrogate(ch));
             }
         }
     }
@@ -80,8 +80,8 @@ public class NormalizerData {
     /**
      * Only accessed by NormalizerBuilder.
      */
-    NormalizerData(IntToIntHashMap canonicalClass, IntHashMap decompose,
-      IntToIntHashMap compose, BitSet isCompatibility, BitSet isExcluded) {
+    NormalizerData(IntToIntMap canonicalClass, IntHashMap decompose,
+      IntToIntMap compose, BitSet isCompatibility, BitSet isExcluded) {
         this.canonicalClass = canonicalClass;
         this.decompose = decompose;
         this.compose = compose;
@@ -107,7 +107,7 @@ public class NormalizerData {
     * For now, just use IntHashtable
     * Two-stage tables would be used in an optimized implementation.
     */
-    private IntToIntHashMap canonicalClass;
+    private IntToIntMap canonicalClass;
 
     /**
     * The main data table maps chars to a 32-bit int.
@@ -124,7 +124,7 @@ public class NormalizerData {
     * Maps from pairs of characters to single.
     * If there is no decomposition, the value is NOT_COMPOSITE.
     */
-    private IntToIntHashMap compose;
+    private IntToIntMap compose;
 
     /**
     * Tells whether decomposition is canonical or not.

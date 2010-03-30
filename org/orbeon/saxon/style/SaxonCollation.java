@@ -1,23 +1,25 @@
 package org.orbeon.saxon.style;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.value.Whitespace;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.NamespaceConstant;
-import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.sort.StringCollator;
 import org.orbeon.saxon.trans.SaxonErrorCode;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.trans.XPathException;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.text.Collator;
-import java.util.Comparator;
 import java.util.Locale;
 import java.util.Properties;
 
 /**
 * A saxon:collation element in the style sheet: this is a top-level
 * element that defines details of a named collation. The attributes of the
-* element provide different ways of instantiating an instance of java.util.Comparator
+* element provide different ways of instantiating an instance of org.orbeon.saxon.sort.StringCollator
  *
  * <p>saxon:collation</p> is deprecated from Saxon 8.8</p>
 */
@@ -26,8 +28,8 @@ public class SaxonCollation extends StyleElement {
 
     private String collationName;
 
-    private Comparator collator;      // it's best to supply a java.text.Collator,
-                                      // but we can cope with any java.util.Comparator
+    private StringCollator collator;
+
     public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
@@ -40,39 +42,39 @@ public class SaxonCollation extends StyleElement {
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-			if (f==StandardNames.NAME) {
-        		nameAtt = atts.getValue(a).trim();
-            } else if (f==StandardNames.CLASS) {
-                props.setProperty("class", atts.getValue(a).trim());
-            } else if (f==StandardNames.STRENGTH) {
-                props.setProperty("strength", atts.getValue(a).trim());
-            } else if (f==StandardNames.DECOMPOSITION) {
-                props.setProperty("decomposition", atts.getValue(a).trim());
-            } else if (f==StandardNames.LANG) {
-                props.setProperty("lang", atts.getValue(a).trim());
-            } else if (f==StandardNames.RULES) {
-                props.setProperty("rules", atts.getValue(a).trim());
-            } else if (f==StandardNames.CASE_ORDER) {
-                props.setProperty("case-order", atts.getValue(a).trim());
-            } else if (f==StandardNames.ALPHANUMERIC) {
-                props.setProperty("alphanumeric", atts.getValue(a).trim());
-            } else if (f==StandardNames.IGNORE_CASE) {
-                props.setProperty("ignore-case", atts.getValue(a).trim());
-            } else if (f==StandardNames.IGNORE_MODIFIERS) {
-                props.setProperty("ignore-modifiers", atts.getValue(a).trim());
-            } else if (f==StandardNames.IGNORE_SYMBOLS) {
-                props.setProperty("ignore-modifiers", atts.getValue(a).trim());
-            } else if (f==StandardNames.IGNORE_WIDTH) {
-                props.setProperty("ignore-width", atts.getValue(a).trim());
-            } else if (f==StandardNames.DEFAULT) {
-                defaultAtt = atts.getValue(a).trim();
+			if (f.equals(StandardNames.NAME)) {
+        		nameAtt = Whitespace.trim(atts.getValue(a));
+            } else if (f.equals(StandardNames.CLASS)) {
+                props.setProperty("class", Whitespace.trim(atts.getValue(a)) );
+            } else if (f.equals(StandardNames.STRENGTH)) {
+                props.setProperty("strength", Whitespace.trim(atts.getValue(a)) );
+            } else if (f.equals(StandardNames.DECOMPOSITION)) {
+                props.setProperty("decomposition", Whitespace.trim(atts.getValue(a)) );
+            } else if (f.equals(StandardNames.LANG)) {
+                props.setProperty("lang", Whitespace.trim(atts.getValue(a)) );
+            } else if (f.equals(StandardNames.RULES)) {
+                props.setProperty("rules", Whitespace.trim(atts.getValue(a)) );
+            } else if (f.equals(StandardNames.CASE_ORDER)) {
+                props.setProperty("case-order", Whitespace.trim(atts.getValue(a)) );
+            } else if (f.equals(StandardNames.ALPHANUMERIC)) {
+                props.setProperty("alphanumeric", Whitespace.trim(atts.getValue(a)) );
+            } else if (f.equals(StandardNames.IGNORE_CASE)) {
+                props.setProperty("ignore-case", Whitespace.trim(atts.getValue(a)) );
+            } else if (f.equals(StandardNames.IGNORE_MODIFIERS)) {
+                props.setProperty("ignore-modifiers", Whitespace.trim(atts.getValue(a)) );
+            } else if (f.equals(StandardNames.IGNORE_SYMBOLS)) {
+                props.setProperty("ignore-modifiers", Whitespace.trim(atts.getValue(a)) );
+            } else if (f.equals(StandardNames.IGNORE_WIDTH)) {
+                props.setProperty("ignore-width", Whitespace.trim(atts.getValue(a)) );
+            } else if (f.equals(StandardNames.DEFAULT)) {
+                defaultAtt = Whitespace.trim(atts.getValue(a)) ;
         	} else {
         		checkUnknownAttribute(nc);
         	}
         }
 
         if (nameAtt!=null) {
-            collationName = nameAtt.trim();
+            collationName = Whitespace.trim(nameAtt);
             URI collationURI;
             try {
                 collationURI = new URI(collationName);
@@ -101,7 +103,7 @@ public class SaxonCollation extends StyleElement {
 
         if (collator == null) {
             final Configuration config = getConfiguration();
-            collator = config.getPlatform().makeCollation(config, props);
+            collator = Configuration.getPlatform().makeCollation(config, props, "");
         }
 
         // register the collation early, so it's available when optimizing XPath expressions
@@ -120,6 +122,11 @@ public class SaxonCollation extends StyleElement {
         return null;
     }
 
+    /**
+     * Get the name of the collation defined by this saxon:collation declaration
+     * @return the name of the collation
+     */
+
     public String getCollationName() {
         if (collationName == null) {
             try {
@@ -132,13 +139,19 @@ public class SaxonCollation extends StyleElement {
         return collationName;
     }
 
-    public Comparator getCollator() {
+    /**
+     * Get the collator defined by this collation declaration
+     * @return the StringCollator
+     */
+
+    public StringCollator getCollator() {
         return collator;
     }
 
     /**
     * Utility method to print details of the locales for which a collator
     * is available. (The results depend on the Java VM)
+     * @param args not used
     */
 
     public static void main(String[] args) {

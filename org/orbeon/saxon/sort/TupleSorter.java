@@ -1,70 +1,104 @@
 package org.orbeon.saxon.sort;
 
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.SingletonIterator;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AnyItemType;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
-import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.ObjectValue;
-import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.Value;
 
-import java.io.PrintStream;
 import java.util.Iterator;
-import java.util.Comparator;
 
 /**
  * A TupleSorter is an expression that sorts a stream of tuples. It is used
  * to implement XQuery FLWR expressions.
  */
-public class TupleSorter extends ComputedExpression implements MappingFunction {
+public class TupleSorter extends Expression {
 
-    private Expression base;
-    private SortKeyDefinition[] sortKeys;
-    private Comparator[] comparators;
+    private Expression select;
+    private SortKeyDefinition[] sortKeyDefinitions;
+    private AtomicComparer[] comparators;
 
-        // Although this class uses the SortKeyDefinition class to define the sort keys,
-        // the actual sort key expression in the SortKeyDefinition is not used. This is because
-        // the sort key is instead computed as one of the members of the tuple delivered by the
-        // TupleSorter. Therefore, the sort key expression is not managed as a child of this expression.
+    /**
+     * Create a TupleSorter
+     * @param base The base expression returns the sequence of tuples to be sorted. Each tuple is
+     * represented by an ObjectValue which wraps a Value (that is, in general, a sequence)
+     * @param keys Although this class uses the SortKeyDefinition class to define the sort keys,
+     * the actual sort key expression in the SortKeyDefinition is not used. This is because
+     * the sort key is instead computed as one of the members of the tuple delivered by the
+     * TupleSorter. Therefore, the sort key expression is not managed as a child of this expression.
+     * Moreover, in xquery the other aspects of a sort key are always fixed statically, so we
+     * don't treat those as subexpressions either.
+     */
 
     public TupleSorter(Expression base, SortKeyDefinition[] keys) {
-        this.base = base;
-        this.sortKeys = keys;
+        select = base;
+        sortKeyDefinitions = keys;
         adoptChildExpression(base);
     }
 
-    public Expression simplify(StaticContext env) throws XPathException {
-        base = base.simplify(env);
+    /**
+     * Get the array of AtomicComparer objects, one per sort key, that are used to compare values in the sequence
+     * @return an array of AtomicComparer objects, one per sort key
+     */
+
+    public AtomicComparer[] getComparators() {
+        return comparators;
+    }
+
+    /**
+     * Get the base expression, the expression that computes the sequence to be sorted
+     * @return the base expression
+     */
+
+    public Expression getBaseExpression() {
+        return select;
+    }
+
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        select = visitor.simplify(select);
         return this;
     }
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        base = base.typeCheck(env, contextItemType);
-        comparators = new Comparator[sortKeys.length];
-        final XPathContext context = env.makeEarlyEvaluationContext();
-        for (int i=0; i<sortKeys.length; i++) {
-            // sort key doesn't get a new context in XQuery
-            sortKeys[i].getSortKey().typeCheck(env, contextItemType);
-            comparators[i] = sortKeys[i].makeComparator(context);
-            // now lose the sort key expression, which we only held on to for its type information
-            sortKeys[i].setSortKey(StringValue.EMPTY_STRING);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        select = visitor.typeCheck(select, contextItemType);
+        if (comparators == null) {
+            comparators = new AtomicComparer[sortKeyDefinitions.length];
+            final XPathContext context = visitor.getStaticContext().makeEarlyEvaluationContext();
+            for (int i=0; i<sortKeyDefinitions.length; i++) {
+                // sort key doesn't get a new context in XQuery
+                visitor.typeCheck(sortKeyDefinitions[i].getSortKey(), contextItemType);
+                comparators[i] = sortKeyDefinitions[i].makeComparator(context);
+                // now lose the sort key expression, which we only held on to for its type information
+                sortKeyDefinitions[i].setSortKey(new StringLiteral(StringValue.EMPTY_STRING));
+            }
         }
         return this;
     }
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        base = base.optimize(opt, env, contextItemType);
-        if (base instanceof EmptySequence) {
-            return base;
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        select = visitor.optimize(select, contextItemType);
+        if (Literal.isEmptySequence(select)) {
+            return select;
         }
         return this;
     }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        throw new UnsupportedOperationException("copy");
+    }    
 
     public ItemType getItemType(TypeHierarchy th) {
         return AnyItemType.getInstance();
@@ -76,7 +110,7 @@ public class TupleSorter extends ComputedExpression implements MappingFunction {
     }
 
     public Iterator iterateSubExpressions() {
-        return new MonoIterator(base);
+        return new MonoIterator(select);
     }
 
     /**
@@ -88,8 +122,8 @@ public class TupleSorter extends ComputedExpression implements MappingFunction {
 
      public boolean replaceSubExpression(Expression original, Expression replacement) {
          boolean found = false;
-         if (base == original) {
-             base = replacement;
+         if (select == original) {
+             select = replacement;
              found = true;
          }
          return found;
@@ -105,33 +139,46 @@ public class TupleSorter extends ComputedExpression implements MappingFunction {
         if (exp != null) {
             return exp;
         } else {
-            base = base.promote(offer);
+            select = select.promote(offer);
             return this;
         }
     }
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
-        SequenceIterator iter = new SortedTupleIterator(context, base.iterate(context), sortKeys, comparators);
-        MappingIterator mapper = new MappingIterator(iter, this);
-        return mapper;
+        SequenceIterator iter = new SortedTupleIterator(context, select.iterate(context), comparators);
+        return new MappingIterator(iter, TupleUnwrapper.getInstance());
     }
 
-    public boolean effectiveBooleanValue(XPathContext context) throws XPathException {
-        // so long as the sequence is homogeneous (all atomic values or all nodes), the EBV
-        // of the sorted sequence is the same as the EBV of the base sequence. Only if it is
-        // heterogeneous do we need to do the sort in order to calculate the EBV.
-        final TypeHierarchy th = context.getConfiguration().getTypeHierarchy();
-        ItemType type = base.getItemType(th);
-        if (type == Type.ITEM_TYPE) {
-            return super.effectiveBooleanValue(context);
-        } else {
-            return base.effectiveBooleanValue(context);
+//   TODO: reinstate this, but correct it (and do it statically): it actually returns ExternalObjectType
+//    public boolean effectiveBooleanValue(XPathContext context) throws XPathException {
+//        // so long as the sequence is homogeneous (all atomic values or all nodes), the EBV
+//        // of the sorted sequence is the same as the EBV of the base sequence. Only if it is
+//        // heterogeneous do we need to do the sort in order to calculate the EBV.
+//        final TypeHierarchy th = context.getConfiguration().getTypeHierarchy();
+//        ItemType type = select.getItemType(th);
+//        if (type == Type.ITEM_TYPE) {
+//            return super.effectiveBooleanValue(context);
+//        } else {
+//            return select.effectiveBooleanValue(context);
+//        }
+//    }
+
+    /**
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     */
+
+    public void explain(ExpressionPresenter out) {
+        out.startElement("tupleSorter");
+        out.startSubsidiaryElement("select");
+        select.explain(out);
+        out.endSubsidiaryElement();
+        for (int s = 0; s < sortKeyDefinitions.length; s++) {
+            out.startSubsidiaryElement("by");
+            sortKeyDefinitions[s].getSortKey().explain(out);
+            out.endSubsidiaryElement();
         }
-    }
-
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "TupleSorter");
-        base.display(level+1, out, config);
+        out.endElement();
     }
 
     /**
@@ -140,18 +187,35 @@ public class TupleSorter extends ComputedExpression implements MappingFunction {
      * of underlying values that share the same sort key.
      */
 
-    public Object map(Item item) throws XPathException {
-        ObjectValue tuple = (ObjectValue)item;
-        Object o = tuple.getObject();
-        if (o == null) {
-            return o;
+    public static class TupleUnwrapper implements MappingFunction {
+
+        private TupleUnwrapper(){}
+
+        private static TupleUnwrapper THE_INSTANCE = new TupleUnwrapper();
+
+        /**
+         * Get the singular instance of this class
+         * @return the singular instance
+         */
+
+        public static TupleUnwrapper getInstance() {
+            return THE_INSTANCE;
         }
-        if (o instanceof Item) {
-            return o;
+
+        public SequenceIterator map(Item item) throws XPathException {
+            ObjectValue tuple = (ObjectValue)item;
+            Object o = tuple.getObject();
+            if (o == null) {
+                return null;
+            }
+            if (o instanceof Item) {
+                return SingletonIterator.makeIterator((Item)o);
+            }
+            Value value = (Value)o;
+            return value.iterate();
         }
-        Value value = (Value)o;
-        return value.iterate(null);
     }
+
 
 }
 

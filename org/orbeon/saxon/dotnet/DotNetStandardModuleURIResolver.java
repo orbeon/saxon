@@ -4,9 +4,7 @@ import cli.System.IO.TextReader;
 import cli.System.Type;
 import cli.System.Uri;
 import cli.System.Xml.XmlResolver;
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.query.ModuleURIResolver;
-import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.transform.TransformerException;
@@ -22,13 +20,11 @@ import javax.xml.transform.stream.StreamSource;
 
 public class DotNetStandardModuleURIResolver implements ModuleURIResolver {
 
-    private Configuration config;
     private XmlResolver resolver;
 
     public DotNetStandardModuleURIResolver() {}
 
-    public DotNetStandardModuleURIResolver(Configuration config, XmlResolver resolver) {
-        this.config = config;
+    public DotNetStandardModuleURIResolver(XmlResolver resolver) {
         this.resolver = resolver;
     }
 
@@ -51,8 +47,9 @@ public class DotNetStandardModuleURIResolver implements ModuleURIResolver {
 
     public StreamSource[] resolve(String moduleURI, String baseURI, String[] locations) throws XPathException {
         if (locations.length == 0) {
-            StaticError err = new StaticError("Cannot locate module for namespace " + moduleURI);
+            XPathException err = new XPathException("Cannot locate module for namespace " + moduleURI);
             err.setErrorCode("XQST0059");
+            err.setIsStaticError(true);
             throw err;
         } else {
             // One or more locations given: import modules from all these locations
@@ -64,8 +61,9 @@ public class DotNetStandardModuleURIResolver implements ModuleURIResolver {
                 try {
                     absoluteURI = resolver.ResolveUri(base, href);
                 } catch (Throwable err) {
-                    StaticError se = new StaticError("Cannot resolve relative URI " + href, err);
+                    XPathException se = new XPathException("Cannot resolve relative URI " + href, err);
                     se.setErrorCode("XQST0059");
+                    se.setIsStaticError(true);
                     throw se;
                 }
                 sources[m] = getQuerySource(absoluteURI);
@@ -82,12 +80,12 @@ public class DotNetStandardModuleURIResolver implements ModuleURIResolver {
       * @param abs the absolute URI of the source query
       * @return a StreamSource containing a Reader or InputSource, as well as a systemID representing
       * the base URI of the query.
-      * @throws org.orbeon.saxon.trans.StaticError if the URIs are invalid or cannot be resolved or dereferenced, or
+      * @throws XPathException if the URIs are invalid or cannot be resolved or dereferenced, or
       * if any I/O error occurs
       */
 
      private StreamSource getQuerySource(Uri abs)
-             throws StaticError {
+             throws XPathException {
 
         try {
 
@@ -108,7 +106,7 @@ public class DotNetStandardModuleURIResolver implements ModuleURIResolver {
                         "Unrecognized object returned by XmlResolver (type " + obj.getClass().getName());
             }
         } catch (Throwable e) {
-            throw new StaticError(e.getMessage(), e);
+            throw new XPathException(e.getMessage(), e);
         }
 
         // TODO: look for the encoding in the HTTP header if any

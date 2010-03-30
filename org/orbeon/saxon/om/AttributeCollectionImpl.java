@@ -1,7 +1,7 @@
 package org.orbeon.saxon.om;
 
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.event.LocationProvider;
-import org.orbeon.saxon.style.StandardNames;
 import org.xml.sax.Attributes;
 
 
@@ -22,7 +22,7 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
     // Attribute values are maintained as an array of Strings. Everything else is maintained
     // in the form of integers.
 
-    private NamePool namePool;
+    private Configuration config;
     private LocationProvider locationProvider;
     private String[] values = null;
     private int[] codes = null;
@@ -37,32 +37,34 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
 
     private static final int RECSIZE = 4;
 
-    private static final int NAMECODE = 0;
+    //private static final int NAMECODE = 0;
     private static final int TYPECODE = 1;
     private static final int LOCATIONID = 2;
     private static final int PROPERTIES = 3;
 
     /**
      * Create an empty attribute list.
+     * @param config the Saxon Configuration
      */
 
-    public AttributeCollectionImpl(NamePool pool) {
-        namePool = pool;
+    public AttributeCollectionImpl(Configuration config) {
+        this.config = config;
         used = 0;
     }
 
     /**
      * Set the location provider. This must be set if the methods getSystemId() and getLineNumber()
      * are to be used to get location information for an attribute.
+     * @param provider the location provider
      */
 
     public void setLocationProvider(LocationProvider provider) {
-        this.locationProvider = provider;
+        locationProvider = provider;
     }
 
     /**
      * Add an attribute to an attribute list. The parameters correspond
-     * to the parameters of the {@link org.orbeon.saxon.event.Receiver#attribute(int, int, CharSequence, int, int)}
+     * to the parameters of the {@link org.orbeon.saxon.event.Receiver#attribute(int,int,CharSequence,int,int)}
      * method. There is no check that the name of the attribute is distinct from other attributes
      * already in the collection: this check must be made by the caller.
      *
@@ -73,7 +75,7 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
      * @param properties Attribute properties
      */
 
-    public void addAttribute(int nameCode, int typeCode, String value, int locationId, int properties) {
+    public void addAttribute(int nameCode, int typeCode, String value, long locationId, int properties) {
         if (values == null) {
             values = new String[5];
             codes = new int[5 * RECSIZE];
@@ -89,16 +91,16 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
             codes = c2;
         }
         int n = used*RECSIZE;
-        codes[n+NAMECODE] = nameCode;
+        codes[n] = nameCode;
         codes[n+TYPECODE] = typeCode;
-        codes[n+LOCATIONID] = locationId;
+        codes[n+LOCATIONID] = (int)locationId;
         codes[n+PROPERTIES] = properties;
         values[used++] = value;
     }
 
     /**
      * Set (overwrite) an attribute in the attribute list. The parameters correspond
-     * to the parameters of the {@link org.orbeon.saxon.event.Receiver#attribute(int, int, CharSequence, int, int)}
+     * to the parameters of the {@link org.orbeon.saxon.event.Receiver#attribute(int,int,CharSequence,int,int)}
      * method.
      * @param index Identifies the entry to be replaced
      * @param nameCode Integer representing the attribute name.
@@ -108,11 +110,11 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
      * @param properties Attribute properties
      */
 
-    public void setAttribute(int index, int nameCode, int typeCode, String value, int locationId, int properties) {
+    public void setAttribute(int index, int nameCode, int typeCode, String value, long locationId, int properties) {
         int n = index*RECSIZE;
-        codes[n+NAMECODE] = nameCode;
+        codes[n] = nameCode;
         codes[n+TYPECODE] = typeCode;
-        codes[n+LOCATIONID] = locationId;
+        codes[n+LOCATIONID] = (int)locationId;
         codes[n+PROPERTIES] = properties;
         values[index] = value;
     }
@@ -171,7 +173,7 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
             return -1;
         }
 
-        return codes[index * RECSIZE + NAMECODE];
+        return codes[(index * RECSIZE)];
     }
 
     /**
@@ -184,10 +186,10 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
 
     public int getTypeAnnotation(int index) {
         if (codes == null) {
-            return StandardNames.XDT_UNTYPED_ATOMIC;
+            return StandardNames.XS_UNTYPED_ATOMIC;
         }
         if (index < 0 || index >= used) {
-            return StandardNames.XDT_UNTYPED_ATOMIC;
+            return StandardNames.XS_UNTYPED_ATOMIC;
         }
 
         return codes[index * RECSIZE + TYPECODE];
@@ -280,7 +282,7 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
         if (index < 0 || index >= used) {
             return null;
         }
-        return namePool.getPrefix(getNameCode(index));
+        return config.getNamePool().getPrefix(getNameCode(index));
     }
 
     /**
@@ -298,7 +300,7 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
         if (index < 0 || index >= used) {
             return null;
         }
-        return namePool.getDisplayName(getNameCode(index));
+        return config.getNamePool().getDisplayName(getNameCode(index));
     }
 
     /**
@@ -316,7 +318,7 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
         if (index < 0 || index >= used) {
             return null;
         }
-        return namePool.getLocalName(getNameCode(index));
+        return config.getNamePool().getLocalName(getNameCode(index));
     }
 
     /**
@@ -334,7 +336,7 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
         if (index < 0 || index >= used) {
             return null;
         }
-        return namePool.getURI(getNameCode(index));
+        return config.getNamePool().getURI(getNameCode(index));
     }
 
 
@@ -439,13 +441,13 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
             return -1;
         }
         String prefix = parts[0];
-        if (prefix.equals("")) {
+        if (prefix.length() == 0) {
             return findByName("", qname);
         } else {
             String localName = parts[1];
             for (int i = 0; i < used; i++) {
-                String lname = namePool.getLocalName(getNameCode(i));
-                String ppref = namePool.getPrefix(getNameCode(i));
+                String lname = config.getNamePool().getLocalName(getNameCode(i));
+                String ppref = config.getNamePool().getPrefix(getNameCode(i));
                 if (localName.equals(lname) && prefix.equals(ppref)) {
                     return i;
                 }
@@ -510,9 +512,10 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
      */
 
     private int findByName(String uri, String localName) {
-        if (namePool == null) {
+        if (config == null) {
             return -1;		// indicates an empty attribute set
         }
+        NamePool namePool = config.getNamePool();
         int f = namePool.getFingerprint(uri, localName);
         if (f == -1) {
             return -1;
@@ -522,7 +525,7 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
 
     /**
      * Find an attribute by fingerprint
-     *
+     * @param fingerprint the fingerprint representing the name of the required attribute
      * @return the index of the attribute, or -1 if absent
      */
 
@@ -531,7 +534,7 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
             return -1;
         }
         for (int i = 0; i < used; i++) {
-            if (fingerprint == (codes[i*RECSIZE + NAMECODE] & NamePool.FP_MASK)) {
+            if (fingerprint == (codes[(i * RECSIZE)] & NamePool.FP_MASK)) {
                 return i;
             }
         }
@@ -543,8 +546,10 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
      */
 
     public boolean isId(int index) {
-        return getType(index).equals("ID") ||
-                ((getNameCode(index) & NamePool.FP_MASK) == StandardNames.XML_ID);
+        return (codes[index * RECSIZE] & NamePool.FP_MASK) == StandardNames.XML_ID
+                || config.getTypeHierarchy().isIdCode(getTypeAnnotation(index));
+        //        return getType(index).equals("ID") ||
+//                ((getNameCode(index) & NamePool.FP_MASK) == StandardNames.XML_ID);
     }
 
     /**
@@ -552,8 +557,73 @@ public final class AttributeCollectionImpl implements Attributes, AttributeColle
      */
 
     public boolean isIdref(int index) {
-        return false;
+        return config.getTypeHierarchy().isIdrefsCode(getTypeAnnotation(index));
     }
+
+    /**
+     * Delete the attribute with a given fingerprint
+     * @param fingerprint The fingerprint of the attribute to be removed
+     */
+
+    public void removeAttribute(int fingerprint) {
+        int index = findByFingerprint(fingerprint);
+        if (index == -1) {
+            // no action
+        } else if (index == used-1) {
+            used--;
+        } else {
+            System.arraycopy(values, index+1, values, index, used-index-1);
+            System.arraycopy(codes, (index+1)*RECSIZE, codes, index*RECSIZE, (used-index-1)*RECSIZE);
+            used--;
+        }
+    }
+
+    /**
+     * Rename an attribute
+     * @param oldName the namecode of the existing name
+     * @param newName the namecode of the new name
+     */
+
+    public void renameAttribute(int oldName, int newName) {
+        int index = findByFingerprint(oldName & NamePool.FP_MASK);
+        if (index == -1) {
+            // no action
+        } else {
+            codes[index*RECSIZE] = newName;
+        }
+    }
+
+    /**
+     * Replace the value of an attribute
+     * @param nameCode the name code of the attribute name
+     * @param newValue the new string value of the attribute
+     */
+
+    public void replaceAttribute(int nameCode, CharSequence newValue) {
+        int index = findByFingerprint(nameCode & NamePool.FP_MASK);
+        if (index == -1) {
+            // no action
+        } else {
+            values[index] = newValue.toString();
+        }
+    }
+
+    /**
+     * Set the type annotation of an attribute
+     * @param nameCode the name code of the attribute name
+     * @param typeCode the new type code for the attribute
+     */
+
+    public void setTypeAnnotation(int nameCode, int typeCode) {
+        int index = findByFingerprint(nameCode & NamePool.FP_MASK);
+        if (index == -1) {
+            // no action
+        } else {
+            codes[index*RECSIZE + TYPECODE] = typeCode;
+        }
+    }
+
+
 
 }
 

@@ -1,18 +1,13 @@
 package org.orbeon.saxon.value;
 
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.functions.Component;
 import org.orbeon.saxon.om.NameChecker;
 import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.om.StructuredQName;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
-
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-
 
 /**
  * A QName value. This implements the so-called "triples proposal", in which the prefix is retained as
@@ -20,179 +15,154 @@ import java.lang.reflect.InvocationTargetException;
  * QName to a string.
  */
 
-public class QNameValue extends AtomicValue {
+public class QNameValue extends QualifiedNameValue {
 
-    private String prefix;  // "" for the default prefix
-    private String uri;     // "" for the null namespace
-    private String localPart;
-
-    // Note: an alternative design was considered in which the QName was represented by a NamePool and a
-    // nameCode. This caused difficulties because there is not always enough context information available
-    // when creating a QName to locate the NamePool.
 
     /**
-     * Constructor
+     * Constructor for a QName that is known to be valid. No validation takes place.
+     * @param prefix The prefix part of the QName (not used in comparisons). Use "" to represent the
+     * default prefix.
+     * @param uri The namespace part of the QName. Use "" to represent the non-namespace.
+     * @param localName The local part of the QName
+     */
+
+    public QNameValue(String prefix, String uri, String localName) {
+        this(prefix, uri, localName, BuiltInAtomicType.QNAME);
+    }
+
+    /**
+     * Constructor for a QName that is known to be valid, allowing a user-defined subtype of QName
+     * to be specified. No validation takes place.
+     * @param prefix The prefix part of the QName (not used in comparisons). Use "" to represent the
+     * default prefix (but null is also accepted)
+     * @param uri The namespace part of the QName. Use null to represent the non-namespace (but "" is also
+     * accepted).
+     * @param localName The local part of the QName
+     * @param type The type label, xs:QName or a subtype of xs:QName
+     */
+
+    public QNameValue(String prefix, String uri, String localName, AtomicType type) {
+        qName = new StructuredQName(prefix, uri, localName);
+        if (type == null) {
+            type = BuiltInAtomicType.QNAME;
+        }
+        typeLabel = type;
+    }
+
+    /**
+     * Constructor starting from a NamePool namecode
      * @param namePool The name pool containing the specified name code
      * @param nameCode The name code identifying this name in the name pool
      */
 
     public QNameValue(NamePool namePool, int nameCode) {
-        prefix = namePool.getPrefix(nameCode);
-        uri = namePool.getURI(nameCode);
-        localPart = namePool.getLocalName(nameCode);
+        String prefix = namePool.getPrefix(nameCode);
+        String uri = namePool.getURI(nameCode);
+        String localPart = namePool.getLocalName(nameCode);
+        qName = new StructuredQName(prefix, uri, localPart);
+        typeLabel = BuiltInAtomicType.QNAME;
     }
+
 
     /**
      * Constructor. This constructor validates that the local part is a valid NCName.
-     * @param prefix The prefix part of the QName (not used in comparisons). Use null or "" to represent the
-     * default prefix. Note that the prefix is not checked for lexical correctness, because in most cases
+     * @param prefix The prefix part of the QName (not used in comparisons). Use "" to represent the
+     * default prefix (but null is also accepted).
+     * Note that the prefix is not checked for lexical correctness, because in most cases
      * it will already have been matched against in-scope namespaces. Where necessary the caller must
      * check the prefix.
-     * @param uri The namespace part of the QName. Use null or "" to represent the null namespace.
+     * @param uri The namespace part of the QName. Use null to represent the non-namespace (but "" is also
+     * accepted).
      * @param localName The local part of the QName
+     * @param type The atomic type, which must be either xs:QName, or a
+     * user-defined type derived from xs:QName by restriction
      * @param checker NameChecker used to check the name against XML 1.0 or XML 1.1 rules. Supply null
      * if the name does not need to be checked (the caller asserts that it is known to be valid)
+     * @throws XPathException if the local part of the name is malformed or if the name has a null
+     * namespace with a non-empty prefix
      */
 
-    public QNameValue(String prefix, String uri, String localName, NameChecker checker) throws XPathException {
+    public QNameValue(String prefix, String uri, String localName, AtomicType type, NameChecker checker) throws XPathException {
         if (checker != null && !checker.isValidNCName(localName)) {
-            DynamicError err = new DynamicError("Malformed local name in QName: '" + localName + '\'');
+            XPathException err = new XPathException("Malformed local name in QName: '" + localName + '\'');
             err.setErrorCode("FORG0001");
             throw err;
         }
-        this.prefix = (prefix==null ? "" : prefix);
-        this.uri = (uri==null ? "" : uri);
-        if (checker != null && this.uri.equals("") && !this.prefix.equals("")) {
-            DynamicError err = new DynamicError("QName has null namespace but non-empty prefix");
+        prefix = (prefix==null ? "" : prefix);
+        uri = ("".equals(uri) ? null : uri);
+        if (checker != null && uri == null && prefix.length() != 0) {
+            XPathException err = new XPathException("QName has null namespace but non-empty prefix");
             err.setErrorCode("FOCA0002");
             throw err;
         }
-        this.localPart = localName;
+        qName = new StructuredQName(prefix, uri, localName);
+        typeLabel = type;
     }
 
-//    /**
-//     * Create a QName value (possibly a DerivedAtomicValue derived from QName, or
-//     * from Notation) from
-//     * a string literal, given a namespace context
-//     * @param operand the input string
-//     * @param targetType the type required: QName, or a type derived from QName or NOTATION
-//     * @param env the static context, including the namespace context
-//     * @return the value after conversion
-//     * @throws XPathException if the name is lexically invalid or uses an undeclared prefix
-//     */
+    /**
+     * Constructor
+     * @param qName the name as a StructuredQName
+     * @param typeLabel idenfies a subtype of xs:QName
+     */
 
-//    public static AtomicValue castToQName(StringValue operand, AtomicType targetType, StaticContext env)
-//            throws XPathException {
-//        try {
-//            CharSequence arg = operand.getStringValueCS();
-//            String parts[] = env.getConfiguration().getNameChecker().getQNameParts(arg);
-//            String uri;
-//            if ("".equals(parts[0])) {
-//                uri = "";
-//            } else {
-//                uri = env.getURIForPrefix(parts[0]);
-//                if (uri==null) {
-//                    StaticError e = new StaticError("Prefix '" + parts[0] + "' has not been declared");
-//                    throw e;
-//                }
-//            }
-//            return makeQName(parts[0], uri, parts[1], targetType, arg, env.getConfiguration().getTypeHierarchy());
-//        } catch (QNameException err) {
-//            StaticError e = new StaticError(err);
-//            throw e;
-//        }
-//    }
+    public QNameValue(StructuredQName qName, AtomicType typeLabel) {
+        this.qName = qName;
+        this.typeLabel = typeLabel;
+    }
 
-    public static AtomicValue makeQName(String prefix, String uri, String local,
-                                        AtomicType targetType, CharSequence lexicalForm, TypeHierarchy th)
-            throws XPathException {
+    /**
+     * Convert to a StructuredQName
+     * @return the name as a StructuredQName
+     */
 
-        if (targetType.getFingerprint() == StandardNames.XS_QNAME) {
-            return new QNameValue(prefix, uri, local, null);
-        } else if (th.isSubType(targetType, Type.QNAME_TYPE)) {
-            QNameValue q = new QNameValue(prefix, uri, local, null);
-            AtomicValue av = targetType.makeDerivedValue(q, lexicalForm, true);
-            if (av instanceof ValidationErrorValue) {
-                throw ((ValidationErrorValue)av).getException();
-            }
-            return av;
-        } else {
-            NotationValue n = new NotationValue(prefix, uri, local, null);
-            AtomicValue av =  targetType.makeDerivedValue(n, lexicalForm, true);
-            if (av instanceof ValidationErrorValue) {
-                throw ((ValidationErrorValue)av).getException();
-            }
-            return av;
+    public StructuredQName toStructuredQName() {
+        return qName;
+    }
+
+    /**
+     * Create a copy of this atomic value, with a different type label
+     *
+     * @param typeLabel the type label of the new copy. The caller is responsible for checking that
+     *                  the value actually conforms to this type.
+     */
+
+    public AtomicValue copyAsSubType(AtomicType typeLabel) {
+        return new QNameValue(qName, typeLabel);
+    }
+
+    /**
+     * Determine the primitive type of the value. This delivers the same answer as
+     * getItemType().getPrimitiveItemType(). The primitive types are
+     * the 19 primitive types of XML Schema, plus xs:integer, xs:dayTimeDuration and xs:yearMonthDuration,
+     * and xs:untypedAtomic. For external objects, the result is AnyAtomicType.
+     */
+
+    public BuiltInAtomicType getPrimitiveType() {
+        return BuiltInAtomicType.QNAME;
+    }
+
+    /**
+     * Convert a QName to target data type
+     * @param requiredType an integer identifying the required atomic type
+     * @param context XPath dynamic context
+     * @return an AtomicValue, a value of the required type; or an ErrorValue
+     */
+
+    public ConversionResult convertPrimitive(BuiltInAtomicType requiredType, boolean validate, XPathContext context) {
+        switch (requiredType.getPrimitiveType()) {
+            case StandardNames.XS_ANY_ATOMIC_TYPE:
+            case StandardNames.XS_QNAME:
+                return this;
+            case StandardNames.XS_STRING:
+                return new StringValue(getStringValue());
+            case StandardNames.XS_UNTYPED_ATOMIC:
+                return new UntypedAtomicValue(getStringValue());
+            default:
+                ValidationFailure err = new ValidationFailure("Cannot convert QName to " +
+                        requiredType.getDisplayName());
+                err.setErrorCode("XPTY0004");
+                return err;
         }
-
-    }
-
-
-    /**
-     * Get the string value as a String. Returns the QName as a lexical QName, retaining the original
-     * prefix if available.
-     */
-
-    public String getStringValue() {
-        if ("".equals(prefix)) {
-            return localPart;
-        } else {
-            return prefix + ':' + localPart;
-        }
-    }
-
-    /**
-     * Get the value as a JAXP QName
-     */
-
-//    public QName getQName() {
-//        return new QName(uri, localPart, prefix);
-//    }
-
-    /**
-     * Get the name in Clark notation, that is {uri}local
-     */
-
-    public String getClarkName() {
-        if ("".equals(uri)) {
-            return localPart;
-        } else {
-            return '{' + uri + '}' + localPart;
-        }
-    }
-
-    /**
-     * Get the local part
-     */
-
-    public String getLocalName() {
-        return localPart;
-    }
-
-    /**
-     * Get the namespace part (null means no namespace)
-     */
-
-    public String getNamespaceURI() {
-        return ("".equals(uri) ? null : uri);
-    }
-
-    /**
-     * Get the prefix
-     */
-
-    public String getPrefix() {
-        return prefix;
-    }
-
-    /**
-     * Allocate a nameCode for this QName in the NamePool
-     * @param pool the NamePool to be used
-     * @return the allocated nameCode
-     */
-
-    public int allocateNameCode(NamePool pool) {
-        return pool.allocate(prefix, uri, localPart);
     }
 
     /**
@@ -205,16 +175,17 @@ public class QNameValue extends AtomicValue {
 
     public AtomicValue getComponent(int part) {
         if (part == Component.LOCALNAME) {
-            return RestrictedStringValue.makeRestrictedString(
-                    localPart, StandardNames.XS_NCNAME, null);
+            return (AtomicValue)StringValue.makeRestrictedString(
+                    getLocalName(), BuiltInAtomicType.NCNAME, null);
         } else if (part == Component.NAMESPACE) {
-            return new AnyURIValue(uri);
+            return new AnyURIValue(getNamespaceURI());
         } else if (part == Component.PREFIX) {
-            if ("".equals(prefix)) {
+            String prefix = getPrefix();
+            if (prefix.length() == 0) {
                 return null;
             } else {
-                return RestrictedStringValue.makeRestrictedString(
-                        prefix, StandardNames.XS_NCNAME, null);
+                return (AtomicValue)StringValue.makeRestrictedString(
+                        prefix, BuiltInAtomicType.NCNAME, null);
             }
         } else {
             throw new UnsupportedOperationException("Component of QName must be URI, Local Name, or Prefix");
@@ -222,125 +193,37 @@ public class QNameValue extends AtomicValue {
     }
 
     /**
-     * Convert to target data type
-     * @param requiredType an integer identifying the required atomic type
-     * @param context
-     * @return an AtomicValue, a value of the required type; or an ErrorValue
-     */
-
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, XPathContext context) {
-        switch (requiredType.getPrimitiveType()) {
-            case Type.ANY_ATOMIC:
-            case Type.ITEM:
-            case Type.QNAME:
-                return this;
-            case Type.STRING:
-                return new StringValue(getStringValue());
-            case Type.UNTYPED_ATOMIC:
-                return new UntypedAtomicValue(getStringValue());
-            default:
-                ValidationException err = new ValidationException("Cannot convert QName to " +
-                        requiredType.getDisplayName());
-                err.setErrorCode("XPTY0004");
-                err.setIsTypeError(true);
-                return new ValidationErrorValue(err);
-        }
-    }
-
-    /**
-     * Return the type of the expression
-     * @return Type.QNAME (always)
-     * @param th
-     */
-
-    public ItemType getItemType(TypeHierarchy th) {
-        return Type.QNAME_TYPE;
-    }
-
-
-    /**
      * Determine if two QName values are equal. This comparison ignores the prefix part
      * of the value.
      * @throws ClassCastException if they are not comparable
-     * @throws IllegalStateException if the two QNames are in different name pools
      */
 
     public boolean equals(Object other) {
-        QNameValue val = (QNameValue)((AtomicValue)other).getPrimitiveValue();  // force exception if incomparable type
-        if (this instanceof NotationValue) {
-            val = (NotationValue)val;       // force exception if incomparable type
-        }
-        return localPart.equals(val.localPart) && uri.equals(val.uri);
+        return qName.equals(((QNameValue)other).qName);
     }
 
-    public int hashCode() {
-        return localPart.hashCode() ^ uri.hashCode();
+    public Comparable getSchemaComparable() {
+        return new QNameComparable();
     }
 
+    private class QNameComparable implements Comparable {
 
-    /**
-     * Convert to Java object (for passing to external functions)
-     */
-
-    public Object convertToJava(Class target, XPathContext context) throws XPathException {
-        if (target.isAssignableFrom(QNameValue.class)) {
-            return this;
-        } else if (target.getClass().getName().equals("javax.xml.namespace.QName")) {
-            // TODO: rewrite this under JDK 1.5
-            return makeQName(context.getConfiguration());
-        } else {
-            Object o = super.convertToJava(target, context);
-            if (o == null) {
-                throw new DynamicError("Conversion of QName to " + target.getName() +
-                        " is not supported");
-            }
-            return o;
-        }
-    }
-
-    /**
-     * The toString() method returns the name in the form QName("uri", "local")
-     * @return the name in in the form QName("uri", "local")
-     */
-
-    public String toString() {
-        return "QName(\"" + uri + "\", \"" + localPart + "\")";
-    }
-
-    /**
-     * Temporary method to construct a javax.xml.namespace.QName without actually mentioning it
-     * by name (because the class is not available in JDK 1.4)
-     */
-
-    public Object makeQName(Configuration config) {
-        try {
-            Class qnameClass = config.getClass("javax.xml.namespace.QName", false, null);
-            Class[] argTypes = {String.class, String.class, String.class};
-            Constructor  constructor = qnameClass.getConstructor(argTypes);
-            String[] argValues = {uri, localPart, prefix};
-            Object result = constructor.newInstance((Object[])argValues);
-            return result;
-        } catch (XPathException e) {
-            return null;
-        } catch (NoSuchMethodException e) {
-            return null;
-        } catch (InstantiationException e) {
-            return null;
-        } catch (IllegalAccessException e) {
-            return null;
-        } catch (InvocationTargetException e) {
-            return null;
+        public QNameValue getQNameValue() {
+            return QNameValue.this;
         }
 
+        public int compareTo(Object o) {
+            return equals(o) ? 0 : INDETERMINATE_ORDERING;
+        }
+
+        public boolean equals(Object o) {
+            return (o instanceof QNameComparable && qName.equals(((QNameComparable)o).getQNameValue().qName));
+        }
+
+        public int hashCode() {
+            return qName.hashCode();
+        }
     }
-
-//    public static void main(String[] args) throws Exception {
-//        QName q = (QName)new QNameValue("a", "b", "c").makeQName();
-//        QNameValue v = Value.makeQNameValue(q);
-//        System.err.println(q);
-//        System.err.println(v);
-//    }
-
 }
 
 //
@@ -352,12 +235,10 @@ public class QNameValue extends AtomicValue {
 // WITHOUT WARRANTY OF ANY KIND, either express or implied.
 // See the License for the specific language governing rights and limitations under the License.
 //
-// The Original Code is: all this file.
+// The Original Code is: all this file
 //
-// The Initial Developer of the Original Code is Michael H. Kay
+// The Initial Developer of the Original Code is Michael H. Kay.
 //
-// Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
-//
-// Contributor(s): none.
+// Contributor(s):
 //
 

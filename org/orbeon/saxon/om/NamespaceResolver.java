@@ -4,8 +4,6 @@ import java.util.Iterator;
 
 /**
  * Abstract class that supports lookup of a lexical QName to get the expanded QName.
- * This extends the JAXP NamespaceContext interface with some Saxon-specific methods,
- * which must be supplied in a concrete implementation.
  */
 
 public interface NamespaceResolver {

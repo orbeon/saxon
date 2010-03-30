@@ -1,11 +1,11 @@
 package org.orbeon.saxon.style;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.instruct.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.value.Whitespace;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -23,7 +23,6 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
     private String nameAtt = null;
     private String asAtt = null;
     private String overrideAtt = null;
-
     private SequenceType resultType;
     private String functionName;
     private SlotManager stackFrameMap;
@@ -36,8 +35,8 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
     List references = new ArrayList(10);
 
     /**
-    * Method called by UserFunctionCall to register the function call for
-    * subsequent fixup.
+     * Method called by UserFunctionCall to register the function call for
+     * subsequent fixup.
      * @param ref the UserFunctionCall to be registered
     */
 
@@ -48,35 +47,36 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
     public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
-
+        overrideAtt = "yes";
     	for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-            if (f==StandardNames.NAME) {
-				nameAtt = atts.getValue(a).trim();
+            if (f.equals(StandardNames.NAME)) {
+				nameAtt = Whitespace.trim(atts.getValue(a));
 				if (nameAtt.indexOf(':')<0) {
 					compileError("Function name must have a namespace prefix", "XTSE0740");
 				}
 				try {
-				    setObjectNameCode(makeNameCode(nameAtt.trim()));
+				    setObjectName(makeQName(nameAtt));
         		} catch (NamespaceException err) {
         		    compileError(err.getMessage(), "XTSE0280");
         		} catch (XPathException err) {
                     compileError(err);
                 }
-        	} else if (f==StandardNames.AS) {
+        	} else if (f.equals(StandardNames.AS)) {
         		asAtt = atts.getValue(a);
-            } else if (f==StandardNames.OVERRIDE) {
-                overrideAtt = atts.getValue(a).trim();
+            } else if (f.equals(StandardNames.OVERRIDE)) {
+                overrideAtt = Whitespace.trim(atts.getValue(a));
                 if (overrideAtt.equals("yes")) {
                     override = true;
                 } else if (overrideAtt.equals("no")) {
                     override = false;
                 } else {
+                    override = true;
                     compileError("override must be 'yes' or 'no'", "XTSE0020");
                 }
-            } else if (f==StandardNames.SAXON_MEMO_FUNCTION) {
-                String memoAtt = atts.getValue(a).trim();
+            } else if (f.equals(StandardNames.SAXON_MEMO_FUNCTION)) {
+                String memoAtt = Whitespace.trim(atts.getValue(a));
                 if (memoAtt.equals("yes")) {
                     memoFunction = true;
                 } else if (memoAtt.equals("no")) {
@@ -91,6 +91,7 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
 
         if (nameAtt == null) {
             reportAbsence("name");
+            nameAtt="xsl:unnamed-function";
         }
 
         if (asAtt == null) {
@@ -103,11 +104,40 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
     }
 
     /**
+     * Get a name identifying the object of the expression, for example a function name, template name,
+     * variable name, key name, element name, etc. This is used only where the name is known statically.
+     * If there is no name, the value will be -1.
+     */
+
+    public StructuredQName getObjectName() {
+        StructuredQName qn = super.getObjectName();
+        if (qn == null) {
+            nameAtt = Whitespace.trim(getAttributeValue("name"));
+            if (nameAtt == null) {
+                return new StructuredQName("saxon", NamespaceConstant.SAXON, "badly-named-function");
+            }
+            try {
+                qn = makeQName(nameAtt);
+                setObjectName(qn);
+            } catch (NamespaceException err) {
+                return new StructuredQName("saxon", NamespaceConstant.SAXON, "badly-named-function");
+            } catch (XPathException err) {
+                return new StructuredQName("saxon", NamespaceConstant.SAXON, "badly-named-function");
+            }
+        }
+        return qn;
+    }
+
+    /**
     * Determine whether this type of element is allowed to contain a template-body.
     * @return true: yes, it may contain a general template-body
     */
 
     public boolean mayContainSequenceConstructor() {
+        return true;
+    }
+
+    protected boolean mayContainParam() {
         return true;
     }
 
@@ -124,6 +154,14 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
     */
 
     public boolean isOverriding() {
+        if (overrideAtt == null) {
+            // this is a forwards reference
+            try {
+                prepareAttributes();
+            } catch (XPathException e) {
+                // no action: error will be caught later
+            }
+        }
         return override;
     }
 
@@ -158,7 +196,7 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
             Object child = toplevel.get(i);
             if (child instanceof XSLFunction &&
                     !(child == this) &&
-                    ((XSLFunction)child).getFunctionFingerprint() == getFunctionFingerprint() &&
+                    ((XSLFunction)child).getObjectName().equals(getObjectName()) &&
                     ((XSLFunction)child).getNumberOfArguments() == numberOfArguments) {
                 if (((XSLFunction)child).getPrecedence() == getPrecedence()) {
                     isDuplicate = true;
@@ -198,26 +236,21 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
      * The UserFunction that is created will be linked from all calls to
      * this function, so nothing else needs to be done with the result. If there are
      * no calls to it, the compiled function will be garbage-collected away.
+     * @param exec the Executable
      * @throws XPathException
      */
 
     private void compileAsExpression(Executable exec) throws XPathException {
-        //Block body = new Block();
-        //compileChildren(exec, body, false);
         Expression exp = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), false);
         if (exp == null) {
-            exp = EmptySequence.getInstance();
+            exp = Literal.makeEmptySequence();
         }
-
-        //Expression exp = body;
 
         UserFunction fn = new UserFunction();
         fn.setHostLanguage(Configuration.XSLT);
         fn.setBody(exp);
-        fn.setFunctionNameCode(getObjectNameCode());
+        fn.setFunctionName(getObjectName());
         setParameterDefinitions(fn);
-        //fn.setParameterDefinitions(getParameterDefinitions());
-        //fn.setArgumentTypes(getArgumentTypes());
         fn.setResultType(getResultType());
         fn.setLineNumber(getLineNumber());
         fn.setSystemId(getSystemId());
@@ -226,24 +259,31 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
         fn.setExecutable(exec);
 
         Expression exp2 = exp;
+        ExpressionVisitor visitor = makeExpressionVisitor();
         try {
             // We've already done the typecheck of each XPath expression, but it's worth doing again at this
             // level because we have more information now.
-            exp2 = exp.typeCheck(staticContext, null);
-            exp2 = exp2.optimize(getConfiguration().getOptimizer(), staticContext, null);
+
+            exp2 = visitor.typeCheck(exp, null);
             if (resultType != null) {
                 RoleLocator role =
-                        new RoleLocator(RoleLocator.FUNCTION_RESULT, functionName, 0, null);
-                role.setSourceLocator(new ExpressionLocation(this));
+                        new RoleLocator(RoleLocator.FUNCTION_RESULT, functionName, 0);
+                //role.setSourceLocator(new ExpressionLocation(this));
                 role.setErrorCode("XTTE0780");
-                exp2 = TypeChecker.staticTypeCheck(exp2, resultType, false, role, getStaticContext());
+                exp2 = TypeChecker.staticTypeCheck(exp2, resultType, false, role, visitor);
             }
+            exp2 = exp2.optimize(visitor, null);
 
         } catch (XPathException err) {
+            err.maybeSetLocation(this);
             compileError(err);
         }
 
-        if (getConfiguration().isCompileWithTracing()) {
+        // Try to extract new global variables from the body of the function
+        exp2 = getConfiguration().getOptimizer().promoteExpressionsToGlobal(exp2, visitor);
+
+        // Add trace wrapper code if required
+        if (getPreparedStylesheet().isCompileWithTracing()) {
             TraceWrapper trace = new TraceInstruction(exp2, this);
             trace.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
             exp2 = trace;
@@ -254,21 +294,18 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
             fn.setBody(exp2);
         }
 
-        boolean tailCalls = ExpressionTool.markTailFunctionCalls(exp2, getObjectNameCode(), getNumberOfArguments());
-        if (tailCalls) {
-            fn.setTailRecursive(tailCalls);
+        int tailCalls = ExpressionTool.markTailFunctionCalls(exp2, getObjectName(), getNumberOfArguments());
+        if (tailCalls != 0) {
+            fn.setTailRecursive(tailCalls > 0, tailCalls > 1);
             fn.setBody(new TailCallLoop(fn));
         }
-        fixupInstruction(fn, getStaticContext());
+        fixupInstruction(fn);
         compiledFunction = fn;
 
         fn.computeEvaluationMode();
 
         if (isExplaining()) {
-            System.err.println("Optimized expression tree for function "
-                    + functionName + " at line " +
-                    getLineNumber() + " in " + getSystemId() + ':');
-            exp2.display(10, System.err, getConfiguration());
+            exp2.explain(System.err);
         }
     }
 
@@ -278,14 +315,15 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
      * @throws XPathException if an error occurs.
     */
 
-    private void fixupInstruction(UserFunction compiledFunction, StaticContext env)
+    private void fixupInstruction(UserFunction compiledFunction)
     throws XPathException {
+        ExpressionVisitor visitor = makeExpressionVisitor();
         try {
             Iterator iter = references.iterator();
             while (iter.hasNext()) {
                 UserFunctionCall call = ((UserFunctionCall)iter.next());
-                call.setFunction(compiledFunction, env);
-                call.checkFunctionCall(compiledFunction, env);
+                call.setFunction(compiledFunction);
+                call.checkFunctionCall(compiledFunction, visitor);
                 call.computeArgumentEvaluationModes();
             }
         } catch (XPathException err) {
@@ -300,23 +338,6 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
 
     public SlotManager getSlotManager() {
         return stackFrameMap;
-    }
-
-    /**
-     * Get the fingerprint of the name of this function.
-     * @return the fingerprint of the name
-     */
-
-    public int getFunctionFingerprint() {
-        if (getObjectFingerprint()==-1) {
-            // this is a forwards reference to the function
-            try {
-        	    prepareAttributes();
-        	} catch (XPathException err) {
-        	    return -1;              // we'll report the error later
-        	}
-        }
-        return getObjectFingerprint();
     }
 
     /**
@@ -351,6 +372,7 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
 
     /**
      * Set the definitions of the parameters in the compiled function, as an array.
+     * @param fn the compiled object representing the user-written function
      */
 
     public void setParameterDefinitions(UserFunction fn) {
@@ -367,10 +389,10 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
                 UserFunctionParameter param = new UserFunctionParameter();
                 params[count++] = param;
                 param.setRequiredType(((XSLParam)node).getRequiredType());
+                param.setVariableQName(((XSLParam)node).getVariableQName());
                 param.setSlotNumber(((XSLParam)node).getSlotNumber());
                 ((XSLParam)node).fixupBinding(param);
-                List references = ((XSLParam)node).getReferences();
-                int refs = RangeVariableDeclaration.getReferenceCount(references, param, getStaticContext(), true);
+                int refs = ExpressionTool.getReferenceCount(fn.getBody(), param, false);
                 param.setReferenceCount(refs);
             }
         }
@@ -378,6 +400,7 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
 
     /**
      * Get the compiled function
+     * @return the object representing the compiled user-written function
      */
 
     public UserFunction getCompiledFunction() {
@@ -412,5 +435,4 @@ public class XSLFunction extends StyleElement implements StylesheetProcedure {
 // Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
 //
 // Contributor(s):
-// Portions marked "e.g." are from Edwin Glaser (edwin@pannenleiter.de)
 //

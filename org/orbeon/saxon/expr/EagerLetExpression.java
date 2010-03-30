@@ -11,8 +11,8 @@ public class EagerLetExpression extends LetExpression {
 
     public EagerLetExpression() {}
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        Expression e = super.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression e = super.optimize(visitor, contextItemType);
         if (e == this) {
             evaluationMode = ExpressionTool.eagerEvaluationMode(sequence);
         }

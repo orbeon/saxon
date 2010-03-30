@@ -1,8 +1,8 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.ExpressionVisitor;
+import org.orbeon.saxon.expr.StringLiteral;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.value.StringValue;
 
 /**
 * Implement the XPath 2.0 default-collation() function
@@ -12,11 +12,12 @@ public class DefaultCollation extends CompileTimeFunction {
 
     /**
     * Pre-evaluate the function
-    */
+     * @param visitor an expression visitor
+     */
 
-    public Expression preEvaluate(StaticContext env) throws XPathException {
-        String s = env.getDefaultCollationName();
-        return new StringValue(s);
+    public Expression preEvaluate(ExpressionVisitor visitor) throws XPathException {
+        String s = visitor.getStaticContext().getDefaultCollationName();
+        return new StringLiteral(s);
     }
 
 }

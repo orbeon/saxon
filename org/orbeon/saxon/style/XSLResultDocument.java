@@ -1,20 +1,22 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.sort.IntHashMap;
-import org.orbeon.saxon.sort.IntIterator;
-import org.orbeon.saxon.sort.IntHashSet;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.Literal;
+import org.orbeon.saxon.expr.StringLiteral;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.ResultDocument;
 import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.sort.IntHashMap;
+import org.orbeon.saxon.sort.IntHashSet;
+import org.orbeon.saxon.sort.IntIterator;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.value.EmptySequence;
-import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.Whitespace;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.Properties;
 
 /**
 * An xsl:result-document element in the stylesheet. <BR>
@@ -50,11 +52,12 @@ public class XSLResultDocument extends StyleElement {
         fans.add(StandardNames.SAXON_CHARACTER_REPRESENTATION);
         fans.add(StandardNames.SAXON_INDENT_SPACES);
         fans.add(StandardNames.SAXON_REQUIRE_WELL_FORMED);
+        fans.add(StandardNames.SAXON_SUPPRESS_INDENTATION);
     }
 
     private Expression href;
-    private int format = -1;     // fingerprint of required xsl:output element
-    private Expression formatExpression = null;     // used when format is an AVT
+    private StructuredQName formatQName;     // used when format is a literal string
+    private Expression formatExpression;     // used when format is an AVT
     private int validationAction = Validation.STRIP;
     private SchemaType schemaType = null;
     private IntHashMap serializationAttributes = new IntHashMap(10);
@@ -103,19 +106,19 @@ public class XSLResultDocument extends StyleElement {
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-			if (f==StandardNames.FORMAT) {
-        		formatAttribute = atts.getValue(a).trim();
-        	} else if (f==StandardNames.HREF) {
-        		hrefAttribute = atts.getValue(a).trim();
-            } else if (f==StandardNames.VALIDATION) {
-                validationAtt = atts.getValue(a).trim();
-            } else if (f==StandardNames.TYPE) {
-                typeAtt = atts.getValue(a).trim();
-            } else if (f==StandardNames.USE_CHARACTER_MAPS) {
-                useCharacterMapsAtt = atts.getValue(a).trim();
+			if (f.equals(StandardNames.FORMAT)) {
+        		formatAttribute = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.HREF)) {
+        		hrefAttribute = Whitespace.trim(atts.getValue(a));
+            } else if (f.equals(StandardNames.VALIDATION)) {
+                validationAtt = Whitespace.trim(atts.getValue(a));
+            } else if (f.equals(StandardNames.TYPE)) {
+                typeAtt = Whitespace.trim(atts.getValue(a));
+            } else if (f.equals(StandardNames.USE_CHARACTER_MAPS)) {
+                useCharacterMapsAtt = Whitespace.trim(atts.getValue(a));
             } else if (fans.contains(f) || f.startsWith("{")) {
                 // this is a serialization attribute
-                String val = atts.getValue(a).trim();
+                String val = Whitespace.trim(atts.getValue(a));
                 Expression exp = makeAttributeValueTemplate(val);
                 serializationAttributes.put(nc&0xfffff, exp);
         	} else {
@@ -131,9 +134,10 @@ public class XSLResultDocument extends StyleElement {
 
         if (formatAttribute!=null) {
             formatExpression = makeAttributeValueTemplate(formatAttribute);
-            if (formatExpression instanceof StringValue) {
+            if (formatExpression instanceof StringLiteral) {
                 try {
-                    format = makeNameCode(formatAttribute.trim()) & NamePool.FP_MASK;
+                    formatQName = makeQName(((StringLiteral)formatExpression).getStringValue());
+                    formatExpression = null;
                 } catch (NamespaceException err) {
                     compileError(err.getMessage(), "XTSE0280");
                 } catch (XPathException err) {
@@ -158,6 +162,7 @@ public class XSLResultDocument extends StyleElement {
                 compileError("The @type attribute is available only with a schema-aware XSLT processor", "XTSE1660");
             }
             schemaType = getSchemaType(typeAtt);
+            validationAction = Validation.BY_TYPE;
         }
 
         if (typeAtt != null && validationAtt != null) {
@@ -168,19 +173,18 @@ public class XSLResultDocument extends StyleElement {
             String s = XSLOutput.prepareCharacterMaps(this, useCharacterMapsAtt, new Properties());
             serializationAttributes.put(
                     getNamePool().allocate("", "", StandardNames.USE_CHARACTER_MAPS),
-                    new StringValue(s));
+                    new StringLiteral(s));
         }
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
         if (href != null && !getPreparedStylesheet().getConfiguration().isAllowExternalFunctions()) {
             compileError("xsl:result-document is disabled when extension functions are disabled");
         }
         href = typeCheck("href", href);
         formatExpression = typeCheck("format", formatExpression);
-        IntIterator it = serializationAttributes.keyIterator();
 
+        IntIterator it = serializationAttributes.keyIterator();
         while (it.hasNext()) {
             int fp = it.next();
             String displayName = getNamePool().getDisplayName(fp);
@@ -191,6 +195,7 @@ public class XSLResultDocument extends StyleElement {
             }
         }
 
+        getExecutable().setCreatesSecondaryResult(true);
 
     }
 
@@ -198,9 +203,9 @@ public class XSLResultDocument extends StyleElement {
         Properties globalProps;
         if (formatExpression == null) {
             try {
-                globalProps = getPrincipalStylesheet().gatherOutputProperties(format);
+                globalProps = getPrincipalStylesheet().gatherOutputProperties(formatQName);
             } catch (XPathException err) {
-                compileError("Named output format has not been defined", "XTSE1460");
+                compileError("Named output format has not been defined", "XTDE1460");
                 return null;
             }
         } else {
@@ -224,7 +229,7 @@ public class XSLResultDocument extends StyleElement {
                     } else {
                         globalProps.setProperty("method", "xhtml");
                     }
-                } else if (first.getLocalPart().equalsIgnoreCase("html") && first.getURI().equals("")) {
+                } else if (first.getLocalPart().equalsIgnoreCase("html") && first.getURI().length() == 0) {
                     globalProps.setProperty("method", "html");
                 } else {
                     globalProps.setProperty("method", "xml");
@@ -237,16 +242,18 @@ public class XSLResultDocument extends StyleElement {
         IntHashSet fixed = new IntHashSet(10);
         boolean needsNamespaceContext = (formatExpression != null);
         NameChecker checker = exec.getConfiguration().getNameChecker();
+        NamespaceResolver namespaceResolver = getStaticContext().getNamespaceResolver();
         for (IntIterator it=serializationAttributes.keyIterator(); it.hasNext();) {
             int fp = it.next();
             Expression exp = (Expression)serializationAttributes.get(fp);
-            if (exp instanceof StringValue) {
-                String s = ((StringValue)exp).getStringValue();
+            if (exp instanceof StringLiteral) {
+                String s = ((StringLiteral)exp).getStringValue();
                 String lname = getNamePool().getLocalName(fp);
                 String uri = getNamePool().getURI(fp);
                 try {
+
                     ResultDocument.setSerializationProperty(localProps, uri, lname, s,
-                            getStaticContext().getNamespaceResolver(), false, checker);
+                            namespaceResolver, false, checker);
                     fixed.add(fp);
                 } catch (XPathException e) {
                     if (NamespaceConstant.SAXON.equals(e.getErrorCodeNamespace())) {
@@ -257,7 +264,8 @@ public class XSLResultDocument extends StyleElement {
                 }
             } else {
                 String lname = getNamePool().getLocalName(fp);
-                if (lname.equals("method") || lname.equals("cdata-section-elements")) {
+                if (lname.equals("method") || lname.equals("cdata-section-elements") ||
+                        lname.equals("suppress-indentation")) {
                     needsNamespaceContext = true;
                 }
             }
@@ -274,14 +282,13 @@ public class XSLResultDocument extends StyleElement {
                                               validationAction,
                                               schemaType,
                                               serializationAttributes,
-                                              (needsNamespaceContext ? getStaticContext().getNamespaceResolver() : null));
+                                              (needsNamespaceContext ? namespaceResolver : null));
 
         Expression b = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
         if (b == null) {
-            b = EmptySequence.getInstance();
+            b = new Literal(EmptySequence.getInstance());
         }
         inst.setContent(b);
-        ExpressionTool.makeParentReferences(inst);
         return inst;
     }
 
@@ -302,5 +309,4 @@ public class XSLResultDocument extends StyleElement {
 //
 // Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
 //
-// Additional Contributor(s): Brett Knights [brett@knightsofthenet.com]
 //

@@ -1,8 +1,9 @@
 package org.orbeon.saxon.expr;
-import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.om.EmptyIterator;
+import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.*;
 
@@ -18,7 +19,11 @@ import org.orbeon.saxon.value.*;
 public class RangeExpression extends BinaryExpression {
 
     /**
-    * Construct a RangeExpression
+     * Construct a RangeExpression
+     * @param start expression that computes the start of the range
+     * @param op represents the operator "to", needed only because this class is a subclass of
+     * BinaryExpression which needs an operator
+     * @param end expression that computes the end of the range
     */
 
     public RangeExpression(Expression start, int op, Expression end) {
@@ -29,21 +34,22 @@ public class RangeExpression extends BinaryExpression {
     * Type-check the expression
     */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        operand0 = operand0.typeCheck(env, contextItemType);
-        operand1 = operand1.typeCheck(env, contextItemType);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand0 = visitor.typeCheck(operand0, contextItemType);
+        operand1 = visitor.typeCheck(operand1, contextItemType);
 
-        RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, "to", 0, null);
-        role0.setSourceLocator(this);
+        boolean backCompat = visitor.getStaticContext().isInBackwardsCompatibleMode();
+        RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, "to", 0);
+        //role0.setSourceLocator(this);
         operand0 = TypeChecker.staticTypeCheck(
-                operand0, SequenceType.OPTIONAL_INTEGER, false, role0, env);
+                operand0, SequenceType.OPTIONAL_INTEGER, backCompat, role0, visitor);
 
-        RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, "to", 1, null);
-        role1.setSourceLocator(this);
+        RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, "to", 1);
+        //role1.setSourceLocator(this);
         operand1 = TypeChecker.staticTypeCheck(
-                operand1, SequenceType.OPTIONAL_INTEGER, false, role1, env);
+                operand1, SequenceType.OPTIONAL_INTEGER, backCompat, role1, visitor);
 
-        return this;
+        return makeConstantRange();
     }
 
     /**
@@ -52,43 +58,53 @@ public class RangeExpression extends BinaryExpression {
      * <p>This method is called after all references to functions and variables have been resolved
      * to the declaration of the function or variable, and after all type checking has been done.</p>
      *
-     * @param opt             the optimizer in use. This provides access to supporting functions; it also allows
-     *                        different optimization strategies to be used in different circumstances.
-     * @param env             the static context of the expression
+     * @param visitor an expression visitor
      * @param contextItemType the static type of "." at the point where this expression is invoked.
      *                        The parameter is set to null if it is known statically that the context item will be undefined.
      *                        If the type of the context item is not known statically, the argument is set to
      *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
      * @return the original expression, rewritten if appropriate to optimize execution
-     * @throws org.orbeon.saxon.trans.StaticError if an error is discovered during this phase
+     * @throws XPathException if an error is discovered during this phase
      *                                        (typically a type error)
      */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        operand0 = operand0.optimize(opt, env, contextItemType);
-        operand1 = operand1.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand0 = visitor.optimize(operand0, contextItemType);
+        operand1 = visitor.optimize(operand1, contextItemType);
+        return makeConstantRange();
 
-        if (operand0 instanceof IntegerValue && operand1 instanceof IntegerValue) {
-            long i0 = ((IntegerValue)operand0).longValue();
-            long i1 = ((IntegerValue)operand1).longValue();
-            if (i0 > i1) {
-                return EmptySequence.getInstance();
-            } else {
-                return new IntegerRange(i0, i1);
+    }
+
+    private Expression makeConstantRange() {
+        if (operand0 instanceof Literal && operand1 instanceof Literal) {
+            Value v0 = ((Literal)operand0).getValue();
+            Value v1 = ((Literal)operand1).getValue();
+            if (v0 instanceof Int64Value && v1 instanceof Int64Value) {
+                long i0 = ((Int64Value)v0).longValue();
+                long i1 = ((Int64Value)v1).longValue();
+                Literal result;
+                if (i0 > i1) {
+                    result = Literal.makeEmptySequence();
+                } else if (i0 == i1) {
+                    result = Literal.makeLiteral(Int64Value.makeIntegerValue(i0));
+                } else {
+                    result = Literal.makeLiteral(new IntegerRange(i0, i1));
+                }
+                ExpressionTool.copyLocationInfo(this, result);
+                return result;
             }
         }
         return this;
-
     }
 
 
     /**
     * Get the data type of the items returned
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
-        return Type.INTEGER_TYPE;
+        return BuiltInAtomicType.INTEGER;
     }
 
     /**
@@ -99,6 +115,17 @@ public class RangeExpression extends BinaryExpression {
         return StaticProperty.ALLOWS_ZERO_OR_MORE;
     }
 
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new RangeExpression(operand0.copy(), operator, operand1.copy());
+    }
+
     /**
     * Return an iteration over the sequence
     */
@@ -106,18 +133,18 @@ public class RangeExpression extends BinaryExpression {
     public SequenceIterator iterate(XPathContext context) throws XPathException {
         AtomicValue av1 = (AtomicValue)operand0.evaluateItem(context);
         if (av1 == null) {
-            return new EmptyIterator();
+            return EmptyIterator.getInstance();
         }
-        NumericValue v1 = (NumericValue)av1.getPrimitiveValue();
+        NumericValue v1 = (NumericValue)av1;
 
         AtomicValue av2 = (AtomicValue)operand1.evaluateItem(context);
         if (av2 == null) {
-            return new EmptyIterator();
+            return EmptyIterator.getInstance();
         }
-        NumericValue v2 = (NumericValue)av2.getPrimitiveValue();
+        NumericValue v2 = (NumericValue)av2;
 
         if (v1.compareTo(v2) > 0) {
-            return new EmptyIterator();
+            return EmptyIterator.getInstance();
         }
         return new RangeIterator(v1.longValue(), v2.longValue());
     }

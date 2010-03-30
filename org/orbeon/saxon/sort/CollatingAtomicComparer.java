@@ -1,9 +1,9 @@
 package org.orbeon.saxon.sort;
 import org.orbeon.saxon.Platform;
-import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.value.AtomicValue;
-
-import java.util.Comparator;
 
 /**
  * An AtomicComparer used for comparing strings, untypedAtomic values, and URIs using a collation.
@@ -17,23 +17,49 @@ import java.util.Comparator;
 
 public class CollatingAtomicComparer implements AtomicComparer {
 
-    private Comparator collator;
-    private Platform platform;
+    private StringCollator collator;
+    private String collationURI;
     private boolean canReturnCollationKeys;
 
     /**
      * Create an GenericAtomicComparer
-     * @param collator the collation to be used
+     * @param collator the collation to be used. If the method is called at compile time, this should
+     * be a NamedCollation so that it can be cloned at run-time.
      * @param platform used to obtain collation keys.
      */
 
-    public CollatingAtomicComparer(Comparator collator, Platform platform) {
-        this.collator = collator;
+    public CollatingAtomicComparer(StringCollator collator, Platform platform) {
+
         if (collator == null) {
             this.collator = CodepointCollator.getInstance();
+            collationURI = NamespaceConstant.CODEPOINT_COLLATION_URI;
+        } else {
+            this.collator = collator;
+            collationURI = "*unknown*";
         }
-        this.platform = platform;
         canReturnCollationKeys = platform.canReturnCollationKeys(this.collator);
+    }
+
+
+    /**
+     * Supply the dynamic context in case this is needed for the comparison
+     *
+     * @param context the dynamic evaluation context
+     * @return either the original AtomicComparer, or a new AtomicComparer in which the context
+     *         is known. The original AtomicComparer is not modified
+     */
+
+    public AtomicComparer provideContext(XPathContext context) {
+        return this;
+    }
+
+    /**
+     * Get the collation URI
+     * @return the collation URI
+     */
+
+    public String getCollationURI() {
+        return collationURI;
     }
 
 
@@ -51,7 +77,7 @@ public class CollatingAtomicComparer implements AtomicComparer {
     * @throws ClassCastException if the objects are not comparable
     */
 
-    public int compare(Object a, Object b) {
+    public int compareAtomicValues(AtomicValue a, AtomicValue b) {
         if (a == null) {
             if (b == null) {
                 return 0;
@@ -62,7 +88,7 @@ public class CollatingAtomicComparer implements AtomicComparer {
             return +1;
         }
 
-        return collator.compare(((AtomicValue)a).getStringValue(), ((AtomicValue)b).getStringValue());
+        return collator.compareStrings(a.getStringValue(), b.getStringValue());
     }
 
     /**
@@ -78,7 +104,7 @@ public class CollatingAtomicComparer implements AtomicComparer {
     */
 
     public boolean comparesEqual(AtomicValue a, AtomicValue b) {
-        return compare(a, b) == 0;
+        return compareAtomicValues(a, b) == 0;
     }
 
     /**
@@ -89,9 +115,9 @@ public class CollatingAtomicComparer implements AtomicComparer {
 
     public ComparisonKey getComparisonKey(AtomicValue a) {
         if (canReturnCollationKeys) {
-            return new ComparisonKey(Type.STRING, platform.getCollationKey(collator, a.getStringValue()));
+            return new ComparisonKey(StandardNames.XS_STRING, collator.getCollationKey(a.getStringValue()));
         } else {
-            return new ComparisonKey(Type.STRING, a.getStringValue());
+            return new ComparisonKey(StandardNames.XS_STRING, a.getStringValue());
         }
     }
 

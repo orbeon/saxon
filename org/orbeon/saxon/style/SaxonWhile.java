@@ -1,10 +1,11 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.Literal;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.While;
 import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.EmptySequence;
 
@@ -61,17 +62,16 @@ public class SaxonWhile extends StyleElement {
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
+        //checkWithinTemplate();
         test = typeCheck("test", test);
     }
 
     public Expression compile(Executable exec) throws XPathException {
         Expression action = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
         if (action == null) {
-            action = EmptySequence.getInstance();
+            action = Literal.makeEmptySequence();
         }
         While w = new While(test, action);
-        ExpressionTool.makeParentReferences(w);
         return w;
     }
 

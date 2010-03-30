@@ -5,14 +5,16 @@ import org.orbeon.saxon.instruct.ForEachGroup;
 import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.pattern.Pattern;
 import org.orbeon.saxon.pattern.PatternSponsor;
+import org.orbeon.saxon.sort.StringCollator;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.trans.SaxonErrorCode;
 import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.Whitespace;
 
-import java.util.Comparator;
 import java.net.URI;
 import java.net.URISyntaxException;
 
@@ -70,18 +72,18 @@ public final class XSLForEachGroup extends StyleElement {
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-            if (f==StandardNames.SELECT) {
+            if (f.equals(StandardNames.SELECT)) {
         		selectAtt = atts.getValue(a);
-        	} else if (f==StandardNames.GROUP_BY) {
+        	} else if (f.equals(StandardNames.GROUP_BY)) {
         		groupByAtt = atts.getValue(a);
-        	} else if (f==StandardNames.GROUP_ADJACENT) {
+        	} else if (f.equals(StandardNames.GROUP_ADJACENT)) {
         		groupAdjacentAtt = atts.getValue(a);
-        	} else if (f==StandardNames.GROUP_STARTING_WITH) {
+        	} else if (f.equals(StandardNames.GROUP_STARTING_WITH)) {
         		startingAtt = atts.getValue(a);
-        	} else if (f==StandardNames.GROUP_ENDING_WITH) {
+        	} else if (f.equals(StandardNames.GROUP_ENDING_WITH)) {
         		endingAtt = atts.getValue(a);
-        	} else if (f==StandardNames.COLLATION) {
-        		collationAtt = atts.getValue(a).trim();
+        	} else if (f.equals(StandardNames.COLLATION)) {
+        		collationAtt = Whitespace.trim(atts.getValue(a));
         	} else {
         		checkUnknownAttribute(nc);
         	}
@@ -89,7 +91,7 @@ public final class XSLForEachGroup extends StyleElement {
 
         if (selectAtt==null) {
             reportAbsence("select");
-            select = EmptySequence.getInstance(); // for error recovery
+            select = new Literal(EmptySequence.getInstance()); // for error recovery
         } else {
             select = makeExpression(selectAtt);
         }
@@ -97,7 +99,7 @@ public final class XSLForEachGroup extends StyleElement {
         int c = (groupByAtt==null ? 0 : 1) +
                 (groupAdjacentAtt==null ? 0 : 1) +
                 (startingAtt==null ? 0 : 1) +
-                (endingAtt==null ? 0 : 1);;
+                (endingAtt==null ? 0 : 1);
         if (c!=1) {
             compileError("Exactly one of the attributes group-by, group-adjacent, group-starting-with, " +
                     "and group-ending-with must be specified", "XTSE1080");
@@ -124,45 +126,45 @@ public final class XSLForEachGroup extends StyleElement {
                 compileError("A collation may be specified only if group-by or group-adjacent is specified", "XTSE1090");
             } else {
                 collationName = makeAttributeValueTemplate(collationAtt);
-                if (collationName instanceof StringValue) {
-                    String collation = ((StringValue)collationName).getStringValue();
+                if (collationName instanceof StringLiteral) {
+                    String collation = ((StringLiteral)collationName).getStringValue();
                     URI collationURI;
                     try {
                         collationURI = new URI(collation);
                         if (!collationURI.isAbsolute()) {
                             URI base = new URI(getBaseURI());
                             collationURI = base.resolve(collationURI);
-                            collationName = new StringValue(collationURI.toString());
+                            collationName = new StringLiteral(collationURI.toString());
                         }
                     } catch (URISyntaxException err) {
                         compileError("Collation name '" + collationName + "' is not a valid URI", "XTDE1110");
-                        collationName = new StringValue(NamespaceConstant.CODEPOINT_COLLATION_URI);
+                        collationName = new StringLiteral(NamespaceConstant.CODEPOINT_COLLATION_URI);
                     }
                 }
             }
         } else {
             String defaultCollation = getDefaultCollationName();
             if (defaultCollation != null) {
-                collationName = new StringValue(defaultCollation);
+                collationName = new StringLiteral(defaultCollation);
             }
         }
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
         checkSortComesFirst(false);
         select = typeCheck("select", select);
 
         ExpressionLocation locator = new ExpressionLocation(this);
+        ExpressionVisitor visitor = makeExpressionVisitor();
         if (groupBy != null) {
             groupBy = typeCheck("group-by", groupBy);
             try {
                 RoleLocator role =
-                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:for-each-group/group-by", 0, null);
-                role.setSourceLocator(locator);
+                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:for-each-group/group-by", 0);
+                //role.setSourceLocator(locator);
                 groupBy = TypeChecker.staticTypeCheck(groupBy,
                         SequenceType.ATOMIC_SEQUENCE,
-                        false, role, getStaticContext());
+                        false, role, visitor);
             } catch (XPathException err) {
                 compileError(err);
             }
@@ -170,12 +172,12 @@ public final class XSLForEachGroup extends StyleElement {
             groupAdjacent = typeCheck("group-adjacent", groupAdjacent);
             try {
                 RoleLocator role =
-                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:for-each-group/group-adjacent", 0, null);
-                role.setSourceLocator(locator);
+                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:for-each-group/group-adjacent", 0);
+                //role.setSourceLocator(locator);
                 role.setErrorCode("XTTE1100");
                 groupAdjacent = TypeChecker.staticTypeCheck(groupAdjacent,
                         SequenceType.SINGLE_ATOMIC,
-                        false, role, getStaticContext());
+                        false, role, visitor);
             } catch (XPathException err) {
                 compileError(err);
             }
@@ -187,12 +189,12 @@ public final class XSLForEachGroup extends StyleElement {
         if (starting != null || ending != null) {
             try {
                 RoleLocator role =
-                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:for-each-group/select", 0, null);
-                role.setSourceLocator(locator);
+                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:for-each-group/select", 0);
+                //role.setSourceLocator(locator);
                 role.setErrorCode("XTTE1120");
                 select = TypeChecker.staticTypeCheck(select,
                                             SequenceType.NODE_SEQUENCE,
-                                            false, role, getStaticContext());
+                                            false, role, visitor);
             } catch (XPathException err) {
                 String prefix = (starting != null ?
                         "With group-starting-with attribute: " :
@@ -200,14 +202,18 @@ public final class XSLForEachGroup extends StyleElement {
                 compileError(prefix + err.getMessage(), err.getErrorCodeLocalPart());
             }
         }
+        if (!hasChildNodes()) {
+            compileWarning("An empty xsl:for-each-group instruction has no effect", SaxonErrorCode.SXWN9009);
+        }
     }
 
     public Expression compile(Executable exec) throws XPathException {
 
-        Comparator collator = null;
-        if (collationName instanceof StringValue) {
+        StringCollator collator = null;
+        if (collationName instanceof StringLiteral) {
             // if the collation name is constant, then we've already resolved it against the base URI
-            collator = getPrincipalStylesheet().findCollation(((StringValue)collationName).getStringValue());
+            final String uri = ((StringLiteral)collationName).getStringValue();
+            collator = getPrincipalStylesheet().findCollation(uri);
             if (collator==null) {
                 compileError("The collation name '" + collationName + "' has not been defined", "XTDE1110");
             }
@@ -234,20 +240,17 @@ public final class XSLForEachGroup extends StyleElement {
         Expression action = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
         if (action == null) {
             // body of for-each is empty: it's a no-op.
-            return EmptySequence.getInstance();
+            return new Literal(EmptySequence.getInstance());
         }
         try {
-            ForEachGroup inst = new ForEachGroup(
-                                        select,
-                                        action.simplify(getStaticContext()),
+            return new ForEachGroup(    select,
+                                        makeExpressionVisitor().simplify(action),
                                         algorithm,
                                         key,
                                         collator,
                                         collationName,
                                         getBaseURI(),
                                         makeSortKeys() );
-            ExpressionTool.makeParentReferences(inst);
-            return inst;
         } catch (XPathException e) {
             compileError(e);
             return null;

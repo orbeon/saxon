@@ -63,13 +63,26 @@ public abstract class StaticProperty {
     public static final int DEPENDS_ON_USER_FUNCTIONS = 1<<8;
 
     /**
+     * Bit setting: Expression depends on assignable global variables
+     */
+
+    public static final int DEPENDS_ON_ASSIGNABLE_GLOBALS = 1<<9;
+
+    /**
+     * Bit setting: Expression can't be evaluated at compile time for reasons other than the above
+     */
+
+    public static final int DEPENDS_ON_RUNTIME_ENVIRONMENT = 1<<10;
+
+    /**
     * Combination of bits representing dependencies on the XSLT context
     */
 
     public static final int DEPENDS_ON_XSLT_CONTEXT =
             DEPENDS_ON_CURRENT_ITEM |
             DEPENDS_ON_CURRENT_GROUP |
-            DEPENDS_ON_REGEX_GROUP;
+            DEPENDS_ON_REGEX_GROUP |
+            DEPENDS_ON_ASSIGNABLE_GLOBALS;
 
     /**
     * Combination of bits representing dependencies on the focus
@@ -152,17 +165,21 @@ public abstract class StaticProperty {
 
     /**
      * Reduce the cardinality value to an integer in the range 0-7
+     * @param cardinality the result of calling getCardinality() on an expression
+     * @return the cardinality code
      */
 
-    public static final int getCardinalityCode(int cardinality) {
+    public static int getCardinalityCode(int cardinality) {
         return (cardinality & CARDINALITY_MASK) >> 13;
     }
 
     /**
      * Display the cardinality value as a string (used for diagnostics)
+     * @param cardinality the cardinality as returned by getCardinality() applied to an expression
+     * @return a string describing the cardinality
      */
 
-    public static final String getCardinalityDescription(int cardinality) {
+    public static String getCardinalityDescription(int cardinality) {
         int code = getCardinalityCode(cardinality);
         String[] names = {
             "not allowed",
@@ -256,6 +273,13 @@ public abstract class StaticProperty {
     public static final int HAS_SIDE_EFFECTS = 1<<24;
 
     /**
+     * Expression property: this bit indicates that although the static type of the expression
+     * permits untyped values, it is known that the value will not be untyped.
+     */
+
+    public static final int NOT_UNTYPED = 1<<25;
+
+    /**
      * Mask to select all the dependency bits
      */
 
@@ -268,6 +292,8 @@ public abstract class StaticProperty {
             DEPENDS_ON_FOCUS |
             DEPENDS_ON_LOCAL_VARIABLES |
             DEPENDS_ON_USER_FUNCTIONS |
+            DEPENDS_ON_ASSIGNABLE_GLOBALS |
+            DEPENDS_ON_RUNTIME_ENVIRONMENT |
             HAS_SIDE_EFFECTS;
 
     /**
@@ -284,7 +310,8 @@ public abstract class StaticProperty {
             ATTRIBUTE_NS_NODESET |
             SINGLE_DOCUMENT_NODESET |
             NON_CREATIVE |
-            HAS_SIDE_EFFECTS;
+            HAS_SIDE_EFFECTS |
+            NOT_UNTYPED;
 
     // This class is not instantiated
     private StaticProperty() {}

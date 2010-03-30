@@ -1,7 +1,8 @@
 package org.orbeon.saxon.sort;
-import org.orbeon.saxon.om.Item;
-
-import java.util.Comparator;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.trans.NoDynamicContextException;
 
 /**
  * A Comparer used for comparing sort keys when data-type="text". The items to be
@@ -12,13 +13,39 @@ import java.util.Comparator;
  *
  */
 
-public class TextComparer implements Comparator, java.io.Serializable {
+public class TextComparer implements AtomicComparer, java.io.Serializable {
 
-    private Comparator collator;
+    private AtomicComparer baseComparer;
 
-    public TextComparer(Comparator collator) {
-        this.collator = collator;
+    public TextComparer(AtomicComparer baseComparer) {
+        this.baseComparer = baseComparer;
     }
+
+    /**
+     * Get the underlying comparer (which doesn't do conversion to string)
+     */
+
+    public AtomicComparer getBaseComparer() {
+        return baseComparer;
+    }
+
+    /**
+     * Supply the dynamic context in case this is needed for the comparison
+     * @param context the dynamic evaluation context
+     * @return either the original AtomicComparer, or a new AtomicComparer in which the context
+     * is known. The original AtomicComparer is not modified
+     * @throws org.orbeon.saxon.trans.NoDynamicContextException if the context is an "early evaluation" (compile-time) context
+     */
+
+    public AtomicComparer provideContext(XPathContext context) {
+        AtomicComparer newBase = baseComparer.provideContext(context);
+        if (newBase != baseComparer) {
+            return new TextComparer(newBase);
+        } else {
+            return this;
+        }
+    }
+
 
     /**
     * Compare two Items by converting them to strings and comparing the string values.
@@ -29,17 +56,41 @@ public class TextComparer implements Comparator, java.io.Serializable {
     * to strings (e.g. QNames)
     */
 
-    public int compare(Object a, Object b) throws ClassCastException {
+    public int compareAtomicValues(AtomicValue a, AtomicValue b) throws ClassCastException, NoDynamicContextException {
+        return baseComparer.compareAtomicValues(toStringValue(a), toStringValue(b));
+    }
 
-        String s1, s2;
+    private StringValue toStringValue(AtomicValue a) {
+        if (a instanceof StringValue) {
+            return ((StringValue)a);
+        } else {
+            return new StringValue((a == null ? "" : a.getStringValue()));
+        }
+    }
 
-        s1 = (a instanceof String ? (String)a : (a == null ? "" : ((Item)a).getStringValue()));
-        s2 = (b instanceof String ? (String)b : (b == null ? "" : ((Item)b).getStringValue()));
+    /**
+     * Compare two AtomicValue objects for equality according to the rules for their data type. UntypedAtomic
+     * values are compared by converting to the type of the other operand.
+     *
+     * @param a the first object to be compared.
+     * @param b the second object to be compared.
+     * @return true if the values are equal, false if not
+     * @throws ClassCastException if the objects are not comparable
+     */
 
-        int x = collator.compare(s1, s2);
-        //System.err.println(((RuleBasedCollator)collator).getStrength() + " comparing " + s1 + " with " + s2 + " => " + x);
-        return x;
+    public boolean comparesEqual(AtomicValue a, AtomicValue b) throws NoDynamicContextException {
+        return compareAtomicValues(a, b) == 0;
+    }
 
+    /**
+     * Get a comparison key for an object. This must satisfy the rule that if two objects are equal
+     * according to the XPath eq operator, then their comparison keys are equal according to the Java
+     * equals() method, and vice versa. There is no requirement that the
+     * comparison keys should reflect the ordering of the underlying objects.
+     */
+
+    public ComparisonKey getComparisonKey(AtomicValue a) throws NoDynamicContextException{
+        return baseComparer.getComparisonKey(toStringValue(a));
     }
 
 }

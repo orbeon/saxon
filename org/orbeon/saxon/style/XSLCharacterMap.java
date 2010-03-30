@@ -1,5 +1,6 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.Err;
+import org.orbeon.saxon.trans.Err;
+import org.orbeon.saxon.value.Whitespace;
 import org.orbeon.saxon.sort.IntHashMap;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
@@ -34,8 +35,17 @@ public class XSLCharacterMap extends StyleElement {
      * @return the fingerprint value
      */
 
-    public int getCharacterMapFingerprint() {
-        return getObjectNameCode() & 0xfffff;
+    public StructuredQName getCharacterMapName() {
+        StructuredQName name = getObjectName();
+        if (name == null) {
+            try {
+                return makeQName(getAttributeValue("name"));
+            } catch (Exception err) {
+                // the error will be reported later
+                return new StructuredQName("", "", "unnamedCharacterMap_" + hashCode());
+            }
+        }
+        return name;
     }
 
     /**
@@ -44,6 +54,7 @@ public class XSLCharacterMap extends StyleElement {
      * considered redundant simply because it is not referenced in an xsl:output
      * declaration; we allow character-maps to be selected at run-time using the
      * setOutputProperty() API.
+     * @return true if this character map is redundant
      */
 
     public boolean isRedundant() {
@@ -65,9 +76,9 @@ public class XSLCharacterMap extends StyleElement {
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-			if (f==StandardNames.NAME) {
-        		name = atts.getValue(a).trim();
-        	} else if (f==StandardNames.USE_CHARACTER_MAPS) {
+			if (f.equals(StandardNames.NAME)) {
+        		name = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.USE_CHARACTER_MAPS)) {
         		use = atts.getValue(a);
         	} else {
         		checkUnknownAttribute(nc);
@@ -80,11 +91,15 @@ public class XSLCharacterMap extends StyleElement {
         }
 
         try {
-            setObjectNameCode(makeNameCode(name.trim()));
+            setObjectName(makeQName(name));
         } catch (NamespaceException err) {
             compileError(err.getMessage(), "XTSE0280");
+            name = "unnamedCharacterMap_" + hashCode();
+            setObjectName(new StructuredQName("", "", name));
         } catch (XPathException err) {
-            compileError(err.getMessage());
+            compileError(err.getMessage(), "XTSE0020");
+            name = "unnamedCharacterMap_" + hashCode();
+            setObjectName(new StructuredQName("", "", name));
         }
 
     }
@@ -114,11 +129,11 @@ public class XSLCharacterMap extends StyleElement {
         // precedence
 
         XSLStylesheet principal = getPrincipalStylesheet();
-        XSLCharacterMap other = principal.getCharacterMap(getObjectFingerprint());
+        XSLCharacterMap other = principal.getCharacterMap(getObjectName());
         if (other != this) {
-            if (this.getPrecedence() == other.getPrecedence()) {
+            if (getPrecedence() == other.getPrecedence()) {
                 compileError("There are two character-maps with the same name and import precedence", "XTSE1580");
-            } else if (this.getPrecedence() < other.getPrecedence()) {
+            } else if (getPrecedence() < other.getPrecedence()) {
                 redundant = true;
             }
         }
@@ -130,7 +145,7 @@ public class XSLCharacterMap extends StyleElement {
             // identify any character maps that this one refers to
 
             characterMapElements = new ArrayList(5);
-            StringTokenizer st = new StringTokenizer(use);
+            StringTokenizer st = new StringTokenizer(use, " \t\n\r", false);
 
             while (st.hasMoreTokens()) {
                 String displayname = st.nextToken();
@@ -141,9 +156,8 @@ public class XSLCharacterMap extends StyleElement {
                         compileError("Undeclared namespace prefix " + Err.wrap(parts[0])
                                 + " in character map name", "XTSE0280");
                     }
-                    int nameCode = getTargetNamePool().allocate(parts[0], uri, parts[1]);
-                    XSLCharacterMap ref =
-                            principal.getCharacterMap(nameCode & 0xfffff);
+                    StructuredQName qn = new StructuredQName(parts[0], uri, parts[1]);
+                    XSLCharacterMap ref = principal.getCharacterMap(qn);
                     if (ref == null) {
                         compileError("No character-map named '" + displayname + "' has been defined", "XTSE1590");
                     } else {
@@ -167,6 +181,7 @@ public class XSLCharacterMap extends StyleElement {
     /**
     * Check for circularity: specifically, check that this attribute set does not contain
     * a direct or indirect reference to the one supplied as a parameter
+     * @param origin the start point of the search
     */
 
     private void checkCircularity(XSLCharacterMap origin) throws XPathException {
@@ -191,6 +206,7 @@ public class XSLCharacterMap extends StyleElement {
     /**
      * Assemble all the mappings defined by this character map, adding them to a
      * HashMap that maps integer codepoints to strings
+     * @param map a hash map to be populated with the character mappings
      */
 
     public void assemble(IntHashMap map) {

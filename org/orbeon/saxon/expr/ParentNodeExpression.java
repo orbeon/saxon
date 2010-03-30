@@ -1,12 +1,10 @@
 package org.orbeon.saxon.expr;
-import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.pattern.AnyNodeTest;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.trans.XPathException;
-
-import java.io.PrintStream;
+import org.orbeon.saxon.pattern.AnyNodeTest;
 
 /**
 * Class ParentNodeExpression represents the XPath expression ".." or "parent::node()"
@@ -28,9 +26,38 @@ public class ParentNodeExpression extends SingleNodeExpression {
         if (item instanceof NodeInfo) {
             return ((NodeInfo)item).getParent();
         } else {
+            dynamicError("The context item for the parent axis (..) is not a node", "XPTY0020", context);
             return null;
         }
     }
+
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new ParentNodeExpression();
+    }
+
+
+    /**
+     * Add a representation of this expression to a PathMap. The PathMap captures a map of the nodes visited
+     * by an expression in a source tree.
+     *
+     * @param pathMap     the PathMap to which the expression should be added
+     * @param pathMapNodeSet
+     * @return the pathMapNode representing the focus established by this expression, in the case where this
+     *         expression is the first operand of a path expression or filter expression
+     */
+
+    public PathMap.PathMapNodeSet addToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodeSet) {
+        AxisExpression parent = new AxisExpression(Axis.PARENT, AnyNodeTest.getInstance());
+        parent.setContainer(getContainer());
+        return parent.addToPathMap(pathMap, pathMapNodeSet);
+    } 
 
     /**
     * Determine which aspects of the context the expression depends on. The result is
@@ -58,19 +85,24 @@ public class ParentNodeExpression extends SingleNodeExpression {
         return "ParentNodeExpression".hashCode();
     }
 
-
     /**
-    * Diagnostic print of expression structure
-    */
+     * The toString() method for an expression attempts to give a representation of the expression
+     * in an XPath-like form, but there is no guarantee that the syntax will actually be true XPath.
+     * In the case of XSLT instructions, the toString() method gives an abstracted view of the syntax
+     */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "..");
+    public String toString() {
+        return "..";
     }
 
-    public PathMap.PathMapNode addToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
-        AxisExpression parent = new AxisExpression(Axis.PARENT, AnyNodeTest.getInstance());
-        parent.setParentExpression(getParentExpression());
-        return parent.addToPathMap(pathMap, pathMapNode);
+    /**
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     */
+
+    public void explain(ExpressionPresenter destination) {
+        destination.startElement("parent");
+        destination.endElement();
     }
 
 }

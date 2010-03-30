@@ -1,14 +1,15 @@
 package org.orbeon.saxon.tree;
 
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.trans.Err;
+import org.orbeon.saxon.event.Builder;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.AnyNodeTest;
 import org.orbeon.saxon.pattern.NameTest;
 import org.orbeon.saxon.pattern.NodeTest;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.value.UntypedAtomicValue;
 import org.orbeon.saxon.value.Value;
 
@@ -16,15 +17,14 @@ import javax.xml.transform.SourceLocator;
 
 
 /**
- * A node in the XML parse tree representing an XML element, character content, or attribute.<P>
- * This is the top-level class in the implementation class hierarchy; it essentially contains
- * all those methods that can be defined using other primitive methods, without direct access
- * to data.
+ * A node in the "linked" tree representing any kind of node except a namespace node.
+ * Specific node kinds are represented by concrete subclasses.
  *
  * @author Michael H. Kay
  */
 
-public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLocator {
+public abstract class NodeImpl
+        implements MutableNodeInfo, FingerprintedNode, SiblingCountingNode, SourceLocator {
 
     protected ParentNodeImpl parent;
     protected int index;
@@ -47,10 +47,11 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
 
     /**
      * Get the type annotation of this node, if any
+     * @return the type annotation, as the integer name code of the type name
      */
 
     public int getTypeAnnotation() {
-        return StandardNames.XDT_UNTYPED;
+        return StandardNames.XS_UNTYPED;
     }
 
     /**
@@ -59,7 +60,11 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
      */
 
     public int getColumnNumber() {
-        return -1;
+        if (parent == null) {
+            return -1;
+        } else {
+            return parent.getColumnNumber();
+        }
     }
 
     /**
@@ -78,17 +83,47 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
      */
 
     public int getDocumentNumber() {
-        return getRoot().getDocumentNumber();
+        return getPhysicalRoot().getDocumentNumber();
+    }
+
+
+    /**
+     * Get the index position of this node among its siblings (starting from 0)
+     * @return 0 for the first child, 1 for the second child, etc.
+     */
+    public int getSiblingPosition() {
+        return index;
     }
 
     /**
      * Get the typed value of this node.
      * If there is no type annotation, we return the string value, as an instance
-     * of xdt:untypedAtomic
+     * of xs:untypedAtomic
      */
 
     public SequenceIterator getTypedValue() throws XPathException {
-        return SingletonIterator.makeIterator(new UntypedAtomicValue(getStringValue()));
+        int annotation = getTypeAnnotation();
+        if ((annotation & NodeInfo.IS_DTD_TYPE) != 0) {
+            annotation = StandardNames.XS_UNTYPED_ATOMIC;
+        }
+        annotation &= NamePool.FP_MASK;
+        if (annotation == -1 || annotation == StandardNames.XS_UNTYPED_ATOMIC || annotation == StandardNames.XS_UNTYPED) {
+            return SingletonIterator.makeIterator(new UntypedAtomicValue(getStringValueCS()));
+        } else {
+            SchemaType stype = getConfiguration().getSchemaType(annotation);
+            if (stype == null) {
+                String typeName;
+                try {
+                    typeName = getNamePool().getDisplayName(annotation);
+                } catch (Exception err) {
+                    typeName = annotation + "";
+                }
+                throw new XPathException("Unknown type annotation " +
+                        Err.wrap(typeName) + " in document instance");
+            } else {
+                return stype.getTypedValue(this);
+            }
+        }
     }
 
     /**
@@ -103,7 +138,22 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
      */
 
     public Value atomize() throws XPathException {
-        return new UntypedAtomicValue(getStringValue());
+        int annotation = getTypeAnnotation();
+        if ((annotation & NodeInfo.IS_DTD_TYPE) != 0) {
+            annotation = StandardNames.XS_UNTYPED_ATOMIC;
+        }
+        if (annotation == -1 || annotation == StandardNames.XS_UNTYPED_ATOMIC || annotation == StandardNames.XS_UNTYPED) {
+            return new UntypedAtomicValue(getStringValueCS());
+        } else {
+            SchemaType stype = getConfiguration().getSchemaType(annotation);
+            if (stype == null) {
+                String typeName = getNamePool().getDisplayName(annotation);
+                throw new XPathException("Unknown type annotation " +
+                        Err.wrap(typeName) + " in document instance");
+            } else {
+                return stype.atomize(this);
+            }
+        }
     }
 
     /**
@@ -142,12 +192,8 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
       */
 
      public boolean equals(Object other) {
-        if (other instanceof NodeInfo) {
-            return isSameNodeInfo((NodeInfo)other);
-        } else {
-            return false;
-        }
-    }
+       return other instanceof NodeInfo && isSameNodeInfo((NodeInfo)other);
+   }
 
      /**
       * The hashCode() method obeys the contract for hashCode(): that is, if two objects are equal
@@ -157,11 +203,11 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
       * not implement the correct semantics.
       */
 
-     public int hashCode() {
-         FastStringBuffer buff = new FastStringBuffer(20);
-         generateId(buff);
-         return buff.toString().hashCode();
-     }
+//     public int hashCode() {
+//         FastStringBuffer buff = new FastStringBuffer(20);
+//         generateId(buff);
+//         return buff.toString().hashCode();
+//     }
 
     /**
      * Get the nameCode of the node. This is used to locate the name in the NamePool
@@ -191,9 +237,16 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
      */
 
     public void generateId(FastStringBuffer buffer) {
-        getDocumentRoot().generateId(buffer);
-        buffer.append(NODE_LETTER[getNodeKind()]);
-        buffer.append(Long.toString(getSequenceNumber()));
+        long seq = getSequenceNumber();
+        if (seq == -1L) {
+            getPhysicalRoot().generateId(buffer);
+            buffer.append(NODE_LETTER[getNodeKind()]);
+            buffer.append(Long.toString(seq));
+        } else {
+            parent.generateId(buffer);
+            buffer.append(NODE_LETTER[getNodeKind()]);
+            buffer.append(Integer.toString(index));
+        }
     }
 
     /**
@@ -218,13 +271,16 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
      * least-significant word, while namespaces, attributes, text nodes, comments, and PIs have
      * the top word the same as their owner and the bottom half reflecting their relative position.
      * This is the default implementation for child nodes.
+     * For nodes added by XQUery Update, the sequence number is -1L
+     * @return the sequence number if there is one, or -1L otherwise.
      */
 
     protected long getSequenceNumber() {
         NodeImpl prev = this;
         for (int i = 0; ; i++) {
             if (prev instanceof ParentNodeImpl) {
-                return prev.getSequenceNumber() + 0x10000 + i;
+                long prevseq = prev.getSequenceNumber();
+                return (prevseq == -1L ? prevseq : prevseq + 0x10000 + i);
                 // note the 0x10000 is to leave room for namespace and attribute nodes.
             }
             prev = prev.getPreviousInDocument();
@@ -248,6 +304,10 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
         }
         long a = getSequenceNumber();
         long b = ((NodeImpl)other).getSequenceNumber();
+        if (a == -1L || b == -1L) {
+            // Nodes added by XQuery Update do not have sequence numbers
+            return Navigator.compareOrder(this, ((NodeImpl)other));
+        }
         if (a < b) {
             return -1;
         }
@@ -262,7 +322,7 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
      */
 
     public Configuration getConfiguration() {
-        return getDocumentRoot().getConfiguration();
+        return getPhysicalRoot().getConfiguration();
     }
 
     /**
@@ -270,7 +330,7 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
      */
 
     public NamePool getNamePool() {
-        return getDocumentRoot().getNamePool();
+        return getPhysicalRoot().getNamePool();
     }
 
     /**
@@ -294,7 +354,7 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
      * Get the URI part of the name of this node. This is the URI corresponding to the
      * prefix, or the URI of the default namespace if appropriate.
      *
-     * @return The URI of the namespace of this node. For the default namespace, return an
+     * @return The URI of the namespace of this node. For the null namespace, return an
      *         empty string. For an unnamed node, return the empty string.
      */
 
@@ -345,6 +405,8 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
         return parent.getLineNumber();
     }
 
+
+
     /**
      * Find the parent node of this node.
      *
@@ -352,6 +414,9 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
      */
 
     public final NodeInfo getParent() {
+        if (parent instanceof DocumentImpl && ((DocumentImpl)parent).isImaginary()) {
+            return null;
+        }
         return parent;
     }
 
@@ -363,6 +428,9 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
      */
 
     public NodeInfo getPreviousSibling() {
+        if (parent == null) {
+            return null;
+        }
         return parent.getNthChild(index - 1);
     }
 
@@ -375,6 +443,9 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
      */
 
     public NodeInfo getNextSibling() {
+        if (parent == null) {
+            return null;
+        }
         return parent.getNthChild(index + 1);
     }
 
@@ -436,7 +507,7 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
                 return new AncestorEnumeration(this, nodeTest, true);
 
             case Axis.ATTRIBUTE:
-                if (this.getNodeKind() != Type.ELEMENT) {
+                if (getNodeKind() != Type.ELEMENT) {
                     return EmptyIterator.getInstance();
                 }
                 return new AttributeEnumeration(this, nodeTest);
@@ -469,20 +540,17 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
                 return new FollowingSiblingEnumeration(this, nodeTest);
 
             case Axis.NAMESPACE:
-                if (this.getNodeKind() != Type.ELEMENT) {
+                if (getNodeKind() != Type.ELEMENT) {
                     return EmptyIterator.getInstance();
                 }
-                return new NamespaceIterator(this, nodeTest);
+                return NamespaceIterator.makeIterator(this, nodeTest);
 
             case Axis.PARENT:
                 NodeInfo parent = getParent();
                 if (parent == null) {
                     return EmptyIterator.getInstance();
                 }
-                if (nodeTest.matches(parent)) {
-                    return SingletonIterator.makeIterator(parent);
-                }
-                return EmptyIterator.getInstance();
+                return Navigator.filteredSingleton(parent, nodeTest);
 
             case Axis.PRECEDING:
                 return new PrecedingEnumeration(this, nodeTest);
@@ -491,10 +559,7 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
                 return new PrecedingSiblingEnumeration(this, nodeTest);
 
             case Axis.SELF:
-                if (nodeTest.matches(this)) {
-                    return SingletonIterator.makeIterator(this);
-                }
-                return EmptyIterator.getInstance();
+                return Navigator.filteredSingleton(this, nodeTest);
 
             case Axis.PRECEDING_OR_ANCESTOR:
                 return new PrecedingOrAncestorEnumeration(this, nodeTest);
@@ -543,22 +608,49 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
 
     /**
      * Get the root node
-     *
-     * @return the NodeInfo representing the containing document
+     * @return the NodeInfo representing the logical root of the tree. For this tree implementation the
+     * root will either be a document node or an element node.
      */
 
     public NodeInfo getRoot() {
-        return getDocumentRoot();
+        NodeInfo parent = getParent();
+        if (parent == null) {
+            return this;
+        } else {
+            return parent.getRoot();
+        }
     }
 
     /**
      * Get the root (document) node
-     *
-     * @return the DocumentInfo representing the containing document
+     * @return the DocumentInfo representing the containing document. If this
+     *     node is part of a tree that does not have a document node as its
+     *     root, returns null.
      */
 
     public DocumentInfo getDocumentRoot() {
-        return getParent().getDocumentRoot();
+        NodeInfo parent = getParent();
+        if (parent == null) {
+            return null;
+        } else {
+            return parent.getDocumentRoot();
+        }
+    }
+
+
+    /**
+     * Get the physical root of the tree. This may be an imaginary document node: this method
+     * should be used only when control information held at the physical root is required
+     * @return the document node, which may be imaginary. In the case of a node that has been detached
+     * from the tree by means of a delete() operation, this method returns null.
+     */
+
+    public DocumentImpl getPhysicalRoot() {
+        ParentNodeImpl up = parent;
+        while (up != null && !(up instanceof DocumentImpl)) {
+            up = up.parent;
+        }
+        return (DocumentImpl)up;
     }
 
     /**
@@ -631,18 +723,6 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
     }
 
     /**
-     * Output all namespace nodes associated with this element. Does nothing if
-     * the node is not an element.
-     *
-     * @param out              The relevant outputter
-     * @param includeAncestors True if namespaces declared on ancestor elements must
-     */
-
-    public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors)
-            throws XPathException {
-    }
-
-    /**
      * Get all namespace undeclarations and undeclarations defined on this element.
      *
      * @param buffer If this is non-null, and the result array fits in this buffer, then the result
@@ -686,6 +766,187 @@ public abstract class NodeImpl implements NodeInfo, FingerprintedNode, SourceLoc
         return getFirstChild() != null;
     }
 
+    /**
+     * Determine whether this node has the is-id property
+     *
+     * @return true if the node is an ID
+     */
+
+    public boolean isId() {
+        return false;
+    }
+
+    /**
+     * Determine whether this node has the is-idref property
+     *
+     * @return true if the node is an IDREF or IDREFS element or attribute
+     */
+
+    public boolean isIdref() {
+        return false;
+    }
+
+    /**
+     * Determine whether the node has the is-nilled property
+     *
+     * @return true if the node has the is-nilled property
+     */
+
+    public boolean isNilled() {
+        return false;
+    }
+
+
+    /**
+     * Set the type annotation on a node. This must only be called when the caller has verified (by validation)
+     * that the node is a valid instance of the specified type. The call is ignored if the node is not an element
+     * or attribute node.
+     *
+     * @param typeCode the type annotation (possibly including high bits set to indicate the isID, isIDREF, and
+     *                 isNilled properties)
+     */
+
+    public void setTypeAnnotation(int typeCode) {
+        // no action
+    }
+
+    /**
+     * Delete this node (that is, detach it from its parent)
+     */
+
+    public void delete() {
+        // Overridden for attribute nodes
+        if (parent != null) {
+            parent.removeChild(this);
+            DocumentImpl newRoot = new DocumentImpl();
+            newRoot.setConfiguration(parent.getConfiguration());
+            newRoot.setImaginary(true);
+            parent = newRoot;
+        }
+        index = -1;
+    }
+
+
+    /**
+     * Remove an attribute from this element node
+     *
+     * <p>If this node is not an element, or if it has no attribute with the specified name,
+     * this method takes no action.</p>
+     *
+     * <p>The attribute node itself is not modified in any way.</p>
+     * @param nameCode the name of the attribute to be removed
+     */
+
+    public void removeAttribute(int nameCode) {
+        // no action (overridden in subclasses)
+    }
+
+    /**
+     * Add an attribute to this element node.
+     * <p/>
+     * <p>If this node is not an element, or if the supplied node is not an attribute, the method
+     * takes no action. If the element already has an attribute with this name, the existing attribute
+     * is replaced.</p>
+     *
+     * @param nameCode the name of the new attribute
+     * @param typeCode the type annotation of the new attribute
+     * @param value the string value of the new attribute
+     * @param properties properties including IS_ID and IS_IDREF properties
+     */
+
+    public void putAttribute(int nameCode, int typeCode, CharSequence value, int properties) {
+        // No action, unless this is an element node
+    }
+
+    /**
+     * Rename this node
+     * @param newNameCode the NamePool code of the new name
+     */
+
+    public void rename(int newNameCode) {
+        // implemented for node kinds that have a name
+    }
+
+
+    public void addNamespace(int nscode, boolean inherit) {
+        // implemented for element nodes only
+    }
+
+    /**
+     * Replace this node with a given sequence of nodes     *
+     * @param replacement the replacement nodes
+     * @param inherit set to true if new child elements are to inherit the in-scope namespaces
+     * of their new parent
+     * @throws IllegalArgumentException if any of the replacement nodes is not an element, text,
+     * comment, or processing instruction node
+     */
+
+    public void replace(NodeInfo[] replacement, boolean inherit) {
+        parent.replaceChildrenAt(replacement, index, inherit);
+    }
+
+    /**
+     * Insert copies of a sequence of nodes as children of this node.
+     * <p/>
+     * <p>This method takes no action unless the target node is a document node or element node. It also
+     * takes no action in respect of any supplied nodes that are not elements, text nodes, comments, or
+     * processing instructions.</p>
+     * <p/>
+     * <p>The supplied nodes will be copied to form the new children. Adjacent text nodes will be merged, and
+     * zero-length text nodes removed.</p>
+     *
+     * @param source  the nodes to be inserted
+     * @param atStart true if the new nodes are to be inserted before existing children; false if they are
+     * @param inherit true if the inserted nodes are to inherit the namespaces that are in-scope for their
+     * new parent; false if such namespaces should be undeclared on the children
+     */
+
+    public void insertChildren(NodeInfo[] source, boolean atStart, boolean inherit) {
+        throw new UnsupportedOperationException("insertChildren() can only be applied to a parent node");
+    }
+
+    /**
+     * Insert copies of a sequence of nodes as siblings of this node.
+     * <p/>
+     * <p>This method takes no action unless the target node is an element, text node, comment, or
+     * processing instruction, and one that has a parent node. It also
+     * takes no action in respect of any supplied nodes that are not elements, text nodes, comments, or
+     * processing instructions.</p>
+     * <p/>
+     * <p>The supplied nodes must use the same data model implementation as the tree into which they
+     * will be inserted.</p>
+     *
+     * @param source the nodes to be inserted
+     * @param before true if the new nodes are to be inserted before the target node; false if they are
+     * @param inherit
+     */
+
+    public void insertSiblings(NodeInfo[] source, boolean before, boolean inherit) {
+        if (parent == null) {
+            throw new IllegalStateException("Cannot add siblings if there is no parent");
+        }
+        parent.insertChildrenAt(source, (before ? index : index+1), inherit);
+    }
+
+
+    /**
+     * Remove type information from this node (and its ancestors, recursively).
+     * This method implements the upd:removeType() primitive defined in the XQuery Update specification
+     */
+
+    public void removeTypeAnnotation() {
+        // no action
+    }
+
+    /**
+     * Get a Builder suitable for building nodes that can be attached to this document.
+     * @return a new Builder that constructs nodes using the same object model implementation
+     * as this one, suitable for attachment to this tree
+     */    
+
+    public Builder newBuilder() {
+        return getPhysicalRoot().newBuilder();
+    }
 }
 
 //

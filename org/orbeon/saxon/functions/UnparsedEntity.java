@@ -1,14 +1,13 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.ExpressionVisitor;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.trans.DynamicError;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.StringValue;
 
 /**
@@ -24,10 +23,11 @@ public class UnparsedEntity extends SystemFunction implements XSLTFunction {
 
     /**
     * Simplify: add a second implicit argument, the context document
-    */
+     * @param visitor an expression visitor
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
-        UnparsedEntity f = (UnparsedEntity)super.simplify(env);
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        UnparsedEntity f = (UnparsedEntity)super.simplify(visitor);
         f.addContextDocumentArgument(1, (operation==URI ? "unparsed-entity-uri_9999_": "unparsed-entity-public-id_9999_"));
         return f;
     }
@@ -38,18 +38,18 @@ public class UnparsedEntity extends SystemFunction implements XSLTFunction {
      * can override the preEvaluate method.
      */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
         try {
-            return super.typeCheck(env, contextItemType);
+            return super.typeCheck(visitor, contextItemType);
         } catch (XPathException err) {
             if ("XPDY0002".equals(err.getErrorCodeLocalPart())) {
                 if (operation == URI) {
-                    DynamicError e = new DynamicError("Cannot call the unparsed-entity-uri()" +
+                    XPathException e = new XPathException("Cannot call the unparsed-entity-uri()" +
                             " function when there is no context node");
                     e.setErrorCode("XTDE1370");
                     throw e;
                 } else {
-                    DynamicError e = new DynamicError("Cannot call the unparsed-entity-public-id()" +
+                    XPathException e = new XPathException("Cannot call the unparsed-entity-public-id()" +
                             " function when there is no context node");
                     e.setErrorCode("XTDE1380");
                     throw e;
@@ -61,9 +61,10 @@ public class UnparsedEntity extends SystemFunction implements XSLTFunction {
 
     /**
     * preEvaluate: this method suppresses compile-time evaluation by doing nothing
-    */
+     * @param visitor an expression visitor
+     */
 
-    public Expression preEvaluate(StaticContext env) {
+    public Expression preEvaluate(ExpressionVisitor visitor) {
         return this;
     }
 
@@ -79,24 +80,24 @@ public class UnparsedEntity extends SystemFunction implements XSLTFunction {
         } catch (XPathException err) {
             if ("XPDY0002".equals(err.getErrorCodeLocalPart())) {
                 if (operation == URI) {
-                    DynamicError e = new DynamicError("Cannot call the unparsed-entity-uri()" +
+                    XPathException e = new XPathException("Cannot call the unparsed-entity-uri()" +
                             " function when there is no context node");
                     e.setErrorCode("XTDE1370");
                     throw e;
                 } else {
-                    DynamicError e = new DynamicError("Cannot call the unparsed-entity-public-id()" +
+                    XPathException e = new XPathException("Cannot call the unparsed-entity-public-id()" +
                             " function when there is no context node");
                     e.setErrorCode("XTDE1380");
                     throw e;
                 }
             } else if ("XPDY0050".equals(err.getErrorCodeLocalPart())) {
                 if (operation == URI) {
-                    DynamicError e = new DynamicError("Can only call the unparsed-entity-uri()" +
+                    XPathException e = new XPathException("Can only call the unparsed-entity-uri()" +
                             " function when the context node is in a tree rooted at a document node");
                     e.setErrorCode("XTDE1370");
                     throw e;
                 } else {
-                    DynamicError e = new DynamicError("Can only call the unparsed-entity-public-id()" +
+                    XPathException e = new XPathException("Can only call the unparsed-entity-public-id()" +
                             " function when the context node is in a tree rooted at a document node");
                     e.setErrorCode("XTDE1380");
                     throw e;
@@ -105,7 +106,7 @@ public class UnparsedEntity extends SystemFunction implements XSLTFunction {
         }
         if (doc.getNodeKind() != Type.DOCUMENT) {
             String code = (operation==URI ? "XTDE1370" : "XTDE1380");
-            dynamicError("In function " + getDisplayName(context.getNamePool()) +
+            dynamicError("In function " + getDisplayName() +
                             ", the context node must be in a tree whose root is a document node", code, context);
         }
         String[] ids = ((DocumentInfo)doc).getUnparsedEntity(arg0);

@@ -1,10 +1,15 @@
 package org.orbeon.saxon.expr;
-import org.orbeon.saxon.sort.DocumentSorter;
-import org.orbeon.saxon.sort.Reverser;
-import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.value.SequenceType;
+
 import org.orbeon.saxon.functions.Current;
+import org.orbeon.saxon.functions.Reverse;
+import org.orbeon.saxon.instruct.Block;
+import org.orbeon.saxon.instruct.LocalParam;
+import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.om.StructuredQName;
+import org.orbeon.saxon.sort.DocumentSorter;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.TypeHierarchy;
+import org.orbeon.saxon.value.SequenceType;
 
 /**
 * PromotionOffer is an object used transiently during compilation of an expression. It contains
@@ -51,7 +56,8 @@ public class PromotionOffer  {
     // Note: After inlining variable references, it is possible for an expression to appear at more
     // than one place in the expression tree. This seems dangerous, since a rewrite applied to one
     // branch might be inappropriate in another branch. We get away with it because the only expressions
-    // that we are inline are very simple ones: (a) a ContextItemExpression, and (b) another VariableReference.
+    // that we are inline are very simple ones: (a) a ContextItemExpression, and (b) another VariableReference,
+    // or because we only inline an expression where there is a single variable reference
 
     /**
      * UNORDERED indicates that the containing expression does not require the results
@@ -69,14 +75,29 @@ public class PromotionOffer  {
     public static final int REPLACE_CURRENT = 14;
 
     /**
+     * EXTRACT_GLOBAL_VARIABLES identifies subexpressions that are not constant, but have no dependencies
+     * other than on global variables or parameters (they must also be non-creative). Such expressions can
+     * be extracted from a function or template and converted into global variables. This optimization is done
+     * in Saxon-SA only.
+     */
+
+    public static final int EXTRACT_GLOBAL_VARIABLES = 15;
+
+    /**
      * The optimizer in use
      */
 
     private Optimizer optimizer;
 
     /**
+     * The expression visitor in use
+     */
+
+    public ExpressionVisitor visitor;
+
+    /**
     * action is one of the possible promotion actions, FOCUS_INDEPENDENT, RANGE_INDEPENDENT,
-    * INLINE_VARIABLE_REFERENCES, ANY_ORDER, ANY_ORDER_UNIQUE
+    * INLINE_VARIABLE_REFERENCES, UNORDERED, EXTRACT_GLOBAL_VARIABLES
     */
 
     public int action;
@@ -101,17 +122,16 @@ public class PromotionOffer  {
     public boolean promoteXSLTFunctions = true;
 
     /**
-     * In the case of UNORDERED, "mustEliminateDuplicates" is a boolean that is set to
-     * true if the nodes can be delivered in any order so long as there are no duplicates
-     * (for example, as required by the count() function). If this boolean is false, the
-     * nodes can be delivered in any order and duplicates are allowed (for example, as
-     * required by the boolean() function).
+     * In the case of UNORDERED, "retainAllNodes" is a boolean that is set to
+     * true if the nodes can be delivered in any order so long as the right number of nodes
+     * are delivered. If this boolean is false, the caller doesn't care whether duplicate nodes
+     * are retained or whether they are eliminated.
      */
 
-    public boolean mustEliminateDuplicates = true;
+    public boolean retainAllNodes = true;
 
     /**
-    * In the case of RANGE_INDEPENDENT and WHERE_CLAUSE, "binding" identifies the range variables whose dependencies
+    * In the case of RANGE_INDEPENDENT, "binding" identifies the range variables whose dependencies
     * we are looking for. For INLINE_VARIABLE_REFERENCES it is a single Binding that we are aiming to inline
     */
 
@@ -133,6 +153,7 @@ public class PromotionOffer  {
 
     /**
      * Create a PromotionOffer for use with a particular Optimizer
+     * @param optimizer the optimizer
      */
 
     public PromotionOffer(Optimizer optimizer) {
@@ -141,6 +162,7 @@ public class PromotionOffer  {
 
     /**
      * Get the optimizer in use
+     * @return the optimizer
      */
 
     public Optimizer getOptimizer() {
@@ -148,11 +170,14 @@ public class PromotionOffer  {
     }
 
     /**
-    * Method to test whether a subexpression qualifies for promotion, and if so, to
-    * accept the promotion.
-    * @return if promotion was done, returns the expression that should be used in place
-    * of the child expression. If no promotion was done, returns null.
-    */
+     * Method to test whether a subexpression qualifies for promotion, and if so, to
+     * accept the promotion.
+     * @param child the subexpression in question
+     * @return if promotion was done, returns the expression that should be used in place
+     * of the child expression. If no promotion was done, returns null. If promotion is
+     * determined not to be necessary for this subtree, returns the supplied child expression
+     * unchanged
+     */
 
     public Expression accept(Expression child) throws XPathException {
         switch (action) {
@@ -160,7 +185,8 @@ public class PromotionOffer  {
                 int properties = child.getSpecialProperties();
                 if (((properties & StaticProperty.NON_CREATIVE) != 0) &&
                         !ExpressionTool.dependsOnVariable(child, bindingList) &&
-                        (child.getDependencies() & StaticProperty.HAS_SIDE_EFFECTS) == 0) {
+                        (child.getDependencies() &
+                                (StaticProperty.HAS_SIDE_EFFECTS | StaticProperty.DEPENDS_ON_ASSIGNABLE_GLOBALS)) == 0) {
                     return promote(child);
                 }
                 break;
@@ -172,7 +198,11 @@ public class PromotionOffer  {
                 if (!promoteXSLTFunctions && ((dependencies & StaticProperty.DEPENDS_ON_XSLT_CONTEXT) != 0)) {
                     break;
                 }
-                if ((dependencies & StaticProperty.HAS_SIDE_EFFECTS) != 0) {
+                if (ExpressionTool.dependsOnVariable(child, bindingList)) {
+                    break;
+                }
+                if ((dependencies &
+                        (StaticProperty.HAS_SIDE_EFFECTS | StaticProperty.DEPENDS_ON_ASSIGNABLE_GLOBALS)) != 0) {
                     break;
                 }
                 if ((dependencies & StaticProperty.DEPENDS_ON_FOCUS) == 0 &&
@@ -188,10 +218,11 @@ public class PromotionOffer  {
 
             case REPLACE_CURRENT: {
                 if (child instanceof Current) {
-                    VariableReference var = new VariableReference(
-                            ((Assignation)containingExpression).getVariableDeclaration());
-                    var.setParentExpression(child.getParentExpression());
+                    LocalVariableReference var = new LocalVariableReference((Assignation)containingExpression);
+                    ExpressionTool.copyLocationInfo(child, var);
                     return var;
+                } else if (!ExpressionTool.callsFunction(child, Current.FN_CURRENT)) {
+                    return child;
                 }
                 break;
             }
@@ -199,37 +230,36 @@ public class PromotionOffer  {
             case INLINE_VARIABLE_REFERENCES: {
                 if (child instanceof VariableReference &&
                     ((VariableReference)child).getBinding() == bindingList[0]) {
-                    // TODO: The old code results in the same expression appearing in more than one
-                    // place in the tree. This causes problems with replaceSubExpression. We should clone
-                    // the expression. But we don't have a mechanism for that, so pro tem we rely on the fact
-                    // that this path is only used to replace a variable reference with either another variable
-                    // reference or with a ContextItemExpression, both of which can be cloned.
-                    //return containingExpression;
-                    if (containingExpression instanceof ContextItemExpression) {
-                        ContextItemExpression clone = ((ContextItemExpression)containingExpression).copy();
-                        return clone;
-                    } else if (containingExpression instanceof VariableReference) {
-                        VariableReference clone = ((VariableReference)containingExpression).copy();
-                        return clone;
-                    } else {
-                        // shouldn't happen
+                    try {
+                        Expression copy = containingExpression.copy();
+                        ExpressionTool.copyLocationInfo(child, copy);
+                        return copy;
+                    } catch (UnsupportedOperationException err) {
+                        // If we can't make a copy, return the original. This is safer than it seems,
+                        // because on the paths where this happens, we are merely moving the expression from
+                        // one place to another, not replicating it
                         return containingExpression;
                     }
                 }
                 break;
             }
             case UNORDERED: {
-                if (child instanceof Reverser) {
-                    Expression base = ((Reverser)child).getBaseExpression();
-                    ComputedExpression.setParentExpression(base, child.getParentExpression());
-                    return base;
-                } else if (child instanceof DocumentSorter && !mustEliminateDuplicates) {
-                    Expression base = ((DocumentSorter)child).getBaseExpression();
-                    ComputedExpression.setParentExpression(base, child.getParentExpression());
-                    return base;
+                if (child instanceof Reverse) {
+                    return ((Reverse)child).getArguments()[0];
+                } else if (child instanceof DocumentSorter && !retainAllNodes) {
+                    return ((DocumentSorter)child).getBaseExpression();
                 }
                 break;
             }
+            case EXTRACT_GLOBAL_VARIABLES:
+                if (!(child instanceof Literal || child instanceof LocalParam ||
+                        (child instanceof Block && ((Block)child).containsLocalParam())) &&
+                        (child.getDependencies()&~StaticProperty.DEPENDS_ON_RUNTIME_ENVIRONMENT) == 0 &&
+                        (child.getSpecialProperties() & StaticProperty.NON_CREATIVE) != 0) {
+                    return optimizer.extractGlobalVariables(child, visitor);
+                }
+                break;
+
             default:
                 throw new UnsupportedOperationException("Unknown promotion action " + action);
         }
@@ -237,30 +267,40 @@ public class PromotionOffer  {
     }
 
     /**
-    * Method to do the promotion.
+     * Method to promote a subexpression. A LetExpression is created which binds the child expression
+     * to a system-created variable, and then returns the original expression, with the child expression
+     * replaced by a reference to the variable.
+     * @param child the expression to be promoted
+     * @return the expression that results from the promotion, if any took place
     */
 
     private Expression promote(Expression child) {
-        final RangeVariableDeclaration decl = new RangeVariableDeclaration();
-        decl.setVariableName("zz:" + decl.hashCode());
         final TypeHierarchy th = optimizer.getConfiguration().getTypeHierarchy();
-        SequenceType type = SequenceType.makeSequenceType(child.getItemType(th), child.getCardinality());
-        decl.setRequiredType(type);
 
-        VariableReference var = new VariableReference(decl);
-        ExpressionTool.copyLocationInfo(containingExpression, var);
-        var.setParentExpression(child.getParentExpression());
+        // if the expression being promoted is an operand of "=", make the variable an indexed variable
+        boolean indexed = false;
+        Expression parent = containingExpression.findParentOf(child);
+        if (parent instanceof GeneralComparison && ((GeneralComparison)parent).getOperator() == Token.EQUALS) {
+            indexed = true;
+        }
 
-        Container container = containingExpression.getParentExpression();
         LetExpression let = new LetExpression();
-        let.setVariableDeclaration(decl);
+        let.setVariableQName(new StructuredQName("zz", NamespaceConstant.SAXON, "zz" + let.hashCode()));
+        SequenceType type = SequenceType.makeSequenceType(child.getItemType(th), child.getCardinality());
+        let.setRequiredType(type);
+        ExpressionTool.copyLocationInfo(containingExpression, let);
         let.setSequence(LazyExpression.makeLazyExpression(child));
         let.setAction(containingExpression);
-        let.setParentExpression(container);
         let.adoptChildExpression(containingExpression);
+        if (indexed) {
+            let.setIndexedVariable();
+        }
         containingExpression = let;
         accepted = true;
-
+        LocalVariableReference var = new LocalVariableReference(let);
+        int properties = child.getSpecialProperties()&StaticProperty.NOT_UNTYPED;
+        var.setStaticType(type, null, properties);
+        ExpressionTool.copyLocationInfo(containingExpression, var);
         return var;
     }
 

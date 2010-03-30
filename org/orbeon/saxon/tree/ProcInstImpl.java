@@ -60,7 +60,9 @@ class ProcInstImpl extends NodeImpl {
     }
 
     /**
-    * Set the system ID and line number
+     * Set the system ID and line number
+     * @param uri the system identifier
+     * @param lineNumber the line number
     */
 
     public void setLocation(String uri, int lineNumber) {
@@ -69,7 +71,8 @@ class ProcInstImpl extends NodeImpl {
     }
 
     /**
-    * Get the system ID for the entity containing this node.
+     * Get the system ID for the entity containing this node.
+     * @return the system identifier
     */
 
     public String getSystemId() {
@@ -98,6 +101,7 @@ class ProcInstImpl extends NodeImpl {
      * The target of this processing instruction. XML defines this as being
      * the first token following the markup that begins the processing
      * instruction.
+     * @return the processing instruction name
      */
 
     public String getTarget() {
@@ -108,6 +112,7 @@ class ProcInstImpl extends NodeImpl {
      *  The content of this processing instruction. This is from the first non
      * white space character after the target to the character immediately
      * preceding the <code>?&gt;</code> .
+     * @return the string value of the processing instruction node
      */
 
     public String getData() {
@@ -115,6 +120,26 @@ class ProcInstImpl extends NodeImpl {
     }
 
 
+    /**
+     * Rename this node
+     *
+     * @param newNameCode the NamePool code of the new name
+     */
+
+    public void rename(int newNameCode)  {
+        nameCode = newNameCode;
+    }
+
+
+    /**
+     * Replace the string-value of this node
+     *
+     * @param stringValue the new string value
+     */
+
+     public void replaceStringValue(CharSequence stringValue) {
+        content = stringValue.toString();
+    }
 }
 
 

@@ -1,8 +1,5 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.expr.StaticProperty;
-import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.regex.RegexIterator;
 import org.orbeon.saxon.trans.XPathException;
@@ -15,9 +12,10 @@ public class RegexGroup extends SystemFunction implements XSLTFunction {
 
     /**
     * preEvaluate: this method suppresses compile-time evaluation by doing nothing
-    */
+     * @param visitor an expression visitor
+     */
 
-    public Expression preEvaluate(StaticContext env) {
+    public Expression preEvaluate(ExpressionVisitor visitor) {
         return this;
     }
 
@@ -27,11 +25,15 @@ public class RegexGroup extends SystemFunction implements XSLTFunction {
 
     public Item evaluateItem(XPathContext c) throws XPathException {
         AtomicValue gp0 = (AtomicValue)argument[0].evaluateItem(c);
-        NumericValue gp = (NumericValue)gp0.getPrimitiveValue();
+        NumericValue gp = (NumericValue)gp0;
         RegexIterator iter = c.getCurrentRegexIterator();
-        if (iter == null) return null;
+        if (iter == null) {
+            return StringValue.EMPTY_STRING;
+        }
         String s = iter.getRegexGroup((int)gp.longValue());
-        if (s == null) return null;
+        if (s == null) {
+            return StringValue.EMPTY_STRING;
+        }
         return StringValue.makeStringValue(s);
     }
 

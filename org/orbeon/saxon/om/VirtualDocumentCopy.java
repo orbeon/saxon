@@ -2,6 +2,8 @@ package org.orbeon.saxon.om;
 
 import org.orbeon.saxon.Configuration;
 
+import java.util.Iterator;
+
 /**
  * A virtual copy of a document node
  *
@@ -41,6 +43,17 @@ public class VirtualDocumentCopy extends VirtualCopy implements DocumentInfo {
         VirtualCopy vc = VirtualCopy.makeVirtualCopy(n, original);
         vc.documentNumber = documentNumber;
         return vc;
+    }
+
+    /**
+     * Get the list of unparsed entities defined in this document
+     * @return an Iterator, whose items are of type String, containing the names of all
+     *         unparsed entities defined in this document. If there are no unparsed entities or if the
+     *         information is not available then an empty iterator is returned
+     */
+
+    public Iterator getUnparsedEntityNames() {
+        return ((DocumentInfo)original).getUnparsedEntityNames();
     }
 
     /**

@@ -1,6 +1,7 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.UnfailingIterator;
 import org.orbeon.saxon.value.StringValue;
 
 import java.util.StringTokenizer;
@@ -10,7 +11,7 @@ import java.util.StringTokenizer;
 * and returns the tokens as a sequence of strings.
 */
 
-public class StringTokenIterator implements SequenceIterator {
+public class StringTokenIterator implements UnfailingIterator {
 
     private String theString;
     private String delimiters;  // null implies use whitespace as delimiter
@@ -26,7 +27,7 @@ public class StringTokenIterator implements SequenceIterator {
     public StringTokenIterator (String string) {
         theString = string;
         delimiters = null;
-        tokenizer = new StringTokenizer(string);
+        tokenizer = new StringTokenizer(string, " \t\n\r", false);
     }
 
     /**
@@ -38,7 +39,7 @@ public class StringTokenIterator implements SequenceIterator {
     public StringTokenIterator (String string, String delimiters) {
         theString = string;
         this.delimiters = delimiters;
-        tokenizer = new StringTokenizer(string, delimiters);
+        tokenizer = new StringTokenizer(string, delimiters, false);
     }
 
     public Item next() {
@@ -59,6 +60,9 @@ public class StringTokenIterator implements SequenceIterator {
 
     public int position() {
         return position;
+    }
+
+    public void close() {
     }
 
     public SequenceIterator getAnother() {

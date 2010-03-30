@@ -1,10 +1,11 @@
 package org.orbeon.saxon.sort;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.NumericValue;
 
 /**
- * A Comparator used for sorting values that are known to be numeric.
+ * An AtomicComparer used for sorting values that are known to be numeric.
  * It also supports a separate method for getting a collation key to test equality of items.
  * This comparator treats NaN values as equal to each other, and less than any other value.
  *
@@ -15,6 +16,11 @@ import org.orbeon.saxon.value.NumericValue;
 public class DoubleSortComparer implements AtomicComparer {
 
     private static DoubleSortComparer THE_INSTANCE = new DoubleSortComparer();
+
+    /**
+     * Get the singular instance of this class
+     * @return the singular instance 
+     */
     
     public static DoubleSortComparer getInstance() {
         return THE_INSTANCE;
@@ -22,6 +28,18 @@ public class DoubleSortComparer implements AtomicComparer {
     
     private DoubleSortComparer() {
 
+    }
+
+    /**
+     * Supply the dynamic context in case this is needed for the comparison
+     *
+     * @param context the dynamic evaluation context
+     * @return either the original AtomicComparer, or a new AtomicComparer in which the context
+     *         is known. The original AtomicComparer is not modified
+     */
+
+    public AtomicComparer provideContext(XPathContext context) {
+        return this;
     }
 
     /**
@@ -36,7 +54,7 @@ public class DoubleSortComparer implements AtomicComparer {
     * @throws ClassCastException if the objects are not comparable
     */
 
-    public int compare(Object a, Object b) {
+    public int compareAtomicValues(AtomicValue a, AtomicValue b) {
         if (a == null) {
             if (b == null) {
                 return 0;
@@ -47,15 +65,11 @@ public class DoubleSortComparer implements AtomicComparer {
             return +1;
         }
 
-        NumericValue an = (NumericValue)((AtomicValue)a).getPrimitiveValue();
-        NumericValue bn = (NumericValue)((AtomicValue)b).getPrimitiveValue();
+        NumericValue an = (NumericValue)a;
+        NumericValue bn = (NumericValue)b;
 
         if (an.isNaN()) {
-            if (bn.isNaN()) {
-                return 0;
-            } else {
-                return -1;
-            }
+            return (bn.isNaN() ? 0 : -1);
         } else if (bn.isNaN()) {
             return +1;
         }
@@ -68,7 +82,7 @@ public class DoubleSortComparer implements AtomicComparer {
      */
 
     public boolean comparesEqual(AtomicValue a, AtomicValue b) {
-        return compare(a, b) == 0;
+        return compareAtomicValues(a, b) == 0;
     }
 
     /**
@@ -79,12 +93,11 @@ public class DoubleSortComparer implements AtomicComparer {
     */
 
     public ComparisonKey getComparisonKey(AtomicValue a) {
-        AtomicValue prim = a.getPrimitiveValue();
-        if (((NumericValue)prim).isNaN()) {
-            // Deal with NaN specially. For this function, NaN is considered equal to itself
-            return new ComparisonKey(StandardNames.XDT_NUMERIC, AtomicSortComparer.COLLATION_KEY_NaN);
+        if (((NumericValue)a).isNaN()) {
+            // Deal with NaN specially. For sorting and similar operations, NaN is considered equal to itself
+            return new ComparisonKey(StandardNames.XS_NUMERIC, AtomicSortComparer.COLLATION_KEY_NaN);
         } else {
-            return new ComparisonKey(StandardNames.XDT_NUMERIC, prim);
+            return new ComparisonKey(StandardNames.XS_NUMERIC, a);
         }
     }
 

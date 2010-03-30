@@ -1,0 +1,76 @@
+<html>
+
+<head>
+<title>Package overview for org.orbeon.saxon.tinytree</title>
+</head>
+
+<body>
+
+<p>This package is an implementation of the Saxon internal tree structure,
+designed to minimize memory usage, and the costs of allocating and garbage-collecting
+Java objects.</p>
+
+<p>The data structure consists of a set of arrays, held in the <code>TinyTree</code> object.
+A <code>TinyTree</code> represents one or more root document or element nodes, together with their
+subtrees. If there is more than one root node, these will often be members of a sequence, but
+this is not essential and is never assumed.
+The arrays are in three groups. </p>
+
+<p>The principal group of arrays contain one entry for each node other
+than namespace and attribute nodes. These arrays are in document order. The following
+information is maintained for each node: the
+depth in the tree, the name code, the index of the next sibling, and two fields labelled "alpha" and "beta".
+ The meaning of "alpha" and
+"beat" depends on the node type. For text nodes, comment nodes, and processing instructions
+these fields index into a StringBuffer holding the text. For element nodes, "alpha" is
+an index into the attributes table, and "beta" is an offset into the namespaces table.
+Either of these may be set to -1 if there are no attributes/namespaces.</p>
+
+<p>A name code is an integer value that indexes into the NamePool object: it can be
+used to determine the prefix, local name, or namespace URI of an element or attribute name.</p>
+
+<p>The attribute group holds the following information for each attribute node: parent
+element, prefix, name code, attribute type, and attribute value. Attributes
+for the same element are adjacent.</p>
+
+<p>The namespace group holds one entry per namespace declaration (not one per namespace
+node). The following information is held: a pointer to the element on which the namespace
+was declared, and a namespace code. A namespace code is an integer, which the NamePool can
+resolve into a prefix and a namespace URI: the top 16 bits identify the prefix, the bottom
+16 bits the URI.</p>
+
+<p>The data structure contains no Java object references: the links between elements and
+attributes/namespaces are all held as integer offsets. This reduces size, and also makes
+the whole structure relocatable (though this capability is not currently exploited).
+ All navigation is done by serial traversal of the arrays, using
+the node depth as a guide. An array of pointers to the preceding sibling is created on
+demand, the first time that backwards navigation is attempted. There are no parent pointers;
+Saxon attempts to remember the parent while navigating down the tree, and where this is not
+possible it locates the parent by searching through the following siblings; the last sibling
+points back to the parent. The absence of the other pointers is a trade-off between tree-building time and
+transformation time: I found that in most cases, more time was spent creating these pointers
+than actually using them. Occasionally, however, in trees with a very large fan-out, locating
+ancestors can be slow.</p>
+
+<p>When the tree is navigated, transient ("flyweight") nodes are created as Java objects.
+These disappear as soon as they are no longer needed. Note that to compare two nodes for
+identity, you can use either the isSameNode() method, or compare the results of 
+generateId(). Comparing the Java objects using "==" is incorrect.</p>
+
+<p>The tree structure implements the DOM interface as well as the Saxon NodeInfo interface.
+There are limitations in the DOM support, however: especially (a) the tree is immutable, so
+all updating methods throw an exception; (b) namespace declarations are not exposed as
+attributes, and (c) only the core DOM classes are provided.</p>
+
+<p>The primary way of navigating the tree is through the XPath axes, accessible through the
+iterateAxis() method. The familiar DOM methods such as getNextSibling() and getFirstChild()
+are not provided as an intrinsic part of the <code>NodeInfo</code> interface: all navigation
+is done by iterating the axes, and each tree model provides its own implementations of the axes.
+However, there are helper methods in the shared <code>Navigator</code> class which many
+of these implementations choose to use.</p>
+
+<p align="center"><i>Michael H. Kay<br/>
+Saxonica Limited<br/>
+9 February 2005</i></p>
+</body>
+</html>

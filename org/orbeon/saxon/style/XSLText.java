@@ -1,16 +1,14 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.Literal;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.ValueOf;
-import org.orbeon.saxon.om.AttributeCollection;
-import org.orbeon.saxon.om.Axis;
-import org.orbeon.saxon.om.AxisIterator;
-import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.Whitespace;
 
 /**
 * Handler for xsl:text elements in stylesheet. <BR>
@@ -40,8 +38,8 @@ public class XSLText extends XSLStringConstructor {
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-			if (f==StandardNames.DISABLE_OUTPUT_ESCAPING) {
-        		disableAtt = atts.getValue(a).trim();
+			if (f.equals(StandardNames.DISABLE_OUTPUT_ESCAPING)) {
+        		disableAtt = Whitespace.trim(atts.getValue(a));
         	} else {
         		checkUnknownAttribute(nc);
         	}
@@ -59,7 +57,6 @@ public class XSLText extends XSLStringConstructor {
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
 
         // 2.0 spec has reverted to the 1.0 rule that xsl:text may not have child elements
         AxisIterator kids = iterateAxis(Axis.CHILD);
@@ -73,7 +70,7 @@ public class XSLText extends XSLStringConstructor {
                 return;
             } else {
                 value = StringValue.makeStringValue(child.getStringValueCS());
-                continue;
+                //continue;
             }
         }
         super.validate();
@@ -89,10 +86,7 @@ public class XSLText extends XSLStringConstructor {
     }
 
     public Expression compile(Executable exec) throws XPathException {
-        ValueOf inst = new ValueOf(value, disable, false);
-        //compileContent(exec, inst);
-        ExpressionTool.makeParentReferences(inst);
-        return inst;
+        return new ValueOf(Literal.makeLiteral(value), disable, false);
     }
 
 }

@@ -7,6 +7,7 @@ import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.Whitespace;
 import org.xml.sax.XMLReader;
 
+import javax.xml.transform.TransformerException;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.util.StringTokenizer;
@@ -24,10 +25,17 @@ public class URIQueryParameters {
     int strip = Whitespace.UNSPECIFIED;
     Integer onError = null;
     XMLReader parser = null;
+    Boolean xinclude = null;
 
     public static final int ON_ERROR_FAIL = 1;
     public static final int ON_ERROR_WARNING = 2;
     public static final int ON_ERROR_IGNORE = 3;
+
+    /**
+     * Create an object representing the query part of a URI
+     * @param query the part of the URI after the "?" symbol
+     * @param config the Saxon configuration
+     */    
 
     public URIQueryParameters(String query, Configuration config) {
         if (query != null) {
@@ -73,6 +81,12 @@ public class URIQueryParameters {
                         } else if (value.equals("no")) {
                             strip = Whitespace.NONE;
                         }
+                    } else if (keyword.equals("xinclude")) {
+                        if (value.equals("yes")) {
+                            xinclude = Boolean.TRUE;
+                        } else if (value.equals("no")) {
+                            xinclude = Boolean.FALSE;
+                        }
                     } else if (keyword.equals("on-error")) {
                         if (value.equals("warning")) {
                             onError = new Integer(ON_ERROR_WARNING);
@@ -88,7 +102,11 @@ public class URIQueryParameters {
                             }
                             parser = (XMLReader)config.getInstance(value, null);
                         } catch (XPathException err) {
-                            //
+                            try {
+                                config.getErrorListener().warning(err);
+                            } catch (TransformerException e) {
+                                //
+                            }
                         }
                     }
                 }
@@ -137,6 +155,14 @@ public class URIQueryParameters {
 
     public Integer getOnError() {
         return onError;
+    }
+
+    /**
+     * Get the value of xinclude=yes|no, or null if unspecified
+     */
+
+    public Boolean getXInclude() {
+        return xinclude;
     }
 
     /**

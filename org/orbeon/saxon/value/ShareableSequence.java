@@ -1,7 +1,6 @@
 package org.orbeon.saxon.value;
 import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.expr.StaticProperty;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.ListIterator;
 import org.orbeon.saxon.om.NodeInfo;
@@ -38,12 +37,13 @@ public final class ShareableSequence extends Value {
     public ShareableSequence(List list) {
         //System.err.println("** Using shareable sequence **");
         this.list = list;
-        this.end = list.size();
+        end = list.size();
     }
 
     /**
      * Determine whether another value can share this list. This is true provided the list has
      * not already been extended by another value.
+     * @return true if another value can share this list
      */
 
     public boolean isShareable() {
@@ -52,23 +52,16 @@ public final class ShareableSequence extends Value {
 
     /**
      * Get the underlying list
+     * @return the underlying list of values
      */
 
     public List getList() {
         return list;
     }
 
-     /**
-     * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
-     * This method indicates which of these methods is preferred.
-     */
-
-    public int getImplementationMethod() {
-        return ITERATE_METHOD;
-    }
-
     /**
      * Simplify this value
+     * @return the simplified value
      */
 
     public Value simplify() {
@@ -127,7 +120,7 @@ public final class ShareableSequence extends Value {
      *
      * @return integer identifying an item type to which all the items in this
      *      sequence conform
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
@@ -168,13 +161,11 @@ public final class ShareableSequence extends Value {
     /**
      * Return an iterator over this sequence.
      *
-     * @param context dynamic evaluation context; not used in this
-     *     implementation of the method
      * @return the required SequenceIterator, positioned at the start of the
      *     sequence
      */
 
-    public SequenceIterator iterate(XPathContext context) {
+    public SequenceIterator iterate() {
         return new ListIterator(list, end);
     }
 
@@ -182,7 +173,7 @@ public final class ShareableSequence extends Value {
      * Get the effective boolean value
      */
 
-    public boolean effectiveBooleanValue(XPathContext context) throws XPathException {
+    public boolean effectiveBooleanValue() throws XPathException {
         int len = getLength();
         if (len == 0) {
             return false;
@@ -190,9 +181,9 @@ public final class ShareableSequence extends Value {
             return true;
         } else if (len > 1) {
             // this is a type error - reuse the error messages
-            return ExpressionTool.effectiveBooleanValue(iterate(context));
+            return ExpressionTool.effectiveBooleanValue(iterate());
         } else {
-            return ((AtomicValue)itemAt(0)).effectiveBooleanValue(context);
+            return ((AtomicValue)itemAt(0)).effectiveBooleanValue();
         }
     }
 

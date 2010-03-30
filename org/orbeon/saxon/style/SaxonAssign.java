@@ -1,6 +1,5 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.instruct.Assign;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.trans.XPathException;
@@ -13,7 +12,6 @@ import org.orbeon.saxon.trans.XPathException;
 
 public class SaxonAssign extends XSLGeneralVariable  {
 
-    private XSLVariableDeclaration declaration;    // link to the variable declaration
     private Assign instruction = new Assign();
 
     /**
@@ -34,10 +32,10 @@ public class SaxonAssign extends XSLGeneralVariable  {
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
         super.validate();
+        XSLVariableDeclaration declaration;
         try {
-            declaration = bindVariable(getVariableFingerprint());
+            declaration = bindVariable(getVariableQName());
             declaration.registerReference(instruction);
             requiredType = declaration.getRequiredType();
         } catch (XPathException err) {
@@ -46,7 +44,7 @@ public class SaxonAssign extends XSLGeneralVariable  {
             return;
         }
         if (!declaration.isAssignable()) {
-            compileError("Variable " + getVariableName() + " is not marked as assignable");
+            compileError("Variable " + getVariableDisplayName() + " is not marked as assignable");
         }
         if (!declaration.isGlobal()) {
             compileError("saxon:assign now works only with global variables");
@@ -55,7 +53,6 @@ public class SaxonAssign extends XSLGeneralVariable  {
 
     public Expression compile(Executable exec) throws XPathException {
         initializeInstruction(exec, instruction);
-        ExpressionTool.makeParentReferences(instruction);
         return instruction;
     }
 

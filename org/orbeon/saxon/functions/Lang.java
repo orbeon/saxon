@@ -1,13 +1,14 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.ExpressionVisitor;
 import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.AtomicType;
+import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.BooleanValue;
 
 
@@ -15,10 +16,30 @@ public class Lang extends SystemFunction {
 
     /**
     * preEvaluate: this method suppresses compile-time evaluation by doing nothing
-    */
+     * @param visitor an expression visitor
+     */
 
-    public Expression preEvaluate(StaticContext env) {
+    public Expression preEvaluate(ExpressionVisitor visitor) {
         return this;
+    }
+
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        if (argument.length==1) {
+            if (contextItemType == null) {
+                XPathException err = new XPathException("The context item for lang() is undefined");
+                err.setErrorCode("XPDY0002");
+                err.setIsTypeError(true);
+                err.setLocator(this);
+                throw err;
+            } else if (contextItemType instanceof AtomicType) {
+                XPathException err = new XPathException("The context item for lang() is not a node");
+                err.setErrorCode("XPTY0004");
+                err.setIsTypeError(true);
+                err.setLocator(this);
+                throw err;
+            }
+        }
+        return super.typeCheck(visitor, contextItemType);
     }
 
     /**
@@ -32,14 +53,14 @@ public class Lang extends SystemFunction {
         } else {
             Item current = c.getContextItem();
             if (current==null) {
-                DynamicError err = new DynamicError("The context item is undefined");
-                err.setErrorCode("FONC0001");
+                XPathException err = new XPathException("The context item is undefined");
+                err.setErrorCode("XPDY0002");
                 err.setXPathContext(c);
                 throw err;
             }
             if (!(current instanceof NodeInfo)) {
-                DynamicError err = new DynamicError("The context item is not a node");
-                err.setErrorCode("FOTY0011");
+                XPathException err = new XPathException("The context item is not a node");
+                err.setErrorCode("XPTY0004");
                 err.setXPathContext(c);
                 throw err;
             }
@@ -65,7 +86,7 @@ public class Lang extends SystemFunction {
     * @param target the target node
     */
 
-    private boolean isLang(String arglang, NodeInfo target) {
+    public static boolean isLang(String arglang, NodeInfo target) {
 
 
         String doclang = null;

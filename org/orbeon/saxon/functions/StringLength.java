@@ -2,8 +2,9 @@ package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.value.IntegerValue;
+import org.orbeon.saxon.value.Int64Value;
 import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.value.Value;
 
@@ -13,17 +14,18 @@ import org.orbeon.saxon.value.Value;
 
 public class StringLength extends SystemFunction {
 
-    private boolean shortcut = false;
+    //private boolean shortcut = false;
                                 // if this is set we return 0 for a zero length string,
                                 // 1 for any other. Used by the optimizer.
     /**
     * Simplify and validate.
     * This is a pure function so it can be simplified in advance if the arguments are known
-    */
+     * @param visitor an expression visitor
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
         //useContextItemAsDefault();
-        return simplifyArguments(env);
+        return simplifyArguments(visitor);
     }
 
     /**
@@ -45,25 +47,39 @@ public class StringLength extends SystemFunction {
     }
 
     /**
-    * Pre-evaluate a function at compile time. Functions that do not allow
-    * pre-evaluation, or that need access to context information, can override this method.
-    */
+     * Pre-evaluate a function at compile time. Functions that do not allow
+     * pre-evaluation, or that need access to context information, can override this method.
+     * @param visitor an expression visitor
+     * @return the expression, either unchanged, or pre-evaluated
+     */
 
-    public Expression preEvaluate(StaticContext env) throws XPathException {
+    public Expression preEvaluate(ExpressionVisitor visitor) throws XPathException {
         if (argument.length == 0) {
             return this;
         } else {
-            return (Value)evaluateItem(env.makeEarlyEvaluationContext());
+            return Literal.makeLiteral(
+                    (Value)evaluateItem(visitor.getStaticContext().makeEarlyEvaluationContext()));
         }
+    }
+
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        if (argument.length == 0 && contextItemType == null) {
+            XPathException err = new XPathException("The context item for string-length() is undefined");
+            err.setErrorCode("XPDY0002");
+            err.setIsTypeError(true);
+            err.setLocator(this);
+            throw err;
+        }
+        return super.typeCheck(visitor, contextItemType);
     }
 
     /**
     * setShortCut() - used by optimizer when we only need to know if the length is non-zero
     */
 
-    public void setShortcut() {
-        shortcut = true;
-    }
+//    public void setShortcut() {
+//        shortcut = true;
+//    }
 
     /**
     * Evaluate in a general context
@@ -74,21 +90,27 @@ public class StringLength extends SystemFunction {
         if (argument.length == 0) {
             final Item contextItem = c.getContextItem();
             if (contextItem == null) {
-                dynamicError("The context item for string-length() is not set", "FONC0001", c);
+                dynamicError("The context item for string-length() is not set", "XPDY0002", c);
+                return null;
             }
             sv = StringValue.makeStringValue(contextItem.getStringValueCS());
         } else {
             sv = (AtomicValue)argument[0].evaluateItem(c);
         }
         if (sv==null) {
-            return IntegerValue.ZERO;
+            return Int64Value.ZERO;
         }
-        CharSequence s = sv.getStringValueCS();
 
-        if (shortcut) {
-            return new IntegerValue((s.length()>0 ? 1 : 0));
+
+//        if (shortcut) {
+//            CharSequence s = sv.getStringValueCS();
+//            return (s.length()>0 ? Int64Value.PLUS_ONE : Int64Value.ZERO);
+//        } else
+        if (sv instanceof StringValue) {
+            return Int64Value.makeIntegerValue(((StringValue)sv).getStringLength());
         } else {
-            return new IntegerValue(StringValue.getStringLength(s));
+            CharSequence s = sv.getStringValueCS();
+            return Int64Value.makeIntegerValue(StringValue.getStringLength(s));
         }
     }
 

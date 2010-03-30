@@ -1,10 +1,11 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.Literal;
 import org.orbeon.saxon.instruct.Choose;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.Value;
@@ -72,7 +73,6 @@ public class XSLIf extends StyleElement {
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
         test = typeCheck("test", test);
     }
 
@@ -80,19 +80,18 @@ public class XSLIf extends StyleElement {
     * Mark tail-recursive calls on stylesheet functions. For most instructions, this does nothing.
     */
 
-    public void markTailCalls() {
+    public boolean markTailCalls() {
         StyleElement last = getLastChildInstruction();
-        if (last != null) {
-            last.markTailCalls();
-        }
+        return last != null && last.markTailCalls();
     }
 
     public Expression compile(Executable exec) throws XPathException {
-        if (test instanceof Value) {
+        if (test instanceof Literal) {
+            Value testVal = ((Literal)test).getValue();
             // condition known statically, so we only need compile the code if true.
             // This can happen with expressions such as test="function-available('abc')".
             try {
-                if (test.effectiveBooleanValue(null)) {
+                if (testVal.effectiveBooleanValue()) {
                     return compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
 //                    Block block = new Block();
 //                    block.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
@@ -114,7 +113,6 @@ public class XSLIf extends StyleElement {
         Expression[] actions = {action};
 
         Choose inst = new Choose(conditions, actions);
-        ExpressionTool.makeParentReferences(inst);
         return inst;
     }
 

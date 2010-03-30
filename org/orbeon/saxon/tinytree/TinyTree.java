@@ -2,13 +2,13 @@ package org.orbeon.saxon.tinytree;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.event.ReceiverOptions;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.tree.LineNumberMap;
+import org.orbeon.saxon.sort.IntArraySet;
 import org.orbeon.saxon.tree.SystemIdMap;
 import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.value.UntypedAtomicValue;
+import org.orbeon.saxon.value.Whitespace;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,7 +25,6 @@ import java.util.Arrays;
 
 public final class TinyTree {
 
-    private static final int[] EMPTY_INT_ARRAY = new int[0];
     private static final String[] EMPTY_STRING_ARRAY = new String[0];
 
     private Configuration config;
@@ -117,7 +116,8 @@ public final class TinyTree {
     private int[] rootIndex = new int[5];
     protected int rootIndexUsed = 0;
 
-    private LineNumberMap lineNumberMap;
+    private int[] lineNumbers = null;
+    private int[] columnNumbers = null;
     private SystemIdMap systemIdMap = null;
 
     // a boolean that is set to true if the document declares a namespace other than the XML namespace
@@ -136,6 +136,11 @@ public final class TinyTree {
     private static double averageNamespaces = 20.0;
     private static double averageCharacters = 4000.0;
 
+    /**
+     * Create a TinyTree. The initial size is based on the average size of
+     * trees previously built in this session
+     */
+
     public TinyTree() {
         this((int)(averageNodes + 1),
                 (int)(averageAttributes + 1),
@@ -143,8 +148,16 @@ public final class TinyTree {
                 (int)(averageCharacters + 1));
     }
 
+    /**
+     * Create a tree with a specified initial size
+     * @param nodes the expected number of (non attribute or namespace) nodes
+     * @param attributes the expected number of attributes
+     * @param namespaces the expected number of namespace declarations
+     * @param characters the expected number of characters in the document (in text nodes)
+     */
+
     public TinyTree(int nodes, int attributes, int namespaces, int characters) {
-        //System.err.println("TinyTree.new() " + this + " (initial size " + nodes + ")");
+        //System.err.println("TinyTree.new() (initial size " + nodes + ", treesCreated = " + treesCreated + ")");
         nodeKind = new byte[nodes];
         depth = new short[nodes];
         next = new int[nodes];
@@ -161,13 +174,12 @@ public final class TinyTree {
         namespaceParent = new int[namespaces];
         namespaceCode = new int[namespaces];
 
-        //charBuffer = new char[characters];
-        //charBufferLength = 0;
         charBuffer = new LargeStringBuffer(characters, 64000);
     }
 
     /**
-    * Set the Configuration that contains this document
+     * Set the Configuration that contains this document
+     * @param config the Saxon configuration
     */
 
     public void setConfiguration(Configuration config) {
@@ -177,6 +189,7 @@ public final class TinyTree {
 
     /**
      * Get the configuration previously set using setConfiguration
+     * @return the Saxon configuration
      */
 
     public Configuration getConfiguration() {
@@ -184,7 +197,8 @@ public final class TinyTree {
     }
 
     /**
-	* Get the name pool used for the names in this document
+	 * Get the name pool used for the names in this document
+     * @return the name pool
 	*/
 
 	public NamePool getNamePool() {
@@ -194,7 +208,7 @@ public final class TinyTree {
     private void ensureNodeCapacity(short kind) {
         if (nodeKind.length < numberOfNodes+1) {
             //System.err.println("Number of nodes = " + numberOfNodes);
-            int k = (kind == Type.STOPPER ? numberOfNodes+1 : numberOfNodes*3/2+1);// XXX ORBEON
+            int k = (kind == Type.STOPPER ? numberOfNodes+1 : numberOfNodes*2);
 
             byte[] nodeKind2 = new byte[k];
             int[] next2 = new int[k];
@@ -222,12 +236,21 @@ public final class TinyTree {
                 System.arraycopy(typeCodeArray, 0, typeCodeArray2, 0, numberOfNodes);
                 typeCodeArray = typeCodeArray2;
             }
+
+            if (lineNumbers != null) {
+                int[] lines2 = new int[k];
+                System.arraycopy(lineNumbers, 0, lines2, 0, numberOfNodes);
+                lineNumbers = lines2;
+                int[] columns2 = new int[k];
+                System.arraycopy(columnNumbers, 0, columns2, 0, numberOfNodes);
+                columnNumbers = columns2;
+            }
         }
     }
 
     private void ensureAttributeCapacity() {
         if (attParent.length < numberOfAttributes+1) {
-            int k = numberOfAttributes*3/2+1;// XXX ORBEON
+            int k = numberOfAttributes*2;
             if (k==0) {
                 k = 10;
             }
@@ -254,7 +277,7 @@ public final class TinyTree {
 
     private void ensureNamespaceCapacity() {
         if (namespaceParent.length < numberOfNamespaces+1) {
-            int k = numberOfNamespaces*3/2+1;// XXX ORBEON
+            int k = numberOfNamespaces*2;
 
             int[] namespaceParent2 = new int[k];
             int[] namespaceCode2 = new int[k];
@@ -271,11 +294,13 @@ public final class TinyTree {
      * Add a document node to the tree. The data structure can contain any number of document (or element) nodes
      * as top-level nodes. The document node is retained in the documentList list, and its offset in that list
      * is held in the alpha array for the relevant node number.
+     * @param doc the document node to be added
+     * @return the number of the node that was added
      */
 
-    void addDocumentNode(TinyDocumentImpl doc) {
+    int addDocumentNode(TinyDocumentImpl doc) {
         documentList.add(doc);
-        addNode(Type.DOCUMENT, 0, documentList.size()-1, 0, -1);
+        return addNode(Type.DOCUMENT, 0, documentList.size()-1, 0, -1);
     }
 
     /**
@@ -290,15 +315,15 @@ public final class TinyTree {
      */
     int addNode(short kind, int depth, int alpha, int beta, int nameCode) {
         ensureNodeCapacity(kind);
-        this.nodeKind[numberOfNodes] = (byte)kind;
+        nodeKind[numberOfNodes] = (byte)kind;
         this.depth[numberOfNodes] = (short)depth;
         this.alpha[numberOfNodes] = alpha;
         this.beta[numberOfNodes] = beta;
         this.nameCode[numberOfNodes] = nameCode;
-        this.next[numberOfNodes] = -1;      // safety precaution
+        next[numberOfNodes] = -1;      // safety precaution
 
         if (typeCodeArray != null) {
-            typeCodeArray[numberOfNodes] = StandardNames.XDT_UNTYPED;
+            typeCodeArray[numberOfNodes] = StandardNames.XS_UNTYPED;
         }
 
         if (numberOfNodes == 0) {
@@ -307,7 +332,7 @@ public final class TinyTree {
 
         if (depth == 0 && kind != Type.STOPPER) {
             if (rootIndexUsed == rootIndex.length) {
-                int[] r2 = new int[rootIndexUsed*3/2+1];// XXX ORBEON
+                int[] r2 = new int[rootIndexUsed * 2];
                 System.arraycopy(rootIndex, 0, r2, 0, rootIndexUsed);
                 rootIndex = r2;
             }
@@ -315,6 +340,11 @@ public final class TinyTree {
         }
         return numberOfNodes++;
     }
+
+    /**
+     * Append character data to the current text node
+     * @param chars the character data to be appended
+     */
 
     void appendChars(CharSequence chars) {
         charBuffer.append(chars);
@@ -359,6 +389,14 @@ public final class TinyTree {
                 System.arraycopy(typeCodeArray, 0, type2, 0, numberOfNodes);
                 typeCodeArray = type2;
             }
+            if (lineNumbers != null) {
+                int[] lines2 = new int[k];
+                System.arraycopy(lineNumbers, 0, lines2, 0, numberOfNodes);
+                lineNumbers = lines2;
+                int[] columns2 = new int[k];
+                System.arraycopy(columnNumbers, 0, columns2, 0, numberOfNodes);
+                columnNumbers = columns2;
+            }
 
             nodeKind = nodeKind2;
             next = next2;
@@ -375,8 +413,8 @@ public final class TinyTree {
             //System.err.println("-- copying attribute arrays");
 
             if (k==0) {
-                attParent = EMPTY_INT_ARRAY;
-                attCode = EMPTY_INT_ARRAY;
+                attParent = IntArraySet.EMPTY_INT_ARRAY;
+                attCode = IntArraySet.EMPTY_INT_ARRAY;
                 attValue = EMPTY_STRING_ARRAY;
                 attTypeCode = null;
             }
@@ -427,28 +465,31 @@ public final class TinyTree {
     }
 
     /**
-    * Set the type annotation of an element node
+     * Set the type annotation of an element node
+     * @param nodeNr the node whose type annotation is to be set
+     * @param typeCode the type annotation
     */
 
     void setElementAnnotation(int nodeNr, int typeCode) {
-        if (typeCode != StandardNames.XDT_UNTYPED) {
+        if (typeCode != StandardNames.XS_UNTYPED) {
             if (typeCodeArray == null) {
                 typeCodeArray = new int[nodeKind.length];
-                Arrays.fill(typeCodeArray, 0, nodeKind.length, StandardNames.XDT_UNTYPED);
+                Arrays.fill(typeCodeArray, 0, nodeKind.length, StandardNames.XS_UNTYPED);
             }
             typeCodeArray[nodeNr] = typeCode;
         }
     }
 
     /**
-    * Get the type annotation of a node. Applies only to document, element, text,
+     * Get the type annotation of a node. Applies only to document, element, text,
      * processing instruction, and comment nodes.
+     * @param nodeNr the node whose type annotation is required
      * @return the fingerprint of the type annotation for elements and attributes, otherwise undefined.
     */
 
     public int getTypeAnnotation(int nodeNr) {
         if (typeCodeArray == null) {
-            return StandardNames.XDT_UNTYPED;
+            return StandardNames.XS_UNTYPED;
         }
         return typeCodeArray[nodeNr] & NamePool.FP_MASK;
     }
@@ -498,6 +539,16 @@ public final class TinyTree {
         }
     }
 
+    /**
+     * Add an attribute node to the tree
+     * @param root the root of the tree to contain the attribute
+     * @param parent the parent element of the new attribute
+     * @param nameCode the name code of the attribute
+     * @param typeCode the type annotation of the attribute
+     * @param attValue the string value of the attribute
+     * @param properties any special properties of the attribute (bit-significant)
+     */
+
 
     void addAttribute(NodeInfo root, int parent, int nameCode, int typeCode, CharSequence attValue, int properties) {
         ensureAttributeCapacity();
@@ -507,10 +558,10 @@ public final class TinyTree {
 
         if (typeCode == -1) {
             // this shouldn't happen any more
-            typeCode = StandardNames.XDT_UNTYPED_ATOMIC;
+            typeCode = StandardNames.XS_UNTYPED_ATOMIC;
         }
 
-        if (typeCode != StandardNames.XDT_UNTYPED_ATOMIC) {
+        if (typeCode != StandardNames.XS_UNTYPED_ATOMIC) {
             initializeAttributeTypeCodes();
         }
 
@@ -537,12 +588,17 @@ public final class TinyTree {
                 // might come from a non-validating parser. Before adding it to the index, we
                 // check that it really is an ID.
 
-                String id = attValue.toString().trim();
+                String id = Whitespace.trim(attValue);
+
+                // Make an exception to our usual policy of storing the original string value.
+                // This is because xml:id processing applies whitespace trimming at an earlier stage
+                this.attValue[numberOfAttributes] = id;
+                
                 if (root.getConfiguration().getNameChecker().isValidNCName(id)) {
                     NodeInfo e = getNode(parent);
                     ((TinyDocumentImpl)root).registerID(e, id);
                 } else if (attTypeCode != null) {
-                    attTypeCode[numberOfAttributes] = Type.UNTYPED_ATOMIC;
+                    attTypeCode[numberOfAttributes] = StandardNames.XS_UNTYPED_ATOMIC;
                 }
             }
             if ((properties & ReceiverOptions.IS_IDREF) != 0) {
@@ -564,7 +620,7 @@ public final class TinyTree {
             // this is the first typed attribute;
             // create an array for the types, and set all previous attributes to untyped
             attTypeCode = new int[attParent.length];
-            Arrays.fill(attTypeCode, 0, numberOfAttributes, StandardNames.XDT_UNTYPED_ATOMIC);
+            Arrays.fill(attTypeCode, 0, numberOfAttributes, StandardNames.XS_UNTYPED_ATOMIC);
 //            for (int i=0; i<numberOfAttributes; i++) {
 //                attTypeCode[i] = StandardNames.XDT_UNTYPED_ATOMIC;
 //            }
@@ -573,10 +629,13 @@ public final class TinyTree {
 
     /**
      * Index an element of type xs:ID
+     * @param root the root node of the document
+     * @param nodeNr the element of type xs:ID
+     * @param checker checks names against XML 1.0 or XML 1.1 rules
      */
 
     public void indexIDElement(NodeInfo root, int nodeNr, NameChecker checker) {
-        String id = TinyParentNodeImpl.getStringValue(this, nodeNr).toString().trim();
+        String id = Whitespace.trim(TinyParentNodeImpl.getStringValue(this, nodeNr));
         if (root.getNodeKind() == Type.DOCUMENT && checker.isValidNCName(id)) {
             NodeInfo e = getNode(nodeNr);
             ((TinyDocumentImpl)root).registerID(e, id);
@@ -602,6 +661,12 @@ public final class TinyTree {
             usesNamespaces = true;
         }
     }
+
+    /**
+     * Get the node at a given position in the tree
+     * @param nr the node number
+     * @return the node at the given position
+     */
 
     public final TinyNodeImpl getNode(int nr) {
 
@@ -632,6 +697,8 @@ public final class TinyTree {
      * This method gets the typed value
      * of a numbered node without actually instantiating the NodeInfo object, as
      * a performance optimization.
+     * @param nodeNr the node whose typed value is required
+     * @return the atomic value of the node
      */
 
     AtomicValue getAtomizedValueOfUntypedNode(int nodeNr) {
@@ -667,7 +734,7 @@ public final class TinyTree {
                         if (sb==null) {
                             sb = new FastStringBuffer(1024);
                         }
-                        sb.append(WhitespaceTextImpl.getStringValue(this, next));
+                        WhitespaceTextImpl.appendStringValue(this, next, sb);
                     }
                     next++;
                 }
@@ -695,7 +762,9 @@ public final class TinyTree {
     }
 
     /**
-    * Make a (transient) attribute node from the array of attributes
+     * Make a (transient) attribute node from the array of attributes
+     * @param nr the node number of the attribute
+     * @return an attribute node
     */
 
     TinyAttributeImpl getAttributeNode(int nr) {
@@ -703,15 +772,16 @@ public final class TinyTree {
     }
 
     /**
-    * Get the type annotation of an attribute node.
-    * The bit {@link NodeInfo#IS_DTD_TYPE} (1<<30) will be set in the case of an attribute node if the type annotation
-    * is one of ID, IDREF, or IDREFS and this is derived from DTD rather than schema validation.
-    * @return Type.UNTYPED_ATOMIC if there is no annotation
+     * Get the type annotation of an attribute node.
+     * The bit {@link NodeInfo#IS_DTD_TYPE} (1<<30) will be set in the case of an attribute node if the type annotation
+     * is one of ID, IDREF, or IDREFS and this is derived from DTD rather than schema validation.
+     * @param nr the node number of the attribute
+     * @return Type.UNTYPED_ATOMIC if there is no annotation
     */
 
     int getAttributeAnnotation(int nr) {
         if (attTypeCode == null) {
-            return StandardNames.XDT_UNTYPED_ATOMIC;
+            return StandardNames.XS_UNTYPED_ATOMIC;
         } else {
             return attTypeCode[nr] & (NamePool.FP_MASK | NodeInfo.IS_DTD_TYPE);
         }
@@ -720,6 +790,43 @@ public final class TinyTree {
     /**
      * Determine whether an attribute is an IDREF/IDREFS attribute. (The represents the
      * is-idref property in the data model)
+     * @param nr the node number of the attribute
+     * @return true if this is an IDREF/IDREFS attribute
+     */
+
+    public boolean isIdAttribute(int nr) {
+        if (attTypeCode == null) {
+            return false;
+        }
+        int tc = attTypeCode[nr];
+        tc &= NamePool.FP_MASK;
+        if (tc == StandardNames.XS_UNTYPED_ATOMIC) {
+            return false;
+        } else if (tc == StandardNames.XS_ID) {
+            return true;
+        } else if (tc < 1024) {
+            return false;
+        } else {
+            final SchemaType type = getConfiguration().getSchemaType(tc);
+            final TypeHierarchy th = getConfiguration().getTypeHierarchy();
+            if (type.isAtomicType()) {
+                return th.isSubType((AtomicType)type, BuiltInAtomicType.ID);
+            } else if (type instanceof ListType) {
+                // TODO: rules for ID's in list and union types
+                SimpleType itemType = ((ListType)type).getItemType();
+                return itemType.isAtomicType() &&
+                        th.isSubType((AtomicType)itemType, BuiltInAtomicType.ID);
+            }
+        }
+        return false;
+    }
+
+
+    /**
+     * Determine whether an attribute is an IDREF/IDREFS attribute. (The represents the
+     * is-idref property in the data model)
+     * @param nr the node number of the attribute
+     * @return true if this is an IDREF/IDREFS attribute
      */
 
     public boolean isIdrefAttribute(int nr) {
@@ -731,7 +838,7 @@ public final class TinyTree {
             return true;
         }
         tc &= NamePool.FP_MASK;
-        if (tc == Type.UNTYPED_ATOMIC) {
+        if (tc == StandardNames.XS_UNTYPED_ATOMIC) {
             return false;
         } else if (tc == StandardNames.XS_IDREF) {
             return true;
@@ -743,23 +850,23 @@ public final class TinyTree {
             final SchemaType type = getConfiguration().getSchemaType(tc);
             final TypeHierarchy th = getConfiguration().getTypeHierarchy();
             if (type.isAtomicType()) {
-                return th.isSubType((AtomicType)type,
-                        (AtomicType)BuiltInSchemaFactory.getSchemaType(StandardNames.XS_IDREF));
+                return th.isSubType((AtomicType)type, BuiltInAtomicType.IDREF);
             } else if (type instanceof ListType) {
                 SimpleType itemType = ((ListType)type).getItemType();
-                if (!(itemType.isAtomicType())) {
-                    return false;
-                }
-                return th.isSubType((AtomicType)itemType,
-                        (AtomicType)BuiltInSchemaFactory.getSchemaType(StandardNames.XS_IDREF));
+                return itemType.isAtomicType() &&
+                        th.isSubType((AtomicType)itemType, BuiltInAtomicType.IDREF);
             }
         }
         return false;
     }
 
+    
+
     /**
-     * Determine whether an element is an IDREF/IDREFS element. (The represents the
+     * Ask whether an element is an IDREF/IDREFS element. (The represents the
      * is-idref property in the data model)
+     * @param nr the element node whose is-idref property is required
+     * @return true if the node has the is-idref property
      */
 
     public boolean isIdrefElement(int nr) {
@@ -767,11 +874,8 @@ public final class TinyTree {
             return false;
         }
         int tc = typeCodeArray[nr];
-        if ((tc & TYPECODE_IDREF) == 0) {
-            return getConfiguration().getTypeHierarchy().isIdrefsCode(tc & NamePool.FP_MASK);
-        } else {
-            return true;
-        }
+        return (tc & TYPECODE_IDREF) != 0 ||
+                getConfiguration().getTypeHierarchy().isIdrefsCode(tc & NamePool.FP_MASK);
     }
 
 
@@ -794,7 +898,9 @@ public final class TinyTree {
 
 
     /**
-    * Get the system id of an element in the document
+     * Get the system id of an element in the document
+     * @param seq the node number of the element node
+     * @return the system id (base URI) of the element
     */
 
     String getSystemId(int seq) {
@@ -806,6 +912,8 @@ public final class TinyTree {
 
     /**
      * Get the root node for a given node
+     * @param nodeNr the node number of the given node
+     * @return the node number of the root of the tree containing the given node
      */
 
     int getRootNode(int nodeNr) {
@@ -822,33 +930,67 @@ public final class TinyTree {
     */
 
     public void setLineNumbering() {
-        lineNumberMap = new LineNumberMap();
-        lineNumberMap.setLineNumber(0, 0);
+        lineNumbers = new int[nodeKind.length];
+        Arrays.fill(lineNumbers, -1);
+        columnNumbers = new int[nodeKind.length];
+        Arrays.fill(columnNumbers, -1);
     }
 
     /**
-    * Set the line number for an element. Ignored if line numbering is off.
+     * Set the line number for a node. Ignored if line numbering is off.
+     * @param sequence the node number
+     * @param line the line number to be set for the  node
+     * @param column the column number for the node
     */
 
-    void setLineNumber(int sequence, int line) {
-        if (lineNumberMap != null) {
-            lineNumberMap.setLineNumber(sequence, line);
+    void setLineNumber(int sequence, int line, int column) {
+        if (lineNumbers != null) {
+            lineNumbers[sequence] = line;
+            columnNumbers[sequence] = column;
         }
     }
 
     /**
-    * Get the line number for an element. Return -1 if line numbering is off.
+     * Get the line number for a node.
+     * @param sequence the node number
+     * @return the line number of the node. Return -1 if line numbering is off.
     */
 
     int getLineNumber(int sequence) {
-        if (lineNumberMap != null) {
-            return lineNumberMap.getLineNumber(sequence);
+        if (lineNumbers != null) {
+            // find the nearest preceding node that has a known line number, and return it
+            for (int i=sequence; i>=0; i--) {
+                int c = lineNumbers[sequence];
+                if (c > 0) {
+                    return c;
+                }
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Get the column number for a node.
+     * @param sequence the node number
+     * @return the line number of the node. Return -1 if line numbering is off.
+    */
+
+    int getColumnNumber(int sequence) {
+        if (columnNumbers != null) {
+            // find the nearest preceding node that has a known column number, and return it
+            for (int i=sequence; i>=0; i--) {
+                int c = columnNumbers[sequence];
+                if (c > 0) {
+                    return c;
+                }
+            }
         }
         return -1;
     }
 
     /**
      * Get the document number (actually, the tree number)
+     * @return the unique number of this TinyTree structure
      */
 
     public int getDocumentNumber() {
@@ -856,30 +998,13 @@ public final class TinyTree {
     }
 
     /**
-     * Determine whether a given node is nilled
+     * Ask whether a given node is nilled
+     * @param nodeNr the node in question
+     * @return true if the node has the nilled property
      */
 
     public boolean isNilled(int nodeNr) {
         return (typeCodeArray != null && (typeCodeArray[nodeNr] & NodeInfo.IS_NILLED) != 0);
-//        if (nodeKind[nodeNr] != Type.ELEMENT) {
-//            return false;
-//        }
-//        if (typeCodeArray == null || typeCodeArray[nodeNr] == -1 || typeCodeArray[nodeNr] == StandardNames.XDT_UNTYPED) {
-//            return false;
-//        }
-//        int index = alpha[nodeNr];
-//        if (index > 0) {
-//            while (index < numberOfAttributes && attParent[index] == nodeNr) {
-//                if (attCode[index] == StandardNames.XSI_NIL) {
-//                    String val = attValue[index].toString().trim();
-//                    if (val.equals("1") || val.equals("true")) {
-//                        return true;
-//                    }
-//                }
-//                index++;
-//            }
-//        }
-//        return false;
     }
 
 	/**
@@ -907,9 +1032,10 @@ public final class TinyTree {
     /**
      * Create diagnostic dump of the tree containing a particular node.
      * Designed to be called as an extension function for diagnostics.
+     * @param node the node in question
      */
 
-    public static void diagnosticDump(NodeInfo node) {
+    public static synchronized void diagnosticDump(NodeInfo node) {
         if (node instanceof TinyNodeImpl) {
             TinyTree tree = ((TinyNodeImpl)node).tree;
             System.err.println("Tree containing node " + ((TinyNodeImpl)node).nodeNr);
@@ -920,13 +1046,19 @@ public final class TinyTree {
     }
 
     /**
-    * Output a number as a string of 8 characters
+     * Output a number as a string of 8 characters
+     * @param val the number
+     * @return the string representation of the number, aligned in a fixed width field
     */
 
     private String n8(int val) {
         String s = "        " + val;
         return s.substring(s.length()-8);
     }
+
+    /**
+     * Output a statistical summary to System.err
+     */
 
     public void showSize() {
         System.err.println("Tree size: " + numberOfNodes + " nodes, " + charBuffer.length() + " characters, " +
@@ -970,70 +1102,157 @@ public final class TinyTree {
         return numberOfNodes;
     }
 
+    /**
+     * Get the number of attributes in the tree
+     * @return  the number of attributes
+     */
+
     public int getNumberOfAttributes() {
         return numberOfAttributes;
     }
+
+    /**
+     * Get the number of namespace declarations in the tree
+     * @return  the number of namespace declarations
+     */
 
     public int getNumberOfNamespaces() {
         return numberOfNamespaces;
     }
 
+    /**
+     * Get the array holding node kind information
+     * @return an array of bytes, byte N is the node kind of node number N
+     */
+
     public byte[] getNodeKindArray() {
         return nodeKind;
     }
+
+    /**
+     * Get the array holding node depth information
+     * @return an array of shorts, byte N is the node depth of node number N
+     */
 
     public short[] getNodeDepthArray() {
         return depth;
     }
 
+    /**
+     * Get the array holding node name information
+     * @return an array of integers, integer N is the name code of node number N
+     */
+
     public int[] getNameCodeArray() {
         return nameCode;
     }
+
+    /**
+     * Get the array holding node type information
+     * @return an array of integers, integer N is the type code of node number N
+     */
 
     public int[] getTypeCodeArray() {
         return typeCodeArray;
     }
 
+    /**
+     * Get the array holding next-sibling pointers
+     * @return an array of integers, integer N is the next-sibling pointer for node number N
+     */
+
     public int[] getNextPointerArray() {
         return next;
     }
+
+    /**
+     * Get the array holding alpha information
+     * @return an array of integers, whose meaning depends on the node kind. For elements it is a pointer
+     * to the first attribute, for text, comment, and processing instruction nodes it is a pointer to the content
+     */
 
     public int[] getAlphaArray() {
         return alpha;
     }
 
+    /**
+     * Get the array holding beta information
+     * @return an array of integers, whose meaning depends on the node kind. For elements it is a pointer
+     * to the first namespace declaration
+     */
+
     public int[] getBetaArray() {
         return beta;
     }
+
+    /**
+     * Get the character buffer used to hold all the text data of the document
+     * @return  the character buffer
+     */
 
     public CharSequence getCharacterBuffer() {
         //return new CharSlice(charBuffer, 0, charBufferLength);
         return charBuffer;
     }
 
+    /**
+     * Get the character buffer used to hold all the comment data of the document
+     * @return  the character buffer used for comments
+     */
+
     public CharSequence getCommentBuffer() {
         return commentBuffer;
     }
+
+    /**
+     * Get the array used to hold the name codes of all attributes
+     * @return an integer array; the Nth integer holds the attribute name code of attribute N
+     */
 
     public int[] getAttributeNameCodeArray() {
         return attCode;
     }
 
+    /**
+     * Get the array used to hold the type codes of all attributes
+     * @return an integer array; the Nth integer holds the attribute type code of attribute N
+     */
+
     public int[] getAttributeTypeCodeArray() {
         return attTypeCode;
     }
+
+    /**
+     * Get the array used to hold the parent pointers of all attributes
+     * @return an integer array; the Nth integer holds the pointer to the parent element of attribute N
+     */
 
     public int[] getAttributeParentArray() {
         return attParent;
     }
 
+    /**
+     * Get the array used to hold the name codes of all attributes
+     * @return an array of strings; the Nth string holds the string value of attribute N
+     */
+
     public CharSequence[] getAttributeValueArray() {
         return attValue;
     }
 
+    /**
+     * Get the array used to hold the namespace codes of namespace declarations
+     * @return an array of integer namespace codes
+     */
+
     public int[] getNamespaceCodeArray() {
         return namespaceCode;
     }
+
+    /**
+     * Get the array used to hold the parent pointers of all namespace declarations
+     * @return an integer array; the Nth integer holds the pointer to the parent element of namespace N
+     */
 
     public int[] getNamespaceParentArray() {
         return namespaceParent;

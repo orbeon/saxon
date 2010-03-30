@@ -16,6 +16,12 @@ public interface Numberer {
     public void setCountry(String country);
 
     /**
+     * Get the country used by this numberer
+     */
+
+    public String getCountry();
+
+    /**
     * Format a number into a string
     * @param number The number to be formatted
     * @param picture The format token. This is a single component of the format attribute
@@ -84,13 +90,6 @@ public interface Numberer {
      */
 
     public String getEraName(int year);
-
-    /**
-     * Get the name of a timezone
-     * @param tz the offset of the timezone from GMT in minutes
-     */
-
-    public String getTimezoneName(int tz);
 
     /**
      * Get the name of a calendar

@@ -1,10 +1,12 @@
 package org.orbeon.saxon;
 import org.orbeon.saxon.event.IDFilter;
 import org.orbeon.saxon.event.Stripper;
+import org.orbeon.saxon.functions.EscapeURI;
+import org.orbeon.saxon.functions.ResolveURI;
 import org.orbeon.saxon.functions.URIQueryParameters;
 import org.orbeon.saxon.om.AllElementStripper;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.trans.Err;
 import org.orbeon.saxon.value.Whitespace;
 import org.xml.sax.InputSource;
 import org.xml.sax.XMLReader;
@@ -29,7 +31,7 @@ import java.net.URISyntaxException;
 
 public class StandardURIResolver implements NonDelegatingURIResolver, Serializable {
 
-    // TODO: support the data: URI scheme. (Requires unescaping of the URI, then parsing the content as XML)
+    // TODO: IDEA: support the data: URI scheme. (Requires unescaping of the URI, then parsing the content as XML)
 
     private Configuration config = null;
     protected boolean recognizeQueryParameters = false;
@@ -76,14 +78,29 @@ public class StandardURIResolver implements NonDelegatingURIResolver, Serializab
 
     /**
      * Get the relevant platform
+     * @return the platform
      */
 
     protected Platform getPlatform() {
-        if (config == null) {
-            return JavaPlatform.getInstance();
-        } else {
-            return config.getPlatform();
-        }
+        return Configuration.getPlatform();
+    }
+
+    /**
+     * Set the configuration
+     * @param config the configuration
+     */
+
+    public void setConfiguration(Configuration config) {
+        this.config = config;
+    }
+
+    /**
+     * Get the configuration if available
+     * @return the configuration
+     */
+
+    public Configuration getConfiguration() {
+        return config;
     }
 
     /**
@@ -117,13 +134,13 @@ public class StandardURIResolver implements NonDelegatingURIResolver, Serializab
         }
 
         URIQueryParameters params = null;
-        URI url;
+        URI uri;
         URI relative;
         try {
-            relativeURI = JavaPlatform.escapeSpaces(relativeURI);
+            relativeURI = ResolveURI.escapeSpaces(relativeURI);
             relative = new URI(relativeURI);
         } catch (URISyntaxException err) {
-            throw new DynamicError("Invalid relative URI " + Err.wrap(relativeURI), err);
+            throw new XPathException("Invalid relative URI " + Err.wrap(relativeURI), err);
         }
 
         String query = relative.getQuery();
@@ -140,22 +157,28 @@ public class StandardURIResolver implements NonDelegatingURIResolver, Serializab
 
         if (source == null) {
             try {
-                url = platform.makeAbsolute(relativeURI, base);
+                uri = platform.makeAbsolute(relativeURI, base);
             } catch (URISyntaxException err) {
                 // System.err.println("Recovering from " + err);
                 // last resort: if the base URI is null, or is itself a relative URI, we
                 // try to expand it relative to the current working directory
-                String expandedBase = JavaPlatform.tryToExpand(base);
+                String expandedBase = ResolveURI.tryToExpand(base);
                 if (!expandedBase.equals(base)) { // prevent infinite recursion
                     return resolve(href, expandedBase);
                 }
                 //err.printStackTrace();
-                throw new DynamicError("Invalid URI " + Err.wrap(relativeURI) + " - base " + Err.wrap(base), err);
+                throw new XPathException("Invalid URI " + Err.wrap(relativeURI) + " - base " + Err.wrap(base), err);
             }
 
+            // Check that any "%" sign in the URI is part of a well-formed percent-encoded UTF-8 character.
+            // Without this check, dereferencing the resulting URL can fail with arbitrary unchecked exceptions
+
+            final String uriString = uri.toString();
+            EscapeURI.checkPercentEncoding(uriString);
+
             source = new SAXSource();
-            ((SAXSource)source).setInputSource(new InputSource(url.toString()));
-            source.setSystemId(url.toString());
+            setSAXInputSource((SAXSource)source, uriString);
+
 
             if (params != null) {
                 XMLReader parser = params.getXMLReader();
@@ -169,7 +192,7 @@ public class StandardURIResolver implements NonDelegatingURIResolver, Serializab
                     try {
                         ((SAXSource)source).setXMLReader(SAXParserFactory.newInstance().newSAXParser().getXMLReader());
                     } catch (Exception err) {
-                        throw new DynamicError(err);
+                        throw new XPathException(err);
                     }
                 } else {
                     //((SAXSource)source).setXMLReader(config.getSourceParser());
@@ -209,15 +232,41 @@ public class StandardURIResolver implements NonDelegatingURIResolver, Serializab
             }
         }
 
+        if (params != null) {
+            Boolean xinclude = params.getXInclude();
+            if (xinclude != null) {
+                source = AugmentedSource.makeAugmentedSource(source);
+                ((AugmentedSource)source).setXIncludeAware(xinclude.booleanValue());
+            }
+        }
+
         return source;
     }
 
     /**
      * Handle a PTree source file (Saxon-SA only)
+     * @param href the relative URI
+     * @param base the base URI
+     * @return the new Source object
      */
 
     protected Source getPTreeSource(String href, String base) throws XPathException {
-        return null;
+        throw new XPathException("PTree files can only be read using a Saxon-SA configuration");
+    }
+
+    /**
+     * Set the InputSource part of the returned SAXSource. This is done in a separate
+     * method to allow subclassing. The default implementation simply places the URI in the
+     * InputSource, allowing the XML parser to take responsibility for the dereferencing.
+     * A subclass may choose to dereference the URI at this point an place an InputStream
+     * in the SAXSource.
+     * @param source the SAXSource being initialized
+     * @param uriString the absolute (resolved) URI to be used
+     */
+
+    protected void setSAXInputSource(SAXSource source, String uriString) {
+        source.setInputSource(new InputSource(uriString));
+        source.setSystemId(uriString);
     }
 
 }

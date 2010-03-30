@@ -1,5 +1,5 @@
 package org.orbeon.saxon.expr;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.om.ValueRepresentation;
@@ -8,8 +8,6 @@ import org.orbeon.saxon.type.AnyItemType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.Value;
-
-import java.io.PrintStream;
 
 /**
  * Supplied parameter reference: this is an internal expression used to refer to
@@ -20,7 +18,7 @@ import java.io.PrintStream;
  * is entirely dynamic.
  */
 
-public class SuppliedParameterReference extends ComputedExpression {
+public class SuppliedParameterReference extends Expression {
 
     int slotNumber;
 
@@ -33,11 +31,11 @@ public class SuppliedParameterReference extends ComputedExpression {
         slotNumber = slot;
     }
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
         return this;
     }
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
         return this;
     }
 
@@ -45,7 +43,7 @@ public class SuppliedParameterReference extends ComputedExpression {
     * Determine the data type of the expression, if possible.
     * @return Type.ITEM, because we don't know the type of the supplied value
     * in advance.
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
@@ -60,6 +58,16 @@ public class SuppliedParameterReference extends ComputedExpression {
 
     public int computeCardinality() {
         return StaticProperty.ALLOWS_ZERO_OR_MORE;
+    }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new SuppliedParameterReference(slotNumber);
     }
 
     /**
@@ -89,11 +97,14 @@ public class SuppliedParameterReference extends ComputedExpression {
     }
 
     /**
-    * Diagnostic print of expression structure
-    */
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "$#" + slotNumber);
+    public void explain(ExpressionPresenter destination) {
+        destination.startElement("suppliedParameter");
+        destination.emitAttribute("slot", slotNumber+"");
+        destination.endElement();
     }
 }
 
@@ -113,5 +124,4 @@ public class SuppliedParameterReference extends ComputedExpression {
 // Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
 //
 // Contributor(s):
-// Portions marked "e.g." are from Edwin Glaser (edwin@pannenleiter.de)
 //

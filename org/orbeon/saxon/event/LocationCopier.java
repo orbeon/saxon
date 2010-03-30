@@ -1,5 +1,7 @@
 package org.orbeon.saxon.event;
 
+import org.orbeon.saxon.om.NodeInfo;
+
 /**
  * A Receiver that can be inserted into an event pipeline to copy location information.
  * The class acts as a LocationProvider, so it supports getSystemId() and getLineNumber() methods;
@@ -8,9 +10,16 @@ package org.orbeon.saxon.event;
  * for example, when copying an inline schema within a stylesheet to a separate schema document.
  */
 
-public class LocationCopier extends ProxyReceiver implements LocationProvider {
+public class LocationCopier extends ProxyReceiver implements CopyInformee, LocationProvider {
 
-    public int lineNumber;
+    private int lineNumber;
+
+    public LocationCopier() {
+    }
+
+    public LocationCopier(Receiver nextReceiver) {
+        setUnderlyingReceiver(nextReceiver);
+    }
 
     public void setPipelineConfiguration(PipelineConfiguration pipe) {
         PipelineConfiguration pipe2 = new PipelineConfiguration(pipe);
@@ -18,28 +27,47 @@ public class LocationCopier extends ProxyReceiver implements LocationProvider {
         super.setPipelineConfiguration(pipe2);
     }
 
-    public void setLineNumber(int lineNumber) {
+
+    /**
+     * Provide information about the node being copied. This method is called immediately before
+     * the startElement call for the element node in question.
+     *
+     * @param element the node being copied, which must be an element node
+     */
+
+    public void notifyElementNode(NodeInfo element) {
+        setSystemId(element.getBaseURI());
+        setLineNumber(element.getLineNumber());
+    }
+
+    /**
+     * Set the line number
+     * @param lineNumber the line number
+     */
+
+    private void setLineNumber(int lineNumber) {
         this.lineNumber = lineNumber;
     }
 
-	public int getColumnNumber() {
-		return -1;
-	}
+    /**
+     * Get the line number
+     * @return the line number most recently set
+     */
 
-	public int getLineNumber() {
+    public int getLineNumber() {
 		return lineNumber;
 	}
 
-	public String getPublicId() {
-		return null;
-	}
-
-    public String getSystemId(int locationId) {
+    public String getSystemId(long locationId) {
         return getSystemId();
     }
 
-    public int getLineNumber(int locationId) {
+    public int getLineNumber(long locationId) {
         return getLineNumber();
+    }
+
+    public int getColumnNumber(long locationId) {
+        return -1;
     }
 
 }

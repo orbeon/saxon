@@ -1,10 +1,12 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.ExpressionVisitor;
+import org.orbeon.saxon.expr.Literal;
 import org.orbeon.saxon.instruct.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AnyItemType;
-import org.orbeon.saxon.value.EmptySequence;
+import org.orbeon.saxon.value.Whitespace;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -39,13 +41,27 @@ public class XSLAttributeSet extends StyleElement implements StylesheetProcedure
 
     private boolean validated = false;
 
-    public int getAttributeSetFingerprint() {
-        return getObjectFingerprint();
+    /**
+     * Get the name of this attribute set
+     * @return the name of the attribute set, as a QName
+     */
+
+    public StructuredQName getAttributeSetName() {
+        return getObjectName();
     }
+
+    /**
+     * Get the compiled code produced for this XSLT element
+     * @return the compiled AttributeSet
+     */
 
     public AttributeSet getInstruction() {
         return procedure;
     }
+
+    /**
+     * Increment the number of references found to this attribute set
+     */
 
     public void incrementReferenceCount() {
         referenceCount++;
@@ -59,9 +75,9 @@ public class XSLAttributeSet extends StyleElement implements StylesheetProcedure
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-			if (f==StandardNames.NAME) {
-        		nameAtt = atts.getValue(a).trim();
-        	} else if (f==StandardNames.USE_ATTRIBUTE_SETS) {
+			if (f.equals(StandardNames.NAME)) {
+        		nameAtt = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.USE_ATTRIBUTE_SETS)) {
         		useAtt = atts.getValue(a);
         	} else {
         		checkUnknownAttribute(nc);
@@ -70,15 +86,18 @@ public class XSLAttributeSet extends StyleElement implements StylesheetProcedure
 
         if (nameAtt==null) {
             reportAbsence("name");
+            setObjectName(new StructuredQName("", "", "attribute-set-error-name"));
             return;
         }
 
         try {
-            setObjectNameCode(makeNameCode(nameAtt.trim()));
+            setObjectName(makeQName(nameAtt));
         } catch (NamespaceException err) {
             compileError(err.getMessage(), "XTSE0280");
+            setObjectName(new StructuredQName("", "", "attribute-set-error-name"));
         } catch (XPathException err) {
-            compileError(err.getMessage(), "XTSE0280");
+            compileError(err.getMessage(), err.getErrorCodeLocalPart());
+            setObjectName(new StructuredQName("", "", "attribute-set-error-name"));
         }
 
     }
@@ -119,13 +138,15 @@ public class XSLAttributeSet extends StyleElement implements StylesheetProcedure
     }
 
     /**
-    * Check for circularity: specifically, check that this attribute set does not contain
-    * a direct or indirect reference to the one supplied as a parameter
+     * Check for circularity: specifically, check that this attribute set does not contain
+     * a direct or indirect reference to the one supplied as a parameter
+     * @param origin the place from which the search started
     */
 
     public void checkCircularity(XSLAttributeSet origin) throws XPathException {
         if (this==origin) {
             compileError("The definition of the attribute set is circular", "XTSE0720");
+            useAttributeSets = null;
         } else {
             if (!validated) {
                 // if this attribute set isn't validated yet, we don't check it.
@@ -158,27 +179,28 @@ public class XSLAttributeSet extends StyleElement implements StylesheetProcedure
         if (referenceCount > 0 ) {
             Expression body = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
             if (body == null) {
-                body = EmptySequence.getInstance();
+                body = Literal.makeEmptySequence();
             }
 
             try {
 
-                body = body.simplify(getStaticContext());
+                ExpressionVisitor visitor = makeExpressionVisitor();
+                body = visitor.simplify(body);
                 if (getConfiguration().isCompileWithTracing()) {
                     TraceWrapper trace = new TraceInstruction(body, this);
                     trace.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
-                    trace.setParentExpression(procedure);
+                    trace.setContainer(procedure);
                     body = trace;
                 }
 
                 procedure.setUseAttributeSets(useAttributeSets);
-                procedure.setNameCode(getObjectNameCode());
+                procedure.setName(getObjectName());
                 procedure.setBody(body);
                 procedure.setSystemId(getSystemId());
                 procedure.setLineNumber(getLineNumber());
                 procedure.setExecutable(exec);
 
-                Expression exp2 = body.optimize(getConfiguration().getOptimizer(), staticContext, AnyItemType.getInstance());
+                Expression exp2 = body.optimize(visitor, AnyItemType.getInstance());
                 if (body != exp2) {
                     procedure.setBody(exp2);
                     body = exp2;

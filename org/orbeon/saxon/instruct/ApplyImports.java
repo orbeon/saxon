@@ -1,17 +1,15 @@
 package org.orbeon.saxon.instruct;
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.Mode;
-import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.trans.Rule;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 
-import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 
@@ -54,25 +52,37 @@ public class ApplyImports extends Instruction {
      * @exception org.orbeon.saxon.trans.XPathException if an error is discovered during expression
      *     rewriting
      * @return the simplified expression
+     * @param visitor an expression visitor
      */
 
-    public Expression simplify(StaticContext env) throws XPathException {
-        WithParam.simplify(actualParams, env);
-        WithParam.simplify(tunnelParams, env);
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        WithParam.simplify(actualParams, visitor);
+        WithParam.simplify(tunnelParams, visitor);
         return this;
     }
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        WithParam.typeCheck(actualParams, env, contextItemType);
-        WithParam.typeCheck(tunnelParams, env, contextItemType);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        WithParam.typeCheck(actualParams, visitor, contextItemType);
+        WithParam.typeCheck(tunnelParams, visitor, contextItemType);
         return this;
     }
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        WithParam.optimize(opt, actualParams, env, contextItemType);
-        WithParam.optimize(opt, tunnelParams, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        WithParam.optimize(visitor, actualParams, contextItemType);
+        WithParam.optimize(visitor, tunnelParams, contextItemType);
         return this;
     }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        throw new UnsupportedOperationException("copy");
+    }
+    
 
     /**
      * Determine whether this instruction creates new nodes.
@@ -137,7 +147,7 @@ public class ApplyImports extends Instruction {
 
         Rule currentTemplateRule = context.getCurrentTemplateRule();
         if (currentTemplateRule==null) {
-            DynamicError e = new DynamicError("There is no current template rule");
+            XPathException e = new XPathException("There is no current template rule");
             e.setXPathContext(context);
             e.setErrorCode("XTDE0560");
             e.setLocator(this);
@@ -151,7 +161,7 @@ public class ApplyImports extends Instruction {
             mode = controller.getRuleManager().getDefaultMode();
         }
         if (context.getCurrentIterator()==null) {
-            DynamicError e = new DynamicError("Cannot call xsl:apply-imports when there is no context item");
+            XPathException e = new XPathException("Cannot call xsl:apply-imports when there is no context item");
             e.setXPathContext(context);
             e.setErrorCode("XTDE0565");
             e.setLocator(this);
@@ -159,7 +169,7 @@ public class ApplyImports extends Instruction {
         }
         Item currentItem = context.getCurrentIterator().current();
         if (!(currentItem instanceof NodeInfo)) {
-            DynamicError e = new DynamicError("Cannot call xsl:apply-imports when context item is not a node");
+            XPathException e = new XPathException("Cannot call xsl:apply-imports when context item is not a node");
             e.setXPathContext(context);
             e.setErrorCode("XTDE0565");
             e.setLocator(this);
@@ -184,18 +194,23 @@ public class ApplyImports extends Instruction {
     }
 
 
-
     /**
-     * Diagnostic print of expression structure. The expression is written to the System.err
-     * output stream
-     *
-     * @param level indentation level for this expression
-     @param out
-     @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "apply-imports");
+    public void explain(ExpressionPresenter out) {
+        out.startElement("applyImports");
+        if (actualParams != null && actualParams.length > 0) {
+            out.startSubsidiaryElement("withParams");
+            WithParam.displayExpressions(actualParams, out);
+            out.endSubsidiaryElement();
+        }
+        if (tunnelParams != null && tunnelParams.length > 0) {
+            out.startSubsidiaryElement("tunnelParams");
+            WithParam.displayExpressions(tunnelParams, out);
+            out.endSubsidiaryElement();
+        }
     }
 
 }

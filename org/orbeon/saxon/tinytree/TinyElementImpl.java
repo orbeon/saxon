@@ -1,11 +1,7 @@
 package org.orbeon.saxon.tinytree;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.event.CopyNamespaceSensitiveException;
-import org.orbeon.saxon.event.Receiver;
-import org.orbeon.saxon.event.ReceiverOptions;
+import org.orbeon.saxon.event.*;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.type.SimpleType;
@@ -23,7 +19,9 @@ import org.orbeon.saxon.type.Type;
 final class TinyElementImpl extends TinyParentNodeImpl {
 
     /**
-    * Constructor
+     * Constructor - create a tiny element node
+     * @param tree the Tinytree containing the node
+     * @param nodeNr the node number
     */
 
     public TinyElementImpl(TinyTree tree, int nodeNr) {
@@ -55,42 +53,7 @@ final class TinyElementImpl extends TinyParentNodeImpl {
     */
 
     public int getTypeAnnotation() {
-        return tree.getTypeAnnotation(nodeNr);
-    }
-
-    /**
-    * Output all namespace nodes associated with this element.
-    * @param out The relevant outputter
-     * @param includeAncestors True if namespaces associated with ancestor
-     */
-
-    public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors)
-                throws XPathException {
-
-        if (!tree.usesNamespaces) {
-            return;
-        }
-
-        int ns = tree.beta[nodeNr]; // by convention
-        if (ns>0 ) {
-            while (ns < tree.numberOfNamespaces &&
-                    tree.namespaceParent[ns] == nodeNr ) {
-                int nscode = tree.namespaceCode[ns];
-                out.namespace(nscode, 0);
-                ns++;
-            }
-        }
-
-        // now add the namespaces defined on the ancestor nodes. We rely on the receiver
-        // to eliminate multiple declarations of the same prefix
-
-        if (includeAncestors) {
-            NodeInfo parent = getParent();
-            if (parent != null) {
-                parent.sendNamespaceDeclarations(out, true);
-            }
-            // terminates when the parent is a root node
-        }
+        return tree.getTypeAnnotation(nodeNr) & NamePool.FP_MASK;
     }
 
     /**
@@ -131,7 +94,7 @@ final class TinyElementImpl extends TinyParentNodeImpl {
      *         <p>For a node other than an element, the method returns null.</p>
      */
 
-    static final int[] getDeclaredNamespaces(TinyTree tree, int nodeNr, int[] buffer) {
+    static int[] getDeclaredNamespaces(TinyTree tree, int nodeNr, int[] buffer) {
         int ns = tree.beta[nodeNr]; // by convention
         if (ns>0 ) {
             int count = 0;
@@ -142,7 +105,7 @@ final class TinyElementImpl extends TinyParentNodeImpl {
             }
             if (count == 0) {
                 return NodeInfo.EMPTY_NAMESPACE_LIST;
-            } else if (count <= buffer.length) {
+            } else if (buffer != null && count <= buffer.length) {
                 System.arraycopy(tree.namespaceCode, tree.beta[nodeNr], buffer, 0, count);
                 if (count < buffer.length) {
                     buffer[count] = -1;
@@ -172,7 +135,7 @@ final class TinyElementImpl extends TinyParentNodeImpl {
      * it does not contain any entries for namespace undeclarations or for overridden declarations.
      */
 
-    static final int[] getInScopeNamespaces(TinyTree tree, int nodeNr, int[] buffer) {
+    static int[] getInScopeNamespaces(TinyTree tree, int nodeNr, int[] buffer) {
 
         if (buffer == null || buffer.length == 0) {
             buffer = new int[10];
@@ -277,6 +240,7 @@ final class TinyElementImpl extends TinyParentNodeImpl {
                 copyAnnotations;
         Configuration config = null;
 		int next = nodeNr;
+        boolean setLocation = (receiver instanceof CopyInformee);
 
 		// document.diagnosticDump();
 
@@ -303,17 +267,19 @@ final class TinyElementImpl extends TinyParentNodeImpl {
 				case Type.ELEMENT : {
 
 					// start element
-                    final int typeCode = (copyAnnotations ? tree.getTypeAnnotation(next): StandardNames.XDT_UNTYPED);
+                    final int typeCode = (copyAnnotations ? tree.getTypeAnnotation(next): StandardNames.XS_UNTYPED);
                     if (disallowNamespaceSensitiveContent) {
                         if (config == null) {
                             config = getConfiguration();
                         }
                         checkNotNamespaceSensitive(config, typeCode);
                     }
+                    if (setLocation) {
+                        ((CopyInformee)receiver).notifyElementNode(tree.getNode(next));
+                    }
                     receiver.startElement(tree.nameCode[next],
                             typeCode,
                             locationId, 0);
-					                        //(first ? ReceiverOptions.DISINHERIT_NAMESPACES : 0));
 
 					// there is an element to close
 					closePending = true;
@@ -321,7 +287,23 @@ final class TinyElementImpl extends TinyParentNodeImpl {
 					// output namespaces
                     if (whichNamespaces != NO_NAMESPACES && tree.usesNamespaces) {
                         if (first) {
-                            sendNamespaceDeclarations(receiver, whichNamespaces==ALL_NAMESPACES);
+                            switch (whichNamespaces) {
+                                case NodeInfo.NO_NAMESPACES:
+                                    break;
+                                case NodeInfo.LOCAL_NAMESPACES:
+                                    int[] localNamespaces = getDeclaredNamespaces(null);
+                                    for (int i=0; i<localNamespaces.length; i++) {
+                                        int ns = localNamespaces[i];
+                                        if (ns == -1) {
+                                            break;
+                                        }
+                                        receiver.namespace(ns, 0);
+                                    }
+                                    break;
+                                case NodeInfo.ALL_NAMESPACES:
+                                    NamespaceCodeIterator.sendNamespaces(this, receiver);
+                                    break;
+                            }
                         } else {
                             int ns = tree.beta[next]; // by convention
                             if (ns>0 ) {
@@ -342,7 +324,9 @@ final class TinyElementImpl extends TinyParentNodeImpl {
 					if (att >= 0) {
                         while (att < tree.numberOfAttributes && tree.attParent[att] == next ) {
                             int attCode = tree.attCode[att];
-                            int attType = (copyAnnotations ? tree.getAttributeAnnotation(att) : -1);
+                            int attType = (copyAnnotations ?
+                                    tree.getAttributeAnnotation(att) :
+                                    StandardNames.XS_UNTYPED_ATOMIC);
                             if (disallowNamespaceSensitiveContent) {
                                 if (config == null) {
                                     config = getConfiguration();
@@ -424,7 +408,7 @@ final class TinyElementImpl extends TinyParentNodeImpl {
 		}
     }
 
-    private void checkNotNamespaceSensitive(Configuration config, final int typeCode) throws DynamicError {
+    private void checkNotNamespaceSensitive(Configuration config, final int typeCode) throws XPathException {
         SchemaType type = config.getSchemaType(typeCode & NamePool.FP_MASK);
         if (type instanceof SimpleType && ((SimpleType)type).isNamespaceSensitive()) {
             throw new CopyNamespaceSensitiveException(
@@ -486,7 +470,7 @@ final class TinyElementImpl extends TinyParentNodeImpl {
      */
 
     public String getURIForPrefix(String prefix, boolean useDefault) {
-        if (!useDefault && "".equals(prefix)) {
+        if (!useDefault && (prefix==null || prefix.length()==0)) {
             return "";
         }
         int prefixCode = getNamePool().getCodeForPrefix(prefix);

@@ -2,20 +2,17 @@ package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.event.*;
-import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.ContextItemExpression;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.om.Validation;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.expr.ExpressionVisitor;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.NodeKindTest;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.Whitespace;
-
-import java.io.PrintStream;
 
 /**
 * Handler for xsl:copy elements in stylesheet.
@@ -24,7 +21,15 @@ import java.io.PrintStream;
 public class Copy extends ElementCreator {
 
     private boolean copyNamespaces;
-    private ItemType contextItemType;    // TODO set this while type-checking
+    private ItemType contextItemType; // the type of the result
+
+    /**
+     * Create a shallow copy instruction
+     * @param copyNamespaces true if namespace nodes are to be copied when copying an element
+     * @param inheritNamespaces true if child elements are to inherit the namespace nodes of their parent
+     * @param schemaType the Schema type against which the content is to be validated
+     * @param validation the schema validation mode
+     */
 
     public Copy(boolean copyNamespaces,
                 boolean inheritNamespaces,
@@ -34,7 +39,7 @@ public class Copy extends ElementCreator {
         this.inheritNamespaces = inheritNamespaces;
         setSchemaType(schemaType);
         this.validation = validation;
-        this.validating = schemaType != null || validation != Validation.PRESERVE;
+        preservingTypes = schemaType == null && validation == Validation.PRESERVE;
         if (copyNamespaces) {
             setLazyConstruction(false);
             // can't do lazy construction at present in cases where namespaces need to be copied from the
@@ -49,11 +54,53 @@ public class Copy extends ElementCreator {
      * @return the simplified expression
      * @throws org.orbeon.saxon.trans.XPathException
      *          if an error is discovered during expression rewriting
+     * @param visitor an expression visitor
      */
 
-    public Expression simplify(StaticContext env) throws XPathException {
-        validating &= env.getConfiguration().isSchemaAware(Configuration.XML_SCHEMA);
-        return super.simplify(env);
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        preservingTypes |= !visitor.getConfiguration().isSchemaAware(Configuration.XML_SCHEMA);
+        return super.simplify(visitor);
+    }
+
+
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        if (contextItemType == null) {
+            // See spec bug 7624, test case copy903err
+            XPathException err = new XPathException("Context item for xsl:copy is undefined", "XTTE0945");
+            err.setLocator(this);
+            throw err;
+        }
+        if (contextItemType instanceof NodeTest) {
+            switch (contextItemType.getPrimitiveType()) {
+                // For elements and attributes, assume the type annotation will change
+                case Type.ELEMENT:
+                    this.contextItemType = NodeKindTest.ELEMENT;
+                    break;
+                case Type.ATTRIBUTE:
+                    this.contextItemType = NodeKindTest.ATTRIBUTE;
+                    break;
+                case Type.DOCUMENT:
+                    this.contextItemType = NodeKindTest.DOCUMENT;
+                    break;
+                default:
+                    this.contextItemType = contextItemType;
+            }
+        } else {
+            this.contextItemType = contextItemType;
+        }
+        return super.typeCheck(visitor, contextItemType);
+    }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        Copy copy = new Copy(copyNamespaces, inheritNamespaces, getSchemaType(), validation);
+        copy.setContentExpression(content.copy());
+        return copy;
     }
 
     /**
@@ -67,7 +114,7 @@ public class Copy extends ElementCreator {
     /**
      * Get the item type of the result of this instruction.
      * @return The context item type.
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
@@ -78,9 +125,20 @@ public class Copy extends ElementCreator {
         }
     }
 
+
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression exp = super.optimize(visitor, contextItemType);
+        if (exp == this) {
+            if (contextItemType.isAtomicType()) {
+                return new ContextItemExpression();
+            }
+        }
+        return exp;
+    }
+
     /**
      * Callback from ElementCreator when constructing an element
-     * @param context
+     * @param context XPath dynamic evaluation context
      * @return the namecode of the element to be constructed
      * @throws XPathException
      */
@@ -92,7 +150,7 @@ public class Copy extends ElementCreator {
 
     /**
      * Get the base URI of a copied element node (the base URI is retained in the new copy)
-     * @param context
+     * @param context XPath dynamic evaluation context
      * @return the base URI
      */
 
@@ -111,7 +169,7 @@ public class Copy extends ElementCreator {
     throws XPathException {
         if (copyNamespaces) {
             NodeInfo element = (NodeInfo)context.getContextItem();
-            element.sendNamespaceDeclarations(receiver, true);
+            NamespaceCodeIterator.sendNamespaces(element, receiver);
         }
     }
 
@@ -132,10 +190,17 @@ public class Copy extends ElementCreator {
 
     public TailCall processLeavingTail(XPathContext context) throws XPathException {
         Controller controller = context.getController();
-        XPathContext c2 = context.newMinorContext();
-        c2.setOrigin(this);
+        XPathContext c2 = context;
+//        XPathContext c2 = context.newMinorContext();
+//        c2.setOrigin(this);
         SequenceReceiver out = c2.getReceiver();
         Item item = context.getContextItem();
+        if (item == null) {
+            // See spec bug 7624, test case copy903err
+            XPathException err = new XPathException("Context item for xsl:copy is undefined", "XTTE0945");
+            err.setLocator(this);
+            throw err;
+        }
         if (!(item instanceof NodeInfo)) {
             out.append(item, locationId, NodeInfo.ALL_NAMESPACES);
             return null;
@@ -176,7 +241,7 @@ public class Copy extends ElementCreator {
             try {
                 source.copy(out, NodeInfo.NO_NAMESPACES, false, locationId);
             } catch (NoOpenStartTagException err) {
-                DynamicError e = new DynamicError(err.getMessage());
+                XPathException e = new XPathException(err.getMessage());
                 e.setXPathContext(context);
                 e.setErrorCode(err.getErrorCodeLocalPart());
                 throw dynamicError(this, e, context);
@@ -184,11 +249,10 @@ public class Copy extends ElementCreator {
             break;
 
         case Type.DOCUMENT:
-            if (validating) {
+            if (!preservingTypes) {
                 Receiver val = controller.getConfiguration().
-                        getDocumentValidator(out,
-                                             source.getBaseURI(),
-                                validation, Whitespace.NONE, getSchemaType());
+                        getDocumentValidator(out, source.getBaseURI(),
+                                validation, Whitespace.NONE, getSchemaType(), -1);
                 if (val != out) {
                     SequenceReceiver sr = new TreeReceiver(val);
                     sr.setPipelineConfiguration(out.getPipelineConfiguration());
@@ -219,7 +283,7 @@ public class Copy extends ElementCreator {
         XPathContext c2 = context.newMinorContext();
         c2.setOrigin(this);
         SequenceOutputter seq = controller.allocateSequenceOutputter(1);
-        final PipelineConfiguration pipe = controller.makePipelineConfiguration();
+        PipelineConfiguration pipe = controller.makePipelineConfiguration();
         pipe.setHostLanguage(getHostLanguage());
         seq.setPipelineConfiguration(pipe);
         c2.setTemporaryReceiver(seq);
@@ -231,17 +295,14 @@ public class Copy extends ElementCreator {
     }
 
     /**
-     * Diagnostic print of expression structure. The expression is written to the System.err
-     * output stream
-     *
-     * @param level indentation level for this expression
-     @param out
-     @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "copy");
-        content.display(level+1, out, config);
+    public void explain(ExpressionPresenter out) {
+        out.startElement("copy");
+        content.explain(out);
+        out.endElement();
     }
 
 

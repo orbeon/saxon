@@ -6,9 +6,7 @@ import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 
 
 /**
@@ -28,7 +26,7 @@ public final class TinyDocumentImpl extends TinyParentNodeImpl
 
     public TinyDocumentImpl(TinyTree tree) {
         this.tree = tree;
-        this.nodeNr = tree.numberOfNodes;
+        nodeNr = tree.numberOfNodes;
     }
 
     /**
@@ -164,7 +162,7 @@ public final class TinyDocumentImpl extends TinyParentNodeImpl
             list = getElementList(fingerprint);
             elementList.put(fingerprint, list);
         }
-        return new ListIterator(list);
+        return new NodeListIterator(list);
     }
 
     /**
@@ -183,12 +181,18 @@ public final class TinyDocumentImpl extends TinyParentNodeImpl
         }
         List list = new ArrayList(size);
         int i = nodeNr+1;
-        while (tree.depth[i] != 0) {
-            if (tree.nodeKind[i]==Type.ELEMENT &&
-                    (tree.nameCode[i] & 0xfffff) == fingerprint) {
-                list.add(tree.getNode(i));
+        try {
+            while (tree.depth[i] != 0) {
+                if (tree.nodeKind[i]==Type.ELEMENT &&
+                        (tree.nameCode[i] & 0xfffff) == fingerprint) {
+                    list.add(tree.getNode(i));
+                }
+                i++;
             }
-            i++;
+        } catch (ArrayIndexOutOfBoundsException e) {
+            // this shouldn't happen. If it does happen, it means the tree wasn't properly closed
+            // during construction (there is no stopper node at the end). In this case, we'll recover
+            return list;
         }
         return list;
     }
@@ -238,6 +242,21 @@ public final class TinyDocumentImpl extends TinyParentNodeImpl
         ids[0] = uri;
         ids[1] = publicId;
         entityTable.put(name, ids);
+    }
+
+    /**
+     * Get the list of unparsed entities defined in this document
+     * @return an Iterator, whose items are of type String, containing the names of all
+     *         unparsed entities defined in this document. If there are no unparsed entities or if the
+     *         information is not available then an empty iterator is returned
+     */
+
+    public Iterator getUnparsedEntityNames() {
+        if (entityTable == null) {
+            return Collections.EMPTY_LIST.iterator();
+        } else {
+            return entityTable.keySet().iterator();
+        }
     }
 
     /**

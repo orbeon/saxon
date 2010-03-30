@@ -1,14 +1,14 @@
 package org.orbeon.saxon.event;
 
-import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.trans.DynamicError;
-import org.orbeon.saxon.om.NameChecker;
-import org.orbeon.saxon.om.Name10Checker;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.om.XMLChar;
-import org.orbeon.saxon.Err;
+import org.orbeon.saxon.trans.Err;
+import org.orbeon.saxon.charcode.UTF16;
+import org.orbeon.saxon.charcode.XMLCharacterData;
 import org.orbeon.saxon.expr.ExpressionLocation;
+import org.orbeon.saxon.om.Name10Checker;
+import org.orbeon.saxon.om.NameChecker;
+import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.sort.IntHashSet;
+import org.orbeon.saxon.trans.XPathException;
 
 /**
  * This class is used on the serialization pipeline to check that the document conforms
@@ -38,7 +38,7 @@ public class XML10ContentChecker extends ProxyReceiver {
     public void startElement(int nameCode, int typeCode, int locationId, int properties) throws XPathException {
         if (!cache.contains(nameCode)) {
             if (!checker.isValidNCName(pool.getLocalName(nameCode))) {
-                DynamicError err = new DynamicError("Invalid XML 1.0 element name " +
+                XPathException err = new XPathException("Invalid XML 1.0 element name " +
                         Err.wrap(pool.getLocalName(nameCode), Err.ELEMENT));
                 err.setErrorCode("SERE0005");
                 err.setLocator(new ExpressionLocation(getPipelineConfiguration().getLocationProvider(), locationId));
@@ -65,7 +65,7 @@ public class XML10ContentChecker extends ProxyReceiver {
     public void attribute(int nameCode, int typeCode, CharSequence value, int locationId, int properties) throws XPathException {
         if (!cache.contains(nameCode)) {
             if (!checker.isValidNCName(pool.getLocalName(nameCode))) {
-                DynamicError err = new DynamicError("Invalid XML 1.0 attribute name " +
+                XPathException err = new XPathException("Invalid XML 1.0 attribute name " +
                         Err.wrap(pool.getLocalName(nameCode), Err.ATTRIBUTE));
                 err.setErrorCode("SERE0005");
                 err.setLocator(new ExpressionLocation(getPipelineConfiguration().getLocationProvider(), locationId));
@@ -101,7 +101,7 @@ public class XML10ContentChecker extends ProxyReceiver {
 
     public void processingInstruction(String target, CharSequence data, int locationId, int properties) throws XPathException {
         if (!checker.isValidNCName(target)) {
-            DynamicError err = new DynamicError("Invalid XML 1.0 processing instruction name " +
+            XPathException err = new XPathException("Invalid XML 1.0 processing instruction name " +
                     Err.wrap(target));
             err.setErrorCode("SERE0005");
             err.setLocator(new ExpressionLocation(getPipelineConfiguration().getLocationProvider(), locationId));
@@ -112,20 +112,21 @@ public class XML10ContentChecker extends ProxyReceiver {
     }
 
      /**
-     * Check that a string consists of valid XML 1.0 characters (UTF-16 encoded)
+      * Check that a string consists of valid XML 1.0 characters (UTF-16 encoded)
+      * @param in the string to be checked
+      * @param locationId the location of the string
      */
 
-    private void checkString(CharSequence in, int locationId) throws XPathException {
+    private void checkString(CharSequence in, long locationId) throws XPathException {
          final int len = in.length();
          for (int c=0; c<len; c++) {
             int ch32 = in.charAt(c);
-            if (XMLChar.isHighSurrogate(ch32)) {
+            if (UTF16.isHighSurrogate(ch32)) {
                 char low = in.charAt(++c);
-                ch32 = XMLChar.supplemental((char)ch32, low);
+                ch32 = UTF16.combinePair((char)ch32, low);
             }
-            if (!XMLChar.isValid(ch32)) {
-                DynamicError err = new DynamicError(
-                        "The result tree contains a character not allowed by XML 1.0 (hex " +
+            if (!XMLCharacterData.isValid10(ch32)) {
+                XPathException err = new XPathException("The result tree contains a character not allowed by XML 1.0 (hex " +
                         Integer.toHexString(ch32) + ')');
                 err.setErrorCode("SERE0006");
                 err.setLocator(new ExpressionLocation(getPipelineConfiguration().getLocationProvider(), locationId));

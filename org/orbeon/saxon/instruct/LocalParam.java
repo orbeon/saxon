@@ -1,36 +1,62 @@
 package org.orbeon.saxon.instruct;
 
 import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.om.ValueRepresentation;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 
 import java.util.Collections;
 import java.util.Iterator;
 
 /**
- * The compiled form of an xsl:param element in the stylesheet or an
- * external variable in a Query. <br>
- * The xsl:param element in XSLT has mandatory attribute name and optional attribute select. It can also
- * be specified as required="yes" or required="no". In standard XQuery external variables are always required,
- * and no default value can be specified; but Saxon provides an extension pragma that allows a query
- * to specify a default.
+ * The compiled form of an xsl:param element within a template in an XSLT stylesheet.
+ *
+ * <p>The xsl:param element in XSLT has mandatory attribute name and optional attribute select. It can also
+ * be specified as required="yes" or required="no".</p>
+ *
+ * <p>This is used only for parameters to XSLT templates. For function calls, the caller of the function
+ * places supplied arguments onto the callee's stackframe and the callee does not need to do anything.
+ * Global parameters (XQuery external variables) are handled using {@link GlobalParam}.
  */
 
 public final class LocalParam extends GeneralVariable {
 
+    private int parameterId;
     private Expression conversion = null;
     private int conversionEvaluationMode = ExpressionTool.UNDECIDED;
 
     /**
+     * Allocate a number which is essentially an alias for the parameter name,
+     * unique within a stylesheet
+     * @param id the parameter id
+     */
+
+    public void setParameterId(int id) {
+        parameterId = id;
+    }
+
+    /**
+     * Get the parameter id, which is essentially an alias for the parameter name,
+     * unique within a stylesheet
+     * @return the parameter id
+     */
+
+    public int getParameterId() {
+        return parameterId;
+    }
+    
+    /**
      * Define a conversion that is to be applied to the supplied parameter value.
-     * @param convertor
+     * @param convertor The expression to be applied. This performs type checking,
+     * and the basic conversions implied by function calling rules, for example
+     * numeric promotion, atomization, and conversion of untyped atomic values to
+     * a required type. The conversion uses the actual parameter value as input,
+     * referencing it using a VariableReference.
      */
     public void setConversion(Expression convertor) {
         conversion = convertor;
         if (convertor != null) {
-            ComputedExpression.setParentExpression(convertor, this);
             conversionEvaluationMode = ExpressionTool.eagerEvaluationMode(conversion);
         }
     }
@@ -87,7 +113,7 @@ public final class LocalParam extends GeneralVariable {
     */
 
     public TailCall processLeavingTail(XPathContext context) throws XPathException {
-        boolean wasSupplied = context.useLocalParameter(getVariableFingerprint(), this, isTunnelParam());
+        boolean wasSupplied = context.useLocalParameter(getVariableQName(), this, isTunnelParam());
         if (wasSupplied) {
             // if a parameter was supplied by the caller, we may need to convert it to the type required
             if (conversion != null) {
@@ -103,13 +129,13 @@ public final class LocalParam extends GeneralVariable {
 
         } else {
             if (isImplicitlyRequiredParam()) {
-                DynamicError e = new DynamicError("A value must be supplied for the parameter because " +
+                XPathException e = new XPathException("A value must be supplied for the parameter because " +
                         "the default value is not a valid instance of the required type");
                 e.setXPathContext(context);
                 e.setErrorCode("XTDE0610");
                 throw e;
             } else if (isRequiredParam()) {
-                DynamicError e = new DynamicError("No value supplied for required parameter");
+                XPathException e = new XPathException("No value supplied for required parameter");
                 e.setXPathContext(context);
                 e.setErrorCode("XTDE0700");
                 throw e;
@@ -126,6 +152,21 @@ public final class LocalParam extends GeneralVariable {
     public ValueRepresentation evaluateVariable(XPathContext c) {
         return c.evaluateLocalVariable(slotNumber);
     }
+
+    /**
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     */
+
+    public void explain(ExpressionPresenter out) {
+        out.startElement("param");
+        out.emitAttribute("name", variableQName.getDisplayName());
+        if (select != null) {
+            select.explain(out);
+        }
+        out.endElement();
+    }
+
 }
 
 //

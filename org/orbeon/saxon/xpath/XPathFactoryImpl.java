@@ -17,8 +17,24 @@ public class XPathFactoryImpl extends XPathFactory {
     private XPathVariableResolver variableResolver;
     private XPathFunctionResolver functionResolver;
 
+    /**
+     * Default constructor: this creates a Configuration as well as creating the XPathFactory. Any documents
+     * accessed using this XPathFactory must be built using this same Configuration.
+     */
+
     public XPathFactoryImpl() {
         config = makeConfiguration();
+    }
+
+    /**
+     * Constructor using a user-supplied Configuration.
+     * This constructor is useful if the document to be queried already exists, as it allows the configuration
+     * associated with the document to be used with this XPathFactory.
+     * @param config the Saxon configuration
+     */
+
+    public XPathFactoryImpl(Configuration config) {
+        this.config = config;
     }
 
     protected Configuration makeConfiguration() {
@@ -26,7 +42,8 @@ public class XPathFactoryImpl extends XPathFactory {
     }
 
     /**
-     * Get the Configuration object
+     * Get the Configuration object used by this XPathFactory
+     * @return the Saxon configuration
      */
 
     public Configuration getConfiguration() {
@@ -35,22 +52,29 @@ public class XPathFactoryImpl extends XPathFactory {
 
     /**
      * Test whether a given object model is supported. Returns true if the object model
-     * is the Saxon object model, DOM, JDOM, or XOM
+     * is the Saxon object model, DOM, JDOM, DOM4J, or XOM
      * @param model The URI identifying the object model.
-     * @return true if the object model is one of
+     * @return true if the object model is one of the following (provided that the supporting
+     * JAR file is available on the classpath)
      * {@link NamespaceConstant#OBJECT_MODEL_SAXON},
      * {@link XPathConstants#DOM_OBJECT_MODEL},
      * {@link NamespaceConstant#OBJECT_MODEL_JDOM}, or
      * {@link NamespaceConstant#OBJECT_MODEL_XOM}, or
-     * {@link NamespaceConstant#OBJECT_MODEL_DOM4J}
+     * {@link NamespaceConstant#OBJECT_MODEL_DOM4J}.
+     * Saxon also allows user-defined external object models to be registered with the Configuration, and
+     * this method will return true in respect of any such model.
      */
     public boolean isObjectModelSupported(String model) {
-        if (model.equals(NamespaceConstant.OBJECT_MODEL_SAXON)) return true;
-        if (model.equals(XPathConstants.DOM_OBJECT_MODEL)) return true;
-        if (model.equals(NamespaceConstant.OBJECT_MODEL_JDOM)) return true;
-        if (model.equals(NamespaceConstant.OBJECT_MODEL_XOM)) return true;
-        if (model.equals(NamespaceConstant.OBJECT_MODEL_DOM4J)) return true;
-        return false;
+        boolean debug = System.getProperty("jaxp.debug") != null;
+        if (debug) {
+            System.err.println("JAXP: Calling " + getClass().getName() + ".isObjectModelSupported(\"" + model + "\")");
+            System.err.println("JAXP: -- returning " + silentIsObjectModelSupported(model));
+        }
+        return silentIsObjectModelSupported(model);
+    }
+
+    private boolean silentIsObjectModelSupported(String model) {
+        return model.equals(NamespaceConstant.OBJECT_MODEL_SAXON) || config.getExternalObjectModel(model) != null;
     }
 
     /**
@@ -67,7 +91,7 @@ public class XPathFactoryImpl extends XPathFactory {
      */
 
     public void setFeature(String feature, boolean b) throws XPathFactoryConfigurationException {
-        if (feature.equals(XMLConstants.FEATURE_SECURE_PROCESSING)) {
+        if (feature.equals(FEATURE_SECURE_PROCESSING)) {
             config.setAllowExternalFunctions(!b);
         } else if (feature.equals(FeatureKeys.SCHEMA_VALIDATION)) {
             config.setSchemaValidationMode(b ? Validation.STRICT : Validation.STRIP);
@@ -80,7 +104,7 @@ public class XPathFactoryImpl extends XPathFactory {
      * Get a feature of this XPath implementation. The only features currently
      * recognized are:
      * <ul>
-     * <li> {@link XMLConstants#FEATURE_SECURE_PROCESSING} </li>
+     * <li> {@link #FEATURE_SECURE_PROCESSING} </li>
      * <li> {@link org.orbeon.saxon.FeatureKeys#SCHEMA_VALIDATION}: requests schema validation of source documents. </li>
      * </ul>
      * @param feature a URI identifying the feature
@@ -89,7 +113,7 @@ public class XPathFactoryImpl extends XPathFactory {
      */
 
     public boolean getFeature(String feature) throws XPathFactoryConfigurationException {
-        if (feature.equals(XMLConstants.FEATURE_SECURE_PROCESSING)) {
+        if (feature.equals(FEATURE_SECURE_PROCESSING)) {
             return !config.isAllowExternalFunctions();
         } else if (feature.equals(FeatureKeys.SCHEMA_VALIDATION)) {
             return config.getSchemaValidationMode() == Validation.STRICT;
@@ -129,11 +153,11 @@ public class XPathFactoryImpl extends XPathFactory {
         XPathEvaluator xpath = new XPathEvaluator(config);
         xpath.setXPathFunctionResolver(functionResolver);
         xpath.setXPathVariableResolver(variableResolver);
-        //config.registerStandardObjectModels();
         return xpath;
     }
 
-
+    private static String FEATURE_SECURE_PROCESSING = "http://javax.xml.XMLConstants/feature/secure-processing";
+            // XMLConstants.FEATURE_SECURE_PROCESSING in JDK 1.5
 
 }
 

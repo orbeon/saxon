@@ -1,20 +1,24 @@
 package org.orbeon.saxon.expr;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.evpull.EventIterator;
+import org.orbeon.saxon.evpull.EventMappingFunction;
+import org.orbeon.saxon.evpull.EventMappingIterator;
+import org.orbeon.saxon.functions.KeyFn;
 import org.orbeon.saxon.functions.SystemFunction;
+import org.orbeon.saxon.instruct.Choose;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.StructuredQName;
 import org.orbeon.saxon.om.ValueRepresentation;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trace.Location;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.Cardinality;
-import org.orbeon.saxon.value.EmptySequence;
-import org.orbeon.saxon.value.IntegerValue;
+import org.orbeon.saxon.value.Int64Value;
 import org.orbeon.saxon.value.SequenceType;
 
-import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,93 +29,95 @@ import java.util.List;
 
 public class ForExpression extends Assignation {
 
-    private transient RangeVariableDeclaration positionVariable = null;
-    private PositionBinding positionBinding = null;
+    private PositionVariable positionVariable = null;
 
+    /**
+     * Create a "for" expression (for $x at $p in SEQUENCE return ACTION)
+     */
 
     public ForExpression() {
     }
 
     /**
      * Set the reference to the position variable (XQuery only)
+     * @param decl the range variable declaration for the position variable
      */
 
-    public void setPositionVariable (RangeVariableDeclaration decl) {
+    public void setPositionVariable (PositionVariable decl) {
         positionVariable = decl;
-        if (decl != null) {
-            positionBinding = new PositionBinding(decl.getNameCode());
-        }
     }
 
-    public int getPositionVariableNameCode() {
-        if (positionBinding == null) {
-            return -1;
+    /**
+     * Get the name of the position variable
+     * @return the name of the position variable ("at $p") if there is one, or null if not
+     */
+
+    public StructuredQName getPositionVariableName() {
+        if (positionVariable == null) {
+            return null;
         } else {
-            return positionBinding.getNameCode();
-        }
-    }
-
-    public void setAction(Expression action) {
-        super.setAction(action);
-        if (positionVariable != null) {
-            positionVariable.fixupReferences(positionBinding);
+            return positionVariable.getVariableQName();
         }
     }
 
     /**
-    * Set the slot number for the range variable
+     * Set the slot number for the range variable
+     * @param nr the slot number allocated to the range variable on the local stack frame.
+     * This implicitly allocates the next slot number to the position variable if there is one.
     */
 
     public void setSlotNumber(int nr) {
         super.setSlotNumber(nr);
-        if (positionBinding != null) {
-            positionBinding.setSlotNumber(nr+1);
+        if (positionVariable != null) {
+            positionVariable.setSlotNumber(nr+1);
         }
     }
 
     /**
-     * Get the number of slots required. Normally 1, except for a FOR expression with an AT clause, where it is 2.
+     * Get the number of slots required.
+     * @return normally 1, except for a FOR expression with an AT clause, where it is 2.
      */
 
     public int getRequiredSlots() {
-        return (positionBinding == null ? 1 : 2);
+        return (positionVariable == null ? 1 : 2);
     }
 
     /**
     * Type-check the expression
     */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
 
         // The order of events is critical here. First we ensure that the type of the
         // sequence expression is established. This is used to establish the type of the variable,
         // which in turn is required when type-checking the action part.
 
-        sequence = sequence.typeCheck(env, contextItemType);
-        if (sequence instanceof EmptySequence) {
-            return EmptySequence.getInstance();
+        sequence = visitor.typeCheck(sequence, contextItemType);
+        if (Literal.isEmptySequence(sequence)) {
+            return sequence;
         }
 
-        if (declaration != null) {
+        if (requiredType != null) {
             // if declaration is null, we've already done the type checking in a previous pass
-            final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
-            SequenceType decl = declaration.getRequiredType();
+            final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
+            SequenceType decl = requiredType;
             SequenceType sequenceType = SequenceType.makeSequenceType(
                     decl.getPrimaryType(), StaticProperty.ALLOWS_ZERO_OR_MORE);
-            RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, new Integer(nameCode), 0, env.getNamePool());
-            role.setSourceLocator(this);
+            RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, variableName, 0
+            );
+            //role.setSourceLocator(this);
             sequence = TypeChecker.strictTypeCheck(
-                                    sequence, sequenceType, role, env);
+                                    sequence, sequenceType, role, visitor.getStaticContext());
             ItemType actualItemType = sequence.getItemType(th);
-            declaration.refineTypeInformation(actualItemType,
+            refineTypeInformation(actualItemType,
                     StaticProperty.EXACTLY_ONE,
                     null,
-                    sequence.getSpecialProperties(), env);
+                    sequence.getSpecialProperties(), visitor, this);
         }
 
-        action = action.typeCheck(env, contextItemType);
-        if (action instanceof EmptySequence) {
-            return EmptySequence.getInstance();
+        action = visitor.typeCheck(action, contextItemType);
+        if (Literal.isEmptySequence(action)) {
+            return action;
         }
 
         return this;
@@ -121,67 +127,85 @@ public class ForExpression extends Assignation {
     * Optimize the expression
     */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Optimizer opt = visitor.getConfiguration().getOptimizer();
+        boolean debug = opt.getConfiguration().isOptimizerTracing();
 
         // Try to promote any WHERE clause appearing immediately within the FOR expression
 
-        Expression p = promoteWhereClause(positionBinding);
+        Expression p = promoteWhereClause(positionVariable);
         if (p != null) {
-            return p.optimize(opt, env, contextItemType);
+            if (debug) {
+                opt.trace("Promoted where clause in for $" + getVariableName(), p);
+            }
+            return visitor.optimize(p, contextItemType);
         }
 
         // See if there is a simple "where" condition that can be turned into a predicate
 
-        Expression pred = convertWhereToPredicate(opt, env, contextItemType);
+        Expression pred = convertWhereToPredicate(visitor, contextItemType);
         if (pred != null && pred != this) {
-            return pred.optimize(opt, env, contextItemType);
+            if (debug) {
+                opt.trace("Converted where clause in for $" + getVariableName() + " to predicate", pred);
+            }
+            return visitor.optimize(pred, contextItemType);
         }
 
-        Expression seq2 = sequence.optimize(opt, env, contextItemType);
+        Expression seq2 = visitor.optimize(sequence, contextItemType);
         if (seq2 != sequence) {
             sequence = seq2;
             adoptChildExpression(sequence);
-            resetStaticProperties();
-            return optimize(opt, env, contextItemType);
+            visitor.resetStaticProperties();
+            return optimize(visitor, contextItemType);
         }
 
-        if (sequence instanceof EmptySequence) {
-            return EmptySequence.getInstance();
+        if (Literal.isEmptySequence(sequence)) {
+            return sequence;
         }
 
-        Expression act2 = action.optimize(opt, env, contextItemType);
+        Expression act2 = visitor.optimize(action, contextItemType);
         if (act2 != action) {
             action = act2;
             adoptChildExpression(action);
-            resetStaticProperties();
+            visitor.resetStaticProperties();
             // it's now worth re-attempting the "where" clause optimizations
-            return optimize(opt, env, contextItemType);
+            return optimize(visitor, contextItemType);
         }
 
-        if (action instanceof EmptySequence) {
-            return EmptySequence.getInstance();
+        if (Literal.isEmptySequence(action)) {
+            return action;
         }
 
-        Expression e2 = extractLoopInvariants(opt, env, contextItemType);
+        Expression e2 = extractLoopInvariants(visitor, contextItemType);
         if (e2 != null && e2 != this) {
-            return e2.optimize(opt, env, contextItemType);
+            if (debug) {
+                opt.trace("Extracted invariant in 'for $" + getVariableName() + "' loop", e2);
+            }
+            return visitor.optimize(e2, contextItemType);
         }
 
         // Simplify an expression of the form "for $b in a/b/c return $b/d".
         // (XQuery users seem to write these a lot!)
 
-        if (declaration != null && positionVariable==null &&
-                sequence instanceof PathExpression && action instanceof PathExpression) {
-            int count = declaration.getReferenceCount(this, env);
-            PathExpression path2 = (PathExpression)action;
+        if (positionVariable==null &&
+                sequence instanceof SlashExpression && action instanceof SlashExpression) {
+            int count = ExpressionTool.getReferenceCount(action, this, false);
+            SlashExpression path2 = (SlashExpression)action;
             Expression s2 = path2.getStartExpression();
-            if (count == 1 && s2 instanceof VariableReference && ((VariableReference)s2).getBinding() == this) {
-                PathExpression newPath = new PathExpression(sequence, path2.getStepExpression());
-                if ((newPath.getSpecialProperties() & StaticProperty.ORDERED_NODESET) != 0) {
+            Expression step2 = path2.getStepExpression();
+            if (count == 1 && s2 instanceof VariableReference && ((VariableReference)s2).getBinding() == this &&
+                    ((step2.getDependencies() & (StaticProperty.DEPENDS_ON_POSITION | StaticProperty.DEPENDS_ON_LAST)) == 0)) {
+                Expression newPath = new SlashExpression(sequence, path2.getStepExpression());
+                ExpressionTool.copyLocationInfo(this, newPath);
+                newPath = visitor.typeCheck(visitor.simplify(newPath), contextItemType);
+                if (newPath instanceof SlashExpression) {
+                    // if not, it has been wrapped in a DocumentSorter or Reverser, which makes it ineligible.
                     // see test qxmp299, where this condition isn't satisfied
-                    newPath.setParentExpression(getParentExpression());
-                    newPath.setLocationId(getLocationId());
-                    return newPath.simplify(env).typeCheck(env, contextItemType).optimize(opt, env, contextItemType);
+                    if (debug) {
+                        opt.trace("Collapsed return clause of for $" + getVariableName() +
+                                " into path expression", newPath);
+                    }
+                    return visitor.optimize(newPath, contextItemType);
                 }
             }
         }
@@ -190,75 +214,128 @@ public class ForExpression extends Assignation {
         // arise as a result of previous optimization steps.
 
         if (action instanceof VariableReference && ((VariableReference)action).getBinding() == this) {
-            ComputedExpression.setParentExpression(sequence, getParentExpression());
+            if (debug) {
+                opt.trace("Collapsed redundant for expression $" + getVariableName(), sequence);
+            }
             return sequence;
         }
 
-        declaration = null;     // let the garbage collector take it
+        // Rewrite an expression of the form "for $x at $p in EXPR return $p" as "1 to count(EXPR)"
+
+        if (action instanceof VariableReference && ((VariableReference)action).getBinding() == positionVariable) {
+            FunctionCall count = SystemFunction.makeSystemFunction("count", new Expression[]{sequence});
+            RangeExpression range = new RangeExpression(new Literal(Int64Value.PLUS_ONE), Token.TO, count);
+            if (debug) {
+                opt.trace("Replaced 'for $x at $p in EXP return $p' by '1 to count(EXP)'", range);
+            }
+            return range.optimize(visitor, contextItemType);
+        }
+
+        // If the cardinality of the sequence is exactly one, rewrite as a LET expression
+
+        if (sequence.getCardinality() == StaticProperty.EXACTLY_ONE && positionVariable == null) {
+            LetExpression let = new LetExpression();
+            let.setVariableQName(variableName);
+            let.setRequiredType(SequenceType.makeSequenceType(
+                    sequence.getItemType(visitor.getConfiguration().getTypeHierarchy()),
+                    StaticProperty.EXACTLY_ONE));
+            let.setSequence(sequence);
+            let.setAction(action);
+            let.setSlotNumber(slotNumber);
+            ExpressionTool.rebindVariableReferences(action, this, let);
+            return let.optimize(visitor, contextItemType);
+        }
+
+        //declaration = null;     // let the garbage collector take it
         return this;
     }
 
+    /**
+     * Given an expression that is an immediate child of this expression, test whether
+     * the evaluation of the parent expression causes the child expression to be
+     * evaluated repeatedly
+     * @param child the immediate subexpression
+     * @return true if the child expression is evaluated repeatedly
+     */
+
+    public boolean hasLoopingSubexpression(Expression child) {
+        return child == action;
+    }
 
     /**
      * Extract subexpressions in the action part that don't depend on the range variable
+     * @param visitor the expression visitor
+     * @param contextItemType the item type of the context item
+     * @return the optimized expression if it has changed, or null if no optimization was possible
      */
 
-    private Expression extractLoopInvariants(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        // Extract subexpressions that don't depend on the range variable.
-        // We don't do this if there is a position variable. Ideally we would
-        // extract subexpressions so long as they don't depend on either variable,
-        // but we don't have the machinery to do that yet.
-        // TODO: add this optimisation: we now have the mechanism in ExpressionTool.dependsOnVariable()
+    private Expression extractLoopInvariants(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        // Extract subexpressions that don't depend on the range variable or the position variable
         // If a subexpression is (or might be) creative, this is, if it creates new nodes, we don't
         // extract it from the loop, but we do extract its non-creative subexpressions
 
-        if (positionVariable == null) {
-            PromotionOffer offer = new PromotionOffer(opt);
+        //if (positionVariable == null) {
+            PromotionOffer offer = new PromotionOffer(visitor.getConfiguration().getOptimizer());
             offer.containingExpression = this;
             offer.action = PromotionOffer.RANGE_INDEPENDENT;
-            Binding[] bindingList = {this};
-            offer.bindingList = bindingList;
-            Container container = getParentExpression();
+            if (positionVariable == null) {
+                offer.bindingList = new Binding[] {this};
+            } else {
+                offer.bindingList = new Binding[] {this, positionVariable};
+            }
             action = doPromotion(action, offer);
             if (offer.containingExpression instanceof LetExpression) {
                 // a subexpression has been promoted
-                ((ComputedExpression)offer.containingExpression).setParentExpression(container);
+                //offer.containingExpression.setParentExpression(container);
                 // try again: there may be further subexpressions to promote
-                offer.containingExpression = offer.containingExpression
-                        //.simplify(env)
-                        //.typeCheck(env, contextItemType)
-                        .optimize(opt, env, contextItemType);
+                offer.containingExpression = visitor.optimize(offer.containingExpression, contextItemType);
             }
             return offer.containingExpression;
-        }
-        return null;
+        //}
+        //return null;
 
     }
 
     /**
-     * Convert where clause, if possible, to a predicate. Returns the converted expression if modified,
-     * or null otherwise
+     * Convert where clause, if possible, to a predicate.
+     * @param visitor the expression visitor
+     * @param contextItemType the item type of the context item
+     * @return the converted expression if modified, or null otherwise
      */
 
-    public Expression convertWhereToPredicate(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        if (action instanceof IfExpression && ((IfExpression)action).getElseExpression() instanceof EmptySequence) {
-            final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
+    public Expression convertWhereToPredicate(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        if (Choose.isSingleBranchChoice(action)) {
+            final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
+            final Optimizer opt = visitor.getConfiguration().getOptimizer();
             Expression head = null;
             Expression selection = sequence;
             ItemType selectionContextItemType = contextItemType;
-            if (sequence instanceof PathExpression && ((PathExpression)sequence).isAbsolute(th)) {
-                head = ((PathExpression)sequence).getFirstStep();
-                selection = ((PathExpression)sequence).getRemainingSteps();
-                selectionContextItemType = head.getItemType(th);
+            if (sequence instanceof PathExpression) {
+                if (((PathExpression)sequence).isAbsolute(th)) {
+                    head = ((PathExpression)sequence).getFirstStep();
+                    selection = ((PathExpression)sequence).getRemainingSteps();
+                    selectionContextItemType = head.getItemType(th);
+                } else {
+                    PathExpression p = ((PathExpression)sequence).tryToMakeAbsolute(th);
+                    if (p != null) {
+                        sequence = p;
+                        adoptChildExpression(p);
+                        head = ((PathExpression)sequence).getFirstStep();
+                        selection = ((PathExpression)sequence).getRemainingSteps();
+                        selectionContextItemType = head.getItemType(th);
+                    }
+                }
             }
 
             boolean changed = false;
-            IfExpression condAction = (IfExpression)action;
+            Expression condition = ((Choose)action).getConditions()[0];
             List list = new ArrayList(4);
-            BooleanExpression.listAndComponents(condAction.getCondition(), list);
+            BooleanExpression.listAndComponents(condition, list);
             for (int t=list.size()-1; t>=0; t--) {
                 // Process each term in the where clause independently
                 Expression term = (Expression)list.get(t);
+
+                // TODO: following code should be generalized so it works on any kind of expression.
 
                 if (term instanceof ValueComparison || term instanceof SingletonComparison) {
                     BinaryExpression comp = (BinaryExpression)term;
@@ -272,14 +349,15 @@ public class ForExpression extends Assignation {
                         // This takes advantage of the optimizations applied to positional filter expressions
                         // Only do this if the sequence expression has not yet been changed, because
                         // the position in a predicate after the first is different.
-
-                        if (positionVariable != null && positionVariable.getReferenceList().size() == 1 && !changed) {
-                            if (operands[op] instanceof VariableReference &&
-                                    ((VariableReference)operands[op]).getBinding() == positionBinding &&
-                                    (operands[1-op].getDependencies() & StaticProperty.DEPENDS_ON_FOCUS) == 0) {
+                        Binding[] thisVar = {this};
+                        if (positionVariable != null && operands[op] instanceof VariableReference && !changed) {
+                            List varRefs = new ArrayList();
+                            ExpressionTool.gatherVariableReferences(action, positionVariable, varRefs);
+                            if (varRefs.size() == 1 && varRefs.get(0) == operands[op] &&
+                                    (operands[1-op].getDependencies() & StaticProperty.DEPENDS_ON_FOCUS) == 0 &&
+                                    !ExpressionTool.dependsOnVariable(operands[1-op], thisVar)) {
                                 FunctionCall position =
-                                        SystemFunction.makeSystemFunction("position", 1, env.getNamePool());
-                                position.setArguments(SimpleExpression.NO_ARGUMENTS);
+                                        SystemFunction.makeSystemFunction("position", SimpleExpression.NO_ARGUMENTS);
                                 Expression predicate;
                                 if (term instanceof ValueComparison) {
                                     if (op==0) {
@@ -295,10 +373,11 @@ public class ForExpression extends Assignation {
                                     }
                                 }
                                 selection = new FilterExpression(selection, predicate);
-                                selection = selection.typeCheck(env, selectionContextItemType);
+                                ExpressionTool.copyLocationInfo(this, selection);
+                                selection = visitor.typeCheck(selection, selectionContextItemType);
                                 //action = condAction.getThenExpression();
                                 positionVariable = null;
-                                positionBinding = null;
+                                //positionBinding = null;
                                 list.remove(t);
                                 changed = true;
                                 break;
@@ -313,13 +392,12 @@ public class ForExpression extends Assignation {
                         // as
                         //    for $x in EXPR[a/b eq "z"] return A
 
-                        Binding[] thisVar = {this};
                         if ( positionVariable == null &&
-                                ExpressionTool.isVariableReplaceableByDot(term, thisVar) &&
+                                opt.isVariableReplaceableByDot(term, thisVar) &&
                                 (term.getDependencies() & StaticProperty.DEPENDS_ON_FOCUS) == 0 &&
                                 ExpressionTool.dependsOnVariable(operands[op], thisVar) &&
                                 !ExpressionTool.dependsOnVariable(operands[1-op], thisVar)) {
-                            PromotionOffer offer = new PromotionOffer(opt);
+                            PromotionOffer offer = new PromotionOffer(visitor.getConfiguration().getOptimizer());
                             offer.action = PromotionOffer.INLINE_VARIABLE_REFERENCES;
                             offer.bindingList = thisVar;
                             offer.containingExpression = new ContextItemExpression();
@@ -331,12 +409,13 @@ public class ForExpression extends Assignation {
                                 } else {
                                     predicate = new ValueComparison(operands[0], comp.getOperator(), newOperand);
                                 }
-                                predicate = predicate.typeCheck(env, sequence.getItemType(th));
+                                predicate = visitor.typeCheck(predicate, sequence.getItemType(th));
                                 selection = new FilterExpression(selection, predicate);
-                                selection = selection.typeCheck(env, selectionContextItemType);
+                                ExpressionTool.copyLocationInfo(this, selection);
+                                selection = visitor.typeCheck(selection, selectionContextItemType);
                                 changed = true;
                                 positionVariable = null;
-                                positionBinding = null;
+                                //positionBinding = null;
                                 list.remove(t);
                             }
                         }
@@ -355,19 +434,17 @@ public class ForExpression extends Assignation {
 
                         Binding[] thisVar = {this};
                         if (positionVariable == null &&
-                                ExpressionTool.isVariableReplaceableByDot(term, thisVar) &&
+                                opt.isVariableReplaceableByDot(term, thisVar) &&
                                 (term.getDependencies() & StaticProperty.DEPENDS_ON_FOCUS) == 0 &&
                                 ExpressionTool.dependsOnVariable(operands[op], thisVar) &&
                                 !ExpressionTool.dependsOnVariable(operands[1-op], thisVar)) {
-                            PromotionOffer offer = new PromotionOffer(opt);
+                            PromotionOffer offer = new PromotionOffer(visitor.getConfiguration().getOptimizer());
                             offer.action = PromotionOffer.INLINE_VARIABLE_REFERENCES;
                             offer.bindingList = thisVar;
                             offer.containingExpression = new ContextItemExpression();
                             Expression newOperand = operands[op].promote(offer);
                             if (newOperand != null && !ExpressionTool.dependsOnVariable(newOperand, thisVar)) {
-                                if (newOperand instanceof ComputedExpression) {
-                                    ((ComputedExpression)newOperand).resetStaticProperties();
-                                }
+                                //newOperand.resetStaticProperties();
                                 Expression predicate;
                                 //newOperand = new Atomizer(newOperand, env.getConfiguration());
                                 if (op==0) {
@@ -377,12 +454,13 @@ public class ForExpression extends Assignation {
                                     predicate = new GeneralComparison(operands[0], comp.getOperator(), newOperand);
                                 }
                                 selection = new FilterExpression(selection, predicate);
-                                selection = selection.typeCheck(env, selectionContextItemType);
-                                selection = selection.optimize(opt, env, selectionContextItemType);
-                                resetStaticProperties();
+                                ExpressionTool.copyLocationInfo(this, selection);
+                                selection = visitor.typeCheck(selection, selectionContextItemType);
+                                selection = selection.optimize(visitor, selectionContextItemType);
+                                visitor.resetStaticProperties();
                                 //action = condAction.getThenExpression();
                                 positionVariable = null;
-                                positionBinding = null;
+                                //positionBinding = null;
                                 //return simplify(env).typeCheck(env, contextItemType).optimize(opt, env, contextItemType);
                                 list.remove(t);
                                 changed = true;
@@ -390,31 +468,67 @@ public class ForExpression extends Assignation {
                             }
                         }
                     }
+                } else if (term instanceof QuantifiedExpression) {
+                    QuantifiedExpression q0 = (QuantifiedExpression)term;
+                    Expression sequence = q0.getSequence();
+                    Expression action = q0.getAction();
+                    Binding[] thisVar = {this};
+                    if (positionVariable == null &&
+                            opt.isVariableReplaceableByDot(term, thisVar) &&
+                            (term.getDependencies() & StaticProperty.DEPENDS_ON_FOCUS) == 0 &&
+                            ExpressionTool.dependsOnVariable(sequence, thisVar) &&
+                            !ExpressionTool.dependsOnVariable(action, thisVar)) {
+                        PromotionOffer offer = new PromotionOffer(visitor.getConfiguration().getOptimizer());
+                        offer.action = PromotionOffer.INLINE_VARIABLE_REFERENCES;
+                        offer.bindingList = thisVar;
+                        offer.containingExpression = new ContextItemExpression();
+                        Expression newSequence = sequence.promote(offer);
+                        if (newSequence != null) {
+                            if (ExpressionTool.dependsOnVariable(newSequence, thisVar)) {
+                                throw new IllegalStateException("We have a problem...");
+                                // we've partially rewritten the expression but we haven't got rid of all
+                                // dependencies on the variable. We can't go back and we can't go forward...
+                            }
+                            q0.setSequence(newSequence);
+                            selection = new FilterExpression(selection, q0);
+                            ExpressionTool.copyLocationInfo(this, selection);
+                            selection = visitor.typeCheck(selection, selectionContextItemType);
+                            selection = selection.optimize(visitor, selectionContextItemType);
+                            visitor.resetStaticProperties();
+                            positionVariable = null;
+                            list.remove(t);
+                            changed = true;
+                            break;
+                        }
+                    }
+
                 }
             }
             if (changed) {
                 if (list.isEmpty()) {
-                    action = condAction.getThenExpression();
+                    action = ((Choose)action).getActions()[0];
                     adoptChildExpression(action);
                 } else {
                     Expression term = (Expression)list.get(0);
                     for (int t=1; t<list.size(); t++) {
                         term = new BooleanExpression(term, Token.AND, (Expression)list.get(t));
                     }
-                    condAction.setCondition(term);
+                    ((Choose)action).getConditions()[0] = term;
                 }
                 if (head == null) {
                     sequence = selection;
+                } else if (head instanceof RootExpression && selection instanceof KeyFn) {
+                    sequence = selection;
                 } else {
                     PathExpression path = new PathExpression(head, selection);
-                    path.setParentExpression(this);
-                    Expression k = opt.convertPathExpressionToKey(path, env);
+                    ExpressionTool.copyLocationInfo(this, path);
+                    Expression k = visitor.getConfiguration().getOptimizer().convertPathExpressionToKey(path, visitor);
                     if (k == null) {
                         sequence = path;
                     } else {
                         sequence = k;
                     }
-                    sequence = sequence.simplify(env).typeCheck(env, contextItemType).optimize(opt, env, contextItemType);
+                    sequence = visitor.optimize(visitor.typeCheck(visitor.simplify(sequence), contextItemType), contextItemType);
                     adoptChildExpression(sequence);
                 }
                 return this;
@@ -424,15 +538,36 @@ public class ForExpression extends Assignation {
     }
 
     /**
+     * Copy an expression. This makes a deep copy.
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        if (positionVariable != null) {
+            throw new UnsupportedOperationException("copy");
+        }
+
+        ForExpression forExp = new ForExpression();
+        forExp.setRequiredType(requiredType);
+        forExp.setVariableQName(variableName);
+        forExp.setSequence(sequence.copy());
+        Expression newAction = action.copy();
+        forExp.setAction(newAction);
+        forExp.variableName = variableName;
+        ExpressionTool.rebindVariableReferences(newAction, this, forExp);
+        return forExp;
+    }
+
+    /**
      * Mark tail function calls: only possible if the for expression iterates zero or one times.
      * (This arises in XSLT/XPath, which does not have a LET expression, so FOR gets used instead)
      */
 
-    public boolean markTailFunctionCalls(int nameCode, int arity) {
+    public int markTailFunctionCalls(StructuredQName qName, int arity) {
         if (!Cardinality.allowsMany(sequence.getCardinality())) {
-            return ExpressionTool.markTailFunctionCalls(action, nameCode, arity);
+            return ExpressionTool.markTailFunctionCalls(action, qName, arity);
         } else {
-            return false;
+            return 0;
         }
     }
 
@@ -441,13 +576,13 @@ public class ForExpression extends Assignation {
      */
 
     protected Binding[] extendBindingList(Binding[] in) {
-        if (positionBinding == null) {
+        if (positionVariable == null) {
             return super.extendBindingList(in);
         }
         Binding[] newBindingList = new Binding[in.length+2];
         System.arraycopy(in, 0, newBindingList, 0, in.length);
         newBindingList[in.length] = this;
-        newBindingList[in.length+1] = positionBinding;
+        newBindingList[in.length+1] = positionVariable;
         return newBindingList;
     }
 
@@ -487,9 +622,30 @@ public class ForExpression extends Assignation {
         // setting the range variable at each step.
 
         SequenceIterator base = sequence.iterate(context);
-                                                            // TODO:PERF treat "for" over singleton specially
-        MappingFunction map = new MappingAction(context, slotNumber, positionBinding, action);
+        int pslot = (positionVariable == null ? -1 : positionVariable.getLocalSlotNumber());
+        MappingFunction map = new MappingAction(context, getLocalSlotNumber(), pslot, action);
         return new MappingIterator(base, map);
+    }
+
+    /**
+     * Deliver the result of the expression as a sequence of events.
+     * @param context The dynamic evaluation context
+     * @return the result of the expression as an iterator over a sequence of PullEvent objects
+     * @throws XPathException if a dynamic error occurs during expression evaluation
+     */
+    
+    public EventIterator iterateEvents(XPathContext context) throws XPathException {
+
+        // First create an iteration of the base sequence.
+
+        // Then create an EventMappingIterator which applies a mapping function to each
+        // item in the base sequence. The mapping function is essentially the "return"
+        // expression, wrapped in an EventMappingAction object that is responsible also for
+        // setting the range variable at each step.
+
+        SequenceIterator base = sequence.iterate(context);
+        EventMappingFunction map = new EventMappingAction(context, getLocalSlotNumber(), positionVariable, action);
+        return new EventMappingIterator(base, map);
     }
 
     /**
@@ -500,22 +656,56 @@ public class ForExpression extends Assignation {
     public void process(XPathContext context) throws XPathException {
         SequenceIterator iter = sequence.iterate(context);
         int position = 1;
+        int slot = getLocalSlotNumber();
+        int pslot = -1;
+        if (positionVariable != null) {
+            pslot = positionVariable.getLocalSlotNumber();
+        }
         while (true) {
             Item item = iter.next();
             if (item == null) break;
-            context.setLocalVariable(slotNumber, item);
-            if (positionBinding != null) {
-                positionBinding.setPosition(position++, context);
+            context.setLocalVariable(slot, item);
+            if (pslot >= 0) {
+                context.setLocalVariable(pslot, Int64Value.makeIntegerValue(position++));
             }
             action.process(context);
         }
     }
 
+
     /**
-    * Determine the data type of the items returned by the expression, if possible
-    * @return one of the values Type.STRING, Type.BOOLEAN, Type.NUMBER, Type.NODE,
-    * or Type.ITEM (meaning not known in advance)
-     * @param th
+     * Evaluate an updating expression, adding the results to a Pending Update List.
+     * The default implementation of this method, which is used for non-updating expressions,
+     * throws an UnsupportedOperationException
+     *
+     * @param context the XPath dynamic evaluation context
+     * @param pul     the pending update list to which the results should be written
+     */
+
+    public void evaluatePendingUpdates(XPathContext context, PendingUpdateList pul) throws XPathException {
+        SequenceIterator iter = sequence.iterate(context);
+        int position = 1;
+        int slot = getLocalSlotNumber();
+        int pslot = -1;
+        if (positionVariable != null) {
+            pslot = positionVariable.getLocalSlotNumber();
+        }
+        while (true) {
+            Item item = iter.next();
+            if (item == null) break;
+            context.setLocalVariable(slot, item);
+            if (pslot >= 0) {
+                context.setLocalVariable(pslot, Int64Value.makeIntegerValue(position++));
+            }
+            action.evaluatePendingUpdates(context, pul);
+        }
+    }
+
+    /**
+     * Determine the data type of the items returned by the expression, if possible
+     * @return one of the values Type.STRING, Type.BOOLEAN, Type.NUMBER, Type.NODE,
+     * or Type.ITEM (meaning not known in advance)
+     * @param th the type hierarchy cache
      */
 
 	public ItemType getItemType(TypeHierarchy th) {
@@ -533,18 +723,24 @@ public class ForExpression extends Assignation {
 	}
 
     /**
-    * Diagnostic print of expression structure
-    */
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) +
-                "for $" + getVariableName(config.getNamePool()) +
-                " as " + sequence.getItemType(config.getTypeHierarchy()).toString(config.getNamePool()) +
-                (positionVariable == null ? "" : " at $?") +
-                " in");
-        sequence.display(level+1, out, config);
-        out.println(ExpressionTool.indent(level) + "return");
-        action.display(level+1, out, config);
+    public void explain(ExpressionPresenter out) {
+        out.startElement("for");
+        out.emitAttribute("variable", getVariableName());
+        out.emitAttribute("as", sequence.getItemType(out.getTypeHierarchy()).toString(out.getNamePool()));
+        if (positionVariable != null) {
+            out.emitAttribute("at", positionVariable.getVariableQName().getDisplayName());
+        }
+        out.startSubsidiaryElement("in");
+        sequence.explain(out);
+        out.endSubsidiaryElement();
+        out.startSubsidiaryElement("return");
+        action.explain(out);
+        out.endSubsidiaryElement();
+        out.endElement();
     }
 
     /**
@@ -553,107 +749,89 @@ public class ForExpression extends Assignation {
      * also as the Binding of the position variable (at $n) in XQuery, if used.
      */
 
-    private static class MappingAction implements MappingFunction {
+    private static class MappingAction implements StatefulMappingFunction {
 
         private XPathContext context;
         private int slotNumber;
         private Expression action;
-        private PositionBinding positionBinding;
+        private int pslot = -1;
         private int position = 1;
 
         public MappingAction(XPathContext context,
                                 int slotNumber,
-                                PositionBinding positionBinding,
+                                int pslot,
                                 Expression action) {
             this.context = context;
             this.slotNumber = slotNumber;
-            this.positionBinding = positionBinding;
+            this.pslot = pslot;
             this.action = action;
         }
 
-        public Object map(Item item) throws XPathException {
+        public SequenceIterator map(Item item) throws XPathException {
             context.setLocalVariable(slotNumber, item);
-            if (positionBinding != null) {
-                positionBinding.setPosition(position++, context);
+            if (pslot >= 0) {
+                context.setLocalVariable(pslot, Int64Value.makeIntegerValue(position++));
             }
             return action.iterate(context);
         }
+
+        public StatefulMappingFunction getAnother() {
+            // Create a copy of the stack frame, so that changes made to local variables by the cloned
+            // iterator are not seen by the original iterator
+            XPathContextMajor c2 = context.newContext();
+            StackFrame oldstack = context.getStackFrame();
+            ValueRepresentation[] vars = oldstack.getStackFrameValues();
+            ValueRepresentation[] newvars = new ValueRepresentation[vars.length];
+            System.arraycopy(vars, 0, newvars, 0, vars.length);
+            c2.setStackFrame(oldstack.getStackFrameMap(), newvars);
+            return new MappingAction(c2, slotNumber, pslot, action);
+        }
     }
+
+    /**
+     * The EventMappingAction represents the action to be taken for each item in the
+     * source sequence. It acts as the EventMappingFunction for the mapping iterator, and
+     * also provides the Binding of the position variable (at $n) in XQuery, if used.
+     */
+
+    private static class EventMappingAction implements EventMappingFunction {
+
+        private XPathContext context;
+        private int slotNumber;
+        private Expression action;
+        private int position = 1;
+        private int pslot = -1;
+
+        public EventMappingAction(XPathContext context,
+                                int slotNumber,
+                                PositionVariable positionBinding,
+                                Expression action) {
+            this.context = context;
+            this.slotNumber = slotNumber;
+            if (positionBinding != null) {
+                pslot = positionBinding.getLocalSlotNumber();
+            }
+            this.action = action;
+        }
+
+        public EventIterator map(Item item) throws XPathException {
+            context.setLocalVariable(slotNumber, item);
+            if (pslot >= 0) {
+                context.setLocalVariable(pslot, Int64Value.makeIntegerValue(position++));
+            }
+            return action.iterateEvents(context);
+        }
+
+    }
+
 
     /**
      * Get the type of this expression for use in tracing and diagnostics
      * @return the type of expression, as enumerated in class {@link org.orbeon.saxon.trace.Location}
      */
 
-    protected int getConstructType() {
+    public int getConstructType() {
         return Location.FOR_EXPRESSION;
-    }
-
-    /**
-     * This class represents the binding of the position variable ("at $p") in an XQuery FOR clause.
-     * The variable is held in a slot on the stackframe: in 8.4 and earlier it was held as a property
-     * of the iterator, but that let to problems with lazy evaluation because the value wasn't saved as
-     * part of a Closure.
-     */
-
-    private static class PositionBinding implements Binding {
-
-        private int slotNumber;
-        private int nameCode;
-
-        public PositionBinding(int nameCode) {
-            this.nameCode = nameCode;
-        }
-
-        private void setSlotNumber(int slot) {
-            this.slotNumber = slot;
-        }
-
-        private void setPosition(int position, XPathContext context) {
-            context.setLocalVariable(slotNumber, new IntegerValue(position));
-        }
-
-        /**
-         * Indicate whether the binding is local or global. A global binding is one that has a fixed
-         * value for the life of a query or transformation; any other binding is local.
-         */
-
-        public final boolean isGlobal() {
-            return false;
-        }
-
-        /**
-        * Test whether it is permitted to assign to the variable using the saxon:assign
-        * extension element. This will only be for an XSLT global variable where the extra
-        * attribute saxon:assignable="yes" is present.
-        */
-
-        public final boolean isAssignable() {
-            return false;
-        }
-
-        /**
-         * If this is a local variable held on the local stack frame, return the corresponding slot number.
-         * In other cases, return -1.
-         */
-
-        public int getLocalSlotNumber() {
-            return slotNumber;
-        }
-
-        /**
-         * Get the name of the positional variable
-         * @return the namecode of the positional variable
-         */
-
-        public int getNameCode() {
-            return nameCode;
-        }
-
-        public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException {
-            return context.evaluateLocalVariable(slotNumber);
-        }
-
     }
 
 }

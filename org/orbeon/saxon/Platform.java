@@ -1,16 +1,19 @@
 package org.orbeon.saxon;
 
 import org.orbeon.saxon.functions.FunctionLibraryList;
+import org.orbeon.saxon.functions.FunctionLibrary;
 import org.orbeon.saxon.regex.RegularExpression;
+import org.orbeon.saxon.sort.StringCollator;
+import org.orbeon.saxon.sort.NamedCollation;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.event.PipelineConfiguration;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Comparator;
 import java.util.Properties;
 
 /**
@@ -21,13 +24,28 @@ public interface Platform extends Serializable {
 
     /**
      * Perform platform-specific initialization of the configuration
+     * @param config the Saxon Configuration
      */
 
     public void initialize(Configuration config);
 
     /**
+     * Return true if this is the Java platform
+     * @return true if this is the Java platform
+     */
+
+    public boolean isJava();
+
+    /**
+     * Return true if this is the .NET platform
+     * @return true if this is the .NET platform
+     */
+
+    public boolean isDotNet();
+
+    /**
      * Construct an absolute URI from a relative URI and a base URI
-     * @param relativeURI the relative URI
+     * @param relativeURI the relative URI. Null is permitted provided that the base URI is an absolute URI
      * @param base the base URI
      * @return the absolutized URI
      * @throws URISyntaxException
@@ -37,12 +55,14 @@ public interface Platform extends Serializable {
 
     /**
      * Get the platform version
+     * @return the version of the platform, for example "Java version 1.5.09"
      */
 
     public String getPlatformVersion();
 
     /**
      * Get a suffix letter to add to the Saxon version number to identify the platform
+     * @return "J" for Java, "N" for .NET
      */
 
     public String getPlatformSuffix();
@@ -50,26 +70,27 @@ public interface Platform extends Serializable {
     /**
      * Convert a StreamSource to either a SAXSource or a PullSource, depending on the native
      * parser of the selected platform
+     * @param pipe the pipeline Configuration
      * @param input the supplied StreamSource
-     * @param validation
-     * @param dtdValidation
-     * @param stripspace
+     * @param validation required validation mode, for example Validation.STRICT
+     * @param dtdValidation true if DTD-based input validation is required
+     * @param stripspace option for whitespace-stripping  (ALL, NONE, or IGNORABLE)
      * @return the PullSource or SAXSource, initialized with a suitable parser, or the original
      * input Source, if now special handling is required or possible
      */
 
-    public Source getParserSource(StreamSource input, int validation, boolean dtdValidation, int stripspace);
+    public Source getParserSource(PipelineConfiguration pipe, StreamSource input,
+                                  int validation, boolean dtdValidation, int stripspace);
 
     /**
      * Create a compiled regular expression
      * @param regex the source text of the regular expression, in XML Schema or XPath syntax
-     * @param isXPath set to true if this is an XPath regular expression, false if it is XML Schema
-     * @param flags the flags argument as supplied to functions such as fn:matches(), in string form
-     * @throws XPathException if the syntax of the regular expression or flags is incorrect
-     * @return the compiled regular expression
+     * @param xmlVersion version of XML in use (1.0 or 1.1)
+     * @param syntax
+     *@param flags the flags argument as supplied to functions such as fn:matches(), in string form @throws XPathException if the syntax of the regular expression or flags is incorrect @return the compiled regular expression
      */
 
-    public RegularExpression compileRegularExpression(CharSequence regex, boolean isXPath, CharSequence flags)
+    public RegularExpression compileRegularExpression(CharSequence regex, int xmlVersion, int syntax, CharSequence flags)
     throws XPathException;
 
     /**
@@ -80,11 +101,12 @@ public interface Platform extends Serializable {
      * failing to load a requested class, are fatal.
      * @param config the configuration object
      * @param props the desired properties of the collation
+     * @param uri the collation URI
      * @return a collation with these properties
      * @throws XPathException if a fatal error occurs
      */
 
-    public Comparator makeCollation(Configuration config, Properties props) throws XPathException;
+    public StringCollator makeCollation(Configuration config, Properties props, String uri) throws XPathException;
 
     /**
      * Given a collation, determine whether it is capable of returning collation keys.
@@ -95,27 +117,60 @@ public interface Platform extends Serializable {
      * @return true if this collation can supply collation keys
      */
 
-    public boolean canReturnCollationKeys(Comparator collation);
+    public boolean canReturnCollationKeys(StringCollator collation);
 
     /**
      * Given a collation, get a collation key. The essential property of collation keys
      * is that if two values are equal under the collation, then the collation keys are
      * equal under the equals() method.
+     * @param namedCollation the collation in use
+     * @param value the string whose collation key is required
      * @return a representation of the collation key, such that two collation keys are
      * equal() if and only if the string values they represent are equal under the specified collation.
      * @throws ClassCastException if the collation is not one that is capable of supplying
      * collation keys (this should have been checked in advance)
      */
 
-    public Object getCollationKey(Comparator collation, String value);
+    public Object getCollationKey(NamedCollation namedCollation, String value);
 
     /**
-     * Add platform-specific function libraries to the function library list
+     * Make the default extension function library (or libraries) appropriate to the platform,
+     * and register them with the Configuration. Note that this does not actually add the libraries
+     * to any library list.
+     * @param config the Saxon Configuration
      */
 
-    public void addFunctionLibraries(FunctionLibraryList list, Configuration config);
+    public void makeExtensionLibrary(Configuration config);
 
-    public SchemaType getExternalObjectType(String uri, String localName);
+    /**
+     * Add the platform-specific function libraries to a function library list. The libraries
+     * that are added are those registered with the Configuration using
+     *  {@link Configuration#setExtensionBinder(String, org.orbeon.saxon.functions.FunctionLibrary)}
+     * @param list the function library list that is to be extended
+     * @param config the Configuration
+     * @param hostLanguage the host language (XSLT, XPath, XQuery)
+     */
+
+    public void addFunctionLibraries(FunctionLibraryList list, Configuration config, int hostLanguage);
+
+    /**
+     * Register a namespace-to-Java-class mapping declared using saxon:script in an XSLT stylesheet
+     * @param library the library to contain the function, which must be a JavaExtensionLibrary
+     * @param uri the namespace of the function name
+     * @param theClass the Java class that implements this namespace
+     */
+
+    public void declareJavaClass(FunctionLibrary library, String uri, Class theClass);
+
+    /**
+     * Get a SchemaType representing a wrapped external (Java or .NET) object
+     * @param config the Saxon Configuration
+     * @param uri the namespace URI of the schema type
+     * @param localName the local name of the schema type
+     * @return the SchemaType object representing this type
+     */
+
+    public SchemaType getExternalObjectType(Configuration config, String uri, String localName);
 
 }
 

@@ -155,7 +155,7 @@ public interface AttributeCollection {
      *
      * @param uri       The namespace uri of the attribute.
      * @param localname The local name of the attribute.
-     * @return The index position of the attribute
+     * @return The value of the attribute
      */
 
     public String getValue(String uri, String localname);

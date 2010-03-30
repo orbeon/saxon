@@ -15,7 +15,8 @@ public class TraceInstruction extends TraceWrapper {
 
     /**
      * Create a Trace instruction
-     * @param child the "real" instruction to be traced
+     * @param child the child instruction to be evaluated
+     * @param details the details to be output. This will usually relate to a function or template header.
      */
 
     public TraceInstruction(Expression child, InstructionInfo details) {

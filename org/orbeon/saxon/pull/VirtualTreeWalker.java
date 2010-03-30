@@ -1,22 +1,21 @@
 package org.orbeon.saxon.pull;
 
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.sort.IntArraySet;
 import org.orbeon.saxon.event.PipelineConfiguration;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.instruct.DocumentInstr;
 import org.orbeon.saxon.instruct.ElementCreator;
 import org.orbeon.saxon.instruct.ParentNodeConstructor;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.AtomicValue;
 
 import javax.xml.transform.SourceLocator;
 import java.util.ArrayList;
-import java.util.Stack;
 import java.util.List;
+import java.util.Stack;
 
 /**
  * A virtual tree walker provides a sequence of pull events describing the structure and content of a tree
@@ -81,6 +80,7 @@ public class VirtualTreeWalker implements PullProvider, NamespaceDeclarations {
 
     /**
      * Get configuration information.
+     * @return the pipeline configuration
      */
 
     public PipelineConfiguration getPipelineConfiguration() {
@@ -89,6 +89,7 @@ public class VirtualTreeWalker implements PullProvider, NamespaceDeclarations {
 
     /**
      * Get the namepool
+     * @return the NamePool
      */
 
     public NamePool getNamePool() {
@@ -122,7 +123,7 @@ public class VirtualTreeWalker implements PullProvider, NamespaceDeclarations {
 
             if (currentEvent == START_OF_INPUT) {
                 constructorStack.push(instruction);
-                if (stripDepth < 0 && instruction.getValidationAction() == Validation.STRIP) {
+                if (stripDepth < 0 && instruction.getValidationMode() == Validation.STRIP) {
                      stripDepth = constructorStack.size();
                 }
                 SequenceIterator content = instruction.getContentExpression().iterate(context);
@@ -149,7 +150,7 @@ public class VirtualTreeWalker implements PullProvider, NamespaceDeclarations {
                     // we've just started: start processing the content of the instruction
                     SequenceIterator iter = instruction.getContentExpression().iterate(context);
                     constructorStack.push(instruction);
-                    if (stripDepth < 0 && instruction.getValidationAction() == Validation.STRIP) {
+                    if (stripDepth < 0 && instruction.getValidationMode() == Validation.STRIP) {
                         stripDepth = constructorStack.size();
                     }
                     iteratorStack.push(iter);
@@ -225,7 +226,7 @@ public class VirtualTreeWalker implements PullProvider, NamespaceDeclarations {
             ParentNodeConstructor inst = parent.getInstruction();
 
             constructorStack.push(inst);
-            if (stripDepth < 0 && inst.getValidationAction() == Validation.STRIP) {
+            if (stripDepth < 0 && inst.getValidationMode() == Validation.STRIP) {
                  stripDepth = constructorStack.size();
             }
             SequenceIterator content = inst.getContentExpression().iterate(parent.getXPathContext());
@@ -251,7 +252,7 @@ public class VirtualTreeWalker implements PullProvider, NamespaceDeclarations {
                 if (next instanceof AtomicValue) {
                     textNodeBuffer.append(' ');
                     textNodeBuffer.append(next.getStringValueCS());
-                    continue;
+                    //continue;
                 } else {
                     currentEvent = TEXT;
                     nameCode = -1;
@@ -278,19 +279,19 @@ public class VirtualTreeWalker implements PullProvider, NamespaceDeclarations {
 
                 case Type.ATTRIBUTE:
                     if (!allowAttributes) {
-                        DynamicError de;
+                        XPathException de;
                         if (constructorStack.peek() instanceof DocumentInstr) {
-                            de = new DynamicError(
+                            de = new XPathException(
                                     "Attributes cannot be attached to a document node");
-                            if (context.getController().getExecutable().getHostLanguage() == Configuration.XQUERY) {
+                            if (pipe.getHostLanguage() == Configuration.XQUERY) {
                                 de.setErrorCode("XQTY0004");
                             } else {
                                 de.setErrorCode("XTDE0420");
                             }
                         } else {
-                            de = new DynamicError(
+                            de = new XPathException(
                                     "Attributes in the content of an element must come before the child nodes");
-                            if (context.getController().getExecutable().getHostLanguage() == Configuration.XQUERY) {
+                            if (pipe.getHostLanguage() == Configuration.XQUERY) {
                                 de.setErrorCode("XQDY0024");
                             } else {
                                 de.setErrorCode("XTDE0410");
@@ -305,8 +306,7 @@ public class VirtualTreeWalker implements PullProvider, NamespaceDeclarations {
 
                 case Type.NAMESPACE:
                     if (!allowAttributes) {
-                        DynamicError de = new DynamicError(
-                                "Namespace nodes in the content of an element must come before the child nodes");
+                        XPathException de = new XPathException("Namespace nodes in the content of an element must come before the child nodes");
                         de.setErrorCode("XTDE0410");
                         de.setXPathContext(context);
                         de.setLocator(getSourceLocator());
@@ -353,7 +353,7 @@ public class VirtualTreeWalker implements PullProvider, NamespaceDeclarations {
         additionalNamespaces.clear();
         activeNamespaces = inst.getActiveNamespaces();
         if (activeNamespaces == null) {
-            activeNamespaces = EMPTY_INT_ARRAY;
+            activeNamespaces = IntArraySet.EMPTY_INT_ARRAY;
         }
 
         // if the namespace of the element name itself is not one of the active namespaces, make sure
@@ -390,7 +390,7 @@ public class VirtualTreeWalker implements PullProvider, NamespaceDeclarations {
                 if (kind == Type.ATTRIBUTE) {
                     if (!foundAttributes) {
                         if (attributes == null) {
-                            attributes = new AttributeCollectionImpl(context.getNamePool());
+                            attributes = new AttributeCollectionImpl(context.getConfiguration());
                         }
                         attributes.clear();
                         foundAttributes = true;
@@ -401,11 +401,10 @@ public class VirtualTreeWalker implements PullProvider, NamespaceDeclarations {
                         if (context.getController().getExecutable().getHostLanguage() == Configuration.XSLT) {
                             attributes.setAttribute(index,
                                     node.getNameCode(),
-                                    preserve ? node.getTypeAnnotation() : StandardNames.XDT_UNTYPED_ATOMIC,
+                                    preserve ? node.getTypeAnnotation() : StandardNames.XS_UNTYPED_ATOMIC,
                                     node.getStringValue(), 0, 0);
                         } else {
-                            DynamicError de = new DynamicError(
-                                "The attributes of an element must have distinct names");
+                            XPathException de = new XPathException("The attributes of an element must have distinct names");
                             de.setErrorCode("XQDY0025");
                             de.setXPathContext(context);
                             de.setLocator(getSourceLocator());
@@ -414,7 +413,7 @@ public class VirtualTreeWalker implements PullProvider, NamespaceDeclarations {
                     } else {
                         attributes.addAttribute(
                             node.getNameCode(),
-                            preserve ? node.getTypeAnnotation() : StandardNames.XDT_UNTYPED_ATOMIC,
+                            preserve ? node.getTypeAnnotation() : StandardNames.XS_UNTYPED_ATOMIC,
                             node.getStringValue(),
                             0, 0);
                     }
@@ -449,8 +448,8 @@ public class VirtualTreeWalker implements PullProvider, NamespaceDeclarations {
 
                 } else if (kind == Type.NAMESPACE) {
                     additionalNamespaces.add(node);
-                } else if (kind == Type.TEXT && node.getStringValue().equals("")) {
-                    continue;   // ignore zero-length text nodes
+                } else if (kind == Type.TEXT && node.getStringValue().length() == 0) {
+                    //continue;   // ignore zero-length text nodes
                 } else {
                     nextNameCode = ((NodeInfo)next).getNameCode();
                     break;
@@ -575,7 +574,8 @@ public class VirtualTreeWalker implements PullProvider, NamespaceDeclarations {
     }
 
     /**
-     * Set the initial nameCode (the nameCode of the node at the root of the tree being walked)
+     * Set the initial nameCode
+     * @param nameCode the nameCode of the node at the root of the tree being walked
      */
 
     public void setNameCode(int nameCode) {
@@ -654,11 +654,14 @@ public class VirtualTreeWalker implements PullProvider, NamespaceDeclarations {
         } else {
             FastStringBuffer sb = new FastStringBuffer(100);
             SequenceIterator content = (SequenceIterator)iteratorStack.peek();
+            boolean previousAtomic = false;
             if (alreadyRead) {
-                if (content.current() == null) {
+                Item current = content.current();
+                if (current == null) {
                     return "";
                 }
-                processText(content.current(), sb);
+                processText(current, sb);
+                previousAtomic = (current instanceof AtomicValue);
                 alreadyRead = false;
             }
             while (true) {
@@ -666,7 +669,12 @@ public class VirtualTreeWalker implements PullProvider, NamespaceDeclarations {
                 if (next == null) {
                     break;
                 }
+                boolean atomic = (next instanceof AtomicValue);
+                if (atomic && previousAtomic) {
+                    sb.append(' ');
+                }
                 processText(next, sb);
+                previousAtomic = atomic;
             }
             return sb;
         }
@@ -823,8 +831,6 @@ public class VirtualTreeWalker implements PullProvider, NamespaceDeclarations {
         }
         return buffer;
     }
-
-    private static final int[] EMPTY_INT_ARRAY = new int[0];
 
     /**
      * Get a list of unparsed entities.

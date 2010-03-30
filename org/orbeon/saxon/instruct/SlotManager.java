@@ -1,5 +1,7 @@
 package org.orbeon.saxon.instruct;
 
+import org.orbeon.saxon.om.StructuredQName;
+
 import java.io.Serializable;
 import java.util.List;
 import java.util.ArrayList;
@@ -18,16 +20,31 @@ import java.util.ArrayList;
 
 public class SlotManager implements Serializable {
 
+    /**
+     * An empty SlotManager
+     */
+
+    public static SlotManager EMPTY = new SlotManager(0);
+
     private ArrayList variableMap = new ArrayList(10);
-            // values are integer fingerprints of the variable names
+            // values are StructuredQName objects representing the variable names
     private int numberOfVariables = 0;
 
     /**
      * The constructor should not be called directly. A new SlotManager should be obtained using
-     * the factory method in the Configuration object.
+     * the factory method {@link org.orbeon.saxon.Configuration#makeSlotManager()}.
      */
 
     public SlotManager(){}
+
+    /**
+     * Create a SlotManager with a given number of slots
+     */
+
+    public SlotManager(int n) {
+        numberOfVariables = n;
+        variableMap = new ArrayList(n);
+    }
 
     /**
     * Get number of variables (size of stack frame)
@@ -49,17 +66,17 @@ public class SlotManager implements Serializable {
 
     /**
     * Allocate a slot number for a variable
-    */
+    */                                                
 
-    public int allocateSlotNumber(int fingerprint) {
-        final Integer key = new Integer(fingerprint);
-        variableMap.add(key);
+    public int allocateSlotNumber(StructuredQName qName) {
+        variableMap.add(qName);
         return numberOfVariables++;
     }
 
     /**
-     * Get the variable map (simply a list of fingerprints of the variable names). Note that it
+     * Get the variable map (simply a list of variable names as structured QNames). Note that it
      * is possible for several variables to have the same name.
+     * <p><b>Changed in Saxon 9.0 to return a list of StructuredQName values rather than integers</b></p>
      */
 
     public List getVariableMap() {

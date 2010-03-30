@@ -6,12 +6,11 @@ import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.ListIterator;
 import org.orbeon.saxon.om.LookaheadIterator;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.AtomicValue;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -27,7 +26,7 @@ public class GroupAdjacentIterator implements GroupIterator, LookaheadIterator {
 
     private SequenceIterator population;
     private Expression keyExpression;
-    private Comparator collator;
+    private StringCollator collator;
     private AtomicComparer comparer;
     private ComparisonKey currentComparisonKey;
     private XPathContext baseContext;
@@ -40,7 +39,7 @@ public class GroupAdjacentIterator implements GroupIterator, LookaheadIterator {
     private int position = 0;
 
     public GroupAdjacentIterator(SequenceIterator population, Expression keyExpression,
-                                 XPathContext baseContext, Comparator collator)
+                                 XPathContext baseContext, StringCollator collator)
     throws XPathException {
         this.population = population;
         this.keyExpression = keyExpression;
@@ -75,10 +74,10 @@ public class GroupAdjacentIterator implements GroupIterator, LookaheadIterator {
                     return;
                 }
             } catch (ClassCastException e) {
-                DynamicError err = new DynamicError("Grouping key values are of non-comparable types (" +
-                        currentKey.getItemType(null) +
+                XPathException err = new XPathException("Grouping key values are of non-comparable types (" +
+                        Type.displayTypeName(currentKey) +
                         " and " +
-                        candidateKey.getItemType(null) + ')');
+                        Type.displayTypeName(candidateKey) + ')');
                 err.setIsTypeError(true);
                 err.setXPathContext(runningContext);
                 throw err;
@@ -120,6 +119,10 @@ public class GroupAdjacentIterator implements GroupIterator, LookaheadIterator {
 
     public int position() {
         return position;
+    }
+
+    public void close() {
+        population.close();
     }
 
     public SequenceIterator getAnother() throws XPathException {

@@ -13,36 +13,31 @@ import javax.xml.transform.TransformerException;
 public interface OutputURIResolver {
 
     /**
-    * Resolve an output URI.
-    * @param href The relative URI of the output document. This corresponds to the
-    * href attribute of the xsl:result-document instruction.
-    * @param base The base URI that should be used. This is the base URI of the
-    * element that contained the href attribute. It may be null if no systemID was supplied
-    * for the stylesheet.
-    * @return a Result object representing the destination for the XML document. The
-    * method can also return null, in which case the standard output URI resolver
-    * will be used to create a Result object.
+     * Resolve an output URI.
+     * @param href The relative URI of the output document. This corresponds to the
+     * href attribute of the xsl:result-document instruction.
+     * @param base The base URI that should be used. This is the Base Output URI, typically
+     * the URI of the principal output document
+     * @return a Result object representing the destination for the XML document. The
+     * method can also return null, in which case the standard output URI resolver
+     * will be used to create a Result object.
     */
 
     public Result resolve(String href, String base) throws TransformerException;
 
     /**
-    * Signal completion of the result document. This method is called by the system
-    * when the result document has been successfully written. It allows the resolver
-    * to perform tidy-up actions such as closing output streams, or firing off
-    * processes that take this result tree as input. Note that the OutputURIResolver
-    * is stateless, so the the original Result object is supplied to identify the document
-    * that has been completed.
+     * Signal completion of the result document. This method is called by the system
+     * when the result document has been successfully written. It allows the resolver
+     * to perform tidy-up actions such as closing output streams, or firing off
+     * processes that take this result tree as input. Note that the OutputURIResolver
+     * is stateless, so the the original Result object is supplied to identify the document
+     * that has been completed.
      * @param result The result object returned by the previous call of resolve()
     */
 
     public void close(Result result) throws TransformerException;
 
 }
-
-
-
-
 
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");

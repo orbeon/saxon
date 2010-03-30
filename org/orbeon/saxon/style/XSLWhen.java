@@ -2,6 +2,7 @@ package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 
@@ -71,11 +72,9 @@ public class XSLWhen extends StyleElement {
     * Mark tail-recursive calls on stylesheet functions. For most instructions, this does nothing.
     */
 
-    public void markTailCalls() {
+    public boolean markTailCalls() {
         StyleElement last = getLastChildInstruction();
-        if (last != null) {
-            last.markTailCalls();
-        }
+        return last != null && last.markTailCalls();
     }
 
     public Expression compile(Executable exec) throws XPathException {

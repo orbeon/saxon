@@ -2,23 +2,28 @@ package org.orbeon.saxon.xqj;
 
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.dom.NodeOverNodeInfo;
-import org.orbeon.saxon.event.*;
-import org.orbeon.saxon.javax.xml.xquery.*;
+import org.orbeon.saxon.event.PipelineConfiguration;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.event.SerializerFactory;
+import org.orbeon.saxon.event.TreeReceiver;
+import org.orbeon.saxon.evpull.*;
+import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.om.Orphan;
-import org.orbeon.saxon.om.SingletonIterator;
-import org.orbeon.saxon.pull.PullFromIterator;
-import org.orbeon.saxon.pull.PullToStax;
-import org.orbeon.saxon.query.QueryResult;
+import org.orbeon.saxon.om.VirtualNode;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.*;
 import org.w3c.dom.Node;
 import org.xml.sax.ContentHandler;
 
 import javax.xml.stream.XMLStreamReader;
+import javax.xml.transform.Result;
+import javax.xml.transform.sax.SAXResult;
 import javax.xml.transform.stream.StreamResult;
+import javax.xml.xquery.XQConnection;
+import javax.xml.xquery.XQException;
+import javax.xml.xquery.XQItemType;
+import javax.xml.xquery.XQResultItem;
 import java.io.OutputStream;
 import java.io.StringWriter;
 import java.io.Writer;
@@ -27,54 +32,44 @@ import java.net.URISyntaxException;
 import java.util.Properties;
 
 /**
- *
+ * This Saxon class is used to implement both the XQItem and XQResultItem interfaces in XQJ.
+ * Where the item is not a real XQResultItem, getConnection() will return null.
  */
-public class SaxonXQItem implements XQResultItem {
+public class SaxonXQItem extends Closable implements XQResultItem, SaxonXQItemAccessor {
 
     private Item item;
     private Configuration config;
-    private SaxonXQConnection connection;   // only present if the item is created as a ResultItem
+    SaxonXQDataFactory dataFactory;
 
-    public SaxonXQItem(Item item, Configuration config) {
+    public SaxonXQItem(Item item, SaxonXQDataFactory factory) {
+        if (item == null) {
+            throw new NullPointerException("item");
+        }
         this.item = item;
-        this.config = config;
+        dataFactory = factory;
+        config = factory.getConfiguration();
+        setClosableContainer(factory);
     }
 
     Configuration getConfiguration() {
         return config;
     }
 
-    Item getItem() {
+    public Item getSaxonItem() {
         return item;
     }
 
-    void setConnection(SaxonXQConnection connection) {
-        this.connection = connection;
-    }
-
-
-
-    public void clearWarnings() {
-        //
-    }
-
     public XQConnection getConnection() throws XQException {
-        return connection;
-    }
-
-    public XQWarning getWarnings() throws XQException {
-        return null;
-    }
-
-    public void close() throws XQException {
-        item = null;
-    }
-
-    public boolean isClosed() {
-        return item == null;
+        checkNotClosed();
+        if (dataFactory instanceof XQConnection) {
+            return (XQConnection)dataFactory;
+        } else {
+            return null;
+        }
     }
 
     public String getAtomicValue() throws XQException {
+        checkNotClosed();
         if (item instanceof AtomicValue) {
             return item.getStringValue();
         }
@@ -82,18 +77,17 @@ public class SaxonXQItem implements XQResultItem {
     }
 
     public boolean getBoolean() throws XQException {
-        if (item instanceof AtomicValue) {
-            AtomicValue prim = ((AtomicValue)item).getPrimitiveValue();
-            if (prim instanceof BooleanValue) {
-                return ((BooleanValue)prim).getBooleanValue();
-            }
+        checkNotClosed();
+        if (item instanceof BooleanValue) {
+            return ((BooleanValue)item).getBooleanValue();
         }
         throw new XQException("Failed in getBoolean: item is not a boolean, or is closed");
     }
 
     public byte getByte() throws XQException {
+        checkNotClosed();
         if (item instanceof AtomicValue) {
-            AtomicValue prim = ((AtomicValue)item).getPrimitiveValue();
+            AtomicValue prim = ((AtomicValue)item);
             return (byte)longValue(prim, -128, 127);
         }
         throw new XQException("Failed in getByte: item is not an atomic value, or is closed");
@@ -115,55 +109,69 @@ public class SaxonXQItem implements XQResultItem {
                     throw new XQException("Value is out of range for requested type");
                 }
             } catch (XPathException err) {
-                throw new XQException(err.getMessage(), err, null, null);
+                XQException xqe = new XQException(err.getMessage());
+                xqe.initCause(err);
+                throw xqe;
             }
         }
         throw new XQException("Value is not numeric");
     }
 
     public double getDouble() throws XQException {
-        if (item instanceof AtomicValue) {
-            AtomicValue prim = ((AtomicValue)item).getPrimitiveValue();
-            if (prim instanceof DoubleValue) {
-                return ((DoubleValue)prim).getDoubleValue();
-            }
+        checkNotClosed();
+        if (item instanceof DoubleValue) {
+            return ((DoubleValue)item).getDoubleValue();
         }
         throw new XQException("Failed in getDouble: item is not a double, or is closed");
     }
 
     public float getFloat() throws XQException {
-        if (item instanceof AtomicValue) {
-            AtomicValue prim = ((AtomicValue)item).getPrimitiveValue();
-            if (prim instanceof FloatValue) {
-                return ((FloatValue)prim).getFloatValue();
-            }
+        checkNotClosed();
+        if (item instanceof FloatValue) {
+            return ((FloatValue)item).getFloatValue();
         }
         throw new XQException("Failed in getFloat: item is not a float, or is closed");
     }
 
     public int getInt() throws XQException {
+        checkNotClosed();
         if (item instanceof AtomicValue) {
-            AtomicValue prim = ((AtomicValue)item).getPrimitiveValue();
+            AtomicValue prim = ((AtomicValue)item);
             return (byte)longValue(prim, Integer.MIN_VALUE, Integer.MAX_VALUE);
         }
         throw new XQException("Failed in getInt: item is not an atomic value, or is closed");
     }
 
     public XMLStreamReader getItemAsStream() throws XQException {
-        return new PullToStax(new PullFromIterator(SingletonIterator.makeIterator(item)));
-    }
-
-    public String getItemAsString() throws XQException {
-        return getItemAsString(new Properties());
+        // The spec (section 12.1) requires that the item be converted into a document, and we
+        // then read events corresponding to this document
+        checkNotClosed();
+        PipelineConfiguration pipe = config.makePipelineConfiguration();
+        pipe.setHostLanguage(Configuration.XQUERY);
+        if (item instanceof DocumentInfo) {
+            EventIterator eventIterator = new Decomposer((NodeInfo)item, pipe);
+            return new EventToStaxBridge(eventIterator, config.getNamePool());
+        } else {
+            EventIterator contentIterator = new SingletonEventIterator(item);
+            EventIterator eventIterator = new BracketedDocumentIterator(contentIterator);
+            eventIterator = new Decomposer(eventIterator, pipe);
+            return new EventToStaxBridge(eventIterator, config.getNamePool());
+        }
     }
 
     public String getItemAsString(Properties props) throws XQException {
+        checkNotClosed();
+        if (props == null) {
+            props = new Properties();
+        }
+        props = SaxonXQSequence.setDefaultProperties(props);
         StringWriter writer = new StringWriter();
         writeItem(writer, props);
         return writer.toString();
     }
 
     public XQItemType getItemType() throws XQException {
+        checkNotClosed();
         if (item instanceof AtomicValue) {
             return new SaxonXQItemType(
                     ((AtomicValue)item).getItemType(getConfiguration().getTypeHierarchy()),
@@ -174,24 +182,37 @@ public class SaxonXQItem implements XQResultItem {
     }
 
     public long getLong() throws XQException {
+        checkNotClosed();
         if (item instanceof AtomicValue) {
-            AtomicValue prim = ((AtomicValue)item).getPrimitiveValue();
+            AtomicValue prim = ((AtomicValue)item);
             return (byte)longValue(prim, Long.MIN_VALUE, Long.MAX_VALUE);
         }
         throw new XQException("Failed in getLong: item is not an atomic value, or is closed");
     }
 
     public Node getNode() throws XQException {
+        checkNotClosed();
         if (!(item instanceof NodeInfo)) {
             throw new XQException("Failed in getNode: item is an atomic value, or is closed");
+        }
+        if (item instanceof VirtualNode) {
+            Object n = ((VirtualNode)item).getUnderlyingNode();
+            if (n instanceof Node) {
+                return (Node)n;
+            }
         }
         return NodeOverNodeInfo.wrap((NodeInfo)item);
     }
 
     public URI getNodeUri() throws XQException {
+        checkNotClosed();
         if (item instanceof NodeInfo) {
             try {
-                return new URI(((NodeInfo)item).getSystemId());     // TODO: this is an approximation to the spec
+                String systemId = ((NodeInfo)item).getSystemId();
+                if (systemId == null) {
+                    return new URI("");
+                }
+                return new URI(systemId);
             } catch (URISyntaxException e) {
                 throw new XQException("System ID of node is not a valid URI");
             }
@@ -200,80 +221,76 @@ public class SaxonXQItem implements XQResultItem {
     }
 
     public Object getObject() throws XQException {
-        return ((SaxonXQConnection)getConnection()).getCommonHandler().toObject(this);
-    }
-
-    public Object getObject(XQCommonHandler handler) throws XQException {
-        return handler.toObject(this);
+        checkNotClosed();
+        return dataFactory.getObjectConverter().toObject(this);
     }
 
     public short getShort() throws XQException {
+        checkNotClosed();
         if (item instanceof AtomicValue) {
-            AtomicValue prim = ((AtomicValue)item).getPrimitiveValue();
+            AtomicValue prim = ((AtomicValue)item);
             return (byte)longValue(prim, Short.MIN_VALUE, Short.MAX_VALUE);
         }
         throw new XQException("Failed in getShort: item is not an atomic value, or is closed");
     }
 
     public boolean instanceOf(XQItemType type) throws XQException {
+        checkNotClosed();
+        checkNotNull(type);
         return ((SaxonXQItemType)type).getSaxonItemType().matchesItem(item, false, config);
     }
 
     public void writeItem(OutputStream os, Properties props) throws XQException {
-        NodeInfo node;
-        if (item instanceof AtomicValue) {
-            node = new Orphan(getConfiguration());
-            ((Orphan)node).setNodeKind(Type.TEXT);
-            ((Orphan)node).setStringValue(item.getStringValue());
-        } else {
-            node = (NodeInfo)item;
-        }
-        try {
-            QueryResult.serialize(node, new StreamResult(os), props, getConfiguration());
-        } catch (XPathException e) {
-            throw new XQException(e.getMessage(), e, null, null);
-        }
+        checkNotClosed();
+        checkNotNull(os);
+        writeItemToResult(new StreamResult(os), props);
     }
 
     public void writeItem(Writer ow, Properties props) throws XQException {
-        NodeInfo node;
-        if (item instanceof AtomicValue) {
-            node = new Orphan(getConfiguration());
-            ((Orphan)node).setNodeKind(Type.TEXT);
-            ((Orphan)node).setStringValue(item.getStringValue());
-        } else {
-            node = (NodeInfo)item;
+        checkNotClosed();
+        checkNotNull(ow);
+        writeItemToResult(new StreamResult(ow), props);
+    }
+
+    public void writeItemToResult(Result result) throws XQException {
+        checkNotClosed();
+        checkNotNull(result);
+        writeItemToResult(result, new Properties());
+    }
+
+    private void writeItemToResult(Result result, Properties props) throws XQException {
+        checkNotClosed();
+        checkNotNull(result);
+        if (props == null) {
+            props = new Properties();
         }
+        props = SaxonXQSequence.setDefaultProperties(props);
         try {
-            QueryResult.serialize(node, new StreamResult(ow), props, getConfiguration());
+            SerializerFactory sf = config.getSerializerFactory();
+            PipelineConfiguration pipe = config.makePipelineConfiguration();
+            Receiver out = sf.getReceiver(result, pipe, props);
+            TreeReceiver tr = new TreeReceiver(out);
+            tr.open();
+            tr.append(item, 0, NodeInfo.ALL_NAMESPACES);
+            tr.close();
         } catch (XPathException e) {
-            throw new XQException(e.getMessage(), e, null, null);
+            XQException xqe = new XQException(e.getMessage());
+            xqe.initCause(e);
+            throw xqe;
         }
     }
 
     public void writeItemToSAX(ContentHandler saxHandler) throws XQException {
-        ContentHandlerProxy chp = new ContentHandlerProxy();
-        chp.setUnderlyingContentHandler(saxHandler);
-        Receiver receiver = chp;
-
-        NamespaceReducer reducer = new NamespaceReducer();
-        PipelineConfiguration pipe = config.makePipelineConfiguration();
-        reducer.setPipelineConfiguration(pipe);
-        reducer.setUnderlyingReceiver(receiver);
-        ComplexContentOutputter outputter = new ComplexContentOutputter();
-        outputter.setReceiver(reducer);
-        outputter.setPipelineConfiguration(pipe);
-        TreeReceiver tree = new TreeReceiver(outputter);
-        tree.setPipelineConfiguration(pipe);
-        try {
-            tree.open();
-            tree.append(item, 0, NodeInfo.ALL_NAMESPACES);
-            tree.close();
-        } catch (XPathException e) {
-            throw new XQException(e.getMessage(), e, null, null);
-        }
+        checkNotClosed();
+        checkNotNull(saxHandler);
+        writeItemToResult(new SAXResult(saxHandler));
     }
 
+    private void checkNotNull(Object arg) throws XQException {
+        if (arg == null) {
+            throw new XQException("Argument is null");
+        }
+    }
 
 }
 //

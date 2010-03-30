@@ -1,8 +1,8 @@
 package org.orbeon.saxon.tinytree;
 import org.orbeon.saxon.event.Receiver;
-import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.FastStringBuffer;
 import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 
@@ -18,6 +18,11 @@ final class TinyAttributeImpl extends TinyNodeImpl {
     public TinyAttributeImpl(TinyTree tree, int nodeNr) {
         this.tree = tree;
         this.nodeNr = nodeNr;
+    }
+
+
+    public void setSystemId(String uri) {
+        // no action: an attribute has the same base URI as its parent
     }
 
     /**
@@ -52,12 +57,10 @@ final class TinyAttributeImpl extends TinyNodeImpl {
     */
 
     protected long getSequenceNumber() {
-        // need the variable as workaround for a Java HotSpot problem, reported 11 Oct 2000
-        long z =
+        return
             ((TinyNodeImpl)getParent()).getSequenceNumber()
             + 0x8000 +
             (nodeNr - tree.alpha[tree.attParent[nodeNr]]);
-        return z;
         // note the 0x8000 is to leave room for namespace nodes
     }
 
@@ -191,14 +194,30 @@ final class TinyAttributeImpl extends TinyNodeImpl {
     }
 
     /**
+    * Get the column number of the node within its source document entity
+    */
+
+    public int getColumnNumber() {
+        return getParent().getColumnNumber();
+    }
+
+    /**
+     * Determine whether the node has the is-nilled property
+     * @return true if the node has the is-nilled property
+     */
+
+    public boolean isNilled() {
+        return false;
+    }
+
+    /**
      * Determine whether this node has the is-id property
      *
      * @return true if the node is an ID
      */
 
     public boolean isId() {
-        // this looks very inefficient, but the method isn't actually used...
-        return getDocumentRoot().selectID(getStringValue()).isSameNodeInfo(this);
+        return tree.isIdAttribute(nodeNr);
     }
 
     /**

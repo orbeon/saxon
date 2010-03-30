@@ -13,6 +13,11 @@ public final class AnyChildNodePattern extends NodeTest {
 
     private final static AnyChildNodePattern THE_INSTANCE = new AnyChildNodePattern();
 
+    /**
+     * Get the singular instance of this class
+     * @return the singular instance
+     */
+
     public static AnyChildNodePattern getInstance() {
         return THE_INSTANCE;
     }

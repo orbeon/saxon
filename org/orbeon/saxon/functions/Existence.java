@@ -1,17 +1,15 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.expr.Optimizer;
+import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.om.LookaheadIterator;
+import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.BooleanValue;
 
 /** Implement the exists() and empty() functions **/
 
-public class Existence extends SystemFunction {
+public class Existence extends SystemFunction implements Negatable {
 
     public static final int EXISTS = 0;
     public static final int EMPTY = 1;
@@ -20,10 +18,83 @@ public class Existence extends SystemFunction {
      * Static analysis: prevent sorting of the argument
      */
 
-    public void checkArguments(StaticContext env) throws XPathException {
-        super.checkArguments(env);
-        Optimizer opt = env.getConfiguration().getOptimizer();
+    public void checkArguments(ExpressionVisitor visitor) throws XPathException {
+        super.checkArguments(visitor);
+        Optimizer opt = visitor.getConfiguration().getOptimizer();
         argument[0] = ExpressionTool.unsorted(opt, argument[0], false);
+    }
+
+
+//    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+//        return super.typeCheck(visitor, contextItemType);    //AUTO
+//    }
+
+    /**
+     * Perform optimisation of an expression and its subexpressions.
+     * <p/>
+     * <p>This method is called after all references to functions and variables have been resolved
+     * to the declaration of the function or variable, and after all type checking has been done.</p>
+     *
+     * @param visitor         an expression visitor
+     * @param contextItemType the static type of "." at the point where this expression is invoked.
+     *                        The parameter is set to null if it is known statically that the context item will be undefined.
+     *                        If the type of the context item is not known statically, the argument is set to
+     *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
+     * @return the original expression, rewritten if appropriate to optimize execution
+     * @throws org.orbeon.saxon.trans.XPathException
+     *          if an error is discovered during this phase
+     *          (typically a type error)
+     */
+
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression e2 = super.optimize(visitor, contextItemType);
+        if (e2 != this) {
+            return e2;
+        }
+        // See if we can deduce the answer from the cardinality
+        int c = argument[0].getCardinality();
+        if (c == StaticProperty.ALLOWS_ONE_OR_MORE) {
+            return new Literal(BooleanValue.get(operation == EXISTS));
+        } else if (c == StaticProperty.ALLOWS_ZERO) {
+            return new Literal(BooleanValue.get(operation == EMPTY));
+        }
+        // Rewrite
+        //    exists(A|B) => exists(A) or exists(B)
+        //    empty(A|B) => empty(A) and empty(B)
+        if (argument[0] instanceof VennExpression) {
+            VennExpression v = (VennExpression)argument[0];
+            if (v.getOperator() == Token.UNION) {
+                int newop = (operation == EXISTS ? Token.OR : Token.AND);
+                FunctionCall e0 = SystemFunction.makeSystemFunction(
+                        getFunctionName().getLocalName(), new Expression[]{v.getOperands()[0]});
+                FunctionCall e1 = SystemFunction.makeSystemFunction(
+                        getFunctionName().getLocalName(), new Expression[]{v.getOperands()[1]});
+                return new BooleanExpression(e0, newop, e1).optimize(visitor, contextItemType);
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Check whether this specific instance of the expression is negatable
+     *
+     * @return true if it is
+     */
+
+    public boolean isNegatable(ExpressionVisitor visitor) {
+        return true;
+    }
+
+    /**
+     * Return the negation of the expression
+     * @return the negation of the expression
+     */
+
+    public Expression negate() {
+        FunctionCall fc = SystemFunction.makeSystemFunction(
+                (operation == EXISTS ? "empty" : "exists"), getArguments());
+        fc.setLocationId(getLocationId());
+        return fc;
     }
 
     /**
@@ -32,18 +103,28 @@ public class Existence extends SystemFunction {
 
     public boolean effectiveBooleanValue(XPathContext c) throws XPathException {
         SequenceIterator iter = argument[0].iterate(c);
+        boolean result = false;
         if ((iter.getProperties() & SequenceIterator.LOOKAHEAD) != 0) {
             switch (operation) {
-                case EXISTS: return ((LookaheadIterator)iter).hasNext();
-                case EMPTY: return !((LookaheadIterator)iter).hasNext();
+                case EXISTS:
+                    result = ((LookaheadIterator)iter).hasNext();
+                    break;
+                case EMPTY:
+                    result = !((LookaheadIterator)iter).hasNext();
+                    break;
             }
         } else {
             switch (operation) {
-                case EXISTS: return iter.next() != null;
-                case EMPTY: return iter.next() == null;
+                case EXISTS:
+                    result = iter.next() != null;
+                    break;
+                case EMPTY: 
+                    result = iter.next() == null;
+                    break;
             }
-        }    
-        return false;
+        }
+        iter.close();
+        return result;
     }
 
     /**

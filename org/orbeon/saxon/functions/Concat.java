@@ -23,8 +23,8 @@ public class Concat extends SystemFunction {
     * Evaluate the function in a string context
     */
 
-    public String evaluateAsString(XPathContext c) throws XPathException {
-        return evaluateItem(c).getStringValue();
+    public CharSequence evaluateAsString(XPathContext c) throws XPathException {
+        return evaluateItem(c).getStringValueCS();
     }
 
     /**

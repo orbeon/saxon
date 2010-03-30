@@ -3,22 +3,53 @@ package org.orbeon.saxon.event;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.Whitespace;
 import org.orbeon.saxon.om.FastStringBuffer;
+import org.orbeon.saxon.om.Item;
 
 /**
  * A filter that can be inserted into a Receiver pipeline to trace the events that pass through
  */
 public class TracingFilter extends ProxyReceiver {
 
-    private static int id = 0;
+    private static int nextid = 0;
+    private int id;
     private String indent = "";
 
+    /**
+     * Create a TracingFilter and allocate a unique Id.
+     */
+
     public TracingFilter() {
-        id++;
+        id = nextid++;
     }
 
+    /**
+     * Create a TracingFilter and allocate a unique Id.
+     * @param r the base receiver to which the events will be sent
+     */
+
     public TracingFilter(Receiver r) {
-        id++;
+        id = nextid++;
         setUnderlyingReceiver(r);
+    }
+
+
+    /**
+     * Append an arbitrary item (node or atomic value) to the output
+     *
+     * @param item           the item to be appended
+     * @param locationId     the location of the calling instruction, for diagnostics
+     * @param copyNamespaces if the item is an element node, this indicates whether its namespaces
+     *                       need to be copied. Values are {@link org.orbeon.saxon.om.NodeInfo#ALL_NAMESPACES},
+     *                       {@link org.orbeon.saxon.om.NodeInfo#LOCAL_NAMESPACES}, {@link org.orbeon.saxon.om.NodeInfo#NO_NAMESPACES}
+     */
+
+    public void append(Item item, int locationId, int copyNamespaces) throws XPathException {
+        System.err.println("RCVR " + id + indent + " APPEND " + item.getClass().getName());
+        if (nextReceiver instanceof SequenceReceiver) {
+            ((SequenceReceiver)nextReceiver).append(item, locationId, copyNamespaces);
+        } else {
+            super.append(item, locationId, copyNamespaces);
+        }
     }
 
     /**
@@ -117,6 +148,9 @@ public class TracingFilter extends ProxyReceiver {
 
     public void open() throws XPathException {
         System.err.println("RCVR " + id + indent + " OPEN");
+        if (nextReceiver == null) {
+            nextReceiver = new Sink();
+        }
         nextReceiver.open();
     }
 
@@ -161,6 +195,11 @@ public class TracingFilter extends ProxyReceiver {
 
     public void startElement(int nameCode, int typeCode, int locationId, int properties) throws XPathException {
         System.err.println("RCVR " + id + indent + " START ELEMENT " + getNamePool().getDisplayName(nameCode));
+//        System.err.println("RCVR " + id + indent +
+//                "   (Loc: sysId=" +
+//                getPipelineConfiguration().getLocationProvider().getSystemId(locationId) +
+//                " line=" +
+//                getPipelineConfiguration().getLocationProvider().getLineNumber(locationId) + ")");
         indent = indent + "  ";
         nextReceiver.startElement(nameCode, typeCode, locationId, properties);
     }

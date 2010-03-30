@@ -1,11 +1,11 @@
 package org.orbeon.saxon.event;
 import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.sort.IntHashSet;
-import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AtomicType;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.SchemaType;
-import org.orbeon.saxon.type.Type;
 
 
 /**
@@ -143,7 +143,7 @@ public class IDFilter extends StartTagBuffer {
             }
             SchemaType type = getConfiguration().getSchemaType(typeCode);
             if (type.isAtomicType()) {
-                if (getConfiguration().getTypeHierarchy().isSubType((AtomicType)type, Type.ID_TYPE)) {
+                if (getConfiguration().getTypeHierarchy().isSubType((AtomicType)type, BuiltInAtomicType.ID)) {
                     return true;
                 } else {
                     nonIDs.add(typeCode);

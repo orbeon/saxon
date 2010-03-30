@@ -1,11 +1,13 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.StringLiteral;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.ProcessingInstruction;
 import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.Whitespace;
 
 /**
 * An xsl:processing-instruction element in the stylesheet.
@@ -26,9 +28,9 @@ public class XSLProcessingInstruction extends XSLStringConstructor {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
 			if (f==StandardNames.NAME) {
-        		nameAtt = atts.getValue(a).trim();
+        		nameAtt = Whitespace.trim(atts.getValue(a));
        	    } else if (f==StandardNames.SELECT) {
-        		selectAtt = atts.getValue(a).trim();
+        		selectAtt = Whitespace.trim(atts.getValue(a));
         	} else {
         		checkUnknownAttribute(nc);
         	}
@@ -46,7 +48,6 @@ public class XSLProcessingInstruction extends XSLStringConstructor {
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
         name = typeCheck("name", name);
         select = typeCheck("select", select);
         super.validate();
@@ -64,9 +65,7 @@ public class XSLProcessingInstruction extends XSLStringConstructor {
 
     public Expression compile(Executable exec) throws XPathException {
         ProcessingInstruction inst = new ProcessingInstruction(name);
-        compileContent(exec, inst, StringValue.SINGLE_SPACE);
-        //inst.setSeparator(new StringValue(select==null ? "" : " "));
-        ExpressionTool.makeParentReferences(inst);
+        compileContent(exec, inst, new StringLiteral(StringValue.SINGLE_SPACE));
         return inst;
     }
 

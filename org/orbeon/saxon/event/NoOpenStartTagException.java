@@ -1,7 +1,7 @@
 package org.orbeon.saxon.event;
 
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 
 /**
@@ -9,7 +9,17 @@ import org.orbeon.saxon.type.Type;
 * there is no open element to write it to
 */
 
-public class NoOpenStartTagException extends DynamicError {
+public class NoOpenStartTagException extends XPathException {
+
+    /**
+     * Static factory method to create the exception
+     * @param nodeKind the kind of node being created (attribute or namespace)
+     * @param name the name of the node being created
+     * @param hostLanguage XSLT or XQuery (error codes are different in the two cases)
+     * @param parentIsDocument true if the nodes are being added to a document node (rather than an element)
+     * @param isSerializing true if the document is being created in the process of serialization
+     * @return the constructed exception object
+     */
 
     public static NoOpenStartTagException makeNoOpenStartTagException(
             int nodeKind, String name, int hostLanguage, boolean parentIsDocument, boolean isSerializing) {

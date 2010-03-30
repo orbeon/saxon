@@ -1,121 +1,66 @@
 package org.orbeon.saxon.expr;
 
-import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.Err;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.trans.DynamicError;
-import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.pattern.EmptySequenceTest;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.type.*;
+import org.orbeon.saxon.type.AtomicType;
+import org.orbeon.saxon.type.BuiltInAtomicType;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.*;
 
 /**
  * Arithmetic Expression: an expression using one of the operators
- * plus, minus, multiply, div, idiv, mod.
+ * plus, minus, multiply, div, idiv, mod. Note that this code does not handle backwards
+ * compatibility mode: see {@link ArithmeticExpression10}
  */
 
 public class ArithmeticExpression extends BinaryExpression {
 
-    private static final class Signature {
-        int operand0;
-        int operand1;
-        int operation;
-        ItemType resultType;
+    private Calculator calculator;
+    private boolean simplified = false;
 
-        Signature(int t0, int t1, int op, ItemType r) {
-            operand0 = t0;
-            operand1 = t1;
-            operation = op;
-            resultType = r;
+    /**
+     * Create an arithmetic expression
+     * @param p0 the first operand
+     * @param operator the operator, for example {@link Token#PLUS}
+     * @param p1 the second operand
+     */
+
+    public ArithmeticExpression(Expression p0, int operator, Expression p1) {
+        super(p0, operator, p1);
+    }
+
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        if (simplified) {
+            // Don't simplify more than once; because in XSLT the static context on subsequent calls
+            // might not know whether backwards compatibility is in force or not
+            return this;
+        }
+        simplified = true;
+        Expression e = super.simplify(visitor);
+        if (e == this && visitor.getStaticContext().isInBackwardsCompatibleMode()) {
+            return new ArithmeticExpression10(operand0, operator, operand1);
+        } else {
+            if (operator == Token.NEGATE && Literal.isAtomic(operand1)) {
+                // very early evaluation of expressions like "-1", so they are treated as numeric literals
+                AtomicValue val = (AtomicValue)((Literal)operand1).getValue();
+                if (val instanceof NumericValue) {
+                    return new Literal(((NumericValue)val).negate());
+                }
+            }
+            return e;
         }
     }
 
-    private static final int NUMERIC_ARITHMETIC = 0;
-    private static final int DATE_AND_DURATION = 1;
-    private static final int DATE_DIFFERENCE = 2;
-    private static final int DURATION_ADDITION = 3;
-    private static final int DURATION_MULTIPLICATION = 4;
-    private static final int DURATION_DIVISION = 5;
+    /**
+     * Get the calculator allocated to evaluate this expression
+     * @return the calculator, a helper object that does the actual calculation
+     */
 
-    private static final int UNKNOWN = -1;
-    private static final int UNKNOWN_10 = -2;
-
-    private static final Signature[] plusTable = {
-        new Signature(Type.NUMBER, Type.NUMBER, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE),
-        new Signature(Type.NUMBER, Type.UNTYPED_ATOMIC, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE),
-        new Signature(Type.UNTYPED_ATOMIC, Type.NUMBER, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE),
-        new Signature(Type.UNTYPED_ATOMIC, Type.UNTYPED_ATOMIC, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE),
-
-        new Signature(Type.DATE, Type.DURATION, DATE_AND_DURATION, Type.DATE_TYPE),
-        new Signature(Type.DURATION, Type.DATE, DATE_AND_DURATION, Type.DATE_TYPE),
-
-        new Signature(Type.TIME, Type.DURATION, DATE_AND_DURATION, Type.TIME_TYPE),
-        new Signature(Type.DURATION, Type.TIME, DATE_AND_DURATION, Type.TIME_TYPE),
-
-        new Signature(Type.DATE_TIME, Type.DURATION, DATE_AND_DURATION, Type.DATE_TIME_TYPE),
-        new Signature(Type.DURATION, Type.DATE_TIME, DATE_AND_DURATION, Type.DATE_TIME_TYPE),
-
-        new Signature(Type.DURATION, Type.DURATION, DURATION_ADDITION, Type.DURATION_TYPE)
-
-    };
-
-    private static final Signature[] minusTable = {
-        new Signature(Type.NUMBER, Type.NUMBER, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE),
-        new Signature(Type.NUMBER, Type.UNTYPED_ATOMIC, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE),
-        new Signature(Type.UNTYPED_ATOMIC, Type.NUMBER, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE),
-        new Signature(Type.UNTYPED_ATOMIC, Type.UNTYPED_ATOMIC, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE),
-
-        new Signature(Type.DATE, Type.DATE, DATE_DIFFERENCE, Type.DAY_TIME_DURATION_TYPE),
-        new Signature(Type.DATE, Type.DURATION, DATE_AND_DURATION, Type.DATE_TYPE),
-
-        new Signature(Type.TIME, Type.TIME, DATE_DIFFERENCE, Type.DAY_TIME_DURATION_TYPE),
-        new Signature(Type.TIME, Type.DURATION, DATE_AND_DURATION, Type.TIME_TYPE),
-
-        new Signature(Type.DATE_TIME, Type.DATE_TIME, DATE_DIFFERENCE, Type.DAY_TIME_DURATION_TYPE),
-        new Signature(Type.DATE_TIME, Type.DURATION, DATE_AND_DURATION, Type.DATE_TIME_TYPE),
-
-        new Signature(Type.DURATION, Type.DURATION, DURATION_ADDITION, Type.DURATION_TYPE)
-
-    };
-
-    private static final Signature[] multiplyTable = {
-        new Signature(Type.NUMBER, Type.NUMBER, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE),
-        new Signature(Type.NUMBER, Type.UNTYPED_ATOMIC, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE),
-        new Signature(Type.UNTYPED_ATOMIC, Type.NUMBER, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE),
-        new Signature(Type.UNTYPED_ATOMIC, Type.UNTYPED_ATOMIC, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE),
-
-        new Signature(Type.NUMBER, Type.DURATION, DURATION_MULTIPLICATION, Type.DURATION_TYPE),
-        new Signature(Type.DURATION, Type.NUMBER, DURATION_MULTIPLICATION, Type.DURATION_TYPE)
-    };
-
-    private static final Signature[] divideTable = {
-        new Signature(Type.NUMBER, Type.NUMBER, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE),
-        new Signature(Type.NUMBER, Type.UNTYPED_ATOMIC, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE),
-        new Signature(Type.UNTYPED_ATOMIC, Type.NUMBER, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE),
-        new Signature(Type.UNTYPED_ATOMIC, Type.UNTYPED_ATOMIC, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE),
-
-        new Signature(Type.DURATION, Type.NUMBER, DURATION_MULTIPLICATION, Type.DURATION_TYPE),
-        new Signature(Type.DURATION, Type.DURATION, DURATION_DIVISION, Type.NUMBER_TYPE)
-    };
-
-    private static final Signature[] idivTable = {
-        new Signature(Type.NUMBER, Type.NUMBER, NUMERIC_ARITHMETIC, Type.INTEGER_TYPE),
-        new Signature(Type.NUMBER, Type.UNTYPED_ATOMIC, NUMERIC_ARITHMETIC, Type.INTEGER_TYPE),
-        new Signature(Type.UNTYPED_ATOMIC, Type.NUMBER, NUMERIC_ARITHMETIC, Type.INTEGER_TYPE),
-        new Signature(Type.UNTYPED_ATOMIC, Type.UNTYPED_ATOMIC, NUMERIC_ARITHMETIC, Type.INTEGER_TYPE)
-    };
-
-    private static final Signature[] modTable = {
-        new Signature(Type.NUMBER, Type.NUMBER, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE),
-        new Signature(Type.NUMBER, Type.UNTYPED_ATOMIC, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE),
-        new Signature(Type.UNTYPED_ATOMIC, Type.NUMBER, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE),
-        new Signature(Type.UNTYPED_ATOMIC, Type.UNTYPED_ATOMIC, NUMERIC_ARITHMETIC, Type.NUMBER_TYPE)
-    };
-
-    private boolean backwardsCompatible = false;
-
-    public ArithmeticExpression(Expression p1, int operator, Expression p2) {
-        super(p1, operator, p2);
+    public Calculator getCalculator() {
+        return calculator;
     }
 
     /**
@@ -123,29 +68,56 @@ public class ArithmeticExpression extends BinaryExpression {
      * arithmetic function to use if the types of operands are known an compile time.
      */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
 
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
-        backwardsCompatible = env.isInBackwardsCompatibleMode();
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
 
         Expression oldOp0 = operand0;
         Expression oldOp1 = operand1;
 
-        operand0 = operand0.typeCheck(env, contextItemType);
-        operand1 = operand1.typeCheck(env, contextItemType);
+        operand0 = visitor.typeCheck(operand0, contextItemType);
+        operand1 = visitor.typeCheck(operand1, contextItemType);
 
 
         SequenceType atomicType = SequenceType.OPTIONAL_ATOMIC;
 
-        RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0, null);
-        role0.setSourceLocator(this);
-        operand0 = TypeChecker.staticTypeCheck(operand0, atomicType, backwardsCompatible, role0, env);
+        RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0);
+        //role0.setSourceLocator(this);
+        operand0 = TypeChecker.staticTypeCheck(operand0, atomicType, false, role0, visitor);
+        final ItemType itemType0 = operand0.getItemType(th);
+        if (itemType0 instanceof EmptySequenceTest) {
+            return new Literal(EmptySequence.getInstance());
+        }
+        AtomicType type0 = (AtomicType) itemType0.getPrimitiveItemType();
+        if (type0.getFingerprint() == StandardNames.XS_UNTYPED_ATOMIC) {
+            operand0 = new UntypedAtomicConverter(operand0, BuiltInAtomicType.DOUBLE, true);
+            type0 = BuiltInAtomicType.DOUBLE;
+        } else if (/*!(operand0 instanceof UntypedAtomicConverter)*/
+                (operand0.getSpecialProperties()&StaticProperty.NOT_UNTYPED) == 0 &&
+                th.relationship(type0, BuiltInAtomicType.UNTYPED_ATOMIC) != TypeHierarchy.DISJOINT) {
+            operand0 = new UntypedAtomicConverter(operand0, BuiltInAtomicType.DOUBLE, false);
+            type0 = (AtomicType)operand0.getItemType(th);
+        }
 
         // System.err.println("First operand"); operand0.display(10);
 
-        RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1, null);
-        role1.setSourceLocator(this);
-        operand1 = TypeChecker.staticTypeCheck(operand1, atomicType, backwardsCompatible, role1, env);
+        RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1);
+        //role1.setSourceLocator(this);
+        operand1 = TypeChecker.staticTypeCheck(operand1, atomicType, false, role1, visitor);
+        final ItemType itemType1 = operand1.getItemType(th);
+        if (itemType1 instanceof EmptySequenceTest) {
+            return new Literal(EmptySequence.getInstance());
+        }
+        AtomicType type1 = (AtomicType)itemType1.getPrimitiveItemType();
+        if (type1.getFingerprint() == StandardNames.XS_UNTYPED_ATOMIC) {
+            operand1 = new UntypedAtomicConverter(operand1, BuiltInAtomicType.DOUBLE, true);
+            type1 = BuiltInAtomicType.DOUBLE;
+        } else if (/*!(operand1 instanceof UntypedAtomicConverter) &&*/
+                (operand1.getSpecialProperties()&StaticProperty.NOT_UNTYPED) == 0 &&
+                th.relationship(type1, BuiltInAtomicType.UNTYPED_ATOMIC) != TypeHierarchy.DISJOINT) {
+            operand1 = new UntypedAtomicConverter(operand1, BuiltInAtomicType.DOUBLE, false);
+            type1 = (AtomicType)operand1.getItemType(th);
+        }
 
         if (operand0 != oldOp0) {
             adoptChildExpression(operand0);
@@ -155,858 +127,176 @@ public class ArithmeticExpression extends BinaryExpression {
             adoptChildExpression(operand1);
         }
 
-        if (backwardsCompatible) {
-            if (operand0.getCardinality() == StaticProperty.EMPTY ||
-                    operand1.getCardinality() == StaticProperty.EMPTY) {
-                return DoubleValue.NaN;
+        if (Literal.isEmptySequence(operand0) ||
+                Literal.isEmptySequence(operand1)) {
+            return new Literal(EmptySequence.getInstance());
+        }
+
+        if (type0.isExternalType() || type1.isExternalType()) {
+            XPathException de = new XPathException("Arithmetic operators are not defined for external objects");
+            de.setLocator(this);
+            de.setErrorCode("XPTY0004");
+            throw de;
+        }
+
+        if (operator == Token.NEGATE) {
+            if (operand1 instanceof Literal && ((Literal)operand1).getValue() instanceof NumericValue) {
+                NumericValue nv = (NumericValue)((Literal)operand1).getValue();
+                return new Literal(nv.negate());
+            } else {
+                NegateExpression ne = new NegateExpression(operand1);
+                ne.setBackwardsCompatible(false);
+                return visitor.typeCheck(ne, contextItemType);
             }
-            Arithmetic10 exp = new Arithmetic10(operand0, operator, operand1);
-            exp.setParentExpression(getParentExpression());
-            ExpressionTool.copyLocationInfo(this, exp);
-            return exp.simplify(env).typeCheck(env, contextItemType);
         }
 
-        if (operand0.getCardinality() == StaticProperty.EMPTY ||
-                operand1.getCardinality() == StaticProperty.EMPTY) {
-            return EmptySequence.getInstance();
+        // Get a calculator to implement the arithmetic operation. If the types are not yet specifically known,
+        // we allow this to return an "ANY" calculator which defers the decision. However, we only allow this if
+        // at least one of the operand types is AnyAtomicType or (otherwise unspecified) numeric.
+
+        boolean mustResolve = !(type0.equals(BuiltInAtomicType.ANY_ATOMIC) || type1.equals(BuiltInAtomicType.ANY_ATOMIC)
+                || type0.equals(BuiltInAtomicType.NUMERIC) || type1.equals(BuiltInAtomicType.NUMERIC));
+
+        calculator = Calculator.getCalculator(
+                type0.getFingerprint(), type1.getFingerprint(), mapOpCode(operator), mustResolve);
+
+        if (calculator == null) {
+            XPathException de = new XPathException("Arithmetic operator is not defined for arguments of types (" +
+                    type0.getDescription() + ", " + type1.getDescription() + ")");
+            de.setLocator(this);
+            de.setErrorCode("XPTY0004");
+            throw de;
         }
 
-        Expression e = super.typeCheck(env, contextItemType);
-        if (e instanceof ArithmeticExpression) {
-            int type0 = operand0.getItemType(th).getPrimitiveType();
-            int type1 = operand1.getItemType(th).getPrimitiveType();
-            final int action = getAction(type0, operator, type1, false);
-            switch (action) {
-                case NUMERIC_ARITHMETIC:
-                    e = new NumericArithmetic(operand0, operator, operand1);
-                    break;
-                case DURATION_ADDITION:
-                    e = new DurationAddition(operand0, operator, operand1);
-                    break;
-                case DURATION_MULTIPLICATION:
-                    e = new DurationMultiplication(operand0, operator, operand1, env.getConfiguration());
-                    break;
-                case DURATION_DIVISION:
-                    e = new DurationDivision(operand0, operator, operand1);
-                    break;
-                case DATE_AND_DURATION:
-                    e = new DateAndDuration(operand0, operator, operand1, env.getConfiguration());
-                    break;
-                case DATE_DIFFERENCE:
-                    e = new DateDifference(operand0, operator, operand1);
-                    break;
-
-                case UNKNOWN_10:
-                    // can't actually happen on this path
-                    e = new Arithmetic10(operand0, operator, operand1);
-                    break;
-
-                case UNKNOWN:
-                    // either the types are not known yet, or they are wrong
-                    if (    env.getConfiguration().getSchemaType(type0).isAtomicType() &&
-                            type0 != Type.UNTYPED_ATOMIC &&
-                            type0 != Type.ANY_ATOMIC &&
-                            env.getConfiguration().getSchemaType(type1).isAtomicType() &&
-                            type1 != Type.UNTYPED_ATOMIC &&
-                            type1 != Type.ANY_ATOMIC) {
-                        StaticError err = new StaticError("Unsuitable operands for arithmetic operation (" +
-                                env.getNamePool().getDisplayName(type0) + ", " +
-                                env.getNamePool().getDisplayName(type1) + ')');
-                        err.setErrorCode("XPTY0004");
-                        err.setIsTypeError(true);
-                        err.setLocator(ExpressionTool.getLocator(this));
-                        throw err;
-                    }
-                    // defer the decision on which method to use until run-time
-                    return e;
+        try {
+            if ((operand0 instanceof Literal) && (operand1 instanceof Literal)) {
+                return new Literal(Value.asValue(evaluateItem(visitor.getStaticContext().makeEarlyEvaluationContext())));
             }
-            ExpressionTool.copyLocationInfo(this, e);
-            ComputedExpression.setParentExpression(e, getParentExpression());
-// code deleted because we've already done this in super.typeCheck()
-//            try {
-//                if (operand0 instanceof Value && operand1 instanceof Value) {
-//                    return (Value)e.evaluateItem(env.makeEarlyEvaluationContext());
-//                }
-//            } catch (DynamicError err) {
-//                // Defer any error reporting until run-time
-//            }
+        } catch (XPathException err) {
+            // if early evaluation fails, suppress the error: the value might
+            // not be needed at run-time, or it might be due to context such as the implicit timezone
+            // not being available yet
         }
-        return e;
+        return this;
     }
 
 
     /**
-     * Decide what action is required based on types of operands
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
      */
 
-    private static int getAction(int type1, int operator, int type2, boolean backwardsCompatible) {
-        if (type1 == Type.DAY_TIME_DURATION || type1 == Type.YEAR_MONTH_DURATION) {
-            type1 = Type.DURATION;
-        }
-        if (type2 == Type.DAY_TIME_DURATION || type2 == Type.YEAR_MONTH_DURATION) {
-            type2 = Type.DURATION;
-        }
-        Signature[] table = getOperatorTable(operator);
-        int entry = getEntry(table, type1, type2);
-        if (entry < 0) {
-            return (backwardsCompatible ? UNKNOWN_10 : UNKNOWN);
-        }
-        return table[entry].operation;
-    }
-
-    private static Signature[] getOperatorTable(int operator) {
-        switch (operator) {
-            case Token.PLUS:
-                return plusTable;
-            case Token.MINUS:
-            case Token.NEGATE:
-                return minusTable;
-            case Token.MULT:
-                return multiplyTable;
-            case Token.DIV:
-                return divideTable;
-            case Token.IDIV:
-                return idivTable;
-            case Token.MOD:
-                return modTable;
-            default:
-                throw new IllegalArgumentException("Unknown arithmetic operator");
-        }
-    }
-
-    private static int getEntry(Signature[] table, int type1, int type2) {
-        if (Type.isNumericPrimitiveType(type1)) {
-            type1 = Type.NUMBER;
-        }
-        if (Type.isNumericPrimitiveType(type2)) {
-            type2 = Type.NUMBER;
-        }
-        for (int i = 0; i < table.length; i++) {
-            if (type1 == table[i].operand0 &&
-                    type2 == table[i].operand1) {
-                return i;
-            }
-        }
-        return -1;
+    public Expression copy() {
+        ArithmeticExpression ae = new ArithmeticExpression(operand0.copy(), operator, operand1.copy());
+        ae.calculator = calculator;
+        return ae;
     }
 
     /**
-     * Determine the data type of the expression, if this is known statically
-     * @param th
+     * Static method to apply arithmetic to two values
+     * @param value0 the first value
+     * @param operator the operator as denoted in the Calculator class, for example {@link Calculator#PLUS}
+     * @param value1 the second value
+     * @param context the XPath dynamic evaluation context
+     * @return the result of the arithmetic operation
+     */
+
+    public static AtomicValue compute(AtomicValue value0, int operator, AtomicValue value1, XPathContext context)
+            throws XPathException {
+        int p0 = value0.getPrimitiveType().getFingerprint();
+        int p1 = value1.getPrimitiveType().getFingerprint();
+        Calculator calculator = Calculator.getCalculator(p0, p1, operator, false);
+        return calculator.compute(value0, value1, context);
+    }
+
+    /**
+     * Map operator codes from those in the Token class to those in the Calculator class
+     * @param op an operator denoted by a constant in the {@link Token} class, for example {@link Token#PLUS}
+     * @return an operator denoted by a constant defined in the {@link Calculator} class, for example
+     * {@link Calculator#PLUS}
+     */
+
+    public static int mapOpCode(int op) {
+        switch (op) {
+            case Token.PLUS:
+                return Calculator.PLUS;
+            case Token.MINUS:
+            case Token.NEGATE:
+                return Calculator.MINUS;
+            case Token.MULT:
+                return Calculator.TIMES;
+            case Token.DIV:
+                return Calculator.DIV;
+            case Token.IDIV:
+                return Calculator.IDIV;
+            case Token.MOD:
+                return Calculator.MOD;
+            default:
+                throw new IllegalArgumentException();
+        }
+
+    }
+
+    /**
+     * Determine the data type of the expression, insofar as this is known statically
+     * @param th the type hierarchy cache
+     * @return the atomic type of the result of this arithmetic expression
      */
 
     public ItemType getItemType(TypeHierarchy th) {
-        final ItemType t1 = operand0.getItemType(th);
-        final int pt1 = t1.getPrimitiveType();
-        final ItemType t2 = operand1.getItemType(th);
-        final int pt2 = t2.getPrimitiveType();
-        final Signature[] table = getOperatorTable(operator);
-        final int entry = getEntry(table, pt1, pt2);
-
-        if (entry < 0) {
-            return Type.ANY_ATOMIC_TYPE;  // type is not known statically
-        }
-
-        ItemType resultType = table[entry].resultType;
-        if (resultType == Type.NUMBER_TYPE) {
-            AtomicType pat1 = (AtomicType)BuiltInSchemaFactory.getSchemaType(pt1);
-            AtomicType pat2 = (AtomicType)BuiltInSchemaFactory.getSchemaType(pt2);
-            resultType = NumericValue.promote(pat1, pat2, th);
-            if (operator == Token.DIV && resultType == Type.INTEGER_TYPE) {
-                // exception: integer div integer => decimal
-                resultType = Type.DECIMAL_TYPE;
-            } else {
-                resultType = NumericValue.promote(pat1, pat2, th);
+        if (calculator == null) {
+            return BuiltInAtomicType.ANY_ATOMIC;  // type is not known statically
+        } else {
+            ItemType t1 = operand0.getItemType(th);
+            if (!(t1 instanceof AtomicType)) {
+                t1 = t1.getAtomizedItemType();
             }
-        } else if (resultType == Type.DURATION_TYPE) {
-            // if one of the operands is a subtype of duration, then the result will be the same subtype
-            // (this isn't captured in the table because these types are not primitive).
-            if (th.isSubType(t1, Type.DAY_TIME_DURATION_TYPE)) {
-                resultType = Type.DAY_TIME_DURATION_TYPE;
-            } else if (th.isSubType(t2, Type.DAY_TIME_DURATION_TYPE)) {
-                resultType = Type.DAY_TIME_DURATION_TYPE;
-            } else if (th.isSubType(t1, Type.YEAR_MONTH_DURATION_TYPE)) {
-                resultType = Type.YEAR_MONTH_DURATION_TYPE;
-            } else if (th.isSubType(t2, Type.YEAR_MONTH_DURATION_TYPE)) {
-                resultType = Type.YEAR_MONTH_DURATION_TYPE;
+            ItemType t2 = operand1.getItemType(th);
+            if (!(t2 instanceof AtomicType)) {
+                t2 = t2.getAtomizedItemType();
             }
+            ItemType resultType = calculator.getResultType((AtomicType) t1.getPrimitiveItemType(),
+                    (AtomicType) t2.getPrimitiveItemType());
+
+            if (resultType.equals(BuiltInAtomicType.ANY_ATOMIC)) {
+                // there are a few special cases where we can do better. For example, given X+1, where the type of X
+                // is unknown, we can still infer that the result is numeric. (Not so for X*2, however, where it could
+                // be a duration)
+                if ((operator == Token.PLUS || operator == Token.MINUS) &&
+                        (th.isSubType(t2, BuiltInAtomicType.NUMERIC) || th.isSubType(t1, BuiltInAtomicType.NUMERIC))) {
+                    resultType = BuiltInAtomicType.NUMERIC;
+                }
+            }
+            return resultType;
         }
-        return resultType;
     }
 
     /**
-     * Evaluate the expression. We only take this path if the type could not be determined
-     * statically.
+     * Evaluate the expression.
      */
 
     public Item evaluateItem(XPathContext context) throws XPathException {
 
-        AtomicValue v1 = (AtomicValue)operand0.evaluateItem(context);
+        AtomicValue v0 = (AtomicValue) operand0.evaluateItem(context);
+        if (v0 == null) {
+            return null;
+        }
+
+        AtomicValue v1 = (AtomicValue) operand1.evaluateItem(context);
         if (v1 == null) {
             return null;
         }
-        v1 = v1.getPrimitiveValue();
 
-        AtomicValue v2 = (AtomicValue)operand1.evaluateItem(context);
-        if (v2 == null) {
-            return null;
-        }
-        v2 = v2.getPrimitiveValue();
-
-        Configuration config = context.getConfiguration();
-        final TypeHierarchy th = config.getTypeHierarchy();
-        int action = getAction(v1.getItemType(th).getPrimitiveType(),
-                operator,
-                v2.getItemType(th).getPrimitiveType(),
-                backwardsCompatible);
-
-        Expression e;
-        switch (action) {
-            case NUMERIC_ARITHMETIC:
-                e = new NumericArithmetic(v1, operator, v2);
-                break;
-            case DURATION_ADDITION:
-                e = new DurationAddition(v1, operator, v2);
-                break;
-            case DURATION_MULTIPLICATION:
-                e = new DurationMultiplication(v1, operator, v2, config);
-                break;
-            case DURATION_DIVISION:
-                e = new DurationDivision(v1, operator, v2);
-                break;
-            case DATE_AND_DURATION:
-                e = new DateAndDuration(v1, operator, v2, config);
-                break;
-            case DATE_DIFFERENCE:
-                e = new DateDifference(v1, operator, v2);
-                break;
-            default:
-                // types are not known yet. Force to double if in 1.0 mode
-                if (backwardsCompatible) {
-                    NumericValue nv1;
-                    NumericValue nv2;
-                    try {
-                        nv1 = (NumericValue)v1.convert(Type.DOUBLE, context);
-                        nv2 = (NumericValue)v2.convert(Type.DOUBLE, context);
-                    } catch (XPathException err) {
-                        typeError("Unsuitable operands for arithmetic operation (" +
-                                v1.getItemType(th) + ", " +
-                                v2.getItemType(th) + ')', "XPTY0004", context);
-                        return null;
-                    }
-                    e = new NumericArithmetic(nv1, operator, nv2);
-                } else {
-                    typeError("Unsuitable operands for arithmetic operation (" +
-                            v1.getItemType(th) + ", " +
-                            v2.getItemType(th) + ')', "XPTY0004", context);
-                    return null;
-                }
-        }
-        ExpressionTool.copyLocationInfo(this, e);
-        // this is a little hairy, because the new expression isn't a child of its parent. But it only
-        // exists transiently. We can't change the parent expression at run time for thread safety reasons.
-        ComputedExpression.setParentExpression(e, getParentExpression());
-        return e.evaluateItem(context);
-    }
-
-    /**
-     * Inner class to handle 1.0 backwards compatible arithmetic. Note that even though we are
-     * in 1.0 mode, we still need to handle types such as dates and durations. However, in this
-     * case all the decisions are made dynamically at run time.
-     */
-    private static class Arithmetic10 extends BinaryExpression {
-
-        public Arithmetic10(Expression p1, int operator, Expression p2) {
-            super(p1, operator, p2);
-        }
-
-        public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-
-            final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
-            SequenceType atomicType = SequenceType.OPTIONAL_ATOMIC;
-
-            RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0, null);
-            role0.setSourceLocator(this);
-            operand0 = TypeChecker.staticTypeCheck(operand0, atomicType, true, role0, env);
-
-            RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1, null);
-            role1.setSourceLocator(this);
-            operand1 = TypeChecker.staticTypeCheck(operand1, atomicType, true, role1, env);
-
-            Expression e = super.typeCheck(env, contextItemType);
-            if (e instanceof ArithmeticExpression) {
-                int type0 = operand0.getItemType(th).getPrimitiveType();
-                int type1 = operand1.getItemType(th).getPrimitiveType();
-
-                if (type0 == Type.BOOLEAN) {
-                    type0 = Type.NUMBER;
-                } else if (type0 == Type.STRING) {
-                    type0 = Type.NUMBER;
-                }
-                if (type1 == Type.BOOLEAN) {
-                    type1 = Type.NUMBER;
-                } else if (type1 == Type.STRING) {
-                    type1 = Type.NUMBER;
-                }
-
-                final int action = getAction(type0, operator, type1, true);
-                switch (action) {
-                    case NUMERIC_ARITHMETIC:
-                        e = new NumericArithmetic(operand0, operator, operand1);
-                        ((NumericArithmetic)e).setBackwardsCompatible(true);
-                        break;
-                    case DURATION_ADDITION:
-                        e = new DurationAddition(operand0, operator, operand1);
-                        break;
-                    case DURATION_MULTIPLICATION:
-                        e = new DurationMultiplication(operand0, operator, operand1, env.getConfiguration());
-                        break;
-                    case DURATION_DIVISION:
-                        e = new DurationDivision(operand0, operator, operand1);
-                        break;
-                    case DATE_AND_DURATION:
-                        e = new DateAndDuration(operand0, operator, operand1, env.getConfiguration());
-                        break;
-                    case DATE_DIFFERENCE:
-                        e = new DateDifference(operand0, operator, operand1);
-                        break;
-
-                    case UNKNOWN_10:
-                        //e = new Arithmetic10(operand0, operator, operand1);
-                        // no action: defer the decision until run-time
-                        break;
-
-                    case UNKNOWN:
-                        // either the types are not known yet, or they are wrong
-                        if (env.getConfiguration().getSchemaType(type0).isAtomicType() &&
-                                type0 != Type.UNTYPED_ATOMIC &&
-                                type0 != Type.ANY_ATOMIC &&
-                                env.getConfiguration().getSchemaType(type1).isAtomicType() &&
-                                type1 != Type.UNTYPED_ATOMIC &&
-                                type1 != Type.ANY_ATOMIC) {
-                            StaticError err = new StaticError("Unsuitable operands for arithmetic operation (" +
-                                    env.getNamePool().getDisplayName(type0) + ", " +
-                                    env.getNamePool().getDisplayName(type1) + ')');
-                            err.setErrorCode("XPTY0004");
-                            err.setIsTypeError(true);
-                            throw err;
-                        }
-                        return e;
-                }
-                ExpressionTool.copyLocationInfo(this, e);
-                ComputedExpression.setParentExpression(e, getParentExpression());
-// code deleted: already done during super.typeCheck()
-//                try {
-//                    if (operand0 instanceof Value && operand1 instanceof Value) {
-//                        return (Value)e.evaluateItem(env.makeEarlyEvaluationContext());
-//                    }
-//                } catch (DynamicError err) {
-//                    // Defer any error reporting until run-time
-//                }
-            }
-            return e;
-        }
-
-
-        /**
-         * Determine the data type of the expression, if possible. All expression return
-         * sequences, in general; this method determines the type of the items within the
-         * sequence, assuming that (a) this is known in advance, and (b) it is the same for
-         * all items in the sequence.
-         * <p/>
-         * <p>This method should always return a result, though it may be the best approximation
-         * that is available at the time.</p>
-         *
-         * @return a value such as Type.STRING, Type.BOOLEAN, Type.NUMBER,
-         *         Type.NODE, or Type.ITEM (meaning not known at compile time)
-         * @param th
-         */
-
-        public ItemType getItemType(TypeHierarchy th) {
-            return Type.ANY_ATOMIC_TYPE;
-        }
-
-        /**
-         * Evaluate the expression.
-         */
-
-        public Item evaluateItem(XPathContext context) throws XPathException {
-
-            AtomicValue v1 = (AtomicValue)operand0.evaluateItem(context);
-            if (v1 == null) {
-                return DoubleValue.NaN;
-            }
-            v1 = v1.getPrimitiveValue();
-            if (v1 instanceof BooleanValue || v1 instanceof StringValue || v1 instanceof NumericValue) {
-                try {
-                    v1 = v1.convert(Type.DOUBLE, context);
-                } catch (XPathException e) {
-                    return DoubleValue.NaN;
-                }
-            }
-
-            AtomicValue v2 = (AtomicValue)operand1.evaluateItem(context);
-            if (v2 == null) {
-                return DoubleValue.NaN;
-            }
-            v2 = v2.getPrimitiveValue();
-            if (v2 instanceof BooleanValue || v2 instanceof StringValue || v2 instanceof NumericValue) {
-                try {
-                    v2 = v2.convert(Type.DOUBLE, context);
-                } catch (XPathException e) {
-                    return DoubleValue.NaN;
-                }
-            }
-
-            final TypeHierarchy th = context.getConfiguration().getTypeHierarchy();
-            int action = getAction(v1.getItemType(th).getPrimitiveType(),
-                    operator,
-                    v2.getItemType(th).getPrimitiveType(),
-                    true);
-
-            switch (action) {
-                case NUMERIC_ARITHMETIC:
-                    try {
-                        return NumericArithmetic.doArithmetic(v1, operator, v2, context, true);
-                    } catch (XPathException ex) {
-                        if (ex.getLocator() == null) {
-                            ex.setLocator(this);
-                        }
-                        throw ex;
-                    }
-
-                case DURATION_ADDITION:
-                    try {
-                        return DurationAddition.doArithmetic(v1, operator, v2, context);
-                    } catch (XPathException ex) {
-                        if (ex.getLocator() == null) {
-                            ex.setLocator(this);
-                        }
-                        throw ex;
-                    }
-
-                case DURATION_MULTIPLICATION:
-                    try {
-                        return DurationMultiplication.doArithmetic(v1, operator, v2, context);
-                    } catch (XPathException ex) {
-                        if (ex.getLocator() == null) {
-                            ex.setLocator(this);
-                        }
-                        throw ex;
-                    }
-
-                case DURATION_DIVISION:
-                    try {
-                        return DurationDivision.doArithmetic(v1, v2, context);
-                    } catch (XPathException ex) {
-                        if (ex.getLocator() == null) {
-                            ex.setLocator(this);
-                        }
-                        throw ex;
-                    }
-
-                case DATE_AND_DURATION:
-                    try {
-                        return DateAndDuration.doArithmetic(v1, operator, v2, context);
-                    } catch (XPathException ex) {
-                        if (ex.getLocator() == null) {
-                            ex.setLocator(this);
-                        }
-                        throw ex;
-                    }
-
-                case DATE_DIFFERENCE:
-                    try {
-                        return DateDifference.doArithmetic(v1, v2, context);
-                    } catch (XPathException ex) {
-                        if (ex.getLocator() == null) {
-                            ex.setLocator(this);
-                        }
-                        throw ex;
-                    }
-
-                default:
-                    typeError("Unsuitable operands for arithmetic operation (" +
-                            v1.getItemType(th) + ", " +
-                            v2.getItemType(th) + ')', "XPTY0004", context);
-                    return null;
-            }
-
+        try {
+            return calculator.compute(v0, v1, context);
+        } catch (XPathException e) {
+            e.maybeSetLocation(this);
+            e.maybeSetContext(context);
+            throw e;
         }
     }
 
-    /**
-     * Inner class to handle numeric arithmetic expressions
-     */
-
-    public static class NumericArithmetic extends ArithmeticExpression {
-
-        // TODO: do more of the work at compile-time
-        // * eliminate the possibility of untypedAtomic operands
-        // * don't use this class for 1.0 arithmetic
-        // * generate type promotion code e.g. integer->decimal or decimal->double
-        // * separate classes for integer/decimal/float/double arithmetic
-
-        // * Change the structure to use delegation rather than inheritance: delegate to a Calculator
-        // * object (which is not itself an expression, rather like a Comparer) and which can be allocated
-        // * either statically or dynamically.
-
-        boolean backCompatible = false;
-
-        public NumericArithmetic(Expression p1, int operator, Expression p2) {
-            super(p1, operator, p2);
-        }
-
-        public void setBackwardsCompatible(boolean flag) {
-            backCompatible = flag;
-        }
-
-        public boolean isBackwardsCompatible() {
-            return backCompatible;
-        }
-
-        /**
-         * Evaluate the expression.
-         */
-
-        public Item evaluateItem(XPathContext context) throws XPathException {
-            try {
-                return doArithmetic(operand0, operator, operand1, context, backCompatible);
-            } catch (XPathException err) {
-                if (err.getLocator() == null) {
-                    err.setLocator(this);
-                }
-                throw err;
-            }
-        }
-
-        public static Item doArithmetic(Expression operand0, int operator, Expression operand1,
-                                        XPathContext context, boolean backwardsCompatible)
-                throws XPathException {
-
-
-            AtomicValue v1 = ((AtomicValue)operand0.evaluateItem(context));
-            if (v1 == null) {
-                return (backwardsCompatible ? DoubleValue.NaN : null);
-            }
-
-            if (v1 instanceof UntypedAtomicValue) {
-                try {
-                    v1 = new DoubleValue(Value.stringToNumber(v1.getStringValueCS()));
-                } catch (NumberFormatException e) {
-                   if (backwardsCompatible) {
-                        v1 = DoubleValue.NaN;
-                    } else {
-                        DynamicError err = new DynamicError("Failure converting untyped value " +
-                            Err.wrap(v1.getStringValueCS(), Err.VALUE) + " to a number");
-                        err.setErrorCode("FORG0001");
-                        err.setXPathContext(context);
-                        throw err;
-                    }
-                }
-            } else {
-                v1 = v1.getPrimitiveValue();
-            }
-            AtomicValue v2 = ((AtomicValue)operand1.evaluateItem(context));
-            if (v2 == null) {
-                return (backwardsCompatible ? DoubleValue.NaN : null);
-            }
-
-            if (v2 instanceof UntypedAtomicValue) {
-                try {
-                    v2 = new DoubleValue(Value.stringToNumber(v2.getStringValueCS()));
-                } catch (NumberFormatException e) {
-                    if (backwardsCompatible) {
-                        v2 = DoubleValue.NaN;
-                    } else {
-                        DynamicError err = new DynamicError("Failure converting untyped value " +
-                            Err.wrap(v2.getStringValueCS(), Err.VALUE) + " to a number");
-                        err.setErrorCode("FORG0001");
-                        err.setXPathContext(context);
-                        throw err;
-                    }
-                }
-            } else {
-                v2 = v2.getPrimitiveValue();
-            }
-
-            if (operator == Token.NEGATE) {
-                return ((NumericValue)v2).negate();
-            } else {
-                try {
-                    return ((NumericValue)v1).arithmetic(operator, (NumericValue)v2, context);
-                } catch (DynamicError err) {
-                    if (err.getXPathContext() == null) {
-                        err.setXPathContext(context);
-                    }
-                    throw err;
-                } catch (ArithmeticException err) {
-                    DynamicError e = new DynamicError("Arithmetic exception: " + err.getMessage());
-                    e.setXPathContext(context);
-                    throw e;
-                }
-            }
-        }
-    }
-
-    /**
-     * Inner class to handle addition and subtraction of two durations
-     */
-
-    public static class DurationAddition extends ArithmeticExpression {
-
-        public DurationAddition(Expression p1, int operator, Expression p2) {
-            super(p1, operator, p2);
-        }
-
-        /**
-         * Evaluate the expression.
-         */
-
-        public Item evaluateItem(XPathContext context) throws XPathException {
-            try {
-                return doArithmetic(operand0, operator, operand1, context);
-            } catch (XPathException err) {
-                if (err.getLocator() == null) {
-                    err.setLocator(this);
-                }
-                throw err;
-            }
-        }
-
-        public static Item doArithmetic(Expression operand0, int operator, Expression operand1, XPathContext context)
-        throws XPathException {
-
-            AtomicValue av1 = (AtomicValue)operand0.evaluateItem(context);
-            if (av1 == null) {
-                return null;
-            }
-            DurationValue v1 = (DurationValue)av1.getPrimitiveValue();
-
-            AtomicValue av2 = (AtomicValue)operand1.evaluateItem(context);
-            if (av2 == null) {
-                return null;
-            }
-            DurationValue v2 = (DurationValue)av2.getPrimitiveValue();
-
-            if (operator == Token.PLUS) {
-                return v1.add(v2);
-            } else if (operator == Token.MINUS) {
-                return v1.subtract(v2);
-            } else {
-                throw new AssertionError("Unknown operation on durations");
-            }
-
-        }
-    }
-
-    /**
-     * Inner class to handle multiplication (or division) of a duration by a number
-     */
-
-    public static class DurationMultiplication extends ArithmeticExpression {
-
-        public DurationMultiplication(Expression p1, int operator, Expression p2, Configuration config) {
-
-            // by the time we get here, we know that one of the operands is a duration,
-            // but it might be either one. We make it the first.
-
-            super(p1, operator, p2);
-            final TypeHierarchy th = config.getTypeHierarchy();
-            if (th.isSubType(p2.getItemType(th), Type.DURATION_TYPE)) {
-                operand0 = p2;
-                operand1 = p1;
-            }
-        }
-
-        /**
-         * Evaluate the expression.
-         */
-
-        public Item evaluateItem(XPathContext context) throws XPathException {
-            try {
-                return doArithmetic(operand0, operator, operand1, context);
-            } catch (XPathException err) {
-                if (err.getLocator() == null) {
-                    err.setLocator(this);
-                }
-                throw err;
-            }
-        }
-
-        public static Item doArithmetic(Expression operand0, int operator, Expression operand1, XPathContext context)
-        throws XPathException {
-
-            AtomicValue av1 = (AtomicValue)operand0.evaluateItem(context);
-            if (av1 == null) {
-                return null;
-            }
-            DurationValue v1 = (DurationValue)av1.getPrimitiveValue();
-
-            AtomicValue av2 = (AtomicValue)operand1.evaluateItem(context);
-            if (av2 == null) {
-                return null;
-            }
-            NumericValue v2 = (NumericValue)av2.getPrimitiveValue();
-
-            double d = v2.getDoubleValue();
-
-            if (operator == Token.DIV) {
-                d = 1.0 / d;
-            }
-
-            return v1.multiply(d);
-
-        }
-    }
-
-    /**
-     * Inner class to handle division of two durations to give a number
-     */
-
-    public static class DurationDivision extends ArithmeticExpression {
-
-        public DurationDivision(Expression p1, int operator, Expression p2) {
-            super(p1, operator, p2);
-        }
-
-        /**
-         * Evaluate the expression.
-         */
-
-        public Item evaluateItem(XPathContext context) throws XPathException {
-            try {
-                return doArithmetic(operand0, operand1, context);
-            } catch (XPathException err) {
-                if (err.getLocator() == null) {
-                    err.setLocator(this);
-                }
-                throw err;
-            }
-        }
-
-        public static Item doArithmetic(Expression operand0, Expression operand1, XPathContext context)
-        throws XPathException {
-
-            AtomicValue av1 = (AtomicValue)operand0.evaluateItem(context);
-            if (av1 == null) {
-                return null;
-            }
-            DurationValue v1 = (DurationValue)av1.getPrimitiveValue();
-
-            AtomicValue av2 = (AtomicValue)operand1.evaluateItem(context);
-            if (av2 == null) {
-                return null;
-            }
-            DurationValue v2 = (DurationValue)av2.getPrimitiveValue();
-
-            return v1.divide(v2);
-
-        }
-    }
-
-
-    /**
-     * Inner class to handle addition or subtraction of a Date (or Time, or DateTime) and a Duration
-     */
-
-    public static class DateAndDuration extends ArithmeticExpression {
-
-        public DateAndDuration(Expression p1, int operator, Expression p2, Configuration config) {
-
-            // by the time we get here, we know that one of the operands is a duration,
-            // but it might be either one. We make it the second.
-
-            super(p1, operator, p2);
-            final TypeHierarchy th = config.getTypeHierarchy();
-            if (th.isSubType(p1.getItemType(th), Type.DURATION_TYPE)) {
-                operand0 = p2;
-                operand1 = p1;
-            }
-
-        }
-
-        /**
-         * Evaluate the expression.
-         */
-
-        public Item evaluateItem(XPathContext context) throws XPathException {
-            try {
-                return doArithmetic(operand0, operator, operand1, context);
-            } catch (XPathException err) {
-                if (err.getLocator() == null) {
-                    err.setLocator(this);
-                }
-                throw err;
-            }
-        }
-
-        public static Item doArithmetic(Expression operand0, int operator, Expression operand1, XPathContext context)
-        throws XPathException {
-            AtomicValue av1 = (AtomicValue)operand0.evaluateItem(context);
-            if (av1 == null) {
-                return null;
-            }
-            CalendarValue v1 = (CalendarValue)av1.getPrimitiveValue();
-
-            AtomicValue av2 = (AtomicValue)operand1.evaluateItem(context);
-            if (av2 == null) {
-                return null;
-            }
-            DurationValue v2 = (DurationValue)av2.getPrimitiveValue();
-
-            if (operator == Token.MINUS) {
-                v2 = v2.multiply(-1.0);
-            }
-
-            return v1.add(v2);
-
-        }
-    }
-
-    /**
-     * Inner class to handle subtraction of a Date (or Time, or DateTime) from another, to return a Duration
-     */
-
-    public static class DateDifference extends ArithmeticExpression {
-
-        public DateDifference(Expression p1, int operator, Expression p2) {
-            super(p1, operator, p2);
-        }
-
-        /**
-         * Evaluate the expression.
-         */
-
-        public Item evaluateItem(XPathContext context) throws XPathException {
-            try {
-                return doArithmetic(operand0, operand1, context);
-            } catch (XPathException err) {
-                if (err.getLocator() == null) {
-                    err.setLocator(this);
-                }
-                throw err;
-            }
-        }
-
-        public static Item doArithmetic(Expression operand0, Expression operand1, XPathContext context)
-        throws XPathException {
-            AtomicValue av1 = (AtomicValue)operand0.evaluateItem(context);
-            if (av1 == null) {
-                return null;
-            }
-            CalendarValue v1 = (CalendarValue)av1.getPrimitiveValue();
-
-            AtomicValue av2 = (AtomicValue)operand1.evaluateItem(context);
-            if (av2 == null) {
-                return null;
-            }
-            CalendarValue v2 = (CalendarValue)av2.getPrimitiveValue();
-
-            return v1.subtract(v2, context);
-
-        }
-    }
 
 }
 

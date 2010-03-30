@@ -1,6 +1,6 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.ExpressionVisitor;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
@@ -17,9 +17,10 @@ public abstract class CompileTimeFunction extends SystemFunction {
     * preEvaluate: this method suppresses compile-time evaluation by doing nothing.
      * (this is because the default implementation of preEvaluate() calls evaluate() which
      * is not available for these functions)
-    */
+     * @param visitor an expression visitor
+     */
 
-    public Expression preEvaluate(StaticContext env) throws XPathException {
+    public Expression preEvaluate(ExpressionVisitor visitor) throws XPathException {
         return this;
     }
 
@@ -40,7 +41,7 @@ public abstract class CompileTimeFunction extends SystemFunction {
     }
 
     private String getName(XPathContext c) {
-        return getDisplayName(c.getNamePool());
+        return getDisplayName();
     }
 
 }

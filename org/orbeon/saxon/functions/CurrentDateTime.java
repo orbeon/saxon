@@ -1,15 +1,15 @@
 package org.orbeon.saxon.functions;
+
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.ExpressionVisitor;
+import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.DateTimeValue;
-import org.orbeon.saxon.value.DateValue;
-import org.orbeon.saxon.value.SecondsDurationValue;
-import org.orbeon.saxon.value.TimeValue;
 
 /**
 * This class implements the XPath 2.0 functions
@@ -22,11 +22,12 @@ import org.orbeon.saxon.value.TimeValue;
 public class CurrentDateTime extends SystemFunction {
 
     /**
-    * preEvaluate: this method suppresses compile-time evaluation by doing nothing
-    * (because the value of the expression depends on the runtime context)
-    */
+     * preEvaluate: this method suppresses compile-time evaluation by doing nothing
+     * (because the value of the expression depends on the runtime context)
+     * @param visitor an expression visitor
+     */
 
-    public Expression preEvaluate(StaticContext env) {
+    public Expression preEvaluate(ExpressionVisitor visitor) {
         return this;
     }
 
@@ -38,7 +39,7 @@ public class CurrentDateTime extends SystemFunction {
         // current date/time is part of the context, but it is fixed for a transformation, so
         // we don't need to manage it as a dependency: expressions using it can be freely
         // rearranged
-       return 0;
+       return StaticProperty.DEPENDS_ON_RUNTIME_ENVIRONMENT;
     }
 
     /**
@@ -50,33 +51,21 @@ public class CurrentDateTime extends SystemFunction {
         final TypeHierarchy th = context.getConfiguration().getTypeHierarchy();
         final int targetType = getItemType(th).getPrimitiveType();
         switch (targetType) {
-            case Type.DATE_TIME:
+            case StandardNames.XS_DATE_TIME:
                 return dt;
-            case Type.DATE:
-                return (DateValue)dt.convert(Type.DATE, context);
-            case Type.TIME:
-                return (TimeValue)dt.convert(Type.TIME, context);
-            case Type.DAY_TIME_DURATION:
-            case Type.DURATION:
+            case StandardNames.XS_DATE:
+                return dt.convert(BuiltInAtomicType.DATE, true, context).asAtomic();
+            case StandardNames.XS_TIME:
+                return dt.convert(BuiltInAtomicType.TIME, true, context).asAtomic();
+            case StandardNames.XS_DAY_TIME_DURATION:
+            case StandardNames.XS_DURATION:
                 return dt.getComponent(Component.TIMEZONE);
             default:
                 throw new IllegalArgumentException("Wrong target type for current date/time");
         }
     }
 
-    /**
-     * Get the implicit timezone
-     */
-
-    public static SecondsDurationValue getImplicitTimezone(XPathContext context) throws XPathException {
-        DateTimeValue dt = DateTimeValue.getCurrentDateTime(context);
-        return (SecondsDurationValue)dt.getComponent(Component.TIMEZONE);
-    }
-
 }
-
-
-
 
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");

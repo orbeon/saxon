@@ -1,19 +1,16 @@
 package org.orbeon.saxon.om;
 
 import org.orbeon.saxon.expr.LastPositionFinder;
-import org.orbeon.saxon.expr.ReversibleIterator;
-import org.orbeon.saxon.value.*;
-import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.SingletonNode;
 
 
 /**
 * SingletonIterator: an iterator over a sequence of zero or one values
 */
 
-public class SingletonIterator implements AxisIterator,
-        ReversibleIterator, LastPositionFinder, GroundedIterator, LookaheadIterator, AtomizableIterator {
+public class SingletonIterator implements UnfailingIterator,
+        org.orbeon.saxon.expr.ReversibleIterator, LastPositionFinder, GroundedIterator, LookaheadIterator {
 
     private Item item;
     private int position = 0;
@@ -34,7 +31,7 @@ public class SingletonIterator implements AxisIterator,
     * if the supplied item is null.
     */
 
-    public static AxisIterator makeIterator(Item item) {
+    public static UnfailingIterator makeIterator(Item item) {
        if (item==null) {
            return EmptyIterator.getInstance();
        } else {
@@ -88,6 +85,9 @@ public class SingletonIterator implements AxisIterator,
         return 1;
     }
 
+    public void close() {
+    }
+
     public SequenceIterator getAnother() {
         return new SingletonIterator(item);
     }
@@ -108,17 +108,12 @@ public class SingletonIterator implements AxisIterator,
      * evaluated and expanded.
      */
 
-    public Value materialize() {
+    public GroundedValue materialize() {
         if (item instanceof AtomicValue) {
-            try {
-                Value reduced = ((Value)item).reduce();
-                if (reduced != item && reduced instanceof AtomicValue) {
-                    item = (AtomicValue)reduced;
-                }
-                return reduced;
-            } catch (XPathException err) {}
+            return (AtomicValue)item;
+        } else {
+            return new SingletonNode((NodeInfo)item);
         }
-        return new SingletonNode((NodeInfo)item);
     }
 
     /**
@@ -136,36 +131,36 @@ public class SingletonIterator implements AxisIterator,
      *                  value of the nodes instead of the nodes themselves.
      */
 
-    public void setIsAtomizing(boolean atomizing) {
-        if (atomizing && (item instanceof NodeInfo)) {
-            NodeInfo node = (NodeInfo)item;
-            switch (node.getNodeKind()) {
-                case Type.DOCUMENT:
-                case Type.TEXT:
-                    item = new UntypedAtomicValue(node.getStringValueCS());
-                    return;
-
-                case Type.ELEMENT:
-                case Type.ATTRIBUTE:
-                    int t = ((NodeInfo)item).getTypeAnnotation();
-                    if (t == -1 || t == StandardNames.XDT_UNTYPED || t == StandardNames.XDT_UNTYPED_ATOMIC) {
-                        item = new UntypedAtomicValue(node.getStringValueCS());
-                        return;
-                    } else {
-                        // do nothing: don't attempt to atomize the node here
-                       return;
-                    }
-
-                case Type.COMMENT:
-                case Type.PROCESSING_INSTRUCTION:
-                case Type.NAMESPACE:
-                    item = new StringValue(node.getStringValueCS());
-                    return;
-                default:
-                    return;
-            }
-        }
-    }
+//    public void setIsAtomizing(boolean atomizing) {
+//        if (atomizing && (item instanceof NodeInfo)) {
+//            NodeInfo node = (NodeInfo)item;
+//            switch (node.getNodeKind()) {
+//                case Type.DOCUMENT:
+//                case Type.TEXT:
+//                    item = new UntypedAtomicValue(node.getStringValueCS());
+//                    return;
+//
+//                case Type.ELEMENT:
+//                case Type.ATTRIBUTE:
+//                    int t = ((NodeInfo)item).getTypeAnnotation();
+//                    if (t == -1 || t == StandardNames.XDT_UNTYPED || t == StandardNames.XDT_UNTYPED_ATOMIC) {
+//                        item = new UntypedAtomicValue(node.getStringValueCS());
+//                        return;
+//                    } else {
+//                        // do nothing: don't attempt to atomize the node here
+//                       return;
+//                    }
+//
+//                case Type.COMMENT:
+//                case Type.PROCESSING_INSTRUCTION:
+//                case Type.NAMESPACE:
+//                    item = new StringValue(node.getStringValueCS());
+//                    return;
+//                default:
+//                    return;
+//            }
+//        }
+//    }
 
     /**
      * Get properties of this iterator, as a bit-significant integer.
@@ -178,7 +173,7 @@ public class SingletonIterator implements AxisIterator,
      */
 
     public int getProperties() {
-        return GROUNDED | LAST_POSITION_FINDER | LOOKAHEAD | ATOMIZABLE;
+        return GROUNDED | LAST_POSITION_FINDER | LOOKAHEAD;
     }
 
 }

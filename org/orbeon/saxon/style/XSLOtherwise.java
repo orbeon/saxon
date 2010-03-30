@@ -50,11 +50,9 @@ public class XSLOtherwise extends StyleElement {
     * Mark tail-recursive calls on stylesheet functions. For most instructions, this does nothing.
     */
 
-    public void markTailCalls() {
+    public boolean markTailCalls() {
         StyleElement last = getLastChildInstruction();
-        if (last != null) {
-            last.markTailCalls();
-        }
+        return last != null && last.markTailCalls();
     }
 
     public Expression compile(Executable exec) throws XPathException {

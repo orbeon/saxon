@@ -21,7 +21,9 @@ public class XHTMLIndenter extends HTMLIndenter {
     private IntHashSet inlineTagSet;
     private IntHashSet formattedTagSet;
 
-
+    /**
+     * Create an XHTML indenter
+     */
 
     public XHTMLIndenter() {
     }
@@ -58,7 +60,7 @@ public class XHTMLIndenter extends HTMLIndenter {
         return r;
     }
 
-};
+}
 
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");

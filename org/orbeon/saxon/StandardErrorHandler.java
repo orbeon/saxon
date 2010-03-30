@@ -1,15 +1,15 @@
 package org.orbeon.saxon;
 
-import org.orbeon.saxon.trans.DynamicError;
-import org.orbeon.saxon.trans.SaxonErrorCode;
 import org.orbeon.saxon.expr.ExpressionLocation;
+import org.orbeon.saxon.trans.SaxonErrorCode;
+import org.orbeon.saxon.trans.XPathException;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
 
 import javax.xml.transform.ErrorListener;
 import javax.xml.transform.TransformerException;
-import java.io.Writer;
 import java.io.PrintWriter;
+import java.io.Writer;
 
 public class StandardErrorHandler implements org.xml.sax.ErrorHandler {
 
@@ -19,6 +19,7 @@ public class StandardErrorHandler implements org.xml.sax.ErrorHandler {
 
     private ErrorListener errorListener;
     private Writer errorOutput;
+    private int errorCount = 0;
 
     public StandardErrorHandler(ErrorListener listener) {
         errorListener = listener;
@@ -44,12 +45,10 @@ public class StandardErrorHandler implements org.xml.sax.ErrorHandler {
     */
 
     public void warning (SAXParseException e) {
-        if (e.getMessage().indexOf("relative URI for namespace") >= 0) {
-            return;     // ignore this warning from AElfred2
-        }
-        //System.err.println("ErrorHandler.warning " + e.getMessage());
         if (errorListener != null) {
             try {
+                // DTD validation errors are reported as warnings, but we treat them as fatal
+                errorCount++;
                 errorListener.warning(new TransformerException(e));
             } catch (Exception err) {}
         }
@@ -79,13 +78,12 @@ public class StandardErrorHandler implements org.xml.sax.ErrorHandler {
     */
 
     protected void reportError (SAXParseException e, boolean isFatal) {
-
+        errorCount++;
         if (errorListener != null) {
             try {
                 ExpressionLocation loc =
                         new ExpressionLocation(e.getSystemId(), e.getLineNumber(), e.getColumnNumber());
-                DynamicError err =
-                        new DynamicError("Error reported by XML parser", loc, e);
+                XPathException err = new XPathException("Error reported by XML parser", loc, e);
                 err.setErrorCode(SaxonErrorCode.SXXP0003);
                 if (isFatal) {
                     errorListener.fatalError(err);
@@ -109,8 +107,17 @@ public class StandardErrorHandler implements org.xml.sax.ErrorHandler {
                 System.err.println(e);
                 System.err.println(e2);
                 e2.printStackTrace();
-            };
+            }
         }
+    }
+
+    /**
+     * Return the number of errors (including warnings) reported
+     * @return the number of errors and warnings
+     */
+
+    public int getErrorCount() {
+        return errorCount;
     }
 }
 

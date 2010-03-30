@@ -50,7 +50,7 @@ abstract class TinyParentNodeImpl extends TinyNodeImpl {
      * @return the string value of the node, as a CharSequence
      */
 
-    public static final CharSequence getStringValue(TinyTree tree, int nodeNr) {
+    public static CharSequence getStringValue(TinyTree tree, int nodeNr) {
         int level = tree.depth[nodeNr];
 
         // note, we can't rely on the value being contiguously stored because of whitespace
@@ -89,7 +89,7 @@ abstract class TinyParentNodeImpl extends TinyNodeImpl {
                 if (sb==null) {
                     sb = new FastStringBuffer(1024);
                 }
-                sb.append(WhitespaceTextImpl.getStringValue(tree, next));
+                WhitespaceTextImpl.appendStringValue(tree, next, sb);
             }
             next++;
         }

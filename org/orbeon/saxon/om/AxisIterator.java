@@ -1,50 +1,55 @@
 package org.orbeon.saxon.om;
 
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.trans.XPathException;
+
 
 /**
  * A SequenceIterator is used to iterate over a sequence. An AxisIterator
- * is a SequenceIterator that throws no exceptions.
- * Despite its name, an AxisIterator is not invariably used to find nodes
- * on an axis of a tree, though this is its most common use. For example, the
- * class ArrayIterator is also defined as an AxisIterator.
+ * is a SequenceIterator that throws no exceptions, and that always returns
+ * nodes. The nodes should all be in the same document (though there are
+ * some cases, such as PrependIterator, where this is the responsibility of the
+ * user of the class and is not enforced.)
  */
 
-public interface AxisIterator extends SequenceIterator {
+public interface AxisIterator extends UnfailingIterator {
 
     /**
-     * Get the next item in the sequence. <BR>
-     * @return the next Item. If there are no more nodes, return null.
+     * Move to the next node, without returning it. Returns true if there is
+     * a next node, false if the end of the sequence has been reached. After
+     * calling this method, the current node may be retrieved using the
+     * current() function.
      */
 
-    public Item next();
+    public boolean moveNext();
 
     /**
-     * Get the current item in the sequence.
-     *
-     * @return the current item, that is, the item most recently returned by
-     *     next()
+     * Return an iterator over an axis, starting at the current node.
+     * @param axis the axis to iterate over, using a constant such as
+     * {@link org.orbeon.saxon.om.Axis#CHILD}
+     * @param test a predicate to apply to the nodes before returning them.
+     * @throws NullPointerException if there is no current node
      */
 
-    public Item current();
+    public AxisIterator iterateAxis(byte axis, NodeTest test);
 
     /**
-     * Get the current position
-     *
-     * @return the position of the current item (the item most recently
-     *     returned by next()), starting at 1 for the first node
+     * Return the atomized value of the current node.
+     * @return the atomized value.
+     * @throws NullPointerException if there is no current node
      */
 
-    public int position();
+    public Value atomize() throws XPathException;
 
     /**
-     * Get another iterator over the same sequence of items, positioned at the
-     * start of the sequence. It must be possible to call this method at any time, whether
-     * none, some, or all of the items in the original iterator have been read. The method
-     * is non-destructive: it does not change the state of the original iterator.
-     * @return a new iterator over the same sequence
+     * Return the string value of the current node.
+     * @return the string value, as an instance of CharSequence.
+     * @throws NullPointerException if there is no current node
      */
 
-    public SequenceIterator getAnother();
+    public CharSequence getStringValue();
+
 
 }
 

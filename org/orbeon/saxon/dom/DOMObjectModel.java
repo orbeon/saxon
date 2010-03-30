@@ -1,30 +1,37 @@
 package org.orbeon.saxon.dom;
 
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.event.PipelineConfiguration;
+import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.expr.JPConverter;
+import org.orbeon.saxon.expr.PJConverter;
+import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.AnyNodeTest;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.SequenceExtent;
 import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.xpath.XPathEvaluator;
 import org.w3c.dom.Document;
+import org.w3c.dom.DocumentFragment;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import org.w3c.dom.DocumentFragment;
 
+import javax.xml.namespace.NamespaceContext;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.Result;
 import javax.xml.transform.Source;
 import javax.xml.transform.dom.DOMResult;
 import javax.xml.transform.dom.DOMSource;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.ParserConfigurationException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.HashSet;
+import javax.xml.xpath.XPathConstants;
 import java.io.Serializable;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.*;
 
 /**
  * This interface must be implemented by any third-party object model that can
@@ -34,15 +41,143 @@ import java.io.Serializable;
 
 public class DOMObjectModel implements ExternalObjectModel, Serializable {
 
+    private static DOMObjectModel THE_INSTANCE = new DOMObjectModel();
+
+    /**
+     * Get a reusable instance instance of this class.
+     * <p>Note, this is not actually a singleton instance; the class also has a public constructor,
+     * which is needed to support the automatic loading of object models into the Configuration.</p>
+     * @return the singleton instance
+     */
+
+    public static DOMObjectModel getInstance() {
+        return THE_INSTANCE;
+    }
+
+    /**
+     * In JDK 1.5, the DOMResult object has a nextSibling property
+     */
+
+    private static Method nextSiblingMethod;
+    private static boolean nextSiblingMethodUnavailable = false;
+
+    static {
+        try {
+            //noinspection RedundantArrayCreation
+            nextSiblingMethod = DOMResult.class.getMethod("getNextSibling", new Class[]{});
+        } catch (NoSuchMethodException err) {
+            nextSiblingMethodUnavailable = true;
+        }
+    }
+
+    /**
+     * Create an instance of the DOMObjectModel class.
+     * <p>When possible, use the getInstance() method in preference, as the instance is then reusable.</p>
+     */
+
     public DOMObjectModel() {}
 
-     /**
+    /**
+     * Get the URI of the external object model as used in the JAXP factory interfaces for obtaining
+     * an XPath implementation
+     */
+
+    public String getIdentifyingURI() {
+        return XPathConstants.DOM_OBJECT_MODEL;
+    }
+
+    /**
+     * Get a converter from XPath values to values in the external object model
+     * @param targetClass the required class of the result of the conversion. If this class represents
+     * a node or list of nodes in the external object model, the method should return a converter that takes
+     * a native node or sequence of nodes as input and returns a node or sequence of nodes in the
+     * external object model representation. Otherwise, it should return null.
+     * @return a converter, if the targetClass is recognized as belonging to this object model;
+     * otherwise null
+     */
+
+    public PJConverter getPJConverter(Class targetClass) {
+        if (Node.class.isAssignableFrom(targetClass) && !(NodeOverNodeInfo.class.isAssignableFrom(targetClass))) {
+            return new PJConverter() {
+                public Object convert(ValueRepresentation value, Class targetClass, XPathContext context) throws XPathException {
+                    return convertXPathValueToObject(Value.asValue(value), targetClass, context);
+                }
+            };
+        } else if (NodeList.class == targetClass) {
+            return new PJConverter() {
+                public Object convert(ValueRepresentation value, Class targetClass, XPathContext context) throws XPathException {
+                    return convertXPathValueToObject(Value.asValue(value), targetClass, context);
+                }
+            };
+        } else {
+            return null;
+        }
+    }
+
+
+    public JPConverter getJPConverter(Class targetClass) {
+        if (Node.class.isAssignableFrom(targetClass) && !(NodeOverNodeInfo.class.isAssignableFrom(targetClass))) {
+            return new JPConverter() {
+                public ValueRepresentation convert(Object obj, XPathContext context) throws XPathException {
+                    return wrapOrUnwrapNode((Node)obj, context.getConfiguration());
+                }
+                public ItemType getItemType() {
+                    return AnyNodeTest.getInstance();
+                }
+            };
+        } else if (NodeList.class.isAssignableFrom(targetClass)) {
+            return new JPConverter() {
+                public ValueRepresentation convert(Object obj, XPathContext context) throws XPathException {
+                    Configuration config = context.getConfiguration();
+                    NodeList list = ((NodeList)obj);
+                    final int len = list.getLength();
+                    NodeInfo[] nodes = new NodeInfo[len];
+                    for (int i=0; i<len; i++) {
+                        nodes[i] = wrapOrUnwrapNode(list.item(i), config);
+                    }
+                    return new SequenceExtent(nodes);
+                }
+                public ItemType getItemType() {
+                    return AnyNodeTest.getInstance();
+                }
+                public int getCardinality() {
+                    return StaticProperty.ALLOWS_ZERO_OR_MORE;
+                }
+            };
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Get a converter that converts a sequence of XPath nodes to this model's representation
+     * of a node list.
+     * @param node an example of the kind of node used in this model
+     * @return if the model does not recognize this node as one of its own, return null. Otherwise
+     *         return a PJConverter that takes a list of XPath nodes (represented as NodeInfo objects) and
+     *         returns a collection of nodes in this object model
+     */
+
+    public PJConverter getNodeListCreator(Object node) {
+        if (node==null || node instanceof Node || node instanceof DOMSource ||
+                (node instanceof VirtualNode && ((VirtualNode)node).getUnderlyingNode() instanceof Node)) {
+            return new PJConverter() {
+                public Object convert(ValueRepresentation value, Class targetClass, XPathContext context) throws XPathException {
+                    return convertXPathValueToObject(Value.asValue(value), NodeList.class, context);
+                }
+            };
+        } else {
+            return null;
+        }
+    }
+
+    /**
      * Test whether this object model recognizes a given node as one of its own
      */
 
-    public boolean isRecognizedNode(Object object) {
-         return object instanceof Node && !(object instanceof NodeOverNodeInfo);
-    }
+//    private boolean isRecognizedNode(Object object) {
+//         return object instanceof Node && !(object instanceof NodeOverNodeInfo);
+//    }
 
     /**
      * Test whether this object model recognizes a given class as representing a
@@ -52,9 +187,9 @@ public class DOMObjectModel implements ExternalObjectModel, Serializable {
      * @return true if the class is used to represent nodes in this object model
      */
 
-    public boolean isRecognizedNodeClass(Class nodeClass) {
-        return Node.class.isAssignableFrom(nodeClass) && !(NodeOverNodeInfo.class.isAssignableFrom(nodeClass));
-    }
+//    private boolean isRecognizedNodeClass(Class nodeClass) {
+//        return Node.class.isAssignableFrom(nodeClass) && !(NodeOverNodeInfo.class.isAssignableFrom(nodeClass));
+//    }
 
     /**
      * Test whether this object model recognizes a given class as representing a
@@ -64,9 +199,9 @@ public class DOMObjectModel implements ExternalObjectModel, Serializable {
      * @return true if the class is used to represent nodes in this object model
      */
 
-    public boolean isRecognizedNodeListClass(Class nodeClass) {
-        return NodeList.class.isAssignableFrom(nodeClass);
-    }
+//    private boolean isRecognizedNodeListClass(Class nodeClass) {
+//        return NodeList.class.isAssignableFrom(nodeClass);
+//    }
 
     /**
      * Test whether this object model recognizes a particular kind of JAXP Result object,
@@ -78,6 +213,17 @@ public class DOMObjectModel implements ExternalObjectModel, Serializable {
         if (result instanceof DOMResult) {
             DOMWriter emitter = new DOMWriter();
             Node root = ((DOMResult)result).getNode();
+            // JDK 1.5 adds a nextSibling() property to identify the insertion point among the siblings
+            Node nextSibling = null;
+            if (!nextSiblingMethodUnavailable) {
+                try {
+                    nextSibling = (Node)nextSiblingMethod.invoke(result, new Object[]{});
+                } catch (IllegalAccessException err) {
+                    //
+                } catch (InvocationTargetException err) {
+                    //
+                }
+            }
             if (root == null) {
                 try {
                     DocumentBuilderFactory dfactory = DocumentBuilderFactory.newInstance();
@@ -86,10 +232,11 @@ public class DOMObjectModel implements ExternalObjectModel, Serializable {
                     ((DOMResult)result).setNode(out);
                     emitter.setNode(out);
                 } catch (ParserConfigurationException e) {
-                    throw new DynamicError(e);
+                    throw new XPathException(e);
                 }
             } else {
                 emitter.setNode(root);
+                emitter.setNextSibling(nextSibling);
             }
             return emitter;
         }
@@ -142,9 +289,13 @@ public class DOMObjectModel implements ExternalObjectModel, Serializable {
 
     /**
      * Wrap a DOM Node as a NodeInfo, unless it already wraps a NodeInfo, inwhich case unwrap it
+     * @param node the node to be wrapped
+     * @param config the Saxon Configuration. This must be the same Configuration, or one that is compatible with,
+     * the Configuration used to compile and execute the query or stylesheet.
+     * @return the new wrapper node
      */
 
-    public NodeInfo wrapOrUnwrapNode(Node node, Configuration config) throws XPathException {
+    private NodeInfo wrapOrUnwrapNode(Node node, Configuration config) throws XPathException {
         if (node instanceof NodeOverNodeInfo) {
             return ((NodeOverNodeInfo)node).getUnderlyingNodeInfo();
         } else {
@@ -160,29 +311,32 @@ public class DOMObjectModel implements ExternalObjectModel, Serializable {
      * be converted, an exception should be thrown
      */
 
-    public Value convertObjectToXPathValue(Object object, Configuration config) throws XPathException {
-        if (object instanceof NodeList && !(object instanceof Node)) {
-            // We're interested in a NodeList here. There's a class in Xerces that implements both
-            // Node and NodeList, and we want to treat it as a Node: hence the strange test above.
-            NodeList list = ((NodeList)object);
-            NodeInfo[] nodes = new NodeInfo[list.getLength()];
-            for (int i=0; i<list.getLength(); i++) {
-                if (list.item(i) instanceof NodeOverNodeInfo) {
-                    nodes[i] = ((NodeOverNodeInfo)list.item(i)).getUnderlyingNodeInfo();
-                } else {
-                    DocumentInfo doc = wrapDocument(list.item(i), "", config);
-                    NodeInfo node = wrapNode(doc, list.item(i));
-                    nodes[i] = node;
-                }
-            }
-            return new SequenceExtent(nodes);
-
-            // Note, we accept the nodes in the order returned by the function; there
-            // is no requirement that this should be document order.
-        } else {
-            return null;
-        }
-    }
+//    private Value convertObjectToXPathValue(Object object, Configuration config) throws XPathException {
+//        if (object instanceof NodeList && !(object instanceof Node)) {
+//            // We're interested in a NodeList here. There's a class in Xerces that implements both
+//            // Node and NodeList, and we want to treat it as a Node: hence the strange test above.
+//            NodeList list = ((NodeList)object);
+//            final int len = list.getLength();
+//            NodeInfo[] nodes = new NodeInfo[len];
+//            for (int i=0; i<len; i++) {
+//                if (list.item(i) instanceof NodeOverNodeInfo) {
+//                    nodes[i] = ((NodeOverNodeInfo)list.item(i)).getUnderlyingNodeInfo();
+//                } else {
+//                    DocumentInfo doc = wrapDocument(list.item(i), "", config);
+//                    NodeInfo node = wrapNode(doc, list.item(i));
+//                    nodes[i] = node;
+//                }
+//            }
+//            return new SequenceExtent(nodes);
+//
+//            // Note, we accept the nodes in the order returned by the function; there
+//            // is no requirement that this should be document order.
+//        } else if (object instanceof Node) {
+//            return new SingletonNode(wrapOrUnwrapNode((Node)object, config));
+//        } else {
+//            return null;
+//        }
+//    }
 
     /**
      * Convert an XPath value to an object in this object model. If the supplied value can be converted
@@ -194,10 +348,11 @@ public class DOMObjectModel implements ExternalObjectModel, Serializable {
      * supplied value cannot be converted to the appropriate class
      */
 
-    public Object convertXPathValueToObject(Value value, Class target, XPathContext context) throws XPathException {
+    private Object convertXPathValueToObject(Value value, Object targetClass, XPathContext context) throws XPathException {
         // We accept the object if (a) the target class is Node, Node[], or NodeList,
         // or (b) the supplied object is a node, or sequence of nodes, that wrap DOM nodes,
         // provided that the target class is Object or a collection class
+        Class target = (Class)targetClass;
         boolean requireDOM =
                 (Node.class.isAssignableFrom(target) || (target == NodeList.class) ||
                 (target.isArray() && Node.class.isAssignableFrom(target.getComponentType())));
@@ -214,7 +369,7 @@ public class DOMObjectModel implements ExternalObjectModel, Serializable {
         }
         List nodes = new ArrayList(20);
 
-        SequenceIterator iter = value.iterate(context);
+        SequenceIterator iter = value.iterate();
         while (true) {
             Item item = iter.next();
             if (item == null) {
@@ -226,19 +381,21 @@ public class DOMObjectModel implements ExternalObjectModel, Serializable {
                     nodes.add(o);
                 } else {
                     if (requireDOM) {
-                        DynamicError err = new DynamicError("Extension function required class " + target.getName() +
+                        XPathException err = new XPathException("Extension function required class " + target.getName() +
                                 "; supplied value of class " + item.getClass().getName() +
                                 " could not be converted");
+                        err.setXPathContext(context);
                         throw err;
-                    };
+                    }
                 }
             } else if (requireDOM) {
                 if (item instanceof NodeInfo) {
                     nodes.add(NodeOverNodeInfo.wrap((NodeInfo)item));
                 } else {
-                    DynamicError err = new DynamicError("Extension function required class " + target.getName() +
-                                "; supplied value of class " + item.getClass().getName() +
-                                " could not be converted");
+                    XPathException err = new XPathException("Extension function required class " + target.getName() +
+                            "; supplied value of class " + item.getClass().getName() +
+                            " could not be converted");
+                    err.setXPathContext(context);
                     throw err;
                 }
             } else {
@@ -246,13 +403,14 @@ public class DOMObjectModel implements ExternalObjectModel, Serializable {
             }
         }
 
-        if (nodes.size() == 0 && !requireDOM) {
+        if (nodes.isEmpty() && !requireDOM) {
             return null;  // empty sequence supplied - try a different mapping
         }
         if (Node.class.isAssignableFrom(target)) {
             if (nodes.size() != 1) {
-                DynamicError err = new DynamicError("Extension function requires a single DOM Node" +
-                                "; supplied value contains " + nodes.size() + " nodes");
+                XPathException err = new XPathException("Extension function requires a single DOM Node" +
+                        "; supplied value contains " + nodes.size() + " nodes");
+                err.setXPathContext(context);
                 throw err;
             }
             return nodes.get(0);
@@ -283,7 +441,7 @@ public class DOMObjectModel implements ExternalObjectModel, Serializable {
      * @return the wrapper, which must implement DocumentInfo
      */
 
-    public DocumentInfo wrapDocument(Object node, String baseURI, Configuration config) {
+    private DocumentInfo wrapDocument(Object node, String baseURI, Configuration config) {
         if (node instanceof DocumentOverNodeInfo) {
             return (DocumentInfo)((DocumentOverNodeInfo)node).getUnderlyingNodeInfo();
         }
@@ -314,26 +472,60 @@ public class DOMObjectModel implements ExternalObjectModel, Serializable {
      * @return the wrapper for the node, as an instance of VirtualNode
      */
 
-    public NodeInfo wrapNode(DocumentInfo document, Object node) {
+    private NodeInfo wrapNode(DocumentInfo document, Object node) {
         return ((DocumentWrapper)document).wrap((Node)node);
     }
 
-    /**
-     * Convert a sequence of values to a NODELIST, as defined in the JAXP XPath API spec. This method
-     * is used when the evaluate() request specifies the return type as NODELIST, regardless of the
-     * actual results of the expression. If the sequence contains things other than nodes, the fallback
-     * is to return the sequence as a Java List object. The method can return null to invoke fallback
-     * behaviour.
+   /**
+     * Test showing a DOM NodeList returned by an extension function
      */
 
-    public Object convertToNodeList(SequenceExtent extent) {
-        try {
-            NodeList nodeList = DOMNodeList.checkAndMake(extent);
-            return nodeList;
-        } catch (XPathException e) {
-            return null;
-        }
+    public static void main (String[] args) throws Exception {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        DocumentBuilder db = factory.newDocumentBuilder();
+        Document doc = db.newDocument();
+        XPathEvaluator xpe = new XPathEvaluator();
+        String exp = "ext:sortArrayToNodeList(('fred', 'jane', 'anne', 'sue'))";
+        xpe.setNamespaceContext(new NamespaceContext() {
+            public String getNamespaceURI(String prefix) {
+                return (prefix.equals("ext") ? "java:org.orbeon.saxon.dom.DOMObjectModel" : null);
+            }
+            public String getPrefix(String namespaceURI) {
+                return null;
+            }
+            public Iterator getPrefixes(String namespaceURI) {
+                return null;
+            }
+        });
+        NodeList isList = (NodeList)xpe.evaluate(exp, doc, XPathConstants.NODESET);
+        System.err.println("length " + isList.getLength());
     }
+
+    /**
+     * Sample extension function
+     * @param source
+     * @return
+     * @throws Exception
+     */
+    public static NodeList sortArrayToNodeList(org.orbeon.saxon.value.Value source) throws Exception {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        DocumentBuilder db = factory.newDocumentBuilder();
+        Document doc = db.newDocument();
+        String[] items = new String[source.getLength()];
+        for (int i = 0; i < source.getLength(); i++) {
+            items[i] = source.itemAt(i).getStringValue();
+        }
+        Arrays.sort(items);
+        List list = new ArrayList();
+        for (int i = 0; i < items.length; i++) {
+                list.add(doc.createTextNode(items[i]));
+            }
+        DOMNodeList resultSet = new DOMNodeList(list);
+        return resultSet;
+    }
+
 }
 
 

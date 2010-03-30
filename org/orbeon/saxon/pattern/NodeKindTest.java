@@ -129,8 +129,18 @@ public class NodeKindTest extends NodeTest {
                 return AnyType.getInstance();
             case Type.ELEMENT:
                 return AnyType.getInstance();
-            default:
+            case Type.ATTRIBUTE:
                 return AnySimpleType.getInstance();
+            case Type.COMMENT:
+                return BuiltInAtomicType.STRING;
+            case Type.TEXT:
+                return BuiltInAtomicType.UNTYPED_ATOMIC;
+            case Type.PROCESSING_INSTRUCTION:
+                return BuiltInAtomicType.STRING;
+            case Type.NAMESPACE:
+                return BuiltInAtomicType.STRING;
+            default:
+                throw new AssertionError("Unknown node kind");
         }
     }
 
@@ -142,19 +152,19 @@ public class NodeKindTest extends NodeTest {
     public AtomicType getAtomizedItemType() {
         switch (kind) {
             case Type.DOCUMENT:
-                return Type.UNTYPED_ATOMIC_TYPE;
+                return BuiltInAtomicType.UNTYPED_ATOMIC;
             case Type.ELEMENT:
-                return Type.ANY_ATOMIC_TYPE;
+                return BuiltInAtomicType.ANY_ATOMIC;
             case Type.ATTRIBUTE:
-                return Type.ANY_ATOMIC_TYPE;
+                return BuiltInAtomicType.ANY_ATOMIC;
             case Type.COMMENT:
-                return Type.STRING_TYPE;
+                return BuiltInAtomicType.STRING;
             case Type.TEXT:
-                return Type.UNTYPED_ATOMIC_TYPE;
+                return BuiltInAtomicType.UNTYPED_ATOMIC;
             case Type.PROCESSING_INSTRUCTION:
-                return Type.STRING_TYPE;
+                return BuiltInAtomicType.STRING;
             case Type.NAMESPACE:
-                return Type.STRING_TYPE;
+                return BuiltInAtomicType.STRING;
             default:
                 throw new AssertionError("Unknown node kind");
         }
@@ -165,26 +175,53 @@ public class NodeKindTest extends NodeTest {
     }
 
     public static String toString(int kind) {
-            switch (kind) {
-                case Type.DOCUMENT:
-                    return("document-node()" );
-                case Type.ELEMENT:
-                    return( "element()" );
-                case Type.ATTRIBUTE:
-                    return( "attribute()" );
-                case Type.COMMENT:
-                    return( "comment()" );
-                case Type.TEXT:
-                    return( "text()" );
-                case Type.PROCESSING_INSTRUCTION:
-                    return( "processing-instruction()" );
-                case Type.NAMESPACE:
-                    return( "namespace()" );
-                default:
-                    return( "** error **");
-            }
-
+        switch (kind) {
+            case Type.DOCUMENT:
+                return( "document-node()" );
+            case Type.ELEMENT:
+                return( "element()" );
+            case Type.ATTRIBUTE:
+                return( "attribute()" );
+            case Type.COMMENT:
+                return( "comment()" );
+            case Type.TEXT:
+                return( "text()" );
+            case Type.PROCESSING_INSTRUCTION:
+                return( "processing-instruction()" );
+            case Type.NAMESPACE:
+                return( "namespace()" );
+            default:
+                return( "** error **");
+        }
     }
+
+    /**
+     * Get the name of a node kind
+     * @param kind the node kind, for example Type.ELEMENT or Type.ATTRIBUTE
+     * @return the name of the node kind, for example "element" or "attribute"
+     */
+
+    public static String nodeKindName(int kind) {
+        switch (kind) {
+            case Type.DOCUMENT:
+                return( "document" );
+            case Type.ELEMENT:
+                return( "element" );
+            case Type.ATTRIBUTE:
+                return( "attribute" );
+            case Type.COMMENT:
+                return( "comment" );
+            case Type.TEXT:
+                return( "text" );
+            case Type.PROCESSING_INSTRUCTION:
+                return( "processing-instruction" );
+            case Type.NAMESPACE:
+                return( "namespace" );
+            default:
+                return( "** error **");
+        }
+    }
+
 
     /**
       * Returns a hash code value for the object.

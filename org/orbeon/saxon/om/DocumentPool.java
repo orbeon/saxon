@@ -1,19 +1,20 @@
 package org.orbeon.saxon.om;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.io.Serializable;
 
 /**
   * An object representing the collection of documents handled during
   * a single transformation.
   *
-  * <p>From Saxon 7.2, the function of allocating document numbers is performed
-  * by the NamePool, not by the DocumentPool. This has a
+  * <p>The function of allocating document numbers is performed
+  * by the DocumentNumberAllocator in the Configuration, not by the DocumentPool. This has a
   * number of effects: in particular it allows operations involving multiple
   * documents (such as generateId() and document()) to occur in a free-standing
   * XPath environment.</p>
   */
 
-public final class DocumentPool {
+public final class DocumentPool implements Serializable {
 
     // The document pool ensures that the document()
     // function, when called twice with the same URI, returns the same document
@@ -66,6 +67,8 @@ public final class DocumentPool {
     /**
      * Release a document from the document pool. This means that if the same document is
      * loaded again later, the source will need to be re-parsed, and nodes will get new identities.
+     * @param doc the document to be discarded from the pool
+     * @return the document supplied in the doc parameter
      */
 
     public DocumentInfo discard(DocumentInfo doc) {

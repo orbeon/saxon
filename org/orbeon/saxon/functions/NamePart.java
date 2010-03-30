@@ -1,11 +1,14 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.*;
-import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.om.DocumentPool;
+import org.orbeon.saxon.om.FastStringBuffer;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.AnyURIValue;
 import org.orbeon.saxon.value.QNameValue;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.value.AnyURIValue;
-import org.orbeon.saxon.type.Type;
 
 /**
 * This class supports the name(), local-name(), and namespace-uri() functions
@@ -23,11 +26,12 @@ public class NamePart extends SystemFunction {
 
     /**
     * Simplify and validate.
-    */
+     * @param visitor an expression visitor
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
         useContextItemAsDefault();
-        return simplifyArguments(env);
+        return simplifyArguments(visitor);
     }
 
     /**
@@ -96,7 +100,7 @@ public class NamePart extends SystemFunction {
                     } else if ("".equals(docURI)) {
                         return null;
                     } else {
-                        return StringValue.makeStringValue(docURI);
+                        return new AnyURIValue(docURI);
                     }
                 } else {
                     return null;

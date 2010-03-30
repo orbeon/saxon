@@ -1,16 +1,16 @@
 package org.orbeon.saxon.expr;
 
 import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.event.SequenceOutputter;
+import org.orbeon.saxon.event.PipelineConfiguration;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
 
-import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.Iterator;
 
@@ -20,7 +20,7 @@ import java.util.Iterator;
  * in particular, expressions to support extension instructions.
  */
 
-public abstract class SimpleExpression extends ComputedExpression {
+public abstract class SimpleExpression extends Expression {
 
     public static final Expression[] NO_ARGUMENTS = new Expression[0];
 
@@ -32,8 +32,6 @@ public abstract class SimpleExpression extends ComputedExpression {
 
     public SimpleExpression() {
     }
-
-
 
     /**
      * Set the immediate sub-expressions of this expression.
@@ -77,36 +75,47 @@ public abstract class SimpleExpression extends ComputedExpression {
     /**
      * Simplify the expression
      * @return the simplified expression
+     * @param visitor an expression visitor
      */
 
-    public Expression simplify(StaticContext env) throws XPathException {
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
         for (int i = 0; i < arguments.length; i++) {
             if (arguments[i] != null) {
-                arguments[i] = arguments[i].simplify(env);
+                arguments[i] = visitor.simplify(arguments[i]);
             }
         }
         return this;
     }
 
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
         for (int i = 0; i < arguments.length; i++) {
             if (arguments[i] != null) {
-                arguments[i] = arguments[i].typeCheck(env, contextItemType);
+                arguments[i] = visitor.typeCheck(arguments[i], contextItemType);
             }
         }
         return this;
     }
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
         for (int i = 0; i < arguments.length; i++) {
             if (arguments[i] != null) {
-                arguments[i] = arguments[i].optimize(opt, env, contextItemType);
+                arguments[i] = visitor.optimize(arguments[i], contextItemType);
             }
         }
         return this;
     }
 
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        throw new UnsupportedOperationException("copy");
+    }
 
     /**
      * Offer promotion for this subexpression. The offer will be accepted if the subexpression
@@ -138,7 +147,7 @@ public abstract class SimpleExpression extends ComputedExpression {
      * Determine the data type of the items returned by this expression. This implementation
      * returns "item()", which can be overridden in a subclass.
      * @return the data type
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
@@ -198,7 +207,9 @@ public abstract class SimpleExpression extends ComputedExpression {
             XPathContext c2 = context.newMinorContext();
             c2.setOrigin(this);
             SequenceOutputter seq = controller.allocateSequenceOutputter(1);
-            seq.setPipelineConfiguration(controller.makePipelineConfiguration());
+            PipelineConfiguration pipe = controller.makePipelineConfiguration();
+            pipe.setHostLanguage(getContainer().getHostLanguage());
+            seq.setPipelineConfiguration(pipe);
             c2.setTemporaryReceiver(seq);
             process(c2);
             Item item = seq.getFirstItem();
@@ -239,7 +250,9 @@ public abstract class SimpleExpression extends ComputedExpression {
             XPathContext c2 = context.newMinorContext();
             c2.setOrigin(this);
             SequenceOutputter seq = controller.allocateSequenceOutputter(10);
-            seq.setPipelineConfiguration(controller.makePipelineConfiguration());
+            PipelineConfiguration pipe = controller.makePipelineConfiguration();
+            pipe.setHostLanguage(getContainer().getHostLanguage());
+            seq.setPipelineConfiguration(pipe);
             c2.setTemporaryReceiver(seq);
 
             process(c2);
@@ -272,24 +285,23 @@ public abstract class SimpleExpression extends ComputedExpression {
     }
 
     /**
-     * Diagnostic print of expression structure. The expression is written to the System.err
-     * output stream
-     *
-     * @param level indentation level for this expression
-     @param out
-     @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + getExpressionType());
+    public void explain(ExpressionPresenter destination) {
+        destination.startElement("userExpression");
+        destination.emitAttribute("class", getExpressionType());
         for (int i = 0; i < arguments.length; i++) {
-            arguments[i].display(level+1, out, config);
+            arguments[i].explain(destination);
         }
+        destination.endElement();
     }
 
     /**
      * Return a distinguishing name for the expression, for use in diagnostics.
      * By default the class name is used.
+     * @return a distinguishing name for the expression (defaults to the name of the implementation class)
      */
 
     public String getExpressionType() {

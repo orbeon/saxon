@@ -34,6 +34,7 @@ public interface SimpleType extends SchemaType {
     /**
      * Return true if this is an external object type, that is, a Saxon-defined type for external
      * Java or .NET objects
+     * @return true if this is an external type
      */
 
     boolean isExternalType();
@@ -44,6 +45,13 @@ public interface SimpleType extends SchemaType {
      */
 
     AtomicType getCommonAtomicType();
+
+    /**
+     * Determine whether this is a built-in type or a user-defined type
+     * @return true if this is a built-in type
+     */
+
+    boolean isBuiltInType();
 
     /**
      * Get the built-in type from which this type is derived by restriction
@@ -64,7 +72,9 @@ public interface SimpleType extends SchemaType {
      * XML NCName syntax: this is used to check conformance to XML 1.0 or XML 1.1 naming rules, as
      * appropriate
      * @return an iterator over the atomic sequence comprising the typed value. The objects
-     * returned by this SequenceIterator will all be of type {@link org.orbeon.saxon.value.AtomicValue}
+     * returned by this SequenceIterator will all be of type {@link org.orbeon.saxon.value.AtomicValue},
+     * The next() method on the iterator throws no checked exceptions, although it is not actually
+     * declared as an UnfailingIterator.
      * @throws ValidationException if the supplied value is not in the lexical space of the data type
      */
 
@@ -77,14 +87,14 @@ public interface SimpleType extends SchemaType {
      * @param nsResolver a namespace resolver used to resolve namespace prefixes if the type
      * is namespace sensitive. The value supplied may be null; in this case any namespace-sensitive
      * content will throw an UnsupportedOperationException.
-     * @param nameChecker
-     * @return null if validation succeeds; return a ValidationException describing the validation failure
+     * @param nameChecker XML 1.0 or 1.1 name checker, needed when types such as xs:NCName are used
+     * @return null if validation succeeds; return a ValidationFailure describing the validation failure
      * if validation fails. Note that the exception is returned rather than being thrown.
      * @throws UnsupportedOperationException if the type is namespace-sensitive and no namespace
      * resolver is supplied
      */
 
-    ValidationException validateContent(CharSequence value, NamespaceResolver nsResolver, NameChecker nameChecker);
+    ValidationFailure validateContent(CharSequence value, NamespaceResolver nsResolver, NameChecker nameChecker);
 
     /**
      * Test whether this type is namespace sensitive, that is, if a namespace context is needed
@@ -99,7 +109,7 @@ public interface SimpleType extends SchemaType {
      * Determine how values of this simple type are whitespace-normalized.
      * @return one of {@link org.orbeon.saxon.value.Whitespace#PRESERVE}, {@link org.orbeon.saxon.value.Whitespace#COLLAPSE},
      * {@link org.orbeon.saxon.value.Whitespace#REPLACE}.
-     * @param th
+     * @param th the type hierarchy cache. Not needed in the case of a built-in type
      */
 
     public int getWhitespaceAction(TypeHierarchy th);

@@ -13,24 +13,30 @@ import org.w3c.dom.DocumentType;
 class DOMImplementationImpl implements DOMImplementation {
 
  /**
- *  Test if the DOM implementation implements a specific feature.
+ * Test if the DOM implementation implements a specific feature.
  * @param feature  The name of the feature to test (case-insensitive).
  * @param version  This is the version number of the feature to test.
  * @return <code>true</code> if the feature is implemented in the
- *   specified version, <code>false</code> otherwise.
+ *   specified version, <code>false</code> otherwise. This implementation
+  * returns true if the feature is "XML" or "Core" and the version is null,
+  * "", "3.0", "2.0", or "1.0".
  */
 
 public boolean hasFeature(String feature, String version) {
-    return false;
+    return (feature.equalsIgnoreCase("XML") || feature.equalsIgnoreCase("Core")) &&
+            (version == null || version.length() == 0 ||
+            version.equals("3.0") || version.equals("2.0") || version.equals("1.0"));
 }
 
- /**
- *  Return the value of a specific feature.
-  * DOM level 3 method.
- * @param feature  The name of the feature to test (case-insensitive).
- * @param version  This is the version number of the feature to test.
- * @return the value of the feature. Always null in this implementation.
- */
+    /**
+     * This method returns a specialized object which implements the
+     * specialized APIs of the specified feature and version, as specified
+     * in .
+     * @param feature  The name of the feature requested.
+     * @param version  This is the version number of the feature to test.
+     * @return  Always returns null in this implementation
+     * @since DOM Level 3
+     */
 
 public Object getFeature(String feature,
                          String version) {

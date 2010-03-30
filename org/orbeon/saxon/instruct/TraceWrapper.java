@@ -1,16 +1,16 @@
 package org.orbeon.saxon.instruct;
 
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.trace.TraceListener;
+import org.orbeon.saxon.trace.ExpressionPresenter;
+import org.orbeon.saxon.trace.InstructionInfo;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.TypeHierarchy;
 
-import java.io.PrintStream;
 import java.util.Iterator;
 
 /**
@@ -28,23 +28,35 @@ public class TraceWrapper extends Instruction {
      * @exception org.orbeon.saxon.trans.XPathException if an error is discovered during expression
      *     rewriting
      * @return the simplified expression
+     * @param visitor an expression visitor
      */
 
-    public Expression simplify(StaticContext env) throws XPathException {
-        child = child.simplify(env);
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        child = visitor.simplify(child);
         return this;
     }
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        child = child.typeCheck(env, contextItemType);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        child = visitor.typeCheck(child, contextItemType);
         adoptChildExpression(child);
         return this;
     }
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        child = child.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        child = visitor.optimize(child, contextItemType);
         adoptChildExpression(child);
         return this;
+    }
+
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        throw new UnsupportedOperationException("copy");
     }
 
     /**
@@ -99,7 +111,7 @@ public class TraceWrapper extends Instruction {
     /**
      * Get the item type of the items returned by evaluating this instruction
      * @return the static item type of the instruction
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
@@ -158,11 +170,7 @@ public class TraceWrapper extends Instruction {
      */
 
     public int computeDependencies() {
-        if (child instanceof ComputedExpression) {
-            return ((ComputedExpression)child).computeDependencies();
-        } else {
-            return 0;
-        }
+        return child.computeDependencies();
     }
 
     /**
@@ -235,8 +243,17 @@ public class TraceWrapper extends Instruction {
              child = replacement;
              found = true;
          }
-                 return found;
+         return found;
      }
+
+    /**
+     * Get the instruction details
+     * @return the details of the child instruction (the instruction being traced)
+     */
+
+    public InstructionInfo getInstructionInfo() {
+        return child;
+    }
 
 
     public int getInstructionNameCode() {
@@ -248,15 +265,29 @@ public class TraceWrapper extends Instruction {
     }
 
     /**
-     * Diagnostic print of expression structure. The expression is written to the System.err
-     * output stream
-     *
-     * @param level indentation level for this expression
-     @param out
-     @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        child.display(level, out, config);
+    public void explain(ExpressionPresenter out) {
+        child.explain(out);
     }
 }
+
+//
+// The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");
+// you may not use this file except in compliance with the License. You may obtain a copy of the
+// License at http://www.mozilla.org/MPL/
+//
+// Software distributed under the License is distributed on an "AS IS" basis,
+// WITHOUT WARRANTY OF ANY KIND, either express or implied.
+// See the License for the specific language governing rights and limitations under the License.
+//
+// The Original Code is: all this file.
+//
+// The Initial Developer of the Original Code is Michael H. Kay
+//
+// Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
+//
+// Contributor(s): none.
+//

@@ -1,7 +1,7 @@
 package org.orbeon.saxon.trace;
 
 import org.orbeon.saxon.event.SaxonLocator;
-import org.orbeon.saxon.om.NamespaceResolver;
+import org.orbeon.saxon.om.StructuredQName;
 
 import java.util.Iterator;
 
@@ -15,8 +15,9 @@ public interface InstructionInfo extends SaxonLocator {
 
     /**
      * Get the type of construct. This will either be the fingerprint of a standard XSLT instruction name
-     * (values in {@link org.orbeon.saxon.style.StandardNames}: all less than 1024)
+     * (values in {@link org.orbeon.saxon.om.StandardNames}: all less than 1024)
      * or it will be a constant in class {@link Location}.
+     * @return an integer identifying the kind of construct
      */
 
     public int getConstructType();              
@@ -24,9 +25,10 @@ public interface InstructionInfo extends SaxonLocator {
     /**
      * Get a name identifying the object of the expression, for example a function name, template name,
      * variable name, key name, element name, etc. This is used only where the name is known statically.
+     * @return the QName of the object declared or manipulated by this instruction or expression
      */
 
-    public int getObjectNameCode();
+    public StructuredQName getObjectName();
 
     /**
     * Get the system identifier (URI) of the source stylesheet or query module containing
@@ -34,6 +36,7 @@ public interface InstructionInfo extends SaxonLocator {
     * identifier is not known, the method may return null. In some cases, for example
     * where XML external entities are used, the correct system identifier is not
     * always retained.
+     * @return the URI of the containing module
     */
 
     public String getSystemId();
@@ -42,16 +45,10 @@ public interface InstructionInfo extends SaxonLocator {
     * Get the line number of the instruction in the source stylesheet module.
     * If this is not known, or if the instruction is an artificial one that does
     * not relate to anything in the source code, the value returned may be -1.
+     * @return the line number of the expression within the containing module
     */
 
     public int getLineNumber();
-
-    /**
-     * Get the namespace context of the instruction. This will not always be available, in which
-     * case the method returns null.
-     */
-
-    public NamespaceResolver getNamespaceResolver();
 
     /**
      * Get the value of a particular property of the instruction. Properties
@@ -68,6 +65,7 @@ public interface InstructionInfo extends SaxonLocator {
      * will be of type String, and each string can be supplied as input to the getProperty()
      * method to retrieve the value of the property. The iterator may return properties whose
      * value is null.
+     * @return an iterator over the properties.
      */
 
     public Iterator getProperties();

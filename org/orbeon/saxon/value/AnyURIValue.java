@@ -1,15 +1,15 @@
 package org.orbeon.saxon.value;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.trans.DynamicError;
-import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.functions.EscapeURI;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.sort.LRUCache;
+import org.orbeon.saxon.type.AtomicType;
+import org.orbeon.saxon.type.BuiltInAtomicType;
+import org.orbeon.saxon.type.ConversionResult;
+import org.orbeon.saxon.type.ValidationFailure;
 
-import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
-
 
 
 /**
@@ -31,21 +31,72 @@ public final class AnyURIValue extends StringValue {
     public static final AnyURIValue EMPTY_URI = new AnyURIValue("");
 
     /**
+     * To prevent repeated validation of commonly used URIs (especially namespaces)
+     * we keep a small cache. This is especially useful in the case of URIs that are
+     * valid only after escaping, as otherwise an exception occurs during the validation process
+     */
+
+    private static ThreadLocal caches = new ThreadLocal();
+    //private static LRUCache cache = new LRUCache(20);
+
+    /**
     * Constructor
-    * @param value the String value. Null is taken as equivalent to "".
+    * @param value the String value. Null is taken as equivalent to "". This constructor
+    * does not check that the value is a valid anyURI instance.
     */
 
     public AnyURIValue(CharSequence value) {
-        this.value = (value==null ? "" : Whitespace.trimWhitespace(value).toString());
+        this.value = (value==null ? "" : Whitespace.collapseWhitespace(value).toString());
+        typeLabel = BuiltInAtomicType.ANY_URI;
+    }
+
+    /**
+     * Constructor for a user-defined subtype of anyURI
+     * @param value the String value. Null is taken as equivalent to "".
+     * @param type a user-defined subtype of anyURI. It is the caller's responsibility
+     * to ensure that this is actually a subtype of anyURI, and that the value conforms
+     * to the definition of this type.
+     */
+
+     public AnyURIValue(CharSequence value, AtomicType type) {
+         this.value = (value==null ? "" : Whitespace.collapseWhitespace(value).toString());
+         typeLabel = type;
+     }
+
+
+    /**
+     * Create a copy of this atomic value, with a different type label
+     *
+     * @param typeLabel the type label of the new copy. The caller is responsible for checking that
+     *                  the value actually conforms to this type.
+     */
+
+    public AtomicValue copyAsSubType(AtomicType typeLabel) {
+        AnyURIValue v = new AnyURIValue(value);
+        v.length = length;
+        v.typeLabel = typeLabel;
+        return v;
     }
 
     /**
      * Check whether a string consititutes a valid URI
+     * @param value the string to be tested
+     * @return true if the string is a valid URI
      */
 
     public static boolean isValidURI(CharSequence value) {
 
-        String sv = value.toString().trim();
+        LRUCache cache = (LRUCache)caches.get();
+        if (cache == null) {
+            cache = new LRUCache(10);
+            caches.set(cache);
+        }
+
+        if (cache.get(value) != null) {
+            return true;
+        }
+
+        String sv = Whitespace.trim(value);
 
         // Allow zero-length strings (RFC2396 is ambivalent on this point)
         if (sv.length() == 0) {
@@ -55,121 +106,81 @@ public final class AnyURIValue extends StringValue {
         // Allow a string if the java.net.URI class accepts it
         try {
             new URI(sv);
+            cache.put(value, value);
             return true;
         } catch (URISyntaxException e) {
             // keep trying
-            // TODO: it's expensive to throw exceptions on a success path. Perhaps keep a cache of valid URIs.
+            // Note: it's expensive to throw exceptions on a success path, so we keep a cache.
         }
 
         // Allow a string if it can be escaped into a form that java.net.URI accepts
         sv = EscapeURI.iriToUri(sv).toString();
         try {
             new URI(sv);
+            cache.put(value, value);
             return true;
         } catch (URISyntaxException e) {
             return false;
         }
     }
 
+    public BuiltInAtomicType getPrimitiveType() {
+        return BuiltInAtomicType.ANY_URI;
+    }
+
     /**
     * Convert to target data type
-    * @param requiredType integer code representing the item type required
-    * @param context
+     * @param requiredType integer code representing the item type required
+     * @param context the XPath dynamic evaluation context
      * @return the result of the conversion, or an ErrorValue
     */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, XPathContext context) {
+    public ConversionResult convertPrimitive(BuiltInAtomicType requiredType, boolean validate, XPathContext context) {
         int req = requiredType.getPrimitiveType();
         switch(req) {
-        case Type.ANY_ATOMIC:
-        case Type.ITEM:
-        case Type.ANY_URI:
+        case StandardNames.XS_ANY_ATOMIC_TYPE:
+        case StandardNames.XS_ANY_URI:
             return this;
-        case Type.UNTYPED_ATOMIC:
+        case StandardNames.XS_UNTYPED_ATOMIC:
             return new UntypedAtomicValue(value);
-        case Type.STRING:
+        case StandardNames.XS_STRING:
             return new StringValue(value);
-        case Type.NORMALIZED_STRING:
-        case Type.TOKEN:
-        case Type.LANGUAGE:
-        case Type.NAME:
-        case Type.NCNAME:
-        case Type.ID:
-        case Type.IDREF:
-        case Type.ENTITY:
-        case Type.NMTOKEN:
-            return RestrictedStringValue.makeRestrictedString(value, req,
+        case StandardNames.XS_NORMALIZED_STRING:
+        case StandardNames.XS_TOKEN:
+        case StandardNames.XS_LANGUAGE:
+        case StandardNames.XS_NAME:
+        case StandardNames.XS_NCNAME:
+        case StandardNames.XS_ID:
+        case StandardNames.XS_IDREF:
+        case StandardNames.XS_ENTITY:
+        case StandardNames.XS_NMTOKEN:
+            return makeRestrictedString(value, requiredType,
                     (validate ? context.getConfiguration().getNameChecker() : null));
 
         default:
-            ValidationException err = new ValidationException("Cannot convert anyURI to " +
+            ValidationFailure err = new ValidationFailure("Cannot convert anyURI to " +
                                      requiredType.getDisplayName());
             err.setErrorCode("XPTY0004");
-            return new ValidationErrorValue(err);
+            return err;
         }
     }
 
-    /**
-    * Return the type of the expression
-    * @return Type.ANY_URI_TYPE (always)
-     * @param th
-     */
-
-    public ItemType getItemType(TypeHierarchy th) {
-        return Type.ANY_URI_TYPE;
-    }
-
-    /**
-     * Determine if two AnyURIValues are equal, according to XML Schema rules. (This method
-     * is not used for XPath comparisons, which are always under the control of a collation.)
-     * @throws ClassCastException if the values are not comparable
-     */
-
-    public boolean equals(Object other) {
-        // Force a ClassCastException if the other value isn't an anyURI or derived from anyURI
-        AnyURIValue otherVal = (AnyURIValue) ((AtomicValue) other).getPrimitiveValue();
-        // cannot use equals() directly on two unlike CharSequences
-        return getStringValue().equals(otherVal.getStringValue());
-    }
-
-    /**
-    * Convert to Java object (for passing to external functions)
-    * @param target the Java class to which conversion is required
-    * @return the result of the conversion
-    * @throws XPathException if conversion to this target type is not possible
-    */
-
-    public Object convertToJava(Class target, XPathContext context) throws XPathException {
-        if (target==Object.class) {
-            return value;
-        } else if (target.isAssignableFrom(StringValue.class)) {
-            return this;
-        } else if (target==URI.class) {
-            try {
-                return new URI(value.toString());
-            } catch (URISyntaxException err) {
-                throw new DynamicError("The anyURI value '" + value + "' is not an acceptable Java URI");
-            }
-        } else if (target==URL.class) {
-            try {
-                return new URL(value.toString());
-            } catch (MalformedURLException err) {
-                throw new DynamicError("The anyURI value '" + value + "' is not an acceptable Java URL");
-            }
-        } else if (target==String.class) {
-            return value;
-        } else if (target==CharSequence.class) {
-            return value;
-        } else {
-             Object o = super.convertToJava(target, context);
-            if (o == null) {
-                throw new DynamicError("Conversion of anyURI to " + target.getName() +
-                        " is not supported");
-            }
-            return o;
-        }
-    }
-
+//    public static void main(String[] args) {
+//        ExecutorService executor = Executors.newFixedThreadPool(10);
+//        for (int i = 0; i < 100; i++) {
+//            executor.execute(new Runnable() {
+//                public void run() {
+//                    for (int i=0; i<1000000; i++) {
+//                        String uri = "http://a.com/aaa" + i;
+//                        boolean b = AnyURIValue.isValidURI(uri);
+//                        if (i % 1000 == 0) {
+//                            System.err.println("Memory: " + (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()));
+//                        }
+//                    }
+//                }
+//            });
+//        }
+//    }
 
 }
 

@@ -28,6 +28,11 @@ public class ContentHandlerProxyLocator implements Locator {
 
     private ContentHandlerProxy parent = null;
 
+    /**
+     * Create the Locator for a ContentHandlerProxy
+     * @param parent the ContentHandlerProxy
+     */
+
     public ContentHandlerProxyLocator(ContentHandlerProxy parent) {
         this.parent = parent;
     }
@@ -53,10 +58,12 @@ public class ContentHandlerProxyLocator implements Locator {
      */
 
     public String getSystemId() {
-        if (parent == null) return null;
-        LocationProvider locationProvider = parent.getLocationProvider();
-        if (locationProvider == null) return null;
-        return locationProvider.getSystemId(parent.getCurrentLocationId());
+        final LocationProvider locationProvider = parent.getLocationProvider();
+        if (locationProvider == null) {
+            return null;
+        } else {
+            return locationProvider.getSystemId(parent.getCurrentLocationId());
+        }
     }
 
     /**
@@ -65,10 +72,12 @@ public class ContentHandlerProxyLocator implements Locator {
      */
 
     public int getLineNumber() {
-        if (parent == null) return -1;
-        LocationProvider locationProvider = parent.getLocationProvider();
-        if (locationProvider == null) return -1;
-        return locationProvider.getLineNumber(parent.getCurrentLocationId());
+        final LocationProvider locationProvider = parent.getLocationProvider();
+        if (locationProvider == null) {
+            return -1;
+        } else {
+            return locationProvider.getLineNumber(parent.getCurrentLocationId());
+        }
     }
 
     /**
@@ -84,13 +93,16 @@ public class ContentHandlerProxyLocator implements Locator {
      * Get the current item stack. This is a Stack, whose members are objects of class
      * {@link org.orbeon.saxon.om.Item}. The top item in the stack is the context node or atomic value; items
      * further down the stack represent previous context node or atomic value
+     * @return the stack of context items
      */
 
     public Stack getContextItemStack() {
-        if (parent == null) return null;
-        ContentHandlerProxy.ContentHandlerProxyTraceListener traceListener = parent.getTraceListener();
-        if (traceListener == null) return null;
-        return traceListener.getContextItemStack();
+        final ContentHandlerProxy.ContentHandlerProxyTraceListener traceListener = parent.getTraceListener();
+        if (traceListener == null) {
+            return null;
+        } else {
+            return traceListener.getContextItemStack();
+        }
     }
 
 }

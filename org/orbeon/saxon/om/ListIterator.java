@@ -1,7 +1,6 @@
 package org.orbeon.saxon.om;
 import org.orbeon.saxon.expr.LastPositionFinder;
 import org.orbeon.saxon.value.SequenceExtent;
-import org.orbeon.saxon.value.Value;
 
 import java.util.List;
 
@@ -10,8 +9,8 @@ import java.util.List;
 * or indeed in any other kind of List
 */
 
-public final class ListIterator
-        implements AxisIterator, LastPositionFinder, LookaheadIterator, GroundedIterator {
+public class ListIterator
+        implements UnfailingIterator, LastPositionFinder, LookaheadIterator, GroundedIterator {
 
     int index=0;
     int length;
@@ -64,6 +63,9 @@ public final class ListIterator
         return index;
     }
 
+    public void close() {
+    }
+
     public int getLastPosition() {
         return length;
     }
@@ -93,7 +95,7 @@ public final class ListIterator
      * @return the corresponding SequenceValue
      */
 
-    public Value materialize() {
+    public GroundedValue materialize() {
         return new SequenceExtent(list);
     }
 

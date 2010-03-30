@@ -1,7 +1,5 @@
 package org.orbeon.saxon.charcode;
 
-import org.orbeon.saxon.om.XMLChar;
-
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetEncoder;
 import java.util.HashMap;
@@ -65,8 +63,8 @@ public class UnknownCharacterSet implements CharacterSet {
                 }
             }
         } else {
-            supplementary.setCharAt(0, XMLChar.highSurrogate(c));
-            supplementary.setCharAt(1, XMLChar.lowSurrogate(c));
+            supplementary.setCharAt(0, UTF16.highSurrogate(c));
+            supplementary.setCharAt(1, UTF16.lowSurrogate(c));
             return encoder.canEncode(supplementary);
         }
     }

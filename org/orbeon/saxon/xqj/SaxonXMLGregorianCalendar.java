@@ -24,53 +24,66 @@ import java.util.*;
  */
 public class SaxonXMLGregorianCalendar extends XMLGregorianCalendar {
 
+    private CalendarValue calendarValue;
     private BigInteger year;
-    private int month;
-    private int day;
-    private int hour;
-    private int minute;
-    private int second;
-    private int microsecond;
-    private int tzOffset;
+    private int month = DatatypeConstants.FIELD_UNDEFINED;
+    private int day = DatatypeConstants.FIELD_UNDEFINED;
+    private int hour = DatatypeConstants.FIELD_UNDEFINED;
+    private int minute = DatatypeConstants.FIELD_UNDEFINED;
+    private int second = DatatypeConstants.FIELD_UNDEFINED;
+    private int microsecond = DatatypeConstants.FIELD_UNDEFINED;
+    private int tzOffset = DatatypeConstants.FIELD_UNDEFINED;
+
+    /**
+     * Create a SaxonXMLGregorianCalendar from a Saxon CalendarValue object
+     * @param value the CalendarValue
+     */
 
     public SaxonXMLGregorianCalendar(CalendarValue value) {
         clear();
         setCalendarValue(value);
     }
 
-    private SaxonXMLGregorianCalendar() {};
+    private SaxonXMLGregorianCalendar() {
+    }
+
+    /**
+     * Set the calendar value of this object
+     * @param value the calendar value
+     */
 
     public void setCalendarValue(CalendarValue value) {
+        calendarValue = value;
         try {
             if (value instanceof GYearValue) {
-                this.year = BigInteger.valueOf(((IntegerValue)value.getComponent(Component.YEAR)).longValue());
+                year = BigInteger.valueOf(((Int64Value)value.getComponent(Component.YEAR)).longValue());
             } else if (value instanceof GYearMonthValue) {
-                this.year = BigInteger.valueOf(((IntegerValue)value.getComponent(Component.YEAR)).longValue());
-                this.month = (int)((IntegerValue)value.getComponent(Component.MONTH)).longValue();
+                year = BigInteger.valueOf(((Int64Value)value.getComponent(Component.YEAR)).longValue());
+                month = (int)((Int64Value)value.getComponent(Component.MONTH)).longValue();
             } else if (value instanceof GMonthValue) {
-                this.month = (int)((IntegerValue)value.getComponent(Component.MONTH)).longValue();
+                month = (int)((Int64Value)value.getComponent(Component.MONTH)).longValue();
             } else if (value instanceof GMonthDayValue) {
-                this.month = (int)((IntegerValue)value.getComponent(Component.MONTH)).longValue();
-                this.day = (int)((IntegerValue)value.getComponent(Component.DAY)).longValue();
+                month = (int)((Int64Value)value.getComponent(Component.MONTH)).longValue();
+                day = (int)((Int64Value)value.getComponent(Component.DAY)).longValue();
             } else if (value instanceof GDayValue) {
-                this.day = (int)((IntegerValue)value.getComponent(Component.DAY)).longValue();
+                day = (int)((Int64Value)value.getComponent(Component.DAY)).longValue();
             } else if (value instanceof DateValue) {
-                this.year = BigInteger.valueOf(((IntegerValue)value.getComponent(Component.YEAR)).longValue());
-                this.month = (int)((IntegerValue)value.getComponent(Component.MONTH)).longValue();
-                this.day = (int)((IntegerValue)value.getComponent(Component.DAY)).longValue();
+                year = BigInteger.valueOf(((Int64Value)value.getComponent(Component.YEAR)).longValue());
+                month = (int)((Int64Value)value.getComponent(Component.MONTH)).longValue();
+                day = (int)((Int64Value)value.getComponent(Component.DAY)).longValue();
             } else if (value instanceof TimeValue) {
-                this.hour = (int)((IntegerValue)value.getComponent(Component.HOURS)).longValue();
-                this.minute = (int)((IntegerValue)value.getComponent(Component.MINUTES)).longValue();
-                this.second = (int)((IntegerValue)value.getComponent(Component.WHOLE_SECONDS)).longValue();
-                this.microsecond = (int)((IntegerValue)value.getComponent(Component.MICROSECONDS)).longValue();
+                hour = (int)((Int64Value)value.getComponent(Component.HOURS)).longValue();
+                minute = (int)((Int64Value)value.getComponent(Component.MINUTES)).longValue();
+                second = (int)((Int64Value)value.getComponent(Component.WHOLE_SECONDS)).longValue();
+                microsecond = (int)((Int64Value)value.getComponent(Component.MICROSECONDS)).longValue();
             } else {
-                this.year = BigInteger.valueOf(((IntegerValue)value.getComponent(Component.YEAR)).longValue());
-                this.month = (int)((IntegerValue)value.getComponent(Component.MONTH)).longValue();
-                this.day = (int)((IntegerValue)value.getComponent(Component.DAY)).longValue();
-                this.hour = (int)((IntegerValue)value.getComponent(Component.HOURS)).longValue();
-                this.minute = (int)((IntegerValue)value.getComponent(Component.MINUTES)).longValue();
-                this.second = (int)((IntegerValue)value.getComponent(Component.WHOLE_SECONDS)).longValue();
-                this.microsecond = (int)((IntegerValue)value.getComponent(Component.MICROSECONDS)).longValue();
+                year = BigInteger.valueOf(((Int64Value)value.getComponent(Component.YEAR)).longValue());
+                month = (int)((Int64Value)value.getComponent(Component.MONTH)).longValue();
+                day = (int)((Int64Value)value.getComponent(Component.DAY)).longValue();
+                hour = (int)((Int64Value)value.getComponent(Component.HOURS)).longValue();
+                minute = (int)((Int64Value)value.getComponent(Component.MINUTES)).longValue();
+                second = (int)((Int64Value)value.getComponent(Component.WHOLE_SECONDS)).longValue();
+                microsecond = (int)((Int64Value)value.getComponent(Component.MICROSECONDS)).longValue();
             }
         } catch (XPathException e) {
             throw new IllegalArgumentException(e.getMessage());
@@ -96,6 +109,10 @@ public class SaxonXMLGregorianCalendar extends XMLGregorianCalendar {
 
     /**
      * <p>Reset this <code>XMLGregorianCalendar</code> to its original values.</p>
+     *
+     * <p>Saxon does not attempt to reset to the initial value as defined in the specification of
+     * the superclass, because it cannot distinguish the initial setting from subsequent changes.
+     * This method is therefore synonymous with {@link #clear()}</p>
      */
     public void reset() {
         clear();
@@ -112,6 +129,7 @@ public class SaxonXMLGregorianCalendar extends XMLGregorianCalendar {
      *                                  <a href="#datetimefieldmapping">date/time field mapping table</a>.
      */
     public void setYear(BigInteger year) {
+        calendarValue = null;
         this.year = year;
     }
 
@@ -129,7 +147,8 @@ public class SaxonXMLGregorianCalendar extends XMLGregorianCalendar {
      *             If year is {@link javax.xml.datatype.DatatypeConstants#FIELD_UNDEFINED}, then eon is set to <code>null</code>.
      */
     public void setYear(int year) {
-         this.year = BigInteger.valueOf(year);
+        calendarValue = null;
+        this.year = BigInteger.valueOf(year);
     }
 
     /**
@@ -143,6 +162,7 @@ public class SaxonXMLGregorianCalendar extends XMLGregorianCalendar {
      *                                  <a href="#datetimefieldmapping">date/time field mapping table</a>.
      */
     public void setMonth(int month) {
+        calendarValue = null;
         this.month = month;
     }
 
@@ -157,6 +177,7 @@ public class SaxonXMLGregorianCalendar extends XMLGregorianCalendar {
      *                                  <a href="#datetimefieldmapping">date/time field mapping table</a>.
      */
     public void setDay(int day) {
+        calendarValue = null;
         this.day = day;
     }
 
@@ -172,7 +193,8 @@ public class SaxonXMLGregorianCalendar extends XMLGregorianCalendar {
      *                                  <a href="#datetimefieldmapping">date/time field mapping table</a>.
      */
     public void setTimezone(int offset) {
-        this.tzOffset = offset;
+        calendarValue = null;
+        tzOffset = offset;
     }
 
     /**
@@ -185,6 +207,7 @@ public class SaxonXMLGregorianCalendar extends XMLGregorianCalendar {
      *                                  <a href="#datetimefieldmapping">date/time field mapping table</a>.
      */
     public void setHour(int hour) {
+        calendarValue = null;
         this.hour = hour;
     }
 
@@ -198,6 +221,7 @@ public class SaxonXMLGregorianCalendar extends XMLGregorianCalendar {
      *                                  <a href="#datetimefieldmapping">date/time field mapping table</a>.
      */
     public void setMinute(int minute) {
+        calendarValue = null;
         this.minute = minute;
     }
 
@@ -211,6 +235,7 @@ public class SaxonXMLGregorianCalendar extends XMLGregorianCalendar {
      *                                  <a href="#datetimefieldmapping">date/time field mapping table</a>.
      */
     public void setSecond(int second) {
+        calendarValue = null;
         this.second = second;
     }
 
@@ -225,7 +250,8 @@ public class SaxonXMLGregorianCalendar extends XMLGregorianCalendar {
      *                                  in <a href="#datetimefieldmapping">date/time field mapping table</a>.
      */
     public void setMillisecond(int millisecond) {
-        this.microsecond = millisecond*1000;
+        calendarValue = null;
+        microsecond = millisecond*1000;
     }
 
     /**
@@ -239,10 +265,11 @@ public class SaxonXMLGregorianCalendar extends XMLGregorianCalendar {
      *                                  in <a href="#datetimefieldmapping">date/time field mapping table</a>.
      */
     public void setFractionalSecond(BigDecimal fractional) {
-        this.second = fractional.intValue();
+        calendarValue = null;
+        second = fractional.intValue();
         BigInteger micros = fractional.movePointRight(6).toBigInteger();
         micros = micros.remainder(BigInteger.valueOf(1000000));
-        this.microsecond = micros.intValue();
+        microsecond = micros.intValue();
     }
 
     /**
@@ -454,8 +481,8 @@ public class SaxonXMLGregorianCalendar extends XMLGregorianCalendar {
      * @throws NullPointerException if <code>xmlGregorianCalendar</code> is null.
      */
     public int compare(XMLGregorianCalendar xmlGregorianCalendar) {
-        // TODO: implement schema comparison semantics
-        return toCalendarValue().compareTo(((SaxonXMLGregorianCalendar)xmlGregorianCalendar).toCalendarValue());
+        return toCalendarValue().getSchemaComparable().compareTo(
+                ((SaxonXMLGregorianCalendar)xmlGregorianCalendar).toCalendarValue().getSchemaComparable());
     }
 
     /**
@@ -464,10 +491,10 @@ public class SaxonXMLGregorianCalendar extends XMLGregorianCalendar {
      * <p>2000-03-04T23:00:00+03:00 normalizes to 2000-03-04T20:00:00Z</p>
      * <p>Implements W3C XML Schema Part 2, Section 3.2.7.3 (A).</p>
      *
-     * @return <code>this</code> <code>XMLGregorianCalendar</code> normalized to UTC.
+     * @return a copy of this <code>XMLGregorianCalendar</code> normalized to UTC.
      */
     public XMLGregorianCalendar normalize() {
-        return this;  // TODO
+        return new SaxonXMLGregorianCalendar(toCalendarValue().adjustTimezone(0));
     }
 
     /**
@@ -629,17 +656,17 @@ public class SaxonXMLGregorianCalendar extends XMLGregorianCalendar {
      * @return a java.util.GregorianCalendar conversion of this instance.
      */
     public GregorianCalendar toGregorianCalendar(TimeZone timezone, Locale aLocale, XMLGregorianCalendar defaults) {
-        // TODO: use defaults where appropriate
         GregorianCalendar gc = new GregorianCalendar(timezone, aLocale);
         gc.setGregorianChange(new Date(Long.MIN_VALUE));
-        gc.set(Calendar.ERA, year.signum());
-        gc.set(Calendar.YEAR, year.abs().intValue());
-        gc.set(Calendar.MONTH, month);
-        gc.set(Calendar.DAY_OF_MONTH, day);
-        gc.set(Calendar.HOUR, hour);
-        gc.set(Calendar.MINUTE, minute);
-        gc.set(Calendar.SECOND, second);
-        gc.set(Calendar.MILLISECOND, getMillisecond()/1000);
+        gc.set(Calendar.ERA, (year==null ? (defaults.getYear()>0 ? +1 : -1) : year.signum()));
+        gc.set(Calendar.YEAR, (year==null ? defaults.getYear() : year.abs().intValue()));
+        gc.set(Calendar.MONTH, (month==DatatypeConstants.FIELD_UNDEFINED ? defaults.getMonth() : month));
+        gc.set(Calendar.DAY_OF_MONTH, day==DatatypeConstants.FIELD_UNDEFINED ? defaults.getDay() : day);
+        gc.set(Calendar.HOUR, hour==DatatypeConstants.FIELD_UNDEFINED ? defaults.getHour() : hour);
+        gc.set(Calendar.MINUTE, minute==DatatypeConstants.FIELD_UNDEFINED ? defaults.getMinute() : minute);
+        gc.set(Calendar.SECOND, second==DatatypeConstants.FIELD_UNDEFINED ? defaults.getSecond() : second );
+        gc.set(Calendar.MILLISECOND, microsecond==DatatypeConstants.FIELD_UNDEFINED
+                ? defaults.getMillisecond() : microsecond /1000);
         return gc;
     }
 
@@ -675,6 +702,7 @@ public class SaxonXMLGregorianCalendar extends XMLGregorianCalendar {
      *
      * @return copy of this <code>Object</code>
      */
+    //@SuppressWarnings({"CloneDoesntCallSuperClone"})
     public Object clone() {
         SaxonXMLGregorianCalendar s = new SaxonXMLGregorianCalendar();
         s.setYear(year);
@@ -690,9 +718,13 @@ public class SaxonXMLGregorianCalendar extends XMLGregorianCalendar {
 
     /**
      * Convert this SaxonXMLGregorianCalendar to a Saxon CalendarValue object
+     * @return the corresponding CalendarValue
      */
 
     public CalendarValue toCalendarValue() {
+        if (calendarValue != null) {
+            return calendarValue;
+        }
         if (second == DatatypeConstants.FIELD_UNDEFINED) {
             if (year == null) {
                 if (month == DatatypeConstants.FIELD_UNDEFINED) {

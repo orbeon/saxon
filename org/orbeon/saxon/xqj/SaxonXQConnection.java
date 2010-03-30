@@ -1,14 +1,12 @@
 package org.orbeon.saxon.xqj;
 
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.javax.xml.xquery.*;
-import org.orbeon.saxon.om.NamespaceConstant;
 import org.orbeon.saxon.query.DynamicQueryContext;
 import org.orbeon.saxon.query.StaticQueryContext;
 import org.orbeon.saxon.query.XQueryExpression;
 import org.orbeon.saxon.trans.XPathException;
 
-import javax.xml.namespace.QName;
+import javax.xml.xquery.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
@@ -25,40 +23,24 @@ import java.io.Reader;
 public class SaxonXQConnection extends SaxonXQDataFactory implements XQConnection {
 
     private Configuration config;
-    private XQCommonHandler commonHandler;
-    private boolean closed;
-    private int holdability = XQConstants.HOLDTYPE_HOLD_CURSORS_OVER_COMMIT;
-    private int scrollability = XQConstants.SCROLLTYPE_FORWARD_ONLY;
+    private SaxonXQStaticContext staticContext;
 
     /**
      * Create an SaxonXQConnection from a SaxonXQDataSource
      * @param dataSource the data source.
      */
     SaxonXQConnection(SaxonXQDataSource dataSource) {
-        this.config = dataSource.getConfiguration();
-        this.commonHandler = dataSource.getCommonHandler();
+        config = dataSource.getConfiguration();
+        staticContext = new SaxonXQStaticContext(config);
+        init();
     }
 
     public Configuration getConfiguration() {
         return config;
     }
 
-    public XQCommonHandler getCommonHandler() {
-        return commonHandler;
-    }
-
-    public void clearWarnings() throws XQException {
-        checkNotClosed();
-        // TODO: clearWarnings
-    }
-
-    public void close() {
-        closed = true;
-    }
-
     public void commit() throws XQException {
         checkNotClosed();
-        // no-op
     }
 
     public XQExpression createExpression() throws XQException {
@@ -66,112 +48,115 @@ public class SaxonXQConnection extends SaxonXQDataFactory implements XQConnectio
         return new SaxonXQExpression(this);
     }
 
-    public int getHoldability() throws XQException {
+    public XQExpression createExpression(XQStaticContext properties) throws XQException {
         checkNotClosed();
-        return holdability;
+        SaxonXQDataSource.checkNotNull(properties, "properties");
+        return new SaxonXQExpression(this, (SaxonXQStaticContext)properties);
+    }
+
+
+    public boolean getAutoCommit() throws XQException {
+        return false;
     }
 
     public XQMetaData getMetaData() throws XQException {
         checkNotClosed();
-        throw new UnsupportedOperationException("Metadata is not yet implemented");
-        //TODO: metaData (not yet implemented: still an open issue in the spec)
+        return new SaxonXQMetaData(this);
     }
 
-    public String getMetaDataProperty(String key)  throws XQException{
+
+    public XQStaticContext getStaticContext() throws XQException {
         checkNotClosed();
-        throw new UnsupportedOperationException("Metadata is not yet implemented");
-        //TODO: metaData (not yet implemented: still an open issue in the spec)
-    }
-
-    public int getQueryLanguageTypeAndVersion() throws XQException {
-        checkNotClosed();
-        return XQConstants.LANGTYPE_XQUERY;
-    }
-
-    public int getScrollability()  throws XQException {
-        checkNotClosed();
-        return scrollability;
-    }
-
-    public String[] getSupportedMetaDataPropertyNames()  throws XQException {
-        checkNotClosed();
-        throw new UnsupportedOperationException("Metadata is not yet implemented");
-        //TODO: metaData (not yet implemented: still an open issue in the spec)
-    }
-
-    public int getUpdatability()  throws XQException{
-         checkNotClosed();
-        return XQConstants.RESULTTYPE_READ_ONLY;
-    }
-
-    public XQWarning getWarnings() throws XQException {
-        checkNotClosed();
-        return null;  //TODO: warnings
-    }
-
-    public boolean isClosed() {
-        return closed;
+        return staticContext;
     }
 
     public XQPreparedExpression prepareExpression(InputStream xquery) throws XQException {
-        return prepareExpression(xquery, null);
+        return prepareExpression(xquery, staticContext);
     }
 
-    public XQPreparedExpression prepareExpression(InputStream xquery, XQItemType contextItemType) throws XQException {
+    public XQPreparedExpression prepareExpression(InputStream xquery, XQStaticContext properties) throws XQException {
         checkNotClosed();
         try {
-            StaticQueryContext sqc = new StaticQueryContext(config);
-            if (contextItemType != null) {
-                sqc.setRequiredContextItemType(((SaxonXQItemType)contextItemType).getSaxonItemType());
-            }
+            SaxonXQStaticContext xqStaticContext = ((SaxonXQStaticContext)properties);
+            StaticQueryContext sqc = xqStaticContext.getSaxonStaticQueryContext();
             XQueryExpression exp = sqc.compileQuery(xquery, null);
             DynamicQueryContext dqc = new DynamicQueryContext(config);
-            return new SaxonXQPreparedExpression(this, exp, dqc);
+            return new SaxonXQPreparedExpression(this, exp, xqStaticContext, dqc);
         } catch (XPathException e) {
-            throw new XQException(e.getMessage(), e, null, null);
+            throw newXQException(e);
         } catch (IOException e) {
-            throw new XQException(e.getMessage(), e, null, null);
+            throw newXQException(e);
+        } catch (NullPointerException e) {
+            throw newXQException(e);
         }
     }
 
     public XQPreparedExpression prepareExpression(Reader xquery) throws XQException {
-        return prepareExpression(xquery, null);
+        return prepareExpression(xquery, staticContext);
     }
 
-    public XQPreparedExpression prepareExpression(Reader xquery, XQItemType contextItemType) throws XQException {
+    public XQPreparedExpression prepareExpression(Reader xquery, XQStaticContext properties) throws XQException {
         checkNotClosed();
         try {
-            StaticQueryContext sqc = new StaticQueryContext(config);
-            if (contextItemType != null) {
-                sqc.setRequiredContextItemType(((SaxonXQItemType)contextItemType).getSaxonItemType());
-            }
+            SaxonXQStaticContext xqStaticContext = ((SaxonXQStaticContext)properties);
+            StaticQueryContext sqc = xqStaticContext.getSaxonStaticQueryContext();
             XQueryExpression exp = sqc.compileQuery(xquery);
             DynamicQueryContext dqc = new DynamicQueryContext(config);
-            return new SaxonXQPreparedExpression(this, exp, dqc);
+            return new SaxonXQPreparedExpression(this, exp, xqStaticContext, dqc);
         } catch (XPathException e) {
-            throw new XQException(e.getMessage(), e, null, null);
+            throw newXQException(e);
         } catch (IOException e) {
-            throw new XQException(e.getMessage(), e, null, null);
+            throw newXQException(e);
+        } catch (NullPointerException e) {
+            throw newXQException(e);
         }
     }
 
     public XQPreparedExpression prepareExpression(String xquery) throws XQException {
-        return prepareExpression(xquery, null);
+        return prepareExpression(xquery, staticContext);
     }
 
-    public XQPreparedExpression prepareExpression(String xquery, XQItemType contextItemType) throws XQException {
+    public XQPreparedExpression prepareExpression(String xquery, XQStaticContext properties) throws XQException {
         checkNotClosed();
         try {
-            StaticQueryContext sqc = new StaticQueryContext(config);
-            if (contextItemType != null) {
-                sqc.setRequiredContextItemType(((SaxonXQItemType)contextItemType).getSaxonItemType());
-            }
+            SaxonXQStaticContext xqStaticContext = ((SaxonXQStaticContext)properties);
+            StaticQueryContext sqc = xqStaticContext.getSaxonStaticQueryContext();
             XQueryExpression exp = sqc.compileQuery(xquery);
             DynamicQueryContext dqc = new DynamicQueryContext(config);
-            return new SaxonXQPreparedExpression(this, exp, dqc);
+            return new SaxonXQPreparedExpression(this, exp, xqStaticContext, dqc);
         } catch (XPathException e) {
-            throw new XQException(e.getMessage(), e, null, null);
+            throw newXQException(e);
+        } catch (NullPointerException e) {
+            throw newXQException(e);
         }
+    }
+
+    /**
+     * Copy a prepared expression to create a new prepared expression. The prepared expression to be copied
+     * may belong to a different connection. This method (which is a Saxon extension to the XQJ interface) allows
+     * a query to be compiled once, and reused concurrently under multiple connections in multiple threads. The
+     * compiled code of the existing query and its static context are shared with the original query, but a new
+     * dynamic context is established, so that the two expressions can safely be used in parallel.
+     * @param expression the XQPreparedExpression to be copied. This must have been created using Saxon, and it
+     * must have been created with an XQConnection derived from the same XQDataSource as this connection.
+     * @return a copy of the supplied expression, that can be used in a different connection or thread with its
+     * own dynamic context. The new copy of the expression belongs to this connection, and can be used in the same
+     * way as an expression created using any of the prepareExpression() methods on this class.
+     * @throws XQException, for example if either of the connections has been closed
+     */
+
+    public XQPreparedExpression copyPreparedExpression(XQPreparedExpression expression) throws XQException {
+        checkNotClosed();
+        if (!(expression instanceof SaxonXQPreparedExpression)) {
+            throw new IllegalArgumentException("Supplied expression must be compiled using Saxon");
+        }
+        XQueryExpression xqe = ((SaxonXQPreparedExpression)expression).getXQueryExpression();
+        if (xqe.getExecutable().getConfiguration() != config) {
+            throw new IllegalArgumentException("Supplied expression must derive from the same XQDataSource");
+        }
+        SaxonXQStaticContext sqc = ((SaxonXQPreparedExpression)expression).getSaxonXQStaticContext();
+        DynamicQueryContext dqc = new DynamicQueryContext(config);
+        return new SaxonXQPreparedExpression(this, xqe, sqc, dqc);
     }
 
     public void rollback() throws XQException {
@@ -179,119 +164,22 @@ public class SaxonXQConnection extends SaxonXQDataFactory implements XQConnectio
         // no-op
     }
 
-    public void setCommonHandler(XQCommonHandler handler) {
-        commonHandler = handler;
-    }
 
-    public void setHoldability(int holdability) throws XQException {
+    public void setAutoCommit(boolean autoCommit) throws XQException {
         checkNotClosed();
-        switch (holdability) {
-            case XQConstants.HOLDTYPE_HOLD_CURSORS_OVER_COMMIT:
-            case XQConstants.HOLDTYPE_CLOSE_CURSORS_AT_COMMIT:
-                this.holdability = holdability;
-            default:
-                throw new XQException("Invalid holdability value - " + holdability);
-        }
+        // no-op
     }
 
-    public void setQueryLanguageTypeAndVersion(int langtype) throws XQException {
+    public void setStaticContext(XQStaticContext properties) throws XQException {
         checkNotClosed();
-        if (langtype != XQConstants.LANGTYPE_XQUERY) {
-            throw new XQException("XQueryX is not supported");
-        }
+        SaxonXQDataSource.checkNotNull(properties, "properties");
+        staticContext = (SaxonXQStaticContext)properties;
     }
 
-    public void setScrollability(int scrollability) throws XQException {
-        checkNotClosed();
-        switch (scrollability) {
-            case XQConstants.SCROLLTYPE_FORWARD_ONLY:
-            case XQConstants.SCROLLTYPE_SCROLLABLE:
-                this.scrollability = scrollability;
-            default:
-                throw new XQException("Invalid scrollability value - " + scrollability);
-        }
-    }
-
-    public void setUpdatability(int updatability) throws XQException {
-        checkNotClosed();
-        if (updatability != XQConstants.RESULTTYPE_READ_ONLY) {
-            throw new XQException("Query must be read-only");
-        }
-    }
-
-    public String getBaseURI() throws XQException {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
-    }
-
-    public int getBoundarySpacePolicy() throws XQException {
-        return XQConstants.BOUNDARY_SPACE_STRIP;
-    }
-
-    public int getConstructionMode() throws XQException {
-        return XQConstants.CONSTRUCTION_MODE_STRIP;
-    }
-
-    public int getCopyNamespacesModeInherit() throws XQException {
-        return XQConstants.COPY_NAMESPACES_MODE_INHERIT;
-    }
-
-    public int getCopyNamespacesModePreserve() throws XQException {
-        return XQConstants.COPY_NAMESPACES_MODE_PRESERVE;
-    }
-
-    public String getDefaultCollation() throws XQException {
-        return NamespaceConstant.CODEPOINT_COLLATION_URI;
-    }
-
-    public String getDefaultElementTypeNamespace() throws XQException {
-        return "";
-    }
-
-    public String getDefaultFunctionNamespace() throws XQException {
-        return NamespaceConstant.FN;
-    }
-
-    public int getDefaultOrderForEmptySequences() throws XQException {
-        return XQConstants.DEFAULT_ORDER_FOR_EMPTY_SEQUENCES_LEAST;
-    }
-
-    public String[] getInScopeNamespacePrefixes() throws XQException {
-        String[] prefixes = {"xs", "xdt", "local", "xsi", "xml", "fn"};
-        return prefixes;
-    }
-
-    public String getNamespaceURI(String prefix) throws XQException {
-        if (prefix.equals("xs")) {
-            return NamespaceConstant.SCHEMA;
-        } else if (prefix.equals("xdt")) {
-            return NamespaceConstant.XDT;
-        } else if (prefix.equals("xsi")) {
-            return NamespaceConstant.SCHEMA_INSTANCE;
-        } else if (prefix.equals("xml")) {
-            return NamespaceConstant.XML;
-        } else if (prefix.equals("fn")) {
-            return NamespaceConstant.FN;
-        } else {
-            throw new XQException("No namespace is bound to prefix " + prefix);
-        }
-    }
-
-    public int getOrderingMode() throws XQException {
-        return XQConstants.ORDERING_MODE_ORDERED;
-    }
-
-    public QName[] getStaticInScopeVariableNames() throws XQException {
-        return new QName[0];
-    }
-
-    public XQSequenceType getStaticInScopeVariableType(QName varname) throws XQException {
-        return null;
-    }
-
-    private void checkNotClosed() throws XQException {
-        if (closed) {
-            throw new XQException("Connection has been closed");
-        }
+    private XQException newXQException(Exception err) {
+        XQException xqe = new XQException(err.getMessage());
+        xqe.initCause(err);
+        return xqe;
     }
 }
 

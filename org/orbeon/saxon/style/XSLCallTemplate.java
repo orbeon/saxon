@@ -1,7 +1,6 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.Err;
+import org.orbeon.saxon.trans.Err;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.instruct.CallTemplate;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.Template;
@@ -21,14 +20,15 @@ import java.util.List;
 
 public class XSLCallTemplate extends StyleElement {
 
-    private int calledTemplateFingerprint = -1;   // the fingerprint of the called template
+    private StructuredQName calledTemplateName;   // the name of the called template
     private XSLTemplate template = null;
     private boolean useTailRecursion = false;
-    private String calledTemplateName = null;       // used only for diagnostics
     private Expression calledTemplateExpression;    // allows name to be an AVT
 
     /**
      * Determine whether the called template can be specified as an AVT
+     * @return true if the template name can be specified at run-time, that is, if this is a saxon:call-template
+     * instruction
      */
 
     protected boolean allowAVT() {
@@ -67,14 +67,15 @@ public class XSLCallTemplate extends StyleElement {
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-			if (f==StandardNames.NAME) {
-        		nameAttribute = atts.getValue(a).trim();
+			if (f.equals(StandardNames.NAME)) {
+        		nameAttribute = Whitespace.trim(atts.getValue(a));
         	} else {
         		checkUnknownAttribute(nc);
         	}
         }
 
         if (nameAttribute==null) {
+            calledTemplateName = new StructuredQName("saxon", NamespaceConstant.SAXON, "error-template");
             reportAbsence("name");
             return;
         }
@@ -82,21 +83,19 @@ public class XSLCallTemplate extends StyleElement {
         if (allowAVT() && nameAttribute.indexOf('{')>=0) {
             calledTemplateExpression = makeAttributeValueTemplate(nameAttribute);
         } else {
-            calledTemplateName = nameAttribute;
             try {
-                calledTemplateFingerprint =
-            	    makeNameCode(nameAttribute.trim()) & 0xfffff;
+                calledTemplateName = makeQName(nameAttribute);
             } catch (NamespaceException err) {
+                calledTemplateName = new StructuredQName("saxon", NamespaceConstant.SAXON, "error-template");
                 compileError(err.getMessage(), "XTSE0280");
             } catch (XPathException err) {
-                compileError(err.getMessage(), "XTSE0280");
+                calledTemplateName = new StructuredQName("saxon", NamespaceConstant.SAXON, "error-template");
+                compileError(err.getMessage(), err.getErrorCodeLocalPart());
             }
         }
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
-
         AxisIterator kids = iterateAxis(Axis.CHILD);
         while (true) {
             NodeInfo child = (NodeInfo)kids.next();
@@ -117,8 +116,10 @@ public class XSLCallTemplate extends StyleElement {
                         " is not allowed within xsl:call-template", "XTSE0010");
             }
         }
-        if (calledTemplateExpression==null) {
-            template = findTemplate(calledTemplateFingerprint);
+        if (calledTemplateExpression==null &&
+                !(calledTemplateName.getNamespaceURI().equals(NamespaceConstant.SAXON) &&
+                    calledTemplateName.getLocalName().equals("error-template"))) {
+            template = findTemplate(calledTemplateName);
             if (template==null) {
                 return;
             }
@@ -147,15 +148,15 @@ public class XSLCallTemplate extends StyleElement {
                             break;
                         }
                         if (withParam instanceof XSLWithParam &&
-                                ((XSLWithParam)withParam).getVariableFingerprint() ==
-                                    ((XSLParam)param).getVariableFingerprint()) {
+                                ((XSLWithParam)withParam).getVariableQName().equals(
+                                    ((XSLParam)param).getVariableQName())) {
                             ok = true;
                             break;
                         }
                     }
                     if (!ok) {
                         compileError("No value supplied for required parameter " +
-                                Err.wrap(((XSLParam)param).getVariableName(), Err.VARIABLE), "XTSE0690");
+                                Err.wrap(((XSLParam)param).getVariableDisplayName(), Err.VARIABLE), "XTSE0690");
                     }
                 }
             }
@@ -180,8 +181,7 @@ public class XSLCallTemplate extends StyleElement {
                             break;
                         }
                         if (param instanceof XSLParam &&
-                                ((XSLParam)param).getVariableFingerprint() ==
-                                    withParam.getVariableFingerprint()) {
+                                ((XSLParam)param).getVariableQName().equals(withParam.getVariableQName())) {
                             ok = true;
                             SequenceType required = ((XSLParam)param).getRequiredType();
                             withParam.checkAgainstRequiredType(required);
@@ -191,7 +191,7 @@ public class XSLCallTemplate extends StyleElement {
                     if (!ok) {
                         if (!backwardsCompatibleModeIsEnabled()) {
                             compileError("Parameter " +
-                                    withParam.getVariableName() +
+                                    withParam.getVariableDisplayName() +
                                     " is not declared in the called template", "XTSE0680");
                         }
                     }
@@ -200,7 +200,7 @@ public class XSLCallTemplate extends StyleElement {
         }
     }
 
-    private XSLTemplate findTemplate(int fingerprint)
+    private XSLTemplate findTemplate(StructuredQName templateName)
     throws XPathException {
 
         XSLStylesheet stylesheet = getPrincipalStylesheet();
@@ -212,7 +212,7 @@ public class XSLCallTemplate extends StyleElement {
         for (int i=toplevel.size()-1; i>=0; i--) {
             if (toplevel.get(i) instanceof XSLTemplate) {
                 XSLTemplate t = (XSLTemplate)toplevel.get(i);
-                if (t.getTemplateFingerprint() == fingerprint) {
+                if (templateName.equals(t.getTemplateName())) {
                     return t;
                 }
             }
@@ -226,8 +226,9 @@ public class XSLCallTemplate extends StyleElement {
      * For most instructions, this does nothing.
     */
 
-    public void markTailCalls() {
+    public boolean markTailCalls() {
         useTailRecursion = true;
+        return true;
     }
 
 
@@ -252,7 +253,6 @@ public class XSLCallTemplate extends StyleElement {
                                     nsContext );
         call.setActualParameters(getWithParamInstructions(exec, false, call),
                                  getWithParamInstructions(exec, true, call));
-        ExpressionTool.makeParentReferences(call);
         return call;
     }
 

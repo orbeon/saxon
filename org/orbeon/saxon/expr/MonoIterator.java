@@ -11,8 +11,13 @@ public class MonoIterator implements Iterator {
     private Object thing;  // the single object in the collection
     private boolean gone;  // true if the single object has already been returned
 
+    /**
+     * Create an iterator of the single object supplied
+     * @param thing the object to be iterated over
+     */
+
     public MonoIterator(Object thing) {
-        this.gone = false;
+        gone = false;
         this.thing = thing;
     }
 

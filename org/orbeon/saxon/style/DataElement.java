@@ -1,5 +1,5 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.tree.ElementWithAttributes;
+import org.orbeon.saxon.tree.ElementImpl;
 
 
 /**
@@ -7,7 +7,7 @@ import org.orbeon.saxon.tree.ElementWithAttributes;
 * or a child/descendant of such an element. It serves no useful purpose.
 */
 
-public class DataElement extends ElementWithAttributes {
+public class DataElement extends ElementImpl {
 
 
 }
@@ -28,5 +28,4 @@ public class DataElement extends ElementWithAttributes {
 // Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved. 
 //
 // Contributor(s): 
-// Portions marked "e.g." are from Edwin Glaser (edwin@pannenleiter.de)
 //

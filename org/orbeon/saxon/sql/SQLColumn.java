@@ -1,24 +1,25 @@
 package org.orbeon.saxon.sql;
-import org.orbeon.saxon.expr.*;
+
+import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.RoleLocator;
+import org.orbeon.saxon.expr.TypeChecker;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.instruct.GeneralVariable;
-import org.orbeon.saxon.instruct.InstructionDetails;
-import org.orbeon.saxon.instruct.TailCall;
 import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.Navigator;
-import org.orbeon.saxon.om.ValueRepresentation;
-import org.orbeon.saxon.style.XSLGeneralVariable;
-import org.orbeon.saxon.trace.InstructionInfo;
-import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.style.StyleElement;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.Whitespace;
 
 
 /**
 * An sql:column element in the stylesheet.
 */
 
-public class SQLColumn extends XSLGeneralVariable {
+public class SQLColumn extends StyleElement {
+
+    private String name;
+    private Expression select;
 
     /**
     * Determine whether this node is an instruction.
@@ -38,9 +39,11 @@ public class SQLColumn extends XSLGeneralVariable {
         return false;
     }
 
-    public void prepareAttributes() throws XPathException {
+    protected boolean mayContainFallback() {
+        return false;
+    }
 
-        getVariableFingerprint();
+    public void prepareAttributes() throws XPathException {
 
 		AttributeCollection atts = getAttributeList();
 
@@ -50,7 +53,7 @@ public class SQLColumn extends XSLGeneralVariable {
 		for (int a=0; a<atts.getLength(); a++) {
 			String localName = atts.getLocalName(a);
 			if (localName.equals("name")) {
-        		nameAtt = atts.getValue(a).trim();
+        		nameAtt = Whitespace.trim(atts.getValue(a));
         	} else if (localName.equals("select")) {
         		selectAtt = atts.getValue(a);
         	} else {
@@ -60,8 +63,9 @@ public class SQLColumn extends XSLGeneralVariable {
 
         if (nameAtt==null) {
             reportAbsence("name");
-        } else if (!getConfiguration().getNameChecker().isQName(nameAtt)) {
-            compileError("Column name must be a valid QName");
+            name = "saxon-dummy-column";
+        } else {
+            name = SQLConnect.quoteSqlName(nameAtt);
         }
 
         if (selectAtt!=null) {
@@ -72,17 +76,13 @@ public class SQLColumn extends XSLGeneralVariable {
 
 
     public void validate() throws XPathException {
-        if (!(getParent() instanceof SQLInsert || getParent() instanceof SQLUpdate)) {
-            compileError("parent node must be either sql:insert or sql:update");
-        }
         select = typeCheck("select", select);
         try {
             RoleLocator role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "sql:column/select", 0, null);
-            role.setSourceLocator(new ExpressionLocation(this));
+                new RoleLocator(RoleLocator.INSTRUCTION, "sql:column/select", 0);
             select = TypeChecker.staticTypeCheck(select,
                         SequenceType.SINGLE_ATOMIC,
-                        false, role, getStaticContext());
+                        false, role, makeExpressionVisitor());
 
         } catch (XPathException err) {
             compileError(err);
@@ -90,38 +90,13 @@ public class SQLColumn extends XSLGeneralVariable {
     }
 
     public Expression compile(Executable exec) throws XPathException {
-        ColumnInstruction inst = new ColumnInstruction();
-        initializeInstruction(exec, inst);
-        return inst;
+        return select;
     }
 
     public String getColumnName() {
         return Navigator.getAttributeValue(this, "", "name");
     }
 
-    protected static class ColumnInstruction extends GeneralVariable {
-
-        public ColumnInstruction() {}
-
-        public InstructionInfo getInstructionInfo() {
-            InstructionDetails details = (InstructionDetails)super.getInstructionInfo();
-            details.setConstructType(Location.EXTENSION_INSTRUCTION);
-            return details;
-        }
-
-        public TailCall processLeavingTail(XPathContext context) {
-            return null;
-        }
-
-        /**
-         * Evaluate the variable (method exists only to satisfy the interface)
-         */
-
-        public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException {
-            throw new UnsupportedOperationException();
-        }
-
-    }
 
 }
 

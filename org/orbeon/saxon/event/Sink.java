@@ -1,38 +1,13 @@
 package org.orbeon.saxon.event;
 
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.om.Item;
 
 /**
  * A Sink is an Receiver that discards all information passed to it
  */
 
-public class Sink implements Receiver {
-    private PipelineConfiguration pipe;
-    private String systemId;
-
-    public void setSystemId(String systemId) {
-        this.systemId = systemId;
-    }
-
-    public String getSystemId() {
-        return systemId;
-    }
-
-    /**
-     * Set the pipeline configuration
-     */
-
-    public void setPipelineConfiguration(PipelineConfiguration pipe) {
-        this.pipe = pipe;
-    }
-
-    /**
-     * Get the pipeline configuration
-     */
-
-    public PipelineConfiguration getPipelineConfiguration() {
-        return pipe;
-    }
+public class Sink extends SequenceReceiver {
 
     /**
      * Start of event stream
@@ -151,6 +126,19 @@ public class Sink implements Receiver {
     public void comment(CharSequence chars, int locationId, int properties) throws XPathException {
     }
 
+
+    /**
+     * Append an arbitrary item (node or atomic value) to the output
+     *
+     * @param item           the item to be appended
+     * @param locationId     the location of the calling instruction, for diagnostics
+     * @param copyNamespaces if the item is an element node, this indicates whether its namespaces
+     *                       need to be copied. Values are {@link org.orbeon.saxon.om.NodeInfo#ALL_NAMESPACES},
+     *                       {@link org.orbeon.saxon.om.NodeInfo#LOCAL_NAMESPACES}, {@link org.orbeon.saxon.om.NodeInfo#NO_NAMESPACES}
+     */
+
+    public void append(Item item, int locationId, int copyNamespaces) throws XPathException {
+    }
 
     /**
      * Set the URI for an unparsed entity in the document.

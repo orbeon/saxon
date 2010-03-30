@@ -1,8 +1,8 @@
 package org.orbeon.saxon.event;
 import org.orbeon.saxon.charcode.CharacterSet;
 import org.orbeon.saxon.charcode.CharacterSetFactory;
+import org.orbeon.saxon.charcode.UTF16;
 import org.orbeon.saxon.om.FastStringBuffer;
-import org.orbeon.saxon.om.XMLChar;
 import org.orbeon.saxon.tinytree.CharSlice;
 import org.orbeon.saxon.trans.XPathException;
 
@@ -26,17 +26,22 @@ public class CDATAFilter extends ProxyReceiver {
     private int[] nameList;             // fingerprints of cdata elements
     private CharacterSet characterSet;
 
-    public CDATAFilter() throws XPathException {
+    /**
+     * Create a CDATA Filter
+     */
+
+    public CDATAFilter() {
     }
 
     /**
-    * Set the properties for this CDATA filter
+     * Set the properties for this CDATA filter
+     * @param details the output properties
     */
 
     public void setOutputProperties (Properties details)
     throws XPathException {
         nameList = getCdataElements(details);
-        characterSet = CharacterSetFactory.getCharacterSet(details, getPipelineConfiguration().getController());
+        characterSet = CharacterSetFactory.getCharacterSet(details, getPipelineConfiguration());
     }
 
     /**
@@ -44,7 +49,7 @@ public class CDATAFilter extends ProxyReceiver {
     */
 
     public void startElement(int nameCode, int typeCode, int locationId, int properties) throws XPathException {
-        flush(buffer);
+        flush();
         stack.push(new Integer(nameCode & 0xfffff));
         nextReceiver.startElement(nameCode, typeCode, locationId, properties);
     }
@@ -54,7 +59,7 @@ public class CDATAFilter extends ProxyReceiver {
     */
 
     public void endElement() throws XPathException {
-        flush(buffer);
+        flush();
         stack.pop();
         nextReceiver.endElement();
     }
@@ -64,7 +69,7 @@ public class CDATAFilter extends ProxyReceiver {
     */
 
     public void processingInstruction(String target, CharSequence data, int locationId, int properties) throws XPathException {
-        flush(buffer);
+        flush();
         nextReceiver.processingInstruction(target, data, locationId, properties);
     }
 
@@ -79,7 +84,7 @@ public class CDATAFilter extends ProxyReceiver {
         } else {
             // if the user requests disable-output-escaping, this overrides the CDATA request. We end
             // the CDATA section and output the characters as supplied.
-            flush(buffer);
+            flush();
             nextReceiver.characters(chars, locationId, properties);
         }
     }
@@ -89,17 +94,17 @@ public class CDATAFilter extends ProxyReceiver {
     */
 
     public void comment(CharSequence chars, int locationId, int properties) throws XPathException {
-        flush(buffer);
+        flush();
         nextReceiver.comment(chars, locationId, properties);
     }
 
 
     /**
-    * Flush the buffer containing accumulated character data,
-    * generating it as CDATA where appropriate
-    */
+     * Flush the buffer containing accumulated character data,
+     * generating it as CDATA where appropriate
+     */
 
-    public void flush(FastStringBuffer buffer) throws XPathException {
+    private void flush() throws XPathException {
         boolean cdata;
         int end = buffer.length();
         if (end==0) return;
@@ -121,8 +126,8 @@ public class CDATAFilter extends ProxyReceiver {
             while ( k < end ) {
                 int next = buffer.charAt(k);
                 int skip = 1;
-                if (XMLChar.isHighSurrogate((char)next)) {
-                    next = XMLChar.supplemental((char)next, buffer.charAt(k+1));
+                if (UTF16.isHighSurrogate((char)next)) {
+                    next = UTF16.combinePair((char)next, buffer.charAt(k+1));
                     skip = 2;
                 }
                 if (next != 0 && characterSet.inCharset(next)) {
@@ -147,8 +152,8 @@ public class CDATAFilter extends ProxyReceiver {
                         }
                         next = buffer.charAt(k);
                         skip = 1;
-                        if (XMLChar.isHighSurrogate((char)next)) {
-                            next = XMLChar.supplemental((char)next, buffer.charAt(k+1));
+                        if (UTF16.isHighSurrogate((char)next)) {
+                            next = UTF16.combinePair((char)next, buffer.charAt(k+1));
                             skip = 2;
                         }
                         if (characterSet.inCharset(next)) {
@@ -171,8 +176,10 @@ public class CDATAFilter extends ProxyReceiver {
     }
 
     /**
-    * Output an array as a CDATA section. At this stage we have checked that all the characters
-    * are OK, but we haven't checked that there is no "]]>" sequence in the data
+     * Output an array as a CDATA section. At this stage we have checked that all the characters
+     * are OK, but we haven't checked that there is no "]]>" sequence in the data
+     * @param array the data to be output
+     * @param len the number of characters in the array actually used
     */
 
     private void flushCDATA(char[] array, int len) throws XPathException {
@@ -204,7 +211,9 @@ public class CDATAFilter extends ProxyReceiver {
 
 
     /**
-    * See if a particular element is a CDATA element
+     * See if a particular element is a CDATA element
+     * @param fingerprint identifies the name of element we are interested
+     * @return true if this element is included in cdata-section-elements
     */
 
     private boolean isCDATA(int fingerprint) {
@@ -215,7 +224,9 @@ public class CDATAFilter extends ProxyReceiver {
 	}
 
     /**
-    * Extract the list of CDATA elements from the output properties
+     * Extract the list of CDATA elements from the output properties
+     * @param details the output properties
+     * @return an array of integer fingerprints of the element names in the cdata-section-elements property
     */
 
     private int[] getCdataElements(Properties details) {
@@ -226,22 +237,22 @@ public class CDATAFilter extends ProxyReceiver {
         }
         // first count the number of names in the list
         int count=0;
-        StringTokenizer st1 = new StringTokenizer(cdata);
+        StringTokenizer st1 = new StringTokenizer(cdata, " \t\n\r", false);
         while (st1.hasMoreTokens()) {
             st1.nextToken();
             count++;
         }
         int[] array = new int[count];
         count = 0;
-        StringTokenizer st2 = new StringTokenizer(cdata);
+        StringTokenizer st2 = new StringTokenizer(cdata, " \t\n\r", false);
         while (st2.hasMoreTokens()) {
             String expandedName = st2.nextToken();
-            array[count++] = getNamePool().getFingerprintForExpandedName(expandedName);
+            array[count++] = getNamePool().allocateClarkName(expandedName);
         }
         return array;
     }
 
-};
+}
 
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");

@@ -60,6 +60,10 @@ public class DotNetTokenIterator implements SequenceIterator {
         return position;
     }
 
+    public void close() {
+
+    }
+
     public SequenceIterator getAnother() {
         return new DotNetTokenIterator(input, pattern);
     }

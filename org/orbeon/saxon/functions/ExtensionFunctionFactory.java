@@ -1,65 +1,16 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.Configuration;
-
-import java.io.Serializable;
-import java.lang.reflect.AccessibleObject;
 
 /**
-* This class acts as a factory for creating expressions that call Java extension functions.
- * A different factory may be registered with the Configuration in order to customize the
- * behaviour. Alternatively, this factory class can be customized by calling setExtensionFunctionClass
- * to nominate a subclass of ExtensionFunctionCall to be used to implement calls on extension functions.
- * <p>Note that this class handles Java extension functions only; a different class,
- * DotNetExtensionFunctionFactory, is used for .NET extensions.
-*/
+ * This is a marker interface representing an abstract superclass of JavaExtensionFunctionFactory
+ * and DotNetExtensionFunctionFactory. These play equivalent roles in the system: that is, they
+ * are responsible for determining how the QNames of extension functions are bound to concrete
+ * implementation classes; but they do not share the same interface.
+ *
+ * <p>This interface was introduced in Saxon 8.9. Prior to that, <code>ExtensionFunctionFactory</code>
+ * was a concrete class - the class now named <code>JavaExtensionFunctionFactory</code>.
+ */
 
-public class ExtensionFunctionFactory implements Serializable {
-
-    public ExtensionFunctionFactory(Configuration config) {
-        this.config = config;
-    }
-
-    private Class extensionFunctionCallClass = ExtensionFunctionCall.class;
-    private Configuration config;
-
-    /**
-     * Set the class to be used to represent extension function calls. This must be a subclass
-     * of {@link ExtensionFunctionCall}
-     * @param subclass the subclass of ExtensionFunctionCall to be used
-     */
-
-    public void setExtensionFunctionClass(Class subclass) {
-        extensionFunctionCallClass = subclass;
-    }
-
-    /**
-     * Factory method to create an expression that calls a Java extension function.
-     * This is always called at XPath compile time.
-     * @param nameCode the name of the function name, as represented in the name pool
-     * @param theClass the Java class containing the extension function
-     * @param method The "accessibleObject" representing a constructor, method, or field corresponding
-     * to the extension function
-     * @param arguments Array containing the expressions supplied as arguments to the function call.
-     * @return the constructed ExtensionFunctionCall object (a subclass might return any expression
-     * representing the extension function call).
-     */
-
-    public Expression makeExtensionFunctionCall(
-        int nameCode, Class theClass, AccessibleObject method, Expression[] arguments) {
-        ExtensionFunctionCall fn;
-        try {
-            fn = (ExtensionFunctionCall)(extensionFunctionCallClass.newInstance());
-        } catch (InstantiationException e) {
-            throw new IllegalArgumentException(e.getMessage());
-        } catch (IllegalAccessException e) {
-            throw new IllegalArgumentException(e.getMessage());
-        }
-        fn.init(nameCode, theClass, method, config);
-        fn.setArguments(arguments);
-        return fn;
-    }
-
+public interface ExtensionFunctionFactory {
 }
 
 //
@@ -71,12 +22,10 @@ public class ExtensionFunctionFactory implements Serializable {
 // WITHOUT WARRANTY OF ANY KIND, either express or implied.
 // See the License for the specific language governing rights and limitations under the License.
 //
-// The Original Code is: all this file.
+// The Original Code is: all this file
 //
 // The Initial Developer of the Original Code is Michael H. Kay.
 //
-// Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
+// Contributor(s):
 //
-// Contributor(s): Gunther Schadow (changes to allow access to public fields; also wrapping
-// of extensions and mapping of null to empty sequence).
-//
+

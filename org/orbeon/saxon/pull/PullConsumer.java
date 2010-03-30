@@ -13,6 +13,11 @@ public class PullConsumer {
 
     private PullProvider in;
 
+    /**
+     * Create a PullConsumer that swallows the events read from a given pull provider
+     * @param in the PullProvider from which events are to be read and swallowed up
+     */
+
     public PullConsumer(PullProvider in) {
         this.in = in;
     }

@@ -39,6 +39,13 @@ public class ReceiverOptions {
     public static final int DEFAULTED_ATTRIBUTE = 8;
 
     /**
+     * Flag used with character content that has been validated against a nillable element
+     * declaration. Needed because of a peculiar rule for validating xs:key values
+     */
+
+    public static final int NILLED_ELEMENT = 16;    
+
+    /**
     * Flag indicating that duplicate values should be rejected
     */
 
@@ -75,13 +82,6 @@ public class ReceiverOptions {
     public static final int NILLABLE_ELEMENT = 512;
 
     /**
-     * Flag used on a startElement even to indicate that the is-nilled property on the element node is
-     * set.
-     */
-
-    //public static final int NILLED = 512;
-
-    /**
      * Flag used with the characters() event to indicate that the event represents an entire
      * text node, that is, the text node has not been fragmented over several characters() events
      */
@@ -106,6 +106,12 @@ public class ReceiverOptions {
      */
 
     public static final int ID_IDREF_CHECKED = 8192;
+
+    /**
+     * Flag set on startDocument() in relation to an xsl:message call with terminate="yes"
+     */
+
+    public static final int TERMINATE = 16384;
 
 
 

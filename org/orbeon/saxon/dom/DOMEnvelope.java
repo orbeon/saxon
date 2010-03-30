@@ -4,10 +4,13 @@ import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.event.PipelineConfiguration;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.event.Sender;
+import org.orbeon.saxon.expr.JPConverter;
+import org.orbeon.saxon.expr.PJConverter;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.pattern.AnyNodeTest;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.SequenceExtent;
 import org.orbeon.saxon.value.Value;
 import org.w3c.dom.Node;
@@ -16,6 +19,7 @@ import org.w3c.dom.NodeList;
 import javax.xml.transform.Result;
 import javax.xml.transform.Source;
 import javax.xml.transform.dom.DOMSource;
+import javax.xml.xpath.XPathConstants;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -31,7 +35,63 @@ public class DOMEnvelope implements ExternalObjectModel, Serializable {
 
     public DOMEnvelope() {}
 
-     /**
+    /**
+     * Get the URI of the external object model as used in the JAXP factory interfaces for obtaining
+     * an XPath implementation
+     */
+
+    public String getIdentifyingURI() {
+        return XPathConstants.DOM_OBJECT_MODEL;
+    }
+
+    public PJConverter getPJConverter(Class targetClass) {
+        if (NodeOverNodeInfo.class.isAssignableFrom(targetClass)) {
+            return new PJConverter() {
+                public Object convert(ValueRepresentation value, Class targetClass, XPathContext context) throws XPathException {
+                    return convertXPathValueToObject(value, targetClass, context);
+                }
+            };
+        } else if (NodeList.class.isAssignableFrom(targetClass)) {
+            return new PJConverter() {
+                public Object convert(ValueRepresentation value, Class targetClass, XPathContext context) throws XPathException {
+                    return convertXPathValueToObject(value, targetClass, context);
+                }
+            };
+        } else {
+            return null;
+        }
+    }
+
+    public JPConverter getJPConverter(Class targetClass) {
+        if (NodeOverNodeInfo.class.isAssignableFrom(targetClass)) {
+            return new JPConverter() {
+                public ValueRepresentation convert(Object object, XPathContext context) throws XPathException {
+                    return convertObjectToXPathValue(object, context.getConfiguration());
+                }
+                public ItemType getItemType() {
+                    return AnyNodeTest.getInstance();
+                }
+            };
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Get a converter that converts a sequence of XPath nodes to this model's representation
+     * of a node list.
+     * @param node an example of the kind of node used in this model
+     * @return if the model does not recognize this node as one of its own, return null. Otherwise
+     *         return a PJConverter that takes a list of XPath nodes (represented as NodeInfo objects) and
+     *         returns a collection of nodes in this object model
+     */
+
+    public PJConverter getNodeListCreator(Object node) {
+        //return getPJConverter(NodeList.class);
+        return null;
+    }
+
+    /**
      * Test whether this object model recognizes a given node as one of its own
      */
 
@@ -59,7 +119,7 @@ public class DOMEnvelope implements ExternalObjectModel, Serializable {
      * @return true if the class is used to represent nodes in this object model
      */
 
-    public boolean isRecognizedNodeListClass(Class nodeClass) {
+    private boolean isRecognizedNodeListClass(Class nodeClass) {
         return NodeList.class.isAssignableFrom(nodeClass);
     }
 
@@ -122,11 +182,18 @@ public class DOMEnvelope implements ExternalObjectModel, Serializable {
      * be converted, an exception should be thrown
      */
 
-    public Value convertObjectToXPathValue(Object object, Configuration config) throws XPathException {
+    public ValueRepresentation convertObjectToXPathValue(Object object, Configuration config) throws XPathException {
         if (object instanceof NodeList) {
+            // NodeList needs great care, because Xerces element nodes implement the NodeList interface,
+            // with the actual list being the children of the node in question. So we only recognize a
+            // NodeList here if it is non-empty, and if all the nodes within it are NodeOverNodeInfo objects.
             NodeList list = ((NodeList)object);
-            NodeInfo[] nodes = new NodeInfo[list.getLength()];
-            for (int i=0; i<list.getLength(); i++) {
+            final int len = list.getLength();
+            if (len == 0) {
+                return null;
+            }
+            NodeInfo[] nodes = new NodeInfo[len];
+            for (int i=0; i<len; i++) {
                 if (list.item(i) instanceof NodeOverNodeInfo) {
                     nodes[i] = ((NodeOverNodeInfo)list.item(i)).getUnderlyingNodeInfo();
                 } else {
@@ -138,7 +205,7 @@ public class DOMEnvelope implements ExternalObjectModel, Serializable {
             // Note, we accept the nodes in the order returned by the function; there
             // is no requirement that this should be document order.
         } else if (object instanceof NodeOverNodeInfo) {
-            return Value.asValue(((NodeOverNodeInfo)object).getUnderlyingNodeInfo());
+            return ((NodeOverNodeInfo)object).getUnderlyingNodeInfo();
         } else {
             return null;
         }
@@ -154,10 +221,11 @@ public class DOMEnvelope implements ExternalObjectModel, Serializable {
      * supplied value cannot be converted to the appropriate class
      */
 
-    public Object convertXPathValueToObject(Value value, Class target, XPathContext context) throws XPathException {
+    public Object convertXPathValueToObject(ValueRepresentation value, Object targetClass, XPathContext context) throws XPathException {
         // We accept the object if (a) the target class is Node, Node[], or NodeList,
         // or (b) the supplied object is a node, or sequence of nodes, that wrap DOM nodes,
         // provided that the target class is Object or a collection class
+        Class target = (Class)targetClass;
         boolean requireDOM =
                 (Node.class.isAssignableFrom(target) || (target == NodeList.class) ||
                 (target.isArray() && Node.class.isAssignableFrom(target.getComponentType())));
@@ -174,7 +242,7 @@ public class DOMEnvelope implements ExternalObjectModel, Serializable {
         }
         List nodes = new ArrayList(20);
 
-        SequenceIterator iter = value.iterate(context);
+        SequenceIterator iter = Value.asIterator(value);
         while (true) {
             Item item = iter.next();
             if (item == null) {
@@ -186,7 +254,7 @@ public class DOMEnvelope implements ExternalObjectModel, Serializable {
                     nodes.add(o);
                 } else {
                     if (requireDOM) {
-                        DynamicError err = new DynamicError("Extension function required class " + target.getName() +
+                        XPathException err = new XPathException("Extension function required class " + target.getName() +
                                 "; supplied value of class " + item.getClass().getName() +
                                 " could not be converted");
                         throw err;
@@ -196,9 +264,9 @@ public class DOMEnvelope implements ExternalObjectModel, Serializable {
                 if (item instanceof NodeInfo) {
                     nodes.add(NodeOverNodeInfo.wrap((NodeInfo)item));
                 } else {
-                    DynamicError err = new DynamicError("Extension function required class " + target.getName() +
-                                "; supplied value of class " + item.getClass().getName() +
-                                " could not be converted");
+                    XPathException err = new XPathException("Extension function required class " + target.getName() +
+                            "; supplied value of class " + item.getClass().getName() +
+                            " could not be converted");
                     throw err;
                 }
             } else {
@@ -211,8 +279,8 @@ public class DOMEnvelope implements ExternalObjectModel, Serializable {
         }
         if (Node.class.isAssignableFrom(target)) {
             if (nodes.size() != 1) {
-                DynamicError err = new DynamicError("Extension function requires a single DOM Node" +
-                                "; supplied value contains " + nodes.size() + " nodes");
+                XPathException err = new XPathException("Extension function requires a single DOM Node" +
+                        "; supplied value contains " + nodes.size() + " nodes");
                 throw err;
             }
             return nodes.get(0);
@@ -276,17 +344,6 @@ public class DOMEnvelope implements ExternalObjectModel, Serializable {
         throw new IllegalArgumentException("Unknown node class " + node.getClass());
     }
 
-    /**
-     * Convert a sequence of values to a NODELIST, as defined in the JAXP XPath API spec. This method
-     * is used when the evaluate() request specifies the return type as NODELIST, regardless of the
-     * actual results of the expression. If the sequence contains things other than nodes, the fallback
-     * is to return the sequence as a Java List object. The method can return null to invoke fallback
-     * behaviour.
-     */
-
-    public Object convertToNodeList(SequenceExtent extent) {
-        return null;
-    }
 }
 
 

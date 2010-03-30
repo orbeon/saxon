@@ -54,6 +54,7 @@ public class PullFilter implements PullProvider {
 
     /**
      * Helper method to get the current namePool
+     * @return the NamePool
      */
 
     public final NamePool getNamePool() {
@@ -62,6 +63,7 @@ public class PullFilter implements PullProvider {
 
     /**
      * Get the underlying PullProvider
+     * @return  the underlying PullProvider
      */
 
     public PullProvider getUnderlyingProvider() {

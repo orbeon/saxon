@@ -1,5 +1,6 @@
 package org.orbeon.saxon.sort;
-import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.StringValue;
 
@@ -27,11 +28,29 @@ public class CodepointCollatingComparer implements AtomicComparer {
 
     private static CodepointCollatingComparer THE_INSTANCE = new CodepointCollatingComparer();
 
+    /**
+     * Get the singular instance of this class
+     * @return the singleton instance
+     */
+
     public static CodepointCollatingComparer getInstance() {
         return THE_INSTANCE;
     }
 
     private CodepointCollatingComparer() {}
+
+
+    /**
+     * Supply the dynamic context in case this is needed for the comparison
+     *
+     * @param context the dynamic evaluation context
+     * @return either the original AtomicComparer, or a new AtomicComparer in which the context
+     *         is known. The original AtomicComparer is not modified
+     */
+
+    public AtomicComparer provideContext(XPathContext context) {
+        return this;
+    }
 
     /**
     * Compare two AtomicValue objects according to the rules for their data type. UntypedAtomic
@@ -45,14 +64,14 @@ public class CodepointCollatingComparer implements AtomicComparer {
     * @throws ClassCastException if the objects are not comparable
     */
 
-    public int compare(Object a, Object b) {
+    public int compareAtomicValues(AtomicValue a, AtomicValue b) {
         if (a == null) {
             return (b == null ? 0 : -1);
         } else if (b == null) {
             return +1;
         }
-        StringValue as = (StringValue)((AtomicValue)a).getPrimitiveValue();
-        StringValue bs = (StringValue)((AtomicValue)b).getPrimitiveValue();
+        StringValue as = (StringValue)a;
+        StringValue bs = (StringValue)b;
         if (as.containsSurrogatePairs() || bs.containsSurrogatePairs()) {
             return collator.compareCS(as.getStringValueCS(), bs.getStringValueCS());
         } else {
@@ -71,8 +90,8 @@ public class CodepointCollatingComparer implements AtomicComparer {
     */
 
     public boolean comparesEqual(AtomicValue a, AtomicValue b) {
-        StringValue as = (StringValue)a.getPrimitiveValue();
-        StringValue bs = (StringValue)b.getPrimitiveValue();
+        StringValue as = (StringValue)a;
+        StringValue bs = (StringValue)b;
         return as.codepointEquals(bs);
     }
 
@@ -84,8 +103,8 @@ public class CodepointCollatingComparer implements AtomicComparer {
     */
 
     public ComparisonKey getComparisonKey(AtomicValue a) {
-        StringValue as = (StringValue)a.getPrimitiveValue();
-        return new ComparisonKey(Type.STRING, as.getStringValue());
+        StringValue as = (StringValue)a;
+        return new ComparisonKey(StandardNames.XS_STRING, as.getStringValue());
     }
 
 

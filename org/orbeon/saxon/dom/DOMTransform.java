@@ -1,7 +1,6 @@
 package org.orbeon.saxon.dom;
 
 import org.orbeon.saxon.Transform;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
@@ -45,11 +44,11 @@ public class DOMTransform extends Transform {
             }
             return domSources;
         } catch (ParserConfigurationException e) {
-            throw new DynamicError(e);
+            throw new XPathException(e);
         } catch (SAXException e) {
-            throw new DynamicError(e);
+            throw new XPathException(e);
         } catch (IOException e) {
-            throw new DynamicError(e);
+            throw new XPathException(e);
     }
     }
 

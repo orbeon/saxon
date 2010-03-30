@@ -16,6 +16,10 @@ public abstract class SequenceReceiver implements Receiver {
     protected PipelineConfiguration pipelineConfiguration;
     protected String systemId = null;
 
+    /**
+     * Create a SequenceReceiver
+     */
+
     public SequenceReceiver(){}
 
     public PipelineConfiguration getPipelineConfiguration() {
@@ -25,6 +29,11 @@ public abstract class SequenceReceiver implements Receiver {
     public void setPipelineConfiguration(PipelineConfiguration pipelineConfiguration) {
         this.pipelineConfiguration = pipelineConfiguration;
     }
+
+    /**
+     * Get the Saxon Configuration
+     * @return the Configuration
+     */
 
     public Configuration getConfiguration() {
         return pipelineConfiguration.getConfiguration();
@@ -48,7 +57,14 @@ public abstract class SequenceReceiver implements Receiver {
         return systemId;
     }
 
-    public void setUnparsedEntity(String name, String systemId, String publicId) throws XPathException {}
+    /**
+    * Notify an unparsed entity URI.
+    * @param name The name of the unparsed entity
+    * @param systemID The system identifier of the unparsed entity
+    * @param publicID The public identifier of the unparsed entity
+    */
+
+    public void setUnparsedEntity(String name, String systemID, String publicID) throws XPathException {}
 
     /**
     * Start the output process
@@ -59,12 +75,15 @@ public abstract class SequenceReceiver implements Receiver {
     }
 
     /**
-    * Output an item (atomic value or node) to the sequence
-    */
+    * Append an arbitrary item (node or atomic value) to the output
+     * @param item the item to be appended
+     * @param locationId the location of the calling instruction, for diagnostics
+     * @param copyNamespaces if the item is an element node, this indicates whether its namespaces
+* need to be copied. Values are {@link org.orbeon.saxon.om.NodeInfo#ALL_NAMESPACES},
+* {@link org.orbeon.saxon.om.NodeInfo#LOCAL_NAMESPACES}, {@link org.orbeon.saxon.om.NodeInfo#NO_NAMESPACES}
+     */
 
-    public void append(Item item, int locationId, int copyNamespaces) throws XPathException {
-        throw new UnsupportedOperationException("append() method not supported in " + this.getClass());
-    }
+    public abstract void append(Item item, int locationId, int copyNamespaces) throws XPathException;
 
     /**
     * Get the name pool
@@ -72,7 +91,7 @@ public abstract class SequenceReceiver implements Receiver {
     */
 
     public NamePool getNamePool() {
-        return getConfiguration().getNamePool();
+        return pipelineConfiguration.getConfiguration().getNamePool();
     }
 }
 

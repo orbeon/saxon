@@ -1,20 +1,16 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.event.LocationProvider;
-import org.orbeon.saxon.om.AttributeCollectionImpl;
-import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.om.NamespaceConstant;
-import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.sort.IntHashMap;
-import org.orbeon.saxon.trans.StaticError;
-import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.trans.SaxonErrorCode;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.tree.ElementImpl;
 import org.orbeon.saxon.tree.NodeFactory;
 
+import javax.xml.transform.ErrorListener;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactoryConfigurationError;
-import javax.xml.transform.ErrorListener;
 import java.math.BigDecimal;
 
 /**
@@ -32,12 +28,17 @@ public class StyleNodeFactory implements NodeFactory {
     boolean allowExtensions;
     ErrorListener errorListener;
 
+    /**
+     * Create the node factory for representing an XSLT stylesheet as a tree structure
+     * @param config the Saxon configuration
+     * @param errorListener used for reporting errors
+     */
 
     public StyleNodeFactory(Configuration config, ErrorListener errorListener) {
 
 		this.config = config;
         namePool = config.getNamePool();
-		this.allowExtensions = config.isAllowExternalFunctions();
+		allowExtensions = config.isAllowExternalFunctions();
         this.errorListener = errorListener;
     }
 
@@ -47,31 +48,35 @@ public class StyleNodeFactory implements NodeFactory {
     * with a validation error. This allows us to report more than
     * one error from a single compilation.
     * @param nameCode The element name
-    * @param attlist the attribute list
-    */
+     * @param typeCode
+     * @param attlist the attribute list
+     */
 
     public ElementImpl makeElementNode(
-                        NodeInfo parent,
-                        int nameCode,
-                        AttributeCollectionImpl attlist,
-                        int[] namespaces,
-                        int namespacesUsed,
-                        LocationProvider locator,
-                        int locationId,
-                        int sequence)
+            NodeInfo parent,
+            int nameCode,
+            int typeCode, AttributeCollectionImpl attlist,
+            int[] namespaces,
+            int namespacesUsed,
+            LocationProvider locator,
+            int locationId,
+            int sequence)
     {
         boolean toplevel = (parent instanceof XSLStylesheet);
         String baseURI = null;
         int lineNumber = -1;
+        int columnNumber = -1;
         if (locator!=null) {
             baseURI = locator.getSystemId(locationId);
             lineNumber = locator.getLineNumber(locationId);
+            columnNumber = locator.getColumnNumber(locationId);
         }
 
         if (parent instanceof DataElement) {
             DataElement d = new DataElement();
             d.setNamespaceDeclarations(namespaces, namespacesUsed);
-            d.initialise(nameCode, attlist, parent, baseURI, lineNumber, sequence);
+            d.initialise(nameCode, typeCode, attlist, parent, sequence);
+            d.setLocation(baseURI, lineNumber, columnNumber);
             return d;
         }
 
@@ -82,18 +87,29 @@ public class StyleNodeFactory implements NodeFactory {
     	StyleElement e = makeXSLElement(f);
 
 		if (e != null) {  // recognized as an XSLT element
-			try {
-	        	e.setNamespaceDeclarations(namespaces, namespacesUsed);
-                e.setLineNumber(lineNumber);
-	            e.initialise(nameCode, attlist, parent, baseURI, -1, sequence);
-                //e.processDefaultCollationAttribute(StandardNames.DEFAULT_COLLATION);
+
+            e.setNamespaceDeclarations(namespaces, namespacesUsed);
+            e.initialise(nameCode, typeCode, attlist, parent, sequence);
+            e.setLocation(baseURI, lineNumber, columnNumber);
+            // We're not catching multiple errors in the following attributes, but catching each of the
+            // exceptions helps to ensure we don't report spurious errors through not processing some
+            // of the attributes when others are faulty.
+            try {
 	            e.processExtensionElementAttribute(StandardNames.EXTENSION_ELEMENT_PREFIXES);
-	            e.processExcludedNamespaces(StandardNames.EXCLUDE_RESULT_PREFIXES);
-	            e.processVersionAttribute(StandardNames.VERSION);
-	            e.processDefaultXPathNamespaceAttribute(StandardNames.XPATH_DEFAULT_NAMESPACE);
-	        } catch (TransformerException err) {
+            } catch (TransformerException err) {
 	            e.setValidationError(err, StyleElement.REPORT_ALWAYS);
 	        }
+            try {
+	            e.processExcludedNamespaces(StandardNames.EXCLUDE_RESULT_PREFIXES);
+            } catch (TransformerException err) {
+	            e.setValidationError(err, StyleElement.REPORT_ALWAYS);
+	        }
+            try {
+	            e.processVersionAttribute(StandardNames.VERSION);
+            } catch (TransformerException err) {
+	            e.setValidationError(err, StyleElement.REPORT_ALWAYS);
+	        }
+	        e.processDefaultXPathNamespaceAttribute(StandardNames.XPATH_DEFAULT_NAMESPACE);
             return e;
 
         } else {   // not recognized as an XSLT element
@@ -108,7 +124,7 @@ public class StyleNodeFactory implements NodeFactory {
                     (parent instanceof XSLStylesheet) &&
                     ((XSLStylesheet)parent).getVersion().compareTo(BigDecimal.valueOf('2')) <= 0 ) {
                 temp = new AbsentExtensionElement();
-                temp.setValidationError(new StaticError("Unknown top-level XSLT declaration"),
+                temp.setValidationError(new XPathException("Unknown top-level XSLT declaration"),
                        StyleElement.REPORT_UNLESS_FORWARDS_COMPATIBLE );
             }
 
@@ -133,7 +149,8 @@ public class StyleNodeFactory implements NodeFactory {
                 } else if (toplevel && uriCode != 0) {
                     DataElement d = new DataElement();
                     d.setNamespaceDeclarations(namespaces, namespacesUsed);
-                    d.initialise(nameCode, attlist, parent, baseURI, lineNumber, sequence);
+                    d.initialise(nameCode, typeCode, attlist, parent, sequence);
+                    d.setLocation(baseURI, lineNumber, columnNumber);
                     return d;
                 }
             }
@@ -145,8 +162,8 @@ public class StyleNodeFactory implements NodeFactory {
 	        temp.setNamespaceDeclarations(namespaces, namespacesUsed);
 
   	        try {
-	            temp.initialise(nameCode, attlist, parent, baseURI, lineNumber, sequence);
-                temp.setLineNumber(lineNumber);
+	            temp.initialise(nameCode, typeCode, attlist, parent, sequence);
+                temp.setLocation(baseURI, lineNumber, columnNumber);
                 temp.processDefaultCollationAttribute(StandardNames.XSL_DEFAULT_COLLATION_CLARK);
 	            temp.processExtensionElementAttribute(StandardNames.XSL_EXTENSION_ELEMENT_PREFIXES_CLARK);
 	            temp.processExcludedNamespaces(StandardNames.XSL_EXCLUDE_RESULT_PREFIXES_CLARK);
@@ -162,8 +179,9 @@ public class StyleNodeFactory implements NodeFactory {
 	        Class actualClass;
 
 	        if (uriCode == NamespaceConstant.XSLT_CODE) {
-                reason = new StaticError("Unknown XSLT element: " + localname);
-                ((StaticError)reason).setErrorCode("XTSE0010");
+                reason = new XPathException("Unknown XSLT element: " + localname);
+                ((XPathException)reason).setErrorCode("XTSE0010");
+                ((XPathException)reason).setIsStaticError(true);
                 actualClass = AbsentExtensionElement.class;
                 temp.setValidationError(reason, StyleElement.REPORT_UNLESS_FALLBACK_AVAILABLE);
 	        } else if (uriCode == NamespaceConstant.SAXON_CODE) {
@@ -173,19 +191,18 @@ public class StyleNodeFactory implements NodeFactory {
 	        			actualClass = assumedClass;
 	        		} else {
 	        			actualClass = AbsentExtensionElement.class;
-	        			reason = new StaticError(
-	        			                "Unknown Saxon extension element: " + localname);
+	        			reason = new XPathException(
+	        			                "Unknown Saxon extension instruction: " + localname);
                         temp.setValidationError(reason, StyleElement.REPORT_UNLESS_FALLBACK_AVAILABLE);
 	        		}
 	        	} else {
                     if (assumedSaxonElement) {
                         // We've got an element such as saxon:call-template but the
-                        // user didnt' declare the Saxon namespace as an extension element
+                        // user didn't declare the Saxon namespace as an extension element
                         // namespace. Chances are he just forgot.
                         try {
-                            final StaticError te =
-                                    new StaticError("saxon:" + localname +
-                                            " is not being treated as an extension element because the namespace " +
+                            XPathException te = new XPathException("saxon:" + localname +
+                                            " is not being treated as an extension instruction because the namespace " +
                                             " http://saxon.sf.net/ has not been declared in extension-element-prefixes");
                             te.setLocator(temp);
                             te.setErrorCode(SaxonErrorCode.SXWN9008);
@@ -209,7 +226,7 @@ public class StyleNodeFactory implements NodeFactory {
                         }
                     } else {
                         actualClass = AbsentExtensionElement.class;
-	        			reason = new StaticError("Extension elements are disabled");
+	        			reason = new XPathException("Extension instructions are disabled");
                         temp.setValidationError(reason, StyleElement.REPORT_IF_INSTANTIATED);
                     }
 
@@ -221,14 +238,30 @@ public class StyleNodeFactory implements NodeFactory {
                         // save the reason for failure just in case there is no xsl:fallback
 
                         actualClass = AbsentExtensionElement.class;
-                        StaticError se = new StaticError("Unknown extension element", temp);
+                        XPathException se = new XPathException("Unknown extension instruction", temp);
                         se.setErrorCode("XTDE1450");
                         reason = se;
                         temp.setValidationError(reason, StyleElement.REPORT_IF_INSTANTIATED);
                     }
                 }
 	        } else {
-	        	actualClass = LiteralResultElement.class;
+                if (!toplevel && namePool.getURI(nameCode).indexOf("ElementFactory") >= 0) {
+                    // looks like the user forgot to declare an extension element namespace
+                    ExtensionElementFactory factory = getFactory(uriCode);
+                    if (factory != null) {
+                        try {
+                            XPathException te = new XPathException(namePool.getDisplayName(nameCode) +
+                                            " is not being treated as an extension instruction because its namespace " +
+                                            " has not been declared in extension-element-prefixes");
+                            te.setLocator(temp);
+                            te.setErrorCode(SaxonErrorCode.SXWN9008);
+                            errorListener.warning(te);
+                        } catch (TransformerException e1) {
+                            // no action
+                        }
+                    }
+                }
+                actualClass = LiteralResultElement.class;
 	        }
 
 	        StyleElement node;
@@ -249,7 +282,9 @@ public class StyleNodeFactory implements NodeFactory {
     }
 
 	/**
-	* Make an XSL element node
+	 * Make an XSL element node
+     * @param f the fingerprint of the node name
+     * @return the constructed element node
 	*/
 
 	private StyleElement makeXSLElement(int f) {
@@ -358,6 +393,8 @@ public class StyleNodeFactory implements NodeFactory {
 
 	/**
 	* Make a SAXON extension element
+     * @param f the fingerprint of the element name
+     * @return the constructed element node
 	*/
 
 	private StyleElement makeSaxonElement(int f) {
@@ -366,17 +403,25 @@ public class StyleNodeFactory implements NodeFactory {
 
 		case StandardNames.SAXON_ASSIGN:
             return new SaxonAssign();
-		case StandardNames.SAXON_ENTITY_REF:
-            return new SaxonEntityRef();
+		case StandardNames.SAXON_BREAK:
+            return new SaxonBreak();
 		case StandardNames.SAXON_CALL_TEMPLATE:
             return new SaxonCallTemplate();
 		case StandardNames.SAXON_COLLATION:
             return new SaxonCollation();
-		case StandardNames.SAXON_DOCTYPE:
+		case StandardNames.SAXON_CONTINUE:
+            return new SaxonContinue();
+        case StandardNames.SAXON_DOCTYPE:
             return new SaxonDoctype();
-		case StandardNames.SAXON_IMPORT_QUERY:
+        case StandardNames.SAXON_ENTITY_REF:
+            return new SaxonEntityRef();
+        case StandardNames.SAXON_FINALLY:
+            return new SaxonFinally();
+        case StandardNames.SAXON_IMPORT_QUERY:
             return new SaxonImportQuery();
-		case StandardNames.SAXON_SCRIPT:
+		case StandardNames.SAXON_ITERATE:
+            return new SaxonIterate();
+        case StandardNames.SAXON_SCRIPT:
             return new SaxonScript();
 		case StandardNames.SAXON_WHILE:
             return new SaxonWhile();
@@ -385,8 +430,10 @@ public class StyleNodeFactory implements NodeFactory {
 	}
 
     /**
-    * Get the factory class for user extension elements
-    * If there is no appropriate class, return null
+     * Get the factory class for user extension elements
+     * If there is no appropriate class, return null
+     * @param uriCode the code for the namespace URI of the extension element
+     * @return the appropriate ExtensionElementFactory for this namespace
     */
 
     private ExtensionElementFactory getFactory(short uriCode) {
@@ -407,7 +454,10 @@ public class StyleNodeFactory implements NodeFactory {
     }
 
     /**
-    * Method to support the element-available() function
+     * Method to support the element-available() function
+     * @param uri the namespace URI
+     * @param localName the local Name
+     * @return true if an extension element of this name is recognized
     */
 
     public boolean isElementAvailable(String uri, String localName) {

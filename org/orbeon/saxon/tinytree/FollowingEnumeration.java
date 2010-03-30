@@ -37,10 +37,13 @@ final class FollowingEnumeration extends AxisIteratorImpl {
 
     public Item next() {
         int nodeNr;
-        if (position == 0) {
+        if (position <= 0) {
+            if (position < 0) {
+                // already at end
+                return null;
+            }
             // first time call
             nodeNr = startNode.nodeNr;
-            //int depth = tree.depth[nodeNr];
 
             // skip the descendant nodes if any
             if (includeDescendants) {
@@ -57,17 +60,8 @@ final class FollowingEnumeration extends AxisIteratorImpl {
                         return null;
                     } else {
                         nodeNr = nextSib;
-                        continue;
                     }
                 }
-//                do {
-//                    nodeNr++;
-//                    if (tree.depth[nodeNr] == 0) {
-//                        current = null;
-//                        position = -1;
-//                        return null;
-//                    }
-//                } while (tree.depth[nodeNr] > depth);
             }
         } else {
             nodeNr = ((TinyNodeImpl)current).nodeNr + 1;

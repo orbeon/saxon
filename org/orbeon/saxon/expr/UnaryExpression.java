@@ -1,28 +1,25 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.TypeHierarchy;
-import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.value.SequenceExtent;
+import org.orbeon.saxon.value.Value;
 
-import java.io.PrintStream;
 import java.util.Iterator;
 
 /**
 * Unary Expression: an expression taking a single operand expression
 */
 
-public abstract class UnaryExpression extends ComputedExpression {
+public abstract class UnaryExpression extends Expression {
 
     protected Expression operand;
 
     public UnaryExpression(Expression p0) {
         operand = p0;
-        Container parent = (p0 instanceof ComputedExpression ? ((ComputedExpression)p0).getParentExpression() : null);
         adoptChildExpression(p0);
-        setParentExpression(parent);
     }
 
     public Expression getBaseExpression() {
@@ -32,10 +29,11 @@ public abstract class UnaryExpression extends ComputedExpression {
     /**
     * Simplify an expression
     * @return the simplified expression
-    */
+     * @param visitor an expression visitor
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
-        operand = operand.simplify(env);
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        operand = visitor.simplify(operand);
         return this;
     }
 
@@ -44,17 +42,17 @@ public abstract class UnaryExpression extends ComputedExpression {
     * any kind of operand
     */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        operand = operand.typeCheck(env, contextItemType);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.typeCheck(operand, contextItemType);
         // if the operand value is known, pre-evaluate the expression
         try {
-            if (operand instanceof Value) {
-                return Value.asValue(
+            if (operand instanceof Literal) {
+                return Literal.makeLiteral(Value.asValue(
                         SequenceExtent.makeSequenceExtent(
-                                iterate(env.makeEarlyEvaluationContext())));
+                                iterate(visitor.getStaticContext().makeEarlyEvaluationContext()))));
             }
                 //return (Value)ExpressionTool.eagerEvaluate(this, env.makeEarlyEvaluationContext());
-        } catch (DynamicError err) {
+        } catch (XPathException err) {
             // if early evaluation fails, suppress the error: the value might
             // not be needed at run-time
         }
@@ -67,29 +65,26 @@ public abstract class UnaryExpression extends ComputedExpression {
      * <p>This method is called after all references to functions and variables have been resolved
      * to the declaration of the function or variable, and after all type checking has been done.</p>
      *
-     * @param opt             the optimizer in use. This provides access to supporting functions; it also allows
-     *                        different optimization strategies to be used in different circumstances.
-     * @param env             the static context of the expression
+     * @param visitor an expression visitor
      * @param contextItemType the static type of "." at the point where this expression is invoked.
      *                        The parameter is set to null if it is known statically that the context item will be undefined.
      *                        If the type of the context item is not known statically, the argument is set to
      *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
      * @return the original expression, rewritten if appropriate to optimize execution
-     * @throws org.orbeon.saxon.trans.StaticError if an error is discovered during this phase
+     * @throws XPathException if an error is discovered during this phase
      *                                        (typically a type error)
      */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        operand = operand.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.optimize(operand, contextItemType);
         // if the operand value is known, pre-evaluate the expression
         try {
-            if (operand instanceof Value) {
-                return Value.asValue(
+            if (operand instanceof Literal) {
+                return Literal.makeLiteral(Value.asValue(
                         SequenceExtent.makeSequenceExtent(
-                                iterate(env.makeEarlyEvaluationContext())));
-                //return (Value)ExpressionTool.eagerEvaluate(this, env.makeEarlyEvaluationContext());
+                                iterate(visitor.getStaticContext().makeEarlyEvaluationContext()))));
             }
-        } catch (DynamicError err) {
+        } catch (XPathException err) {
             // if early evaluation fails, suppress the error: the value might
             // not be needed at run-time
         }
@@ -159,7 +154,7 @@ public abstract class UnaryExpression extends ComputedExpression {
      * implementation for unary expressions returns the item type of the operand
      * @return the item type of the items in the result sequence, insofar as this
      * is known statically.
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
@@ -185,12 +180,36 @@ public abstract class UnaryExpression extends ComputedExpression {
     }
 
     /**
-    * Diagnostic print of expression structure
-    */
+     * The toString() method for an expression attempts to give a representation of the expression
+     * in an XPath-like form, but there is no guarantee that the syntax will actually be true XPath.
+     * In the case of XSLT instructions, the toString() method gives an abstracted view of the syntax
+     */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + displayOperator(config));
-        operand.display(level+1, out, config);
+    public String toString() {
+        String className = getClass().getName();
+        String simpleName = className.substring(className.lastIndexOf(".")+1);
+        return simpleName + "(" + operand.toString() + ")";
+        // TODO:JDK1.5 - use getClass().getSimpleName()
+    }
+
+    /**
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     */
+
+    public void explain(ExpressionPresenter out) {
+        String name = displayExpressionName();
+        if (name == null) {
+            out.startElement("unaryOperator");
+            String op = displayOperator(out.getConfiguration());
+            if (op != null) {
+                out.emitAttribute("op", op);
+            }
+        } else {
+            out.startElement(name);
+        }
+        operand.explain(out);
+        out.endElement();
     }
 
     /**
@@ -199,7 +218,17 @@ public abstract class UnaryExpression extends ComputedExpression {
      * @param config
      */
 
-    protected abstract String displayOperator(Configuration config);
+    protected String displayOperator(Configuration config) {
+        return null;
+    }
+
+    /**
+     * Return the element name to use in the expression tree
+     */
+
+    protected String displayExpressionName() {
+        return null;
+    }
 
 }
 

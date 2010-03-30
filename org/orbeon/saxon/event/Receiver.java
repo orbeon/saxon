@@ -19,19 +19,23 @@ import javax.xml.transform.Result;
 public interface Receiver extends Result {
 
     /**
-    * Set the pipeline configuration
-    */
+     * Set the pipeline configuration
+     * @param config the pipeline configuration
+     */
 
     public void setPipelineConfiguration(PipelineConfiguration config);
 
     /**
-    * Get the pipeline configuration
-    */
+     * Get the pipeline configuration
+     * @return the pipeline configuration
+     */
 
     public PipelineConfiguration getPipelineConfiguration();
 
 	/**
-	* Set the System ID of the tree represented by this event stream
+	 * Set the System ID of the tree represented by this event stream
+     * @param systemId the system ID (which is used as the base URI of the nodes
+     * if there is no xml:base attribute)
 	*/
 
 	public void setSystemId(String systemId);
@@ -44,6 +48,8 @@ public interface Receiver extends Result {
 
     /**
      * Notify the start of a document node
+     * @param properties bit-significant integer indicating properties of the document node.
+     * The definitions of the bits are in class {@link ReceiverOptions}
      */
 
     public void startDocument(int properties) throws XPathException;
@@ -67,13 +73,13 @@ public interface Receiver extends Result {
      * Notify the start of an element
      * @param nameCode integer code identifying the name of the element within the name pool.
      * @param typeCode integer code identifying the element's type within the name pool. The value -1
-     * indicates the default type, xdt:untyped.
-     * @param locationId an integer which can be interpreted using a {@link LocationProvider} to return
+     * indicates the default type, xs:untyped.
+     * @param locationId an integer which can be interpreted using a {@link org.orbeon.saxon.event.LocationProvider} to return
      * information such as line number and system ID. If no location information is available,
      * the value zero is supplied.
      * @param properties bit-significant properties of the element node. If there are no revelant
-     * properties, zero is supplied.
-    */
+     * properties, zero is supplied. The definitions of the bits are in class {@link org.orbeon.saxon.event.ReceiverOptions}
+     */
 
     public void startElement(int nameCode, int typeCode, int locationId, int properties)
             throws XPathException;
@@ -107,7 +113,8 @@ public interface Receiver extends Result {
      * @param nameCode The name of the attribute, as held in the name pool
      * @param typeCode The type of the attribute, as held in the name pool. The additional bit
      * NodeInfo.IS_DTD_TYPE may be set to indicate a DTD-derived type.
-     * @param locationId an integer which can be interpreted using a {@link LocationProvider} to return
+     * @param value the string value of the attribute
+     * @param locationId an integer which can be interpreted using a {@link org.orbeon.saxon.event.LocationProvider} to return
      * information such as line number and system ID. If no location information is available,
      * the value zero is supplied.
      * @param properties Bit significant value. The following bits are defined:
@@ -140,14 +147,12 @@ public interface Receiver extends Result {
      * Notify character data. Note that some receivers may require the character data to be
      * sent in a single event, but in general this is not a requirement.
      * @param chars The characters
-     * @param locationId an integer which can be interpreted using a {@link LocationProvider} to return
-     * information such as line number and system ID. If no location information is available,
+     * @param locationId an integer which can be interpreted using a {@link org.orbeon.saxon.event.LocationProvider}
+     * to return information such as line number and system ID. If no location information is available,
      * the value zero is supplied.
      * @param properties Bit significant value. The following bits are defined:
      *        <dt>DISABLE_ESCAPING</dt>           <dd>Disable escaping for this text node</dd>
      *        <dt>USE_CDATA</dt>                  <dd>Output as a CDATA section</dd>
-     *        <dt>NO_SPECIAL_CHARACTERS</dt>      <dd>Value contains no special characters</dd>
-     *        <dt>WHITESPACE</dt>                 <dd>Text is all whitespace</dd>
      */
 
     public void characters(CharSequence chars, int locationId, int properties)

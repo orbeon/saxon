@@ -1,29 +1,30 @@
 package org.orbeon.saxon.sort;
 import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.expr.ErrorIterator;
 import org.orbeon.saxon.expr.LastPositionFinder;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.LookaheadIterator;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.trace.Location;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
-
-import java.util.Comparator;
+import org.orbeon.saxon.trans.NoDynamicContextException;
+import org.orbeon.saxon.value.AtomicValue;
 
 /**
 * Class to do a sorted iteration
 */
 
-public class SortedIterator implements SequenceIterator, LastPositionFinder, Sortable {
+public class SortedIterator implements SequenceIterator, LastPositionFinder, LookaheadIterator, Sortable {
 
     // the items to be sorted
     protected SequenceIterator base;
 
-    // the sort key definitions
-    protected SortKeyDefinition[] sortkeys;
+    // the call-back function used to evaluate sort keys
+    protected SortKeyEvaluator sortKeyEvaluator;
 
     // the comparators corresponding to these sort keys
-    protected Comparator[] comparators;
+    protected AtomicComparer[] comparators;
 
     // The items and keys are read into an array (nodeKeys) for sorting. This
     // array contains one "record" representing each node: the "record" contains
@@ -36,32 +37,86 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
     protected int count = -1;
 
     // The next item to be delivered from the sorted iteration
-    protected int index = 0;
+    protected int position = 0;
 
     // The context for the evaluation of sort keys
     protected XPathContext context;
-    //private Comparator[] keyComparers;
 
+    // The host language (XSLT, XQuery, XPath). Used only to decide which error code to use on dynamic errors.
     private int hostLanguage;
 
     private SortedIterator(){}
 
+    /**
+     * Create a sorted iterator
+     * @param context the dynamic XPath evaluation context
+     * @param base an iterator over the sequence to be sorted
+     * @param sortKeyEvaluator an object that allows the n'th sort key for a given item to be evaluated
+     * @param comparators an array of AtomicComparers, one for each sort key, for comparing sort key values
+     */
+
     public SortedIterator(XPathContext context, SequenceIterator base,
-                                SortKeyDefinition[] sortkeys, Comparator[] comparators) {
+                                SortKeyEvaluator sortKeyEvaluator, AtomicComparer[] comparators) {
         this.context = context.newMinorContext();
         this.context.setOriginatingConstructType(Location.SORT_KEY);
         this.context.setCurrentIterator(base);
         this.base = base;
-        this.sortkeys = sortkeys;
-        this.comparators = comparators;
-        recordSize = sortkeys.length + 2;
+        this.sortKeyEvaluator = sortKeyEvaluator;
+        this.comparators = new AtomicComparer[comparators.length];
+        for (int n=0; n<comparators.length; n++) {
+            this.comparators[n] = comparators[n].provideContext(context);
+        }
+        recordSize = comparators.length + 2;
 
         // Avoid doing the sort until the user wants the first item. This is because
         // sometimes the user only wants to know whether the collection is empty.
     }
 
+    /**
+     * Set the host language
+     * @param language the host language (for example {@link Configuration#XQUERY})
+     */
+
     public void setHostLanguage(int language) {
         hostLanguage = language;
+    }
+
+    /**
+     * Determine whether there are more items to come. Note that this operation
+     * is stateless and it is not necessary (or usual) to call it before calling
+     * next(). It is used only when there is an explicit need to tell if we
+     * are at the last element.
+     * <p/>
+     * This method must not be called unless the result of getProperties() on the iterator
+     * includes the bit setting {@link org.orbeon.saxon.om.SequenceIterator#LOOKAHEAD}
+     *
+     * @return true if there are more items in the sequence
+     */
+
+    public boolean hasNext() {
+        if (position < 0) {
+            return false;
+        }
+        if (count < 0) {
+            // haven't started sorting yet
+            if (base instanceof LookaheadIterator) {
+                return ((LookaheadIterator)base).hasNext();
+            } else {
+                try {
+                    doSort();
+                    return count > 0;
+                } catch (XPathException err) {
+                    // can't return the exception now; but we can rely on the fact that
+                    // (a) it wouldn't have failed unless there was something to sort, and
+                    // (b) it's going to fail again when next() is called
+                    count = -1;
+                    base = new ErrorIterator(err);
+                    return true;
+                }
+            }
+        } else {
+            return (position < count);
+        }
     }
 
     /**
@@ -69,29 +124,29 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
     */
 
     public Item next() throws XPathException {
-        if (index < 0) {
+        if (position < 0) {
             return null;
         }
         if (count<0) {
             doSort();
         }
-        if (index < count) {
-            return (Item)nodeKeys[(index++)*recordSize];
+        if (position < count) {
+            return (Item)nodeKeys[(position++)*recordSize];
         } else {
-            index = -1;
+            position = -1;
             return null;
         }
     }
 
     public Item current() {
-        if (index < 1) {
+        if (position < 1) {
             return null;
         }
-        return (Item)nodeKeys[(index-1)*recordSize];
+        return (Item)nodeKeys[(position-1)*recordSize];
     }
 
     public int position() {
-        return index;
+        return position;
     }
 
     public int getLastPosition() throws XPathException {
@@ -99,6 +154,9 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
             doSort();
         }
         return count;
+    }
+
+    public void close() {
     }
 
     public SequenceIterator getAnother() throws XPathException {
@@ -110,7 +168,7 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
         SortedIterator s = new SortedIterator();
         // the new iterator is the same as the old ...
         s.base = base.getAnother();
-        s.sortkeys = sortkeys;
+        s.sortKeyEvaluator = sortKeyEvaluator;
         s.comparators = comparators;
         s.recordSize = recordSize;
         s.nodeKeys = nodeKeys;
@@ -118,7 +176,7 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
         s.context = context;
         //s.keyComparers = keyComparers;
         // ... except for its start position.
-        s.index = 0;
+        s.position = 0;
         return s;
     }
 
@@ -152,8 +210,6 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
         nodeKeys = new Object[allocated * recordSize];
         count = 0;
 
-        XPathContext c2 = context;
-
         // initialise the array with data
 
         while (true) {
@@ -171,12 +227,11 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
             nodeKeys[k] = item;
             // TODO: delay evaluating the sort keys until we know they are needed. Often the 2nd and subsequent
             // sort key values will never be used. The only problem is with sort keys that depend on position().
-            // TODO:BUG?: in XQuery, are we evaluating a sort key with the wrong context item?
-            for (int n=0; n<sortkeys.length; n++) {
-                nodeKeys[k+n+1] = sortkeys[n].getSortKey().evaluateItem(c2);
+            for (int n=0; n<comparators.length; n++) {
+                nodeKeys[k+n+1] = sortKeyEvaluator.evaluateSortKey(n, context);
             }
             // make the sort stable by adding the record number
-            nodeKeys[k+sortkeys.length+1] = new Integer(count);
+            nodeKeys[k+comparators.length+1] = new Integer(count);
             count++;
         }
 
@@ -199,7 +254,8 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
         try {
             GenericSorter.quickSort(0, count, this);
         } catch (ClassCastException e) {
-            DynamicError err = new DynamicError("Non-comparable types found while sorting: " + e.getMessage());
+            //e.printStackTrace();
+            XPathException err = new XPathException("Non-comparable types found while sorting: " + e.getMessage());
             if (hostLanguage == Configuration.XSLT) {
                 err.setErrorCode("XTDE1030");
             } else {
@@ -219,18 +275,23 @@ public class SortedIterator implements SequenceIterator, LastPositionFinder, Sor
     public int compare(int a, int b) {
         int a1 = a*recordSize + 1;
         int b1 = b*recordSize + 1;
-        for (int i=0; i<sortkeys.length; i++) {
-            int comp = comparators[i].compare(nodeKeys[a1+i], nodeKeys[b1+i]);
-            if (comp != 0) {
-                // we have found a difference, so we can return
-                return comp;
+        try {
+            for (int i=0; i<comparators.length; i++) {
+                int comp = comparators[i].compareAtomicValues(
+                        (AtomicValue)nodeKeys[a1+i], (AtomicValue)nodeKeys[b1+i]);
+                if (comp != 0) {
+                    // we have found a difference, so we can return
+                    return comp;
+                }
             }
+        } catch (NoDynamicContextException e) {
+            throw new AssertionError("Sorting without dynamic context: " + e.getMessage());
         }
 
         // all sort keys equal: return the items in their original order
 
-        return ((Integer)nodeKeys[a1+sortkeys.length]).intValue() -
-                ((Integer)nodeKeys[b1+sortkeys.length]).intValue();
+        return ((Integer)nodeKeys[a1+comparators.length]).intValue() -
+                ((Integer)nodeKeys[b1+comparators.length]).intValue();
     }
 
     /**

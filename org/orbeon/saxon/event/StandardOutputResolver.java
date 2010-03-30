@@ -1,6 +1,5 @@
 package org.orbeon.saxon.event;
 import org.orbeon.saxon.OutputURIResolver;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.transform.Result;
@@ -23,7 +22,8 @@ public class StandardOutputResolver implements OutputURIResolver {
     private static StandardOutputResolver theInstance = new StandardOutputResolver();
 
     /**
-    * Get a singular instance
+     * Get a singular instance
+     * @return the singleton instance of the class
     */
 
     public static StandardOutputResolver getInstance() {
@@ -45,9 +45,9 @@ public class StandardOutputResolver implements OutputURIResolver {
 
         try {
             URI absoluteURI;
-            if (href.equals("")) {
+            if (href.length() == 0) {
                 if (base==null) {
-                    throw new DynamicError("The system identifier of the principal output file is unknown");
+                    throw new XPathException("The system identifier of the principal output file is unknown");
                 }
                 absoluteURI= new URI(base);
             } else {
@@ -55,40 +55,20 @@ public class StandardOutputResolver implements OutputURIResolver {
             }
             if (!absoluteURI.isAbsolute()) {
                 if (base==null) {
-                    throw new DynamicError("The system identifier of the principal output file is unknown");
+                    throw new XPathException("The system identifier of the principal output file is unknown");
                 }
                 URI baseURI = new URI(base);
                 absoluteURI = baseURI.resolve(href);
             }
 
             if ("file".equals(absoluteURI.getScheme())) {
-                File newFile = new File(absoluteURI);
-                try {
-        	        if (!newFile.exists()) {
-        	            String parent = newFile.getParent();
-        	            if (parent!=null) {
-            				File parentPath = new File(parent);
-            				if (parentPath != null && !parentPath.exists()) {
-         						parentPath.mkdirs();
-            				}
-        				    newFile.createNewFile();
-        	            }
-        		    }
-
-                    //StreamResult result = new StreamResult(new FileOutputStream(newFile));
-                    StreamResult result = new StreamResult(newFile.toURI().toASCIIString());
-                            // The call new StreamResult(newFile) does file-to-URI conversion incorrectly
-                    //result.setSystemId(newFile);
-                    return result;
-
-                } catch (java.io.IOException err) {
-                    throw new DynamicError("Failed to create output file " + absoluteURI, err);
-                }
+                return makeOutputFile(absoluteURI);
 
             } else {
 
                 // See if the Java VM can conjure up a writable URL connection for us.
-                // This is optimistic: I have yet to discover a URL scheme that it can handle.
+                // This is optimistic: I have yet to discover a URL scheme that it can handle "out of the box".
+                // But it can apparently be achieved using custom-written protocol handlers.
 
                 URLConnection connection = absoluteURI.toURL().openConnection();
                 connection.setDoInput(false);
@@ -100,15 +80,38 @@ public class StandardOutputResolver implements OutputURIResolver {
                 return result;
             }
         } catch (URISyntaxException err) {
-            throw new DynamicError("Invalid syntax for base URI", err);
+            throw new XPathException("Invalid syntax for base URI", err);
         } catch (IllegalArgumentException err2) {
-            throw new DynamicError("Invalid URI syntax", err2);
+            throw new XPathException("Invalid URI syntax", err2);
         } catch (MalformedURLException err3) {
-            throw new DynamicError("Resolved URL is malformed", err3);
+            throw new XPathException("Resolved URL is malformed", err3);
         } catch (UnknownServiceException err5) {
-            throw new DynamicError("Specified protocol does not allow output", err5);
+            throw new XPathException("Specified protocol does not allow output", err5);
         } catch (IOException err4) {
-            throw new DynamicError("Cannot open connection to specified URL", err4);
+            throw new XPathException("Cannot open connection to specified URL", err4);
+        }
+    }
+
+    /**
+     * Create an output file (unless it already exists) and return a reference to it as a Result object
+     * @param absoluteURI the URI of the output file (which should use the "file" scheme
+     * @return a Result object referencing this output file
+     * @throws XPathException
+     */
+
+    public static synchronized Result makeOutputFile(URI absoluteURI) throws XPathException {
+        File newFile = new File(absoluteURI);
+        try {
+            if (!newFile.exists()) {
+                File directory = newFile.getParentFile();
+                if (directory != null && !directory.exists()) {
+                    directory.mkdirs();
+                }
+                newFile.createNewFile();
+            }
+            return new StreamResult(newFile);
+        } catch (IOException err) {
+            throw new XPathException("Failed to create output file " + absoluteURI, err);
         }
     }
 
@@ -128,7 +131,7 @@ public class StandardOutputResolver implements OutputURIResolver {
                 try {
                     stream.close();
                 } catch (java.io.IOException err) {
-                    throw new DynamicError("Failed while closing output file", err);
+                    throw new XPathException("Failed while closing output file", err);
                 }
             }
         }

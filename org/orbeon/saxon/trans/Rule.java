@@ -67,21 +67,37 @@ public final class Rule implements Serializable {
 
     /**
      * Copy a rule, including the chain of rules linked to it
-     *
-     * @param r
+     * @param r the rule to be copied
      */
 
     public Rule(Rule r) {
-        this.pattern = r.pattern;
-        this.action = r.action;
-        this.precedence = r.precedence;
-        this.priority = r.priority;
-        this.sequence = r.sequence;
+        pattern = r.pattern;
+        action = r.action;
+        precedence = r.precedence;
+        priority = r.priority;
+        sequence = r.sequence;
         if (r.next == null) {
-            this.next = null;
+            next = null;
         } else {
-            this.next = new Rule(r.next);
+            next = new Rule(r.next);
         }
     }
 
 }
+//
+// The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");
+// you may not use this file except in compliance with the License. You may obtain a copy of the
+// License at http://www.mozilla.org/MPL/
+//
+// Software distributed under the License is distributed on an "AS IS" basis,
+// WITHOUT WARRANTY OF ANY KIND, either express or implied.
+// See the License for the specific language governing rights and limitations under the License.
+//
+// The Original Code is: all this file.
+//
+// The Initial Developer of the Original Code is Michael H. Kay
+//
+// Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
+//
+// Contributor(s): none.
+//

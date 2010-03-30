@@ -5,7 +5,9 @@ import org.orbeon.saxon.instruct.DocumentInstr;
 import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.event.PipelineConfiguration;
+
+import java.util.Iterator;
+import java.util.Collections;
 
 /**
  * A document node whose construction is deferred.
@@ -14,6 +16,12 @@ import org.orbeon.saxon.event.PipelineConfiguration;
  */
 
 public class UnconstructedDocument extends UnconstructedParent implements DocumentInfo {
+
+    /**
+     * Create an unconstructed (pending) document node
+     * @param instruction the instruction responsible for creating the node
+     * @param context the XPath dynamic context
+     */
 
     public UnconstructedDocument(DocumentInstr instruction, XPathContext context) {
         super(instruction, context);
@@ -101,11 +109,6 @@ public class UnconstructedDocument extends UnconstructedParent implements Docume
         return "";
     }
 
-    public String getBaseURI() {
-        PipelineConfiguration pipe = savedXPathContext.getController().makePipelineConfiguration();
-        return pipe.getLocationProvider().getSystemId(instruction.getLocationId());
-    }
-
     /**
      * Get the root node, if it is a document node.
      *
@@ -134,6 +137,17 @@ public class UnconstructedDocument extends UnconstructedParent implements Docume
         }
         return ((DocumentInfo)node).selectID(id);
     }
+
+    /**
+     * Get the list of unparsed entities defined in this document
+     * @return an Iterator, whose items are of type String, containing the names of all
+     *         unparsed entities defined in this document. If there are no unparsed entities or if the
+     *         information is not available then an empty iterator is returned
+     */
+
+    public Iterator getUnparsedEntityNames() {
+        return Collections.EMPTY_LIST.iterator();
+    }    
 
     /**
      * Get the unparsed entity with a given name

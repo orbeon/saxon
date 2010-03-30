@@ -1,9 +1,9 @@
 package org.orbeon.saxon.tinytree;
 
+import org.orbeon.saxon.event.LocationProvider;
 import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.event.LocationProvider;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.StandardNames;
 
 /**
  * An implementation of the AttributeCollection interface based directly on the
@@ -19,7 +19,7 @@ public class TinyAttributeCollection implements AttributeCollection {
     public TinyAttributeCollection(TinyTree tree, int element) {
         this.tree = tree;
         this.element = element;
-        this.firstAttribute = tree.alpha[element];
+        firstAttribute = tree.alpha[element];
     }
 
     /**
@@ -67,8 +67,8 @@ public class TinyAttributeCollection implements AttributeCollection {
 
     public int getTypeAnnotation(int index) {
         if (tree.attTypeCode == null) {
-            return StandardNames.XDT_UNTYPED_ATOMIC;
-        };
+            return StandardNames.XS_UNTYPED_ATOMIC;
+        }
         return tree.attTypeCode[firstAttribute + index];
     }
 
@@ -187,7 +187,7 @@ public class TinyAttributeCollection implements AttributeCollection {
      *
      * @param uri       The namespace uri of the attribute.
      * @param localname The local name of the attribute.
-     * @return The index position of the attribute
+     * @return The index position of the attribute, or -1 if there is no attribute with this name
      */
 
     public int getIndex(String uri, String localname) {
@@ -197,6 +197,8 @@ public class TinyAttributeCollection implements AttributeCollection {
 
     /**
      * Get the index, given the fingerprint
+     * @param fingerprint the NamePool fingerprint of the required attribute name
+     * @return The index position of the attribute, or -1 if there is no attribute with this name
      */
 
     public int getIndexByFingerprint(int fingerprint) {
@@ -239,7 +241,8 @@ public class TinyAttributeCollection implements AttributeCollection {
      */
 
     public String getValue(int index) {
-        return tree.attValue[firstAttribute + index].toString();
+        CharSequence cs = tree.attValue[firstAttribute + index];
+        return (cs==null ? null : cs.toString());
     }
 
     /**
@@ -260,3 +263,21 @@ public class TinyAttributeCollection implements AttributeCollection {
                 ((getTypeAnnotation(index) & NamePool.FP_MASK) == StandardNames.XS_IDREFS);
     }
 }
+
+//
+// The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");
+// you may not use this file except in compliance with the License. You may obtain a copy of the
+// License at http://www.mozilla.org/MPL/
+//
+// Software distributed under the License is distributed on an "AS IS" basis,
+// WITHOUT WARRANTY OF ANY KIND, either express or implied.
+// See the License for the specific language governing rights and limitations under the License.
+//
+// The Original Code is: all this file.
+//
+// The Initial Developer of the Original Code is Michael H. Kay
+//
+// Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
+//
+// Contributor(s): none.
+//

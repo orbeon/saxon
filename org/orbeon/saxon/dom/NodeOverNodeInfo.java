@@ -13,9 +13,9 @@ import java.util.List;
 
 /**
   * This class implements the DOM Node interface as a wrapper around a Saxon NodeInfo object.
- * <p>
- * The class provides read-only access to the tree; methods that request updates all fail
- * with an UnsupportedOperationException.
+  * <p>
+  * The class provides read-only access to the tree; methods that request updates all fail
+  * with an UnsupportedOperationException.
   */
 
 public abstract class NodeOverNodeInfo implements Node {
@@ -38,7 +38,7 @@ public abstract class NodeOverNodeInfo implements Node {
      */
 
     public static NodeOverNodeInfo wrap(NodeInfo node) {
-        NodeOverNodeInfo n = null;
+        NodeOverNodeInfo n;
         if (node == null) {
             return null;
         }
@@ -62,6 +62,8 @@ public abstract class NodeOverNodeInfo implements Node {
             case Type.NAMESPACE:
                 n = new AttrOverNodeInfo();
                 break;
+            default:
+                return null;
         }
         n.node = node;
         return n;
@@ -75,11 +77,8 @@ public abstract class NodeOverNodeInfo implements Node {
     */
 
     public final boolean isSameNode(Node other) {
-        if (other instanceof NodeOverNodeInfo) {
-            return node.isSameNodeInfo(((NodeOverNodeInfo)other).node);
-        } else {
-            return false;
-        }
+        return other instanceof NodeOverNodeInfo &&
+                node.isSameNodeInfo(((NodeOverNodeInfo)other).node);
     }
 
     /**
@@ -113,7 +112,7 @@ public abstract class NodeOverNodeInfo implements Node {
             case Type.PROCESSING_INSTRUCTION:
                 return node.getLocalPart();
             case Type.NAMESPACE:
-                if (node.getLocalPart().equals("")) {
+                if (node.getLocalPart().length() == 0) {
                     return "xmlns";
                 } else {
                     return "xmlns:" + node.getLocalPart();
@@ -140,7 +139,7 @@ public abstract class NodeOverNodeInfo implements Node {
             case Type.PROCESSING_INSTRUCTION:
                 return null;
             case Type.NAMESPACE:
-                if (node.getLocalPart().equals("")) {
+                if (node.getLocalPart().length() == 0) {
                     return "xmlns";
                 } else {
                     return node.getLocalPart();
@@ -428,7 +427,9 @@ public abstract class NodeOverNodeInfo implements Node {
 
     public boolean isSupported(String feature,
                                String version) {
-        return feature.equalsIgnoreCase("xml");
+    return (feature.equalsIgnoreCase("XML") || feature.equalsIgnoreCase("Core")) &&
+            (version == null || version.length() == 0 ||
+            version.equals("3.0") || version.equals("2.0") || version.equals("1.0"));
     }
 
     /**
@@ -450,8 +451,8 @@ public abstract class NodeOverNodeInfo implements Node {
 
     public String getNamespaceURI() {
         if (node.getNodeKind() == Type.NAMESPACE) {
-            if (node.getLocalPart().equals("")) {
-                return null;
+            if (node.getLocalPart().length() == 0) {
+                return NamespaceConstant.XMLNS;  //TODO: should be NamespaceConstant.XMLNS;
             } else {
                 return NamespaceConstant.XMLNS;
             }
@@ -473,7 +474,7 @@ public abstract class NodeOverNodeInfo implements Node {
 
     public String getPrefix() {
         if (node.getNodeKind() == Type.NAMESPACE) {
-            if (node.getLocalPart().equals("")) {
+            if (node.getLocalPart().length() == 0) {
                 return null;
             } else {
                 return "xmlns";
@@ -514,6 +515,7 @@ public abstract class NodeOverNodeInfo implements Node {
         if (c==0) {
             return (short)0;
         } else if (c==-1) {
+            // TODO: This logic must be wrong: the value of "d" doesn't contribute to the result...
             short d = compareDocumentPosition(other.getParentNode());
             short result = DOCUMENT_POSITION_FOLLOWING;
             if (d==0 || (d&DOCUMENT_POSITION_CONTAINED_BY) != 0) {
@@ -521,7 +523,7 @@ public abstract class NodeOverNodeInfo implements Node {
             }
             return result;
         } else if (c==+1) {
-            short d = ((NodeOverNodeInfo)getParentNode()).compareDocumentPosition(other);
+            short d = getParentNode().compareDocumentPosition(other);
             short result = DOCUMENT_POSITION_PRECEDING;
             if (d==0 || (d&DOCUMENT_POSITION_CONTAINS) != 0) {
                 d |= DOCUMENT_POSITION_CONTAINS;
@@ -550,7 +552,7 @@ public abstract class NodeOverNodeInfo implements Node {
 
     /**
      * Set the text content of a node. Always fails.
-     * @param textContent
+     * @param textContent the new text content of the node
      * @throws org.w3c.dom.DOMException
      */
 
@@ -580,7 +582,7 @@ public abstract class NodeOverNodeInfo implements Node {
                 }
             }
         } else {
-            return ((NodeOverNodeInfo)getParentNode()).lookupPrefix(namespaceURI);
+            return getParentNode().lookupPrefix(namespaceURI);
         }
     }
 
@@ -617,7 +619,7 @@ public abstract class NodeOverNodeInfo implements Node {
                 }
             }
         } else {
-            return ((NodeOverNodeInfo)getParentNode()).lookupNamespaceURI(prefix);
+            return getParentNode().lookupNamespaceURI(prefix);
         }
     }
 
@@ -634,7 +636,8 @@ public abstract class NodeOverNodeInfo implements Node {
         return DeepEqual.deepEquals(
                 SingletonIterator.makeIterator(node),
                 SingletonIterator.makeIterator(((NodeOverNodeInfo)arg).node),
-                new GenericAtomicComparer(CodepointCollator.getInstance(), node.getConfiguration()),
+                new GenericAtomicComparer(CodepointCollator.getInstance(),
+                        node.getConfiguration().getConversionContext()),
                 node.getConfiguration(),
                 DeepEqual.INCLUDE_PREFIXES |
                     DeepEqual.INCLUDE_COMMENTS |
@@ -655,9 +658,9 @@ public abstract class NodeOverNodeInfo implements Node {
 
     /**
      * Set user data. Always throws UnsupportedOperationException in this implementation
-     * @param key
-     * @param data
-     * @param handler
+     * @param key name of the user data
+     * @param data value of the user data
+     * @param handler handler for the user data
      * @return This implementation always throws an exception
      */
 

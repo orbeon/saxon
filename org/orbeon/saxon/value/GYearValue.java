@@ -2,7 +2,7 @@ package org.orbeon.saxon.value;
 
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.FastStringBuffer;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
 
@@ -13,47 +13,58 @@ import java.util.regex.Pattern;
  * Implementation of the xs:gYear data type
  */
 
-public class GYearValue extends DateValue {
+public class GYearValue extends GDateValue {
 
     private static Pattern regex =
             Pattern.compile("(-?[0-9]+)(Z|[+-][0-9][0-9]:[0-9][0-9])?");
 
-    public GYearValue(){};
+    private GYearValue(){}
 
-    public GYearValue(CharSequence value) throws XPathException {
+    public static ConversionResult makeGYearValue(CharSequence value) {
+        GYearValue g = new GYearValue();
         Matcher m = regex.matcher(Whitespace.trimWhitespace(value));
         if (!m.matches()) {
-            throw new DynamicError("Cannot convert '" + value + "' to a gYear");
+            return new ValidationFailure("Cannot convert '" + value + "' to a gYear");
         }
         String base = m.group(1);
         String tz = m.group(2);
         String date = base + "-01-01" + (tz==null ? "" : tz);
-        setLexicalValue(date);
+        g.typeLabel = BuiltInAtomicType.G_YEAR;
+        return setLexicalValue(g, date);
     }
 
     public GYearValue(int year, int tz) {
+        this(year, tz, BuiltInAtomicType.G_YEAR);
+    }
+
+    public GYearValue(int year, int tz, AtomicType type) {
         this.year = year;
         this.month = 1;
         this.day = 1;
         setTimezoneInMinutes(tz);
-    }
-
-    /**
-    * Determine the data type of the expression
-    * @return Type.G_YEAR_TYPE,
-     * @param th
-     */
-
-    public ItemType getItemType(TypeHierarchy th) {
-        return Type.G_YEAR_TYPE;
+        this.typeLabel = type;
     }
 
     /**
      * Make a copy of this date, time, or dateTime value
+     * @param typeLabel
      */
 
-    public CalendarValue copy() {
-        return new GYearValue(year, getTimezoneInMinutes());
+    public AtomicValue copyAsSubType(AtomicType typeLabel) {
+        GYearValue v = new GYearValue(year, getTimezoneInMinutes());
+        v.typeLabel = typeLabel;
+        return v;
+    }
+
+    /**
+     * Determine the primitive type of the value. This delivers the same answer as
+     * getItemType().getPrimitiveItemType(). The primitive types are
+     * the 19 primitive types of XML Schema, plus xs:integer, xs:dayTimeDuration and xs:yearMonthDuration,
+     * and xs:untypedAtomic. For external objects, the result is AnyAtomicType.
+     */
+
+    public BuiltInAtomicType getPrimitiveType() {
+        return BuiltInAtomicType.G_YEAR;
     }
 
     /**
@@ -63,23 +74,21 @@ public class GYearValue extends DateValue {
      * @return an AtomicValue, a value of the required type; or an ErrorValue
     */
 
-    public AtomicValue convertPrimitive(BuiltInAtomicType requiredType, boolean validate, XPathContext context)  {
+    public ConversionResult convertPrimitive(BuiltInAtomicType requiredType, boolean validate, XPathContext context)  {
         switch(requiredType.getPrimitiveType()) {
-        case Type.G_YEAR:
-        case Type.ANY_ATOMIC:
-        case Type.ITEM:
+        case StandardNames.XS_G_YEAR:
+        case StandardNames.XS_ANY_ATOMIC_TYPE:
             return this;
 
-        case Type.STRING:
+        case StandardNames.XS_STRING:
             return new StringValue(getStringValueCS());
-        case Type.UNTYPED_ATOMIC:
+        case StandardNames.XS_UNTYPED_ATOMIC:
             return new UntypedAtomicValue(getStringValueCS());
         default:
-            ValidationException err = new ValidationException("Cannot convert gYear to " +
+            ValidationFailure err = new ValidationFailure("Cannot convert gYear to " +
                                      requiredType.getDisplayName());
             err.setErrorCode("XPTY0004");
-            err.setIsTypeError(true);
-            return new ValidationErrorValue(err);
+            return err;
         }
     }
 
@@ -87,7 +96,7 @@ public class GYearValue extends DateValue {
 
         FastStringBuffer sb = new FastStringBuffer(16);
         int yr = year;
-        if (year < 0) {
+        if (year <= 0) {
             sb.append('-');
             yr = -yr +1;           // no year zero in lexical space
         }
@@ -99,6 +108,35 @@ public class GYearValue extends DateValue {
 
         return sb;
 
+    }
+
+    /**
+     * Add a duration to this date/time value
+     *
+     * @param duration the duration to be added (which might be negative)
+     * @return a new date/time value representing the result of adding the duration. The original
+     *         object is not modified.
+     * @throws org.orbeon.saxon.trans.XPathException
+     *
+     */
+
+    public CalendarValue add(DurationValue duration) throws XPathException {
+        XPathException err = new XPathException("Cannot add a duration to an xs:gYear");
+        err.setErrorCode("XPTY0004");
+        throw err;
+    }
+
+    /**
+     * Return a new date, time, or dateTime with the same normalized value, but
+     * in a different timezone
+     *
+     * @param tz the new timezone, in minutes
+     * @return the date/time in the new timezone
+     */
+
+    public CalendarValue adjustTimezone(int tz) {
+        DateTimeValue dt = (DateTimeValue)toDateTime().adjustTimezone(tz);
+        return new GYearValue(dt.getYear(), dt.getTimezoneInMinutes());
     }
 }
 

@@ -1,30 +1,40 @@
 package org.orbeon.saxon.xqj;
 
-import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.javax.xml.xquery.*;
 import org.orbeon.saxon.query.DynamicQueryContext;
 import org.orbeon.saxon.query.StaticQueryContext;
 import org.orbeon.saxon.query.XQueryExpression;
 import org.orbeon.saxon.trans.XPathException;
 
+import javax.xml.namespace.QName;
+import javax.xml.xquery.XQException;
+import javax.xml.xquery.XQExpression;
+import javax.xml.xquery.XQResultSequence;
+import javax.xml.xquery.XQStaticContext;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 
 /**
-
+ * Saxon implementation of the XQJ XQExpression interface
  */
 public class SaxonXQExpression extends SaxonXQDynamicContext implements XQExpression {
 
-    SaxonXQConnection connection;
+    SaxonXQStaticContext sqc;
     DynamicQueryContext context;
-    Configuration config;
     boolean closed;
 
-    SaxonXQExpression(SaxonXQConnection connection) {
+    SaxonXQExpression(SaxonXQConnection connection) throws XQException {
         this.connection = connection;
-        this.config = connection.getConfiguration();
-        context = new DynamicQueryContext(config);
+        context = new DynamicQueryContext(connection.getConfiguration());
+        sqc = (SaxonXQStaticContext)connection.getStaticContext();
+        setClosableContainer(connection);
+    }
+
+    SaxonXQExpression(SaxonXQConnection connection, SaxonXQStaticContext staticContext) {
+        this.connection = connection;
+        context = new DynamicQueryContext(connection.getConfiguration());
+        sqc = staticContext;
+        setClosableContainer(connection);
     }
 
     protected DynamicQueryContext getDynamicContext() {
@@ -35,27 +45,9 @@ public class SaxonXQExpression extends SaxonXQDynamicContext implements XQExpres
         return connection;
     }
 
-    protected void checkNotClosed() throws XQException {
-        if (connection.isClosed()) {
-            close();
-        }
-        if (isClosed()) {
-            throw new XQException("Expression has been closed");
-        }
-    }
-
     public void cancel() throws XQException {
         checkNotClosed();
         //
-    }
-
-    public void clearWarnings() throws XQException {
-        checkNotClosed();
-        //
-    }
-
-    public void close() {
-        closed = true;
     }
 
     public void executeCommand(Reader command) throws XQException {
@@ -71,69 +63,63 @@ public class SaxonXQExpression extends SaxonXQDynamicContext implements XQExpres
     public XQResultSequence executeQuery(InputStream query) throws XQException {
         checkNotClosed();
         try {
-            StaticQueryContext sqc = new StaticQueryContext(config);
-            XQueryExpression exp = sqc.compileQuery(query, null);
-            SaxonXQPreparedExpression pe = new SaxonXQPreparedExpression(connection, exp, context);
+            StaticQueryContext env = sqc.getSaxonStaticQueryContext();
+            XQueryExpression exp = env.compileQuery(query, null);
+            SaxonXQPreparedExpression pe = new SaxonXQPreparedExpression(connection, exp, sqc, context);
             return pe.executeQuery();
         } catch (XPathException e) {
-            throw new XQException(e.getMessage(), e, null, null);
+            XQException xqe = new XQException(e.getMessage());
+            xqe.initCause(e);
+            throw xqe;
         } catch (IOException e) {
-            throw new XQException(e.getMessage(), e, null, null);
+            XQException xqe = new XQException(e.getMessage());
+            xqe.initCause(e);
+            throw xqe;
         }
     }
 
     public XQResultSequence executeQuery(Reader query) throws XQException {
         checkNotClosed();
         try {
-            StaticQueryContext sqc = new StaticQueryContext(config);
-            XQueryExpression exp = sqc.compileQuery(query);
-            SaxonXQPreparedExpression pe = new SaxonXQPreparedExpression(connection, exp, context);
+            StaticQueryContext env = sqc.getSaxonStaticQueryContext();
+            XQueryExpression exp = env.compileQuery(query);
+            SaxonXQPreparedExpression pe = new SaxonXQPreparedExpression(connection, exp, sqc, context);
             return pe.executeQuery();
         } catch (XPathException e) {
-            throw new XQException(e.getMessage(), e, null, null);
+            XQException xqe = new XQException(e.getMessage());
+            xqe.initCause(e);
+            throw xqe;
         } catch (IOException e) {
-            throw new XQException(e.getMessage(), e, null, null);
+            XQException xqe = new XQException(e.getMessage());
+            xqe.initCause(e);
+            throw xqe;
         }
     }
 
     public XQResultSequence executeQuery(String query) throws XQException {
         checkNotClosed();
         try {
-            StaticQueryContext sqc = new StaticQueryContext(config);
-            XQueryExpression exp = sqc.compileQuery(query);
-            SaxonXQPreparedExpression pe = new SaxonXQPreparedExpression(connection, exp, context);
-            return pe.executeQuery();
+            StaticQueryContext env = sqc.getSaxonStaticQueryContext();
+            XQueryExpression exp = env.compileQuery(query);
+            SaxonXQPreparedExpression pe = new SaxonXQPreparedExpression(connection, exp, sqc, context);
+            XQResultSequence result = pe.executeQuery();
+            ((Closable)result).setClosableContainer(this);
+            return result;
         } catch (XPathException e) {
-            throw new XQException(e.getMessage(), e, null, null);
+            XQException xqe = new XQException(e.getMessage());
+            xqe.initCause(e);
+            throw xqe;
         }
     }
 
-    public int getQueryLanguageTypeAndVersion() throws XQException {
-        return XQConstants.LANGTYPE_XQUERY;
-    }
-
-    public int getQueryTimeout() throws XQException {
+    public XQStaticContext getStaticContext() throws XQException {
         checkNotClosed();
-        return 0;  //To change body of implemented methods use File | Settings | File Templates.
+        return connection.getStaticContext();
     }
 
-    public XQWarning getWarnings() throws XQException {
-        checkNotClosed();
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+    protected boolean externalVariableExists(QName name) {
+        return true;
     }
-
-    public boolean isClosed() {
-        if (connection.isClosed()) {
-            closed = true;
-        }
-        return closed;
-    }
-
-    public void setQueryTimeout(int seconds) throws XQException {
-        checkNotClosed();
-        //To change body of implemented methods use File | Settings | File Templates.
-    }
-
 }
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");

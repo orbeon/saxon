@@ -1,19 +1,20 @@
 package org.orbeon.saxon.event;
 
-import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.om.ExternalObjectModel;
-import org.orbeon.saxon.trans.DynamicError;
-import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.om.NamespaceConstant;
 import org.orbeon.saxon.trans.SaxonErrorCode;
+import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Result;
+import javax.xml.transform.dom.DOMResult;
 import javax.xml.transform.sax.SAXResult;
 import javax.xml.transform.stream.StreamResult;
+import java.io.Serializable;
 import java.util.List;
 import java.util.Properties;
-import java.io.Serializable;
 
 /**
 * Helper class to construct a serialization pipeline for a given result destination
@@ -34,6 +35,10 @@ import java.io.Serializable;
 
 public class SerializerFactory implements Serializable {
 
+    /**
+     * Create a SerializerFactory
+     */
+
     public SerializerFactory() {
     }
 
@@ -42,10 +47,15 @@ public class SerializerFactory implements Serializable {
      * a serialization pipeline. The method can be overridden in a subclass; alternatively, the
      * subclass can override the various methods used to instantiate components of the serialization
      * pipeline.
+     *
+     * <p>Note that this method ignores the {@link org.orbeon.saxon.event.SaxonOutputKeys#WRAP} output property. If
+     * wrapped output is required, the user must create a {@link org.orbeon.saxon.query.SequenceWrapper} directly.</p>
+     *
      * @param result The final destination of the serialized output. Usually a StreamResult,
      * but other kinds of Result are possible.
      * @param pipe The PipelineConfiguration.
      * @param props The serialization properties
+     * @return the newly constructed Receiver that performs the required serialization
     */
 
     public Receiver getReceiver(Result result,
@@ -53,7 +63,9 @@ public class SerializerFactory implements Serializable {
                                 Properties props)
                                     throws XPathException {
         if (result instanceof Emitter) {
-            ((Emitter)result).setOutputProperties(props);
+            if (((Emitter)result).getOutputProperties() == null) {
+                ((Emitter)result).setOutputProperties(props);
+            }
             return (Emitter)result;
         } else if (result instanceof Receiver) {
             Receiver receiver = (Receiver)result;
@@ -69,13 +81,12 @@ public class SerializerFactory implements Serializable {
                 if (pipe.getConfiguration().isCompileWithTracing()) {
                     pipe.getController().addTraceListener(proxy.getTraceListener());
                 } else {
-                    DynamicError de = new DynamicError(
-                            "Cannot use saxon:supply-source-locator unless tracing was enabled at compile time");
+                    XPathException de = new XPathException("Cannot use saxon:supply-source-locator unless tracing was enabled at compile time");
                     de.setErrorCode(SaxonErrorCode.SXSE0002);
                     throw de;
                 }
             }
-            proxy.open();
+            //proxy.open();
             return proxy;
         } else if (result instanceof StreamResult) {
 
@@ -100,7 +111,7 @@ public class SerializerFactory implements Serializable {
             if (useMaps != null) {
                 Controller controller = (pipe == null ? null : pipe.getController());
                 if (controller == null) {
-                    DynamicError de = new DynamicError("Cannot use character maps in an environment with no Controller");
+                    XPathException de = new XPathException("Cannot use character maps in an environment with no Controller");
                     de.setErrorCode(SaxonErrorCode.SXSE0001);
                     throw de;
                 }
@@ -122,38 +133,30 @@ public class SerializerFactory implements Serializable {
             } else if ("xml".equals(method)) {
                 emitter = newXMLEmitter();
                 emitter.setPipelineConfiguration(pipe);
-                target = createXMLSerializer(emitter, props, pipe, normalizer, characterMapExpander);
+                target = createXMLSerializer(emitter, props, pipe, characterMapExpander, normalizer);
 
             } else if ("xhtml".equals(method)) {
                 emitter = newXHTMLEmitter();
                 emitter.setPipelineConfiguration(pipe);
-                target = createXHTMLSerializer(emitter, props, pipe, normalizer, characterMapExpander);
+                target = createXHTMLSerializer(emitter, props, pipe, characterMapExpander, normalizer);
 
             } else if ("text".equals(method)) {
                 emitter = newTEXTEmitter();
                 emitter.setPipelineConfiguration(pipe);
-                target = createTextSerializer(emitter, characterMapExpander, normalizer);
+                target = createTextSerializer(emitter, props, pipe, characterMapExpander, normalizer);
 
+            } else if (SaxonOutputKeys.SAXON_XQUERY_METHOD.equals(method)) {
+                emitter = new XQueryEmitter();
+                emitter.setPipelineConfiguration(pipe);
+                props.setProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+                target = createXMLSerializer(emitter, props, pipe, characterMapExpander, normalizer);
+                
             } else {
                 Receiver userReceiver;
                 if (pipe == null) {
-                    throw new DynamicError("Unsupported serialization method " + method);
+                    throw new XPathException("Unsupported serialization method " + method);
                 } else {
-                    // See if this output method is recognized by the Configuration
-                    userReceiver = pipe.getConfiguration().makeEmitter(method, pipe.getController());
-                    userReceiver.setPipelineConfiguration(pipe);
-                    if (userReceiver instanceof ContentHandlerProxy &&
-                            "yes".equals(props.getProperty(SaxonOutputKeys.SUPPLY_SOURCE_LOCATOR))) {
-                        if (pipe.getConfiguration().isCompileWithTracing()) {
-                            pipe.getController().addTraceListener(
-                                    ((ContentHandlerProxy)userReceiver).getTraceListener());
-                        } else {
-                            DynamicError de = new DynamicError(
-                                    "Cannot use saxon:supply-source-locator unless tracing was enabled at compile time");
-                            de.setErrorCode(SaxonErrorCode.SXSE0002);
-                            throw de;
-                        }
-                    }
+                    userReceiver = createUserDefinedOutputMethod(method, props, pipe);
                     target = userReceiver;
                     if (userReceiver instanceof Emitter) {
                         emitter = (Emitter)userReceiver;
@@ -181,10 +184,27 @@ public class SerializerFactory implements Serializable {
                     }
                 }
             }
+
+            if (result instanceof DOMResult) {
+                throw new UnsupportedOperationException(
+                        "Saxon cannot write a DOMResult unless saxon9-dom.jar is on the classpath");
+            }
         }
 
         throw new IllegalArgumentException("Unknown type of result: " + result.getClass());
     }
+
+    /**
+     * Create a serialization pipeline to implement the HTML output method. This method is protected
+     * so that it can be customized in a user-written SerializerFactory
+     * @param emitter the emitter at the end of the pipeline (created using the method {@link #newHTMLEmitter}
+     * @param props the serialization properties
+     * @param pipe the pipeline configuration information
+     * @param characterMapExpander the filter to be used for expanding character maps defined in the stylesheet
+     * @param normalizer the filter used for Unicode normalization
+     * @return a Receiver acting as the entry point to the serialization pipeline
+     * @throws XPathException if a failure occurs
+     */
 
     protected Receiver createHTMLSerializer(
             Emitter emitter, Properties props, PipelineConfiguration pipe,
@@ -195,12 +215,6 @@ public class SerializerFactory implements Serializable {
             ProxyReceiver in = newHTMLIndenter(pipe, props);
             in.setUnderlyingReceiver(target);
             target=in;
-        }
-        // TODO: under spec bug 3441, meta tags are now added earlier in the pipeline (XHTML also)
-        if (!"no".equals(props.getProperty(SaxonOutputKeys.INCLUDE_CONTENT_TYPE))) {
-            ProxyReceiver mta = newHTMLMetaTagAdjuster(pipe, props);
-            mta.setUnderlyingReceiver(target);
-            target=mta;
         }
         if (normalizer != null) {
             normalizer.setUnderlyingReceiver(target);
@@ -215,11 +229,29 @@ public class SerializerFactory implements Serializable {
             escaper.setUnderlyingReceiver(target);
             target = escaper;
         }
+        if (!"no".equals(props.getProperty(SaxonOutputKeys.INCLUDE_CONTENT_TYPE))) {
+            ProxyReceiver mta = newHTMLMetaTagAdjuster(pipe, props);
+            mta.setUnderlyingReceiver(target);
+            target=mta;
+        }
         return target;
     }
 
+    /**
+     * Create a serialization pipeline to implement the text output method. This method is protected
+     * so that it can be customized in a user-written SerializerFactory
+     * @param emitter the emitter at the end of the pipeline (created using the method {@link #newTEXTEmitter}
+     * @param props the serialization properties
+     * @param pipe the pipeline configuration information
+     * @param characterMapExpander the filter to be used for expanding character maps defined in the stylesheet
+     * @param normalizer the filter used for Unicode normalization
+     * @return a Receiver acting as the entry point to the serialization pipeline
+     * @throws XPathException if a failure occurs
+     */
+
     protected Receiver createTextSerializer(
-            Emitter emitter, CharacterMapExpander characterMapExpander, ProxyReceiver normalizer) {
+            Emitter emitter, Properties props, PipelineConfiguration pipe,
+            CharacterMapExpander characterMapExpander, ProxyReceiver normalizer) throws XPathException {
         Receiver target;
         target = emitter;
         if (characterMapExpander != null) {
@@ -234,19 +266,29 @@ public class SerializerFactory implements Serializable {
         return target;
     }
 
+    /**
+     * Create a serialization pipeline to implement the XHTML output method. This method is protected
+     * so that it can be customized in a user-written SerializerFactory
+     * @param emitter the emitter at the end of the pipeline (created using the method {@link #newXHTMLEmitter}
+     * @param props the serialization properties
+     * @param pipe the pipeline configuration information
+     * @param characterMapExpander the filter to be used for expanding character maps defined in the stylesheet
+     * @param normalizer the filter used for Unicode normalization
+     * @return a Receiver acting as the entry point to the serialization pipeline
+     * @throws XPathException if a failure occurs
+     */
+
     protected Receiver createXHTMLSerializer(
-            Emitter emitter, Properties props, PipelineConfiguration pipe, ProxyReceiver normalizer, CharacterMapExpander characterMapExpander) throws XPathException {
+            Emitter emitter, Properties props, PipelineConfiguration pipe,
+            CharacterMapExpander characterMapExpander, ProxyReceiver normalizer) throws XPathException {
+        // Ensure that the XHTML namespace is registered in the NamePool. Without this, the meta-tag insertion can fail
+        pipe.getConfiguration().getNamePool().allocateCodeForURI(NamespaceConstant.XHTML);
         Receiver target;
         target = emitter;
         if (!"no".equals(props.getProperty(OutputKeys.INDENT))) {
             ProxyReceiver in = newXHTMLIndenter(pipe, props);
             in.setUnderlyingReceiver(target);
             target=in;
-        }
-        if (!"no".equals(props.getProperty(SaxonOutputKeys.INCLUDE_CONTENT_TYPE))) {
-            ProxyReceiver mta = newXHTMLMetaTagAdjuster(pipe, props);
-            mta.setUnderlyingReceiver(target);
-            target=mta;
         }
         if (normalizer != null) {
             normalizer.setUnderlyingReceiver(target);
@@ -268,11 +310,29 @@ public class SerializerFactory implements Serializable {
             escaper.setUnderlyingReceiver(target);
             target = escaper;
         }
+        if (!"no".equals(props.getProperty(SaxonOutputKeys.INCLUDE_CONTENT_TYPE))) {
+            ProxyReceiver mta = newXHTMLMetaTagAdjuster(pipe, props);
+            mta.setUnderlyingReceiver(target);
+            target=mta;
+        }
         return target;
     }
 
+   /**
+     * Create a serialization pipeline to implement the XML output method. This method is protected
+     * so that it can be customized in a user-written SerializerFactory
+     * @param emitter the emitter at the end of the pipeline (created using the method {@link #newXHTMLEmitter}
+     * @param props the serialization properties
+     * @param pipe the pipeline configuration information
+     * @param characterMapExpander the filter to be used for expanding character maps defined in the stylesheet
+     * @param normalizer the filter used for Unicode normalization
+     * @return a Receiver acting as the entry point to the serialization pipeline
+     * @throws XPathException if a failure occurs
+     */
+
     protected Receiver createXMLSerializer(
-            Emitter emitter, Properties props, PipelineConfiguration pipe, ProxyReceiver normalizer, CharacterMapExpander characterMapExpander) throws XPathException {
+            Emitter emitter, Properties props, PipelineConfiguration pipe,
+            CharacterMapExpander characterMapExpander, ProxyReceiver normalizer) throws XPathException {
         Receiver target;
         target = emitter;
         if ("1.0".equals(props.getProperty(OutputKeys.VERSION)) &&
@@ -305,8 +365,40 @@ public class SerializerFactory implements Serializable {
         return target;
     }
 
+   /**
+     * Create a serialization pipeline to implement a user-defined output method. This method is protected
+     * so that it can be customized in a user-written SerializerFactory
+     * @param method the name of the user-defined output method, as a QName in Clark format
+     * (that is "{uri}local").
+     * @param props the serialization properties
+     * @param pipe the pipeline configuration information
+     * @return a Receiver acting as the entry point to the serialization pipeline
+     * @throws XPathException if a failure occurs
+     */
+
+    protected Receiver createUserDefinedOutputMethod(String method, Properties props, PipelineConfiguration pipe) throws XPathException {
+        Receiver userReceiver;// See if this output method is recognized by the Configuration
+        userReceiver = pipe.getConfiguration().makeEmitter(method, pipe.getController());
+        userReceiver.setPipelineConfiguration(pipe);
+        if (userReceiver instanceof ContentHandlerProxy &&
+                "yes".equals(props.getProperty(SaxonOutputKeys.SUPPLY_SOURCE_LOCATOR))) {
+            if (pipe.getConfiguration().isCompileWithTracing()) {
+                pipe.getController().addTraceListener(
+                        ((ContentHandlerProxy)userReceiver).getTraceListener());
+            } else {
+                XPathException de = new XPathException(
+                        "Cannot use saxon:supply-source-locator unless tracing was enabled at compile time");
+                de.setErrorCode(SaxonErrorCode.SXSE0002);
+                throw de;
+            }
+        }
+        return userReceiver;
+    }
+
+
     /**
-     * Create a ContentHandlerProxy
+     * Create a ContentHandlerProxy. This method exists so that it can be overridden in a subclass.
+     * @return the newly created ContentHandlerProxy.
      */
 
     protected ContentHandlerProxy newContentHandlerProxy() {
@@ -314,7 +406,10 @@ public class SerializerFactory implements Serializable {
     }
 
     /**
-     * Create an UncommittedSerializer
+     * Create an UncommittedSerializer. This method exists so that it can be overridden in a subclass.
+     * @param result the result destination
+     * @param properties the serialization properties
+     * @return the newly created UncommittedSerializer.
      */
 
     protected UncommittedSerializer newUncommittedSerializer(Result result, Properties properties) {
@@ -322,7 +417,8 @@ public class SerializerFactory implements Serializable {
     }
 
     /**
-     * Create a new XML Emitter
+     * Create a new XML Emitter. This method exists so that it can be overridden in a subclass.
+     * @return the newly created XML emitter.
      */
 
     protected Emitter newXMLEmitter() {
@@ -330,7 +426,8 @@ public class SerializerFactory implements Serializable {
     }
 
     /**
-     * Create a new HTML Emitter
+     * Create a new HTML Emitter. This method exists so that it can be overridden in a subclass.
+     * @return the newly created HTML emitter.
      */
 
     protected Emitter newHTMLEmitter() {
@@ -338,7 +435,8 @@ public class SerializerFactory implements Serializable {
     }
 
     /**
-     * Create a new XHTML Emitter
+     * Create a new XHTML Emitter. This method exists so that it can be overridden in a subclass.
+     * @return the newly created XHTML emitter.
      */
 
     protected Emitter newXHTMLEmitter() {
@@ -346,7 +444,8 @@ public class SerializerFactory implements Serializable {
     }
 
     /**
-     * Create a new Text Emitter
+     * Create a new Text Emitter. This method exists so that it can be overridden in a subclass.
+     * @return the newly created text emitter.
      */
 
     protected Emitter newTEXTEmitter() {
@@ -355,7 +454,10 @@ public class SerializerFactory implements Serializable {
 
 
     /**
-     * Create a new XML Indenter
+     * Create a new XML Indenter. This method exists so that it can be overridden in a subclass.
+     * @param pipe the pipeline configuration
+     * @param outputProperties the serialization parameters
+     * @return the newly created XML indenter.
      */
 
     protected ProxyReceiver newXMLIndenter(PipelineConfiguration pipe, Properties outputProperties) {
@@ -366,7 +468,10 @@ public class SerializerFactory implements Serializable {
     }
 
     /**
-     * Create a new HTML Indenter
+     * Create a new HTML Indenter. This method exists so that it can be overridden in a subclass.
+     * @param pipe the pipeline configuration
+     * @param outputProperties the serialization parameters
+     * @return the newly created HTML indenter.
      */
 
     protected ProxyReceiver newHTMLIndenter(PipelineConfiguration pipe, Properties outputProperties) {
@@ -377,7 +482,10 @@ public class SerializerFactory implements Serializable {
     }
 
     /**
-     * Create a new XHTML Indenter
+     * Create a new XHTML Indenter. This method exists so that it can be overridden in a subclass.
+     * @param pipe the pipeline configuration
+     * @param outputProperties the serialization parameters
+     * @return the newly created XHTML indenter.
      */
 
     protected ProxyReceiver newXHTMLIndenter(PipelineConfiguration pipe, Properties outputProperties) {
@@ -388,7 +496,11 @@ public class SerializerFactory implements Serializable {
     }
 
     /**
-     * Create a new XHTML MetaTagAdjuster, responsible for insertion, removal, or replacement of meta elements
+     * Create a new XHTML MetaTagAdjuster, responsible for insertion, removal, or replacement of meta
+     * elements. This method exists so that it can be overridden in a subclass.
+     * @param pipe the pipeline configuration
+     * @param outputProperties the serialization parameters
+     * @return the newly created XHTML MetaTagAdjuster.
      */
 
     protected MetaTagAdjuster newXHTMLMetaTagAdjuster(PipelineConfiguration pipe, Properties outputProperties) {
@@ -400,7 +512,11 @@ public class SerializerFactory implements Serializable {
     }
 
     /**
-     * Create a new XHTML MetaTagAdjuster, responsible for insertion, removal, or replacement of meta elements
+     * Create a new XHTML MetaTagAdjuster, responsible for insertion, removal, or replacement of meta
+     * elements. This method exists so that it can be overridden in a subclass.
+     * @param pipe the pipeline configuration
+     * @param outputProperties the serialization parameters
+     * @return the newly created HTML MetaTagAdjuster.
      */
 
     protected MetaTagAdjuster newHTMLMetaTagAdjuster(PipelineConfiguration pipe, Properties outputProperties) {
@@ -412,7 +528,11 @@ public class SerializerFactory implements Serializable {
     }
 
     /**
-     * Create a new HTML URI Escaper, responsible for percent-encoding of URIs in HTML output documents
+     * Create a new HTML URI Escaper, responsible for percent-encoding of URIs in
+     * HTML output documents. This method exists so that it can be overridden in a subclass.
+     * @param pipe the pipeline configuration
+     * @param outputProperties the serialization parameters
+     * @return the newly created HTML URI escaper.
      */
 
     protected ProxyReceiver newHTMLURIEscaper(PipelineConfiguration pipe, Properties outputProperties) {
@@ -422,7 +542,11 @@ public class SerializerFactory implements Serializable {
     }
 
     /**
-     * Create a new CDATA Filter, responsible for insertion of CDATA sections where required
+     * Create a new CDATA Filter, responsible for insertion of CDATA sections where required.
+     * This method exists so that it can be overridden in a subclass.
+     * @param pipe the pipeline configuration
+     * @param outputProperties the serialization parameters
+     * @return the newly created CDATA filter.
      */
 
     protected ProxyReceiver newCDATAFilter(PipelineConfiguration pipe, Properties outputProperties) throws XPathException {
@@ -435,7 +559,10 @@ public class SerializerFactory implements Serializable {
     /**
      * Create a new XML 1.0 content checker, responsible for checking that the output conforms to
      * XML 1.0 rules (this is used only if the Configuration supports XML 1.1 but the specific output
-     * file requires XML 1.0)
+     * file requires XML 1.0). This method exists so that it can be overridden in a subclass.
+     * @param pipe the pipeline configuration
+     * @param outputProperties the serialization parameters
+     * @return the newly created XML 1.0 content checker.
      */
 
     protected ProxyReceiver newXML10ContentChecker(PipelineConfiguration pipe, Properties outputProperties) {
@@ -445,7 +572,10 @@ public class SerializerFactory implements Serializable {
     }
 
     /**
-     * Create a Unicode Normalizer
+     * Create a Unicode Normalizer. This method exists so that it can be overridden in a subclass.
+     * @param pipe the pipeline configuration
+     * @param outputProperties the serialization parameters
+     * @return the newly created Unicode normalizer.
      */
 
     protected ProxyReceiver newUnicodeNormalizer(PipelineConfiguration pipe, Properties outputProperties) throws XPathException {
@@ -456,12 +586,12 @@ public class SerializerFactory implements Serializable {
     }
 
     /**
-     * Create a new CharacterMapExpander
+     * Create a new CharacterMapExpander. This method exists so that it can be overridden in a subclass.
+     * @return the newly created CharacterMapExpander.
      */
 
     public CharacterMapExpander newCharacterMapExpander() {
-        CharacterMapExpander r = new CharacterMapExpander();
-        return r;
+        return new CharacterMapExpander();
     }
 
 }

@@ -1,14 +1,13 @@
 package org.orbeon.saxon.om;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.value.Whitespace;
-import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.event.Stripper;
 import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.pattern.NodeTest;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.value.Whitespace;
 
 
 /**
@@ -60,11 +59,15 @@ public class StrippedNode implements NodeInfo, VirtualNode {
     }
 
     /**
-    * Get the underlying DOM node, to implement the VirtualNode interface
+    * Get the underlying node, to implement the VirtualNode interface
     */
 
     public Object getUnderlyingNode() {
-        return node;
+        Object n = node;
+        while (n instanceof VirtualNode) {
+            n = ((VirtualNode)n).getUnderlyingNode();
+        }
+        return n;
     }
 
     /**
@@ -153,12 +156,8 @@ public class StrippedNode implements NodeInfo, VirtualNode {
       */
 
      public boolean equals(Object other) {
-        if (other instanceof NodeInfo) {
-            return isSameNodeInfo((NodeInfo)other);
-        } else {
-            return false;
-        }
-    }
+       return other instanceof NodeInfo && isSameNodeInfo((NodeInfo)other);
+   }
 
      /**
       * The hashCode() method obeys the contract for hashCode(): that is, if two objects are equal
@@ -204,6 +203,15 @@ public class StrippedNode implements NodeInfo, VirtualNode {
 
     public int getLineNumber() {
         return node.getLineNumber();
+    }
+
+   /**
+     * Get column number
+     * @return the column number of the node in its original source document; or -1 if not available
+     */
+
+    public int getColumnNumber() {
+        return node.getColumnNumber();
     }
 
     /**
@@ -450,18 +458,6 @@ public class StrippedNode implements NodeInfo, VirtualNode {
     }
 
     /**
-    * Output all namespace nodes associated with this element. Does nothing if
-    * the node is not an element.
-    * @param out The relevant outputter
-     * @param includeAncestors True if namespaces declared on ancestor elements must
-     */
-
-    public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors)
-    throws XPathException {
-        node.sendNamespaceDeclarations(out, includeAncestors);
-    }
-
-    /**
      * Get all namespace undeclarations and undeclarations defined on this element.
      *
      * @param buffer If this is non-null, and the result array fits in this buffer, then the result
@@ -481,6 +477,37 @@ public class StrippedNode implements NodeInfo, VirtualNode {
         return node.getDeclaredNamespaces(buffer);
     }
 
+
+    /**
+     * Determine whether this node has the is-id property
+     *
+     * @return true if the node is an ID
+     */
+
+    public boolean isId() {
+        return false;
+    }
+
+    /**
+     * Determine whether this node has the is-idref property
+     *
+     * @return true if the node is an IDREF or IDREFS element or attribute
+     */
+
+    public boolean isIdref() {
+        return false;
+    }
+
+    /**
+     * Determine whether the node has the is-nilled property
+     *
+     * @return true if the node has the is-nilled property
+     */
+
+    public boolean isNilled() {
+        return false;
+    }
+
     /**
      * A WrappingIterator delivers wrappers for the nodes delivered
      * by its underlying iterator. It is used when no whitespace stripping
@@ -489,11 +516,11 @@ public class StrippedNode implements NodeInfo, VirtualNode {
      * rather than switching to the real nodes.
      */
 
-    private final class WrappingIterator implements AxisIterator, AtomizableIterator {
+    private final class WrappingIterator implements AxisIterator {
 
         AxisIterator base;
         StrippedNode parent;
-        Item current;
+        NodeInfo current;
         boolean atomizing = false;
 
         /**
@@ -508,12 +535,24 @@ public class StrippedNode implements NodeInfo, VirtualNode {
             this.parent = parent;
         }
 
+        /**
+         * Move to the next node, without returning it. Returns true if there is
+         * a next node, false if the end of the sequence has been reached. After
+         * calling this method, the current node may be retrieved using the
+         * current() function.
+         */
+
+        public boolean moveNext() {
+            return (next() != null);
+        }
+
+
         public Item next() {
             Item n = base.next();
             if (n instanceof NodeInfo && !atomizing) {
                 current = makeWrapper((NodeInfo)n, docWrapper, parent);
             } else {
-                current = n;
+                current = (NodeInfo)n;
             }
             return current;
         }
@@ -526,6 +565,45 @@ public class StrippedNode implements NodeInfo, VirtualNode {
             return base.position();
         }
 
+        public void close() {
+            base.close();
+        }
+
+        /**
+         * Return an iterator over an axis, starting at the current node.
+         *
+         * @param axis the axis to iterate over, using a constant such as
+         *             {@link Axis#CHILD}
+         * @param test a predicate to apply to the nodes before returning them.
+         * @throws NullPointerException if there is no current node
+         */
+
+        public AxisIterator iterateAxis(byte axis, NodeTest test) {
+            return current.iterateAxis(axis, test);
+        }
+
+        /**
+         * Return the atomized value of the current node.
+         *
+         * @return the atomized value.
+         * @throws NullPointerException if there is no current node
+         */
+
+        public Value atomize() throws XPathException {
+            return current.atomize();
+        }
+
+        /**
+         * Return the string value of the current node.
+         *
+         * @return the string value, as an instance of CharSequence.
+         * @throws NullPointerException if there is no current node
+         */
+
+        public CharSequence getStringValue() {
+            return current.getStringValueCS();
+        }
+
         public SequenceIterator getAnother() {
             return new WrappingIterator((AxisIterator)base.getAnother(), parent);
         }
@@ -534,14 +612,14 @@ public class StrippedNode implements NodeInfo, VirtualNode {
          * Get properties of this iterator, as a bit-significant integer.
          *
          * @return the properties of this iterator. This will be some combination of
-         *         properties such as {@link GROUNDED}, {@link LAST_POSITION_FINDER},
-         *         and {@link LOOKAHEAD}. It is always
+         *         properties such as {@link #GROUNDED}, {@link #LAST_POSITION_FINDER},
+         *         and {@link #LOOKAHEAD}. It is always
          *         acceptable to return the value zero, indicating that there are no known special properties.
          *         It is acceptable for the properties of the iterator to change depending on its state.
          */
 
         public int getProperties() {
-            return ATOMIZABLE;
+            return 0;
         }
 
         /**
@@ -554,12 +632,12 @@ public class StrippedNode implements NodeInfo, VirtualNode {
          * value of the nodes instead of the nodes themselves.
          */
 
-        public void setIsAtomizing(boolean atomizing) {
-            this.atomizing = true;
-            if (base instanceof AtomizableIterator) {
-                ((AtomizableIterator)base).setIsAtomizing(atomizing);
-            }
-        }
+//        public void setIsAtomizing(boolean atomizing) {
+//            this.atomizing = true;
+//            if (base instanceof AtomizableIterator) {
+//                ((AtomizableIterator)base).setIsAtomizing(atomizing);
+//            }
+//        }
 
     }  // end of class WrappingIterator
 
@@ -590,6 +668,18 @@ public class StrippedNode implements NodeInfo, VirtualNode {
             this.parent = parent;
             position = 0;
         }
+
+        /**
+         * Move to the next node, without returning it. Returns true if there is
+         * a next node, false if the end of the sequence has been reached. After
+         * calling this method, the current node may be retrieved using the
+         * current() function.
+         */
+
+        public boolean moveNext() {
+            return (next() != null);
+        }
+
 
         public Item next() {
             NodeInfo nextRealNode;
@@ -654,6 +744,45 @@ public class StrippedNode implements NodeInfo, VirtualNode {
             return position;
         }
 
+        public void close() {
+            base.close();
+        }
+
+        /**
+         * Return an iterator over an axis, starting at the current node.
+         *
+         * @param axis the axis to iterate over, using a constant such as
+         *             {@link Axis#CHILD}
+         * @param test a predicate to apply to the nodes before returning them.
+         * @throws NullPointerException if there is no current node
+         */
+
+        public AxisIterator iterateAxis(byte axis, NodeTest test) {
+            return currentVirtualNode.iterateAxis(axis, test);
+        }
+
+        /**
+         * Return the atomized value of the current node.
+         *
+         * @return the atomized value.
+         * @throws NullPointerException if there is no current node
+         */
+
+        public Value atomize() throws XPathException {
+            return currentVirtualNode.atomize();
+        }
+
+        /**
+         * Return the string value of the current node.
+         *
+         * @return the string value, as an instance of CharSequence.
+         * @throws NullPointerException if there is no current node
+         */
+
+        public CharSequence getStringValue() {
+            return currentVirtualNode.getStringValue();
+        }
+
         public SequenceIterator getAnother() {
             return new StrippingIterator((AxisIterator)base.getAnother(), parent);
         }
@@ -662,8 +791,8 @@ public class StrippedNode implements NodeInfo, VirtualNode {
          * Get properties of this iterator, as a bit-significant integer.
          *
          * @return the properties of this iterator. This will be some combination of
-         *         properties such as {@link GROUNDED}, {@link LAST_POSITION_FINDER},
-         *         and {@link LOOKAHEAD}. It is always
+         *         properties such as {@link #GROUNDED}, {@link #LAST_POSITION_FINDER},
+         *         and {@link #LOOKAHEAD}. It is always
          *         acceptable to return the value zero, indicating that there are no known special properties.
          *         It is acceptable for the properties of the iterator to change depending on its state.
          */
@@ -673,8 +802,6 @@ public class StrippedNode implements NodeInfo, VirtualNode {
         }
 
     }  // end of class StrippingIterator
-
-
 
 }
 

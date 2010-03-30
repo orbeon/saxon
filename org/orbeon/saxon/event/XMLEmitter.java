@@ -1,31 +1,29 @@
 package org.orbeon.saxon.event;
 import org.orbeon.saxon.charcode.UnicodeCharacterSet;
-import org.orbeon.saxon.om.XMLChar;
+import org.orbeon.saxon.charcode.UTF16;
 import org.orbeon.saxon.om.FastStringBuffer;
-import org.orbeon.saxon.trans.DynamicError;
-import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.sort.IntHashMap;
 import org.orbeon.saxon.tinytree.CharSlice;
 import org.orbeon.saxon.tinytree.CompressedWhitespace;
+
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.Whitespace;
-import org.orbeon.saxon.sort.IntHashMap;
 
 import javax.xml.transform.OutputKeys;
-import javax.xml.transform.TransformerException;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.Templates;
-import javax.xml.transform.stream.StreamResult;
-import javax.xml.transform.stream.StreamSource;
+import java.util.Properties;
 import java.util.Stack;
-import java.io.CharArrayWriter;
-import java.io.File;
 
 /**
   * XMLEmitter is an Emitter that generates XML output
   * to a specified destination.
   */
 
-public class XMLEmitter extends Emitter
-{
+public class XMLEmitter extends Emitter {
+
+    // NOTE: we experimented with XMLUTF8Emitter which combines XML escaping and UTF8 encoding
+    // into a single loop. Scrapped it because we couldn't measure any benefits - but there
+    // ought to be, in theory. Perhaps we weren't buffering the writes carefully enough.
+    
     protected boolean empty = true;
     protected boolean openStartTag = false;
     protected boolean declarationIsWritten = false;
@@ -33,7 +31,7 @@ public class XMLEmitter extends Emitter
 
     protected boolean preferHex = false;
     protected boolean undeclareNamespaces = false;
-    private boolean warningIssued = false;
+    //private boolean warningIssued = false;
 
     // The element stack holds the display names (lexical QNames) of elements that
     // have been started but not finished. It is used to obtain the element name
@@ -64,8 +62,7 @@ public class XMLEmitter extends Emitter
         specialInText = new boolean[128];
         for (int i=0; i<=31; i++) specialInText[i] = true;  // allowed in XML 1.1 as character references
         for (int i=32; i<=127; i++) specialInText[i] = false;
-        specialInText[(char)0] = true;
-            // used to switch escaping on and off for mapped characters
+        //    note, 0 is used to switch escaping on and off for mapped characters
         specialInText['\n'] = false;
         specialInText['\t'] = false;
         specialInText['\r'] = true;
@@ -125,13 +122,17 @@ public class XMLEmitter extends Emitter
         if (characterSet==null) {
             characterSet = UnicodeCharacterSet.getInstance();
         }
+        if (outputProperties==null) {
+            outputProperties = new Properties();
+        }
         String rep = outputProperties.getProperty(SaxonOutputKeys.CHARACTER_REPRESENTATION);
-        if (rep!=null) {
-        	preferHex = (rep.trim().equalsIgnoreCase("hex"));
+        rep = Whitespace.trim(rep);
+        if (rep != null) {
+        	preferHex = (rep.equalsIgnoreCase("hex"));
         }
         rep = outputProperties.getProperty(SaxonOutputKeys.UNDECLARE_PREFIXES);
         if (rep!=null) {
-        	undeclareNamespaces = (rep.trim().equalsIgnoreCase("yes"));
+        	undeclareNamespaces = (rep.equalsIgnoreCase("yes"));
         }
         writeDeclaration();
     }
@@ -148,15 +149,22 @@ public class XMLEmitter extends Emitter
             String s = outputProperties.getProperty(SaxonOutputKeys.INDENT_SPACES);
             if (s!=null) {
                 try {
-                    indentSpaces = Integer.parseInt(s.trim());
-                } catch (NumberFormatException err) {}
+                    indentSpaces = Integer.parseInt(Whitespace.trim(s));
+                } catch (NumberFormatException err) {
+                    indentSpaces = 3;
+                }
             }
 
             String byteOrderMark = outputProperties.getProperty(SaxonOutputKeys.BYTE_ORDER_MARK);
+            String encoding = outputProperties.getProperty(OutputKeys.ENCODING);
+            if (encoding==null || encoding.equalsIgnoreCase("utf8")) {
+                encoding = "UTF-8";
+            }
 
-            if ("yes".equals(byteOrderMark) &&
-                    "UTF-8".equalsIgnoreCase(outputProperties.getProperty(OutputKeys.ENCODING))) {
-                // For UTF-16, Java outputs a BOM whether we like it or not
+            if ("yes".equals(byteOrderMark) && (
+                    "UTF-8".equalsIgnoreCase(encoding) ||
+                    "UTF-16LE".equalsIgnoreCase(encoding) ||
+                    "UTF-16BE".equalsIgnoreCase(encoding))) {
                 writer.write('\uFEFF');
             }
 
@@ -170,29 +178,22 @@ public class XMLEmitter extends Emitter
                 version = getConfiguration().getNameChecker().getXMLVersion();
             } else {
                 if (!version.equals("1.0") && !version.equals("1.1")) {
-                    DynamicError err = new DynamicError("XML version must be 1.0 or 1.1");
+                    XPathException err = new XPathException("XML version must be 1.0 or 1.1");
                     err.setErrorCode("SESU0006");
                     throw err;
                 }
                 if (!version.equals("1.0") && omitXMLDeclaration.equals("yes") &&
                         outputProperties.getProperty(OutputKeys.DOCTYPE_SYSTEM) != null) {
-                    DynamicError err = new DynamicError(
-                            "Values of 'version', 'omit-xml-declaration', and 'doctype-system' conflict");
+                    XPathException err = new XPathException("Values of 'version', 'omit-xml-declaration', and 'doctype-system' conflict");
                     err.setErrorCode("SEPM0009");
                     throw err;
                 }
             }
 
             if (version.equals("1.0") && undeclareNamespaces) {
-                DynamicError err = new DynamicError(
-                            "Cannot undeclare namespaces with XML version 1.0");
+                XPathException err = new XPathException("Cannot undeclare namespaces with XML version 1.0");
                 err.setErrorCode("SEPM0010");
                 throw err;
-            }
-
-            String encoding = outputProperties.getProperty(OutputKeys.ENCODING);
-            if (encoding==null || encoding.equalsIgnoreCase("utf8")) {
-                encoding = "UTF-8";
             }
 
             String standalone = outputProperties.getProperty(OutputKeys.STANDALONE);
@@ -203,7 +204,7 @@ public class XMLEmitter extends Emitter
             if (standalone != null) {
                 requireWellFormed = true;
                 if (omitXMLDeclaration.equals("yes")) {
-                    DynamicError err = new DynamicError("Values of 'standalone' and 'omit-xml-declaration' conflict");
+                    XPathException err = new XPathException("Values of 'standalone' and 'omit-xml-declaration' conflict");
                     err.setErrorCode("SEPM0009");
                     throw err;
                 }
@@ -212,17 +213,20 @@ public class XMLEmitter extends Emitter
             if (omitXMLDeclaration.equals("no")) {
                 writer.write("<?xml version=\"" + version + "\" " + "encoding=\"" + encoding + '\"' +
                         (standalone != null ? " standalone=\"" + standalone + '\"' : "") + "?>");
-                    // no longer write a newline character: it's wrong if the output is an
+                    // don't write a newline character: it's wrong if the output is an
                     // external general parsed entity
             }
         } catch (java.io.IOException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
     /**
     * Output the document type declaration
-    */
+     * @param type The element name
+     * @param systemId The DOCTYP system identifier
+     * @param publicId The DOCTYPE public identifier
+     */
 
     protected void writeDocType(String type, String systemId, String publicId) throws XPathException {
         try {
@@ -239,7 +243,7 @@ public class XMLEmitter extends Emitter
                 writer.write("  PUBLIC \"" + publicId + "\" \"" + systemId + "\">\n");
             }
         } catch (java.io.IOException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
@@ -257,7 +261,7 @@ public class XMLEmitter extends Emitter
                 writer.flush();
             }
         } catch (java.io.IOException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
@@ -270,16 +274,15 @@ public class XMLEmitter extends Emitter
         if (empty) {
             openDocument();
         } else if (requireWellFormed && elementStack.isEmpty()) {
-            DynamicError err = new DynamicError(
-                    "When 'standalone' or 'doctype-system' is specified, the document must be well-formed; " +
+            XPathException err = new XPathException("When 'standalone' or 'doctype-system' is specified, the document must be well-formed; " +
                     "but this document contains more than one top-level element");
             err.setErrorCode("SEPM0004");
             throw err;
         }
-        String displayName = null;
+        String displayName;
 
         // See if we've seen this name before
-        displayName = (String)nameLookup.get(nameCode);
+        displayName = getCachedName(nameCode);
 
         // Otherwise, look it up in the namepool and check that it's encodable
         if (displayName == null) {
@@ -287,13 +290,13 @@ public class XMLEmitter extends Emitter
             if (!allCharactersEncodable) {
                 int badchar = testCharacters(displayName);
                 if (badchar!=0) {
-                    DynamicError err = new DynamicError("Element name contains a character (decimal + " +
-                                                    badchar + ") not available in the selected encoding");
+                    XPathException err = new XPathException("Element name contains a character (decimal + " +
+                            badchar + ") not available in the selected encoding");
                     err.setErrorCode("SERE0008");
                     throw err;
                 }
             }
-            nameLookup.put(nameCode, displayName);
+            putCachedName(nameCode, displayName);
         }
 
         elementStack.push(displayName);
@@ -318,7 +321,7 @@ public class XMLEmitter extends Emitter
             totalAttributeLength = 0;
 
         } catch (java.io.IOException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
@@ -334,35 +337,35 @@ public class XMLEmitter extends Emitter
             }
             totalAttributeLength += len;
 
-            if (nsprefix.equals("")) {
+            if (nsprefix.length() == 0) {
                 writer.write(sep);
                 writeAttribute(elementCode, "xmlns", nsuri, 0);
             } else if (nsprefix.equals("xml")) {
-                return;
+                //return;
             } else {
                 int badchar = testCharacters(nsprefix);
                 if (badchar!=0) {
-                    DynamicError err = new DynamicError("Namespace prefix contains a character (decimal + " +
-                                                    badchar + ") not available in the selected encoding");
+                    XPathException err = new XPathException("Namespace prefix contains a character (decimal + " +
+                            badchar + ") not available in the selected encoding");
                     err.setErrorCode("SERE0008");
                     throw err;
                 }
-                if (undeclareNamespaces || !nsuri.equals("")) {
+                if (undeclareNamespaces || nsuri.length() != 0) {
                     writer.write(sep);
                     writeAttribute(elementCode, "xmlns:" + nsprefix, nsuri, 0);
                 }
             }
         } catch (java.io.IOException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
     public void attribute(int nameCode, int typeCode, CharSequence value, int locationId, int properties)
     throws XPathException {
-        String displayName = null;
+        String displayName;
 
         // See if we've seen this name before
-        displayName = (String)nameLookup.get(nameCode);
+        displayName = getCachedName(nameCode);
 
         // Otherwise, look it up in the namepool and check that it's encodable
         if (displayName == null) {
@@ -370,13 +373,13 @@ public class XMLEmitter extends Emitter
             if (!allCharactersEncodable) {
                 int badchar = testCharacters(displayName);
                 if (badchar!=0) {
-                    DynamicError err = new DynamicError("Attribute name contains a character (decimal + " +
-                                                    badchar + ") not available in the selected encoding");
+                    XPathException err = new XPathException("Attribute name contains a character (decimal + " +
+                            badchar + ") not available in the selected encoding");
                     err.setErrorCode("SERE0008");
                     throw err;
                 }
             }
-            nameLookup.put(nameCode, displayName);
+            putCachedName(nameCode, displayName);
         }
 
         final int len = displayName.length() + value.length() + 4;
@@ -395,7 +398,7 @@ public class XMLEmitter extends Emitter
                 properties );
 
         } catch (java.io.IOException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
@@ -411,6 +414,11 @@ public class XMLEmitter extends Emitter
         // don't add ">" to the start tag until we know whether the element has content
     }
 
+    /**
+     * Mark the end of the start tag
+     * @throws XPathException if an IO exception occurs
+     */
+
     public void closeStartTag() throws XPathException {
         try {
             if (openStartTag) {
@@ -418,12 +426,15 @@ public class XMLEmitter extends Emitter
                 openStartTag = false;
             }
         } catch (java.io.IOException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
     /**
     * Close an empty element tag. (This is overridden in XHTMLEmitter).
+     * @param displayName the name of the empty element
+     * @param nameCode the fingerprint of the name of the empty element
+     * @return the string used to close an empty element tag.
     */
 
     protected String emptyElementTagCloser(String displayName, int nameCode) {
@@ -451,9 +462,9 @@ public class XMLEmitter extends Emitter
                 writer.write('"');
             } else if ((properties & ReceiverOptions.USE_NULL_MARKERS) != 0) {
                 // null (0) characters will be used before and after any section of
-                // the value where escaping is to be disabled
+                // the value generated from a character map
                 writer.write('=');
-                char delimiter = (val.indexOf('"') >= 0 ? '\'' : '"');
+                char delimiter = (val.indexOf('"') >= 0 && val.indexOf('\'') < 0 ? '\'' : '"');
                 writer.write(delimiter);
                 writeEscape(value, true);
                 writer.write(delimiter);
@@ -463,13 +474,14 @@ public class XMLEmitter extends Emitter
                 writer.write('\"');
             }
         } catch (java.io.IOException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
 
     /**
-    * Test that all characters in a name are supported in the target encoding.
+    * Test that all characters in a name (for example) are supported in the target encoding.
+     * @param chars the characters to be tested
      * @return zero if all the characters are available, or the value of the
      * first offending character if not
     */
@@ -478,8 +490,8 @@ public class XMLEmitter extends Emitter
         for (int i=0; i<chars.length(); i++) {
             char c = chars.charAt(i);
             if (c > 127) {
-                if (XMLChar.isHighSurrogate(c)) {
-                    int cc = XMLChar.supplemental(c, chars.charAt(++i));
+                if (UTF16.isHighSurrogate(c)) {
+                    int cc = UTF16.combinePair(c, chars.charAt(++i));
                     if (!characterSet.inCharset(cc)) {
                         return cc;
                     }
@@ -508,7 +520,7 @@ public class XMLEmitter extends Emitter
                 writer.write('>');
             }
         } catch (java.io.IOException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
@@ -522,9 +534,8 @@ public class XMLEmitter extends Emitter
             openDocument();
             if (!Whitespace.isWhite(chars)) {
                 if (requireWellFormed || outputProperties.getProperty(OutputKeys.DOCTYPE_SYSTEM)!=null) {
-                    DynamicError err = new DynamicError(
-                        "When 'standalone' or 'doctype-system' is specified, the document must be well-formed; " +
-                        "but this document contains a top-level text node");
+                    XPathException err = new XPathException("When 'standalone' or 'doctype-system' is specified, the document must be well-formed; " +
+                            "but this document contains a top-level text node");
                     err.setErrorCode("SEPM0004");
                     throw err;
                 }
@@ -532,8 +543,7 @@ public class XMLEmitter extends Emitter
         }
 
         if (requireWellFormed && elementStack.isEmpty() && !Whitespace.isWhite(chars)) {
-            DynamicError err = new DynamicError(
-                    "When 'standalone' or 'doctype-system' is specified, the document must be well-formed; " +
+            XPathException err = new XPathException("When 'standalone' or 'doctype-system' is specified, the document must be well-formed; " +
                     "but this document contains a top-level text node");
             err.setErrorCode("SEPM0004");
             throw err;
@@ -552,6 +562,8 @@ public class XMLEmitter extends Emitter
                 // disable-output-escaping="yes"
                 if (testCharacters(chars) == 0) {
                     if ((properties & ReceiverOptions.USE_NULL_MARKERS) == 0) {
+                        // null (0) characters will be used before and after any section of
+                        // the value generated from a character map
                         writeCharSequence(chars);
                     } else {
                         // Need to strip out any null markers. See test output-html109
@@ -564,28 +576,44 @@ public class XMLEmitter extends Emitter
                         }
                     }
                 } else {
-                    // Recoverable error: using disable output escaping with characters
+                    // Using disable output escaping with characters
                     // that are not available in the target encoding
-                    if (!warningIssued) {
-                        try {
-                            getPipelineConfiguration().getErrorListener().warning(
-                                new TransformerException("disable-output-escaping is ignored for characters " +
-                                                         "not available in the chosen encoding"));
-                        } catch (TransformerException e) {
-                            throw DynamicError.makeDynamicError(e);
+                    // The required action is to ignore d-o-e in respect of those characters that are
+                    // not available in the encoding. This is slow...
+                    final int len = chars.length();
+                    for (int i=0; i<len; i++) {
+                        char c = chars.charAt(i);
+                        if (c != 0) {
+                            if (c > 127 && UTF16.isHighSurrogate(c)) {
+                                char[] pair = new char[2];
+                                pair[0] = c;
+                                pair[1] = chars.charAt(++i);
+                                int cc = UTF16.combinePair(c, pair[1]);
+                                if (!characterSet.inCharset(cc)) {
+                                    writeEscape(new CharSlice(pair), false);
+                                } else {
+                                    writeCharSequence(new CharSlice(pair));
+                                }
+                            } else {
+                                char[] ca = {c};
+                                if (!characterSet.inCharset(c)) {
+                                    writeEscape(new CharSlice(ca), false);
+                                } else {
+                                    writeCharSequence(new CharSlice(ca));
+                                }
+                            }
                         }
-                        warningIssued = true;
                     }
-                    writeEscape(chars, false);
                 }
             }
         } catch (java.io.IOException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
     /**
-     * Write a CharSequence: various implementations
+     * Write a CharSequence (without any escaping of special characters): various implementations
+     * @param s the character sequence to be written
      */
 
     public void writeCharSequence(CharSequence s) throws java.io.IOException {
@@ -614,14 +642,14 @@ public class XMLEmitter extends Emitter
         }
         int x = testCharacters(target);
         if (x != 0) {
-            DynamicError err = new DynamicError("Character in processing instruction name cannot be represented " +
+            XPathException err = new XPathException("Character in processing instruction name cannot be represented " +
                     "in the selected encoding (code " + x + ')');
             err.setErrorCode("SERE0008");
             throw err;
         }
         x = testCharacters(data);
         if (x != 0) {
-            DynamicError err = new DynamicError("Character in processing instruction data cannot be represented " +
+            XPathException err = new XPathException("Character in processing instruction data cannot be represented " +
                     "in the selected encoding (code " + x + ')');
             err.setErrorCode("SERE0008");
             throw err;
@@ -632,7 +660,7 @@ public class XMLEmitter extends Emitter
             }
             writer.write("<?" + target + (data.length()>0 ? ' ' + data.toString() : "") + "?>");
         } catch (java.io.IOException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
@@ -655,11 +683,11 @@ public class XMLEmitter extends Emitter
             return;
         }
 
-        while (segstart < chars.length()) {
+        final int clength = chars.length();
+        while (segstart < clength) {
             int i = segstart;
-
             // find a maximal sequence of "ordinary" characters
-            while (i < chars.length()) {
+            while (i < clength) {
                 final char c = chars.charAt(i);
                 if (c < 127) {
                     if (specialChars[c]) {
@@ -671,7 +699,7 @@ public class XMLEmitter extends Emitter
                     break;
                 } else if (c == 0x2028) {
                     break;
-                } else if (XMLChar.isHighSurrogate(c)) {
+                } else if (UTF16.isHighSurrogate(c)) {
                     break;
                 } else if (!characterSet.inCharset(c)) {
                     break;
@@ -681,7 +709,7 @@ public class XMLEmitter extends Emitter
             }
 
             // if this was the whole string write it out and exit
-            if (i >= chars.length()) {
+            if (i >= clength) {
                 if (segstart == 0) {
                     writeCharSequence(chars);
                 } else {
@@ -701,6 +729,22 @@ public class XMLEmitter extends Emitter
                 // used to switch escaping on and off
                 disabled = !disabled;
             } else if (disabled) {
+                if (c > 127) {
+                    if (UTF16.isHighSurrogate(c)) {
+                        int cc = UTF16.combinePair(c, chars.charAt(i+1));
+                        if (!characterSet.inCharset(cc)) {
+                            XPathException de = new XPathException("Character x" + Integer.toHexString(cc) +
+                                    " is not available in the chosen encoding");
+                            de.setErrorCode("SERE0008");
+                            throw de;
+                        }
+                    } else if (!characterSet.inCharset(c)) {
+                        XPathException de = new XPathException("Character " + c + " (x" + Integer.toHexString((int)c) +
+                                ") is not available in the chosen encoding");
+                        de.setErrorCode("SERE0008");
+                        throw de;
+                    }
+                }
                 writer.write(c);
             } else if (c>=127 && c<160) {
                 // XML 1.1 requires these characters to be written as character references
@@ -708,9 +752,9 @@ public class XMLEmitter extends Emitter
             } else if (c>=160) {
                 if (c==0x2028) {
                     outputCharacterReference(c);
-                } else if (XMLChar.isHighSurrogate(c)) {
+                } else if (UTF16.isHighSurrogate(c)) {
                     char d = chars.charAt(++i);
-                    int charval = XMLChar.supplemental(c, d);
+                    int charval = UTF16.combinePair(c, d);
                     if (characterSet.inCharset(charval)) {
                         writer.write(c);
                         writer.write(d);
@@ -792,7 +836,7 @@ public class XMLEmitter extends Emitter
         }
         int x = testCharacters(chars);
         if (x != 0) {
-            DynamicError err = new DynamicError("Character in comment cannot be represented " +
+            XPathException err = new XPathException("Character in comment cannot be represented " +
                     "in the selected encoding (code " + x + ')');
             err.setErrorCode("SERE0008");
             throw err;
@@ -805,26 +849,29 @@ public class XMLEmitter extends Emitter
             writer.write(chars.toString());
             writer.write("-->");
         } catch (java.io.IOException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
-    public static void main(String[] params) throws Exception {
-        StreamResult iStreamResult = new StreamResult(new CharArrayWriter());
-        XMLEmitter iResult = new XMLEmitter();
-        iResult.setStreamResult(iStreamResult);
+    /**
+     * Get a name from the local name cache
+     * @param nameCode the integer name code
+     * @return a lexical QName if the name is in the cache; otherwise, null
+     */
 
-        StreamSource iSource = new StreamSource(new File("c:\\temp\\test.xml"));
-
-        System.setProperty("javax.xml.transform.TransformerFactory",
-        "org.orbeon.saxon.TransformerFactoryImpl");
-        TransformerFactory iTfactory = TransformerFactory.newInstance();
-        Templates iTemplates = iTfactory.newTemplates(
-                new StreamSource(new File("c:\\temp\\test.xsl")));
-        iTemplates.newTransformer().transform(iSource, iResult);
-
+    protected String getCachedName(int nameCode) {
+        return (String)nameLookup.get(nameCode);
     }
 
+    /**
+     * Add a name to the local name cache
+     * @param nameCode the integer name code
+     * @param displayName the corresponding lexical QName
+     */
+
+    protected void putCachedName(int nameCode, String displayName) {
+        nameLookup.put(nameCode, displayName);
+    }
 
 }
 

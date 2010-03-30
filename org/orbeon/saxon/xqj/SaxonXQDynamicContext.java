@@ -1,112 +1,168 @@
 package org.orbeon.saxon.xqj;
 
-import org.orbeon.saxon.javax.xml.xquery.*;
-import org.orbeon.saxon.om.DocumentInfo;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.om.ValueRepresentation;
 import org.orbeon.saxon.query.DynamicQueryContext;
-import org.orbeon.saxon.query.StaticQueryContext;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.value.BooleanValue;
-import org.orbeon.saxon.value.DoubleValue;
-import org.orbeon.saxon.value.FloatValue;
+import org.orbeon.saxon.type.AtomicType;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.value.*;
 import org.w3c.dom.Node;
-import org.xml.sax.InputSource;
+import org.xml.sax.XMLReader;
 
 import javax.xml.namespace.QName;
-import javax.xml.transform.sax.SAXSource;
+import javax.xml.stream.XMLStreamReader;
+import javax.xml.transform.Source;
+import javax.xml.xquery.*;
+import java.io.InputStream;
+import java.io.Reader;
+import java.util.GregorianCalendar;
 import java.util.TimeZone;
 
 /**
- * Created by IntelliJ IDEA.
- * User: Mike
- * Date: 15-May-2006
- * Time: 13:54:02
- * To change this template use File | Settings | File Templates.
+ * Saxon implementation of the XQJ DynamicContext interface
  */
-public abstract class SaxonXQDynamicContext implements XQDynamicContext {
+
+public abstract class SaxonXQDynamicContext extends Closable implements XQDynamicContext {
+
+    protected SaxonXQConnection connection;
 
     protected abstract DynamicQueryContext getDynamicContext();
 
-    protected abstract void checkNotClosed() throws XQException;
+    protected final Configuration getConfiguration() {
+        return connection.getConfiguration();
+    }
 
-    protected abstract SaxonXQDataFactory getDataFactory() throws XQException ;
+    protected abstract SaxonXQDataFactory getDataFactory() throws XQException;
 
+    protected abstract boolean externalVariableExists(QName name);
+
+    private TimeZone implicitTimeZone = null;
 
     public void bindAtomicValue(QName varname, String value, XQItemType type) throws XQException {
         checkNotClosed();
+        checkNotNull(varname);
         SaxonXQItem item = (SaxonXQItem) getDataFactory().createItemFromAtomicValue(value, type);
-        bindExternalVariable(varname, item.getItem());
+        bindExternalVariable(varname, item.getSaxonItem());
     }
 
     public void bindBoolean(QName varname, boolean value, XQItemType type) throws XQException {
         checkNotClosed();
-        bindExternalVariable(varname, BooleanValue.get(value));
+        checkNotNull(varname);
+        BooleanValue target = BooleanValue.get(value);
+        checkAtomic(type, target);
+        bindExternalVariable(varname, target);
     }
 
     public void bindByte(QName varname, byte value, XQItemType type) throws XQException {
         checkNotClosed();
+        checkNotNull(varname);
         SaxonXQItem item = (SaxonXQItem) getDataFactory().createItemFromByte(value, type);
-        bindExternalVariable(varname, item.getItem());
+        AtomicValue target = (AtomicValue)item.getSaxonItem();
+        checkAtomic(type, target);
+        bindExternalVariable(varname, target);
     }
 
-    public void bindContextItem(XQItem contextitem) throws XQException {
+    public void bindDocument(QName varname, InputStream value, String baseURI, XQItemType type) throws XQException {
         checkNotClosed();
-        getDynamicContext().setContextItem(((SaxonXQItem) contextitem).getItem());
+        checkNotNull(varname);
+        SaxonXQItem item = (SaxonXQItem)connection.createItemFromDocument(value, baseURI, type);
+        bindExternalVariable(varname, item.getSaxonItem());
     }
 
-    public void bindDocument(QName varname, InputSource source) throws XQException {
+    public void bindDocument(QName varname, Reader value, String baseURI, XQItemType type) throws XQException {
         checkNotClosed();
-        try {
-            SAXSource ss = new SAXSource(source);
-            DocumentInfo doc = new StaticQueryContext(getDynamicContext().getConfiguration()).buildDocument(ss);
-            getDynamicContext().setParameterValue(getClarkName(varname), doc);
-        } catch (XPathException de) {
-            throw new XQException(de.getMessage(), de, null, null);
-        }
+        checkNotNull(varname);
+        SaxonXQItem item = (SaxonXQItem)connection.createItemFromDocument(value, baseURI, type);
+        bindExternalVariable(varname, item.getSaxonItem());
+    }
+
+    public void bindDocument(QName varname, Source value, XQItemType type) throws XQException {
+        checkNotClosed();
+        checkNotNull(varname);
+        SaxonXQItem item = (SaxonXQItem)connection.createItemFromDocument(value, type);
+        bindExternalVariable(varname, item.getSaxonItem());
+    }
+
+    public void bindDocument(QName varname, String value, String baseURI, XQItemType type) throws XQException {
+        checkNotClosed();
+        checkNotNull(varname);
+        SaxonXQItem item = (SaxonXQItem)connection.createItemFromDocument(value, baseURI, type);
+        bindExternalVariable(varname, item.getSaxonItem());
+    }
+
+    public void bindDocument(QName varname, XMLReader value, XQItemType type) throws XQException {
+        checkNotClosed();
+        checkNotNull(varname);
+        SaxonXQItem item = (SaxonXQItem)connection.createItemFromDocument(value, type);
+        bindExternalVariable(varname, item.getSaxonItem());
+    }
+
+    public void bindDocument(QName varname, XMLStreamReader value, XQItemType type) throws XQException {
+        checkNotClosed();
+        checkNotNull(varname);
+        SaxonXQItem item = (SaxonXQItem)connection.createItemFromDocument(value, type);
+        bindExternalVariable(varname, item.getSaxonItem());
     }
 
     public void bindDouble(QName varname, double value, XQItemType type) throws XQException {
         checkNotClosed();
-        getDynamicContext().setParameterValue(getClarkName(varname), new DoubleValue(value));
+        checkNotNull(varname);
+        AtomicValue target = new DoubleValue(value);
+        checkAtomic(type, target);
+        bindExternalVariable(varname, target);
     }
 
     public void bindFloat(QName varname, float value, XQItemType type) throws XQException {
         checkNotClosed();
-        getDynamicContext().setParameterValue(getClarkName(varname), new FloatValue(value));
+        checkNotNull(varname);
+        AtomicValue target = new FloatValue(value);
+        checkAtomic(type, target);
+        bindExternalVariable(varname, target);
     }
 
     public void bindInt(QName varname, int value, XQItemType type) throws XQException {
         checkNotClosed();
+        checkNotNull(varname);
         SaxonXQItem item = (SaxonXQItem) getDataFactory().createItemFromInt(value, type);
-        bindExternalVariable(varname, item.getItem());
+        AtomicValue target = (AtomicValue)item.getSaxonItem();
+        checkAtomic(type, target);
+        bindExternalVariable(varname, target);
     }
 
     public void bindItem(QName varname, XQItem value) throws XQException {
         checkNotClosed();
-        bindExternalVariable(varname, ((SaxonXQItem) value).getItem());
+        checkNotNull(varname);
+        bindExternalVariable(varname, ((SaxonXQItem) value).getSaxonItem());
     }
 
     public void bindLong(QName varname, long value, XQItemType type) throws XQException {
         checkNotClosed();
+        checkNotNull(varname);
         SaxonXQItem item = (SaxonXQItem) getDataFactory().createItemFromLong(value, type);
-        bindExternalVariable(varname, item.getItem());
+        AtomicValue target = (AtomicValue)item.getSaxonItem();
+        checkAtomic(type, target);
+        bindExternalVariable(varname, target);
     }
 
     public void bindNode(QName varname, Node value, XQItemType type) throws XQException {
         checkNotClosed();
+        checkNotNull(varname);
         SaxonXQItem item = (SaxonXQItem) getDataFactory().createItemFromNode(value, type);
-        bindExternalVariable(varname, item.getItem());
+        bindExternalVariable(varname, item.getSaxonItem());
     }
 
     public void bindObject(QName varname, Object value, XQItemType type) throws XQException {
         checkNotClosed();
+        checkNotNull(varname);
         SaxonXQItem item = (SaxonXQItem) getDataFactory().createItemFromObject(value, type);
-        bindExternalVariable(varname, item.getItem());
+        bindExternalVariable(varname, item.getSaxonItem());
 
     }
 
     public void bindSequence(QName varname, XQSequence value) throws XQException {
         checkNotClosed();
+        checkNotNull(varname);
         try {
             if (value instanceof SaxonXQForwardSequence) {
                 getDynamicContext().setParameter(getClarkName(varname),
@@ -117,37 +173,94 @@ public abstract class SaxonXQDynamicContext implements XQDynamicContext {
                 throw new XQException("XQSequence value is not a Saxon sequence");
             }
         } catch (XPathException de) {
-            throw new XQException(de.getMessage(), de, null, null);
+            XQException err = new XQException(de.getMessage());
+            err.initCause(de);
+            throw err;
         }
     }
 
     public void bindShort(QName varname, short value, XQItemType type) throws XQException {
         checkNotClosed();
+        checkNotNull(varname);
         SaxonXQItem item = (SaxonXQItem) getDataFactory().createItemFromShort(value, type);
-        bindExternalVariable(varname, item.getItem());
-
+        AtomicValue target = (AtomicValue)item.getSaxonItem();
+        checkAtomic(type, target);
+        bindExternalVariable(varname, target);
     }
+
+    public void bindString(QName varname, String value, XQItemType type) throws XQException {
+        checkNotClosed();
+        checkNotNull(varname);
+        SaxonXQItem item = (SaxonXQItem) getDataFactory().createItemFromString(value, type);
+        AtomicValue target = (AtomicValue)item.getSaxonItem();
+        checkAtomic(type, target);
+        bindExternalVariable(varname, target);
+    }    
 
     public TimeZone getImplicitTimeZone() throws XQException {
         checkNotClosed();
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        if (implicitTimeZone != null) {
+            return implicitTimeZone;
+        } else {
+            return new GregorianCalendar().getTimeZone(); 
+        }
     }
 
     public void setImplicitTimeZone(TimeZone implicitTimeZone) throws XQException {
         checkNotClosed();
-        //To change body of implemented methods use File | Settings | File Templates.
+        GregorianCalendar now = new GregorianCalendar(implicitTimeZone);
+        try {
+            getDynamicContext().setCurrentDateTime(new DateTimeValue(now, true));
+        } catch (XPathException e) {
+            throw new XQException(e.getMessage());
+        }
+        this.implicitTimeZone = implicitTimeZone;
     }
 
 
-    private void bindExternalVariable(QName varName, ValueRepresentation value) {
-        getDynamicContext().setParameterValue(getClarkName(varName), value);
+    private void bindExternalVariable(QName varName, ValueRepresentation value) throws XQException {
+        checkNotNull(varName);
+        checkNotNull(value);
+        try {
+            if (varName.equals(XQConstants.CONTEXT_ITEM)) {
+                getDynamicContext().setContextItem(Value.asItem(value));
+            } else {
+                if (!externalVariableExists(varName)) {
+                    throw new XQException("No external variable named " + varName + " exists in the query");
+                }
+                getDynamicContext().setParameterValue(getClarkName(varName), value);
+            }
+        } catch (XPathException e) {
+            XQException err = new XQException(e.getMessage());
+            err.initCause(e);
+            throw err;
+        }
+    }
 
+    private void checkAtomic(XQItemType type, AtomicValue value) throws XQException {
+        if (type == null) {
+            return;
+        }
+        ItemType itemType = ((SaxonXQItemType)type).getSaxonItemType();
+        if (!itemType.isAtomicType()) {
+            throw new XQException("Target type is not atomic");
+        }
+        AtomicType at = (AtomicType)itemType;
+        if (!at.matchesItem(value, true, getConfiguration())) {
+            throw new XQException("value is invalid for specified type");
+        }
     }
 
 
-    private String getClarkName(QName qname) {
+    private static String getClarkName(QName qname) {
         String uri = qname.getNamespaceURI();
         return "{" + (uri == null ? "" : uri) + "}" + qname.getLocalPart();
+    }
+
+    private static void checkNotNull(Object arg) throws XQException {
+        if (arg == null) {
+            throw new XQException("Argument is null");
+        }
     }
 
 }

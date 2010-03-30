@@ -1,17 +1,14 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.trace.InstructionInfo;
 import org.orbeon.saxon.instruct.*;
-import org.orbeon.saxon.om.AxisIterator;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.SingletonIterator;
-import org.orbeon.saxon.om.ValueRepresentation;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.regex.RegexIterator;
 import org.orbeon.saxon.sort.GroupIterator;
-import org.orbeon.saxon.trace.InstructionInfoProvider;
 import org.orbeon.saxon.trans.Mode;
-import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.trans.Rule;
+import org.orbeon.saxon.trans.XPathException;
 
 import java.util.Arrays;
 
@@ -23,17 +20,22 @@ import java.util.Arrays;
 
 public class XPathContextMajor extends XPathContextMinor {
 
-    private ParameterSet localParameters = null;
-    private XSLTContext xsltContext = null;
-    private UserFunction tailCallFunction = null;
+    private ParameterSet localParameters;
+    private ParameterSet tunnelParameters;
+    private UserFunction tailCallFunction;
+    private Mode currentMode;
+    private Rule currentTemplate;
+    private GroupIterator currentGroupIterator;
+    private RegexIterator currentRegexIterator;
 
     /**
-    * Constructor should only be called by the Controller,
-    * which acts as a XPathContext factory.
-    */
+     * Constructor should only be called by the Controller,
+     * which acts as a XPathContext factory.
+     * @param controller the Controller
+     */
 
-    public XPathContextMajor(Controller c) {
-        controller = c;
+    public XPathContextMajor(Controller controller) {
+        this.controller = controller;
         stackFrame = StackFrame.EMPTY;
         origin = controller;
     }
@@ -47,16 +49,41 @@ public class XPathContextMajor extends XPathContextMinor {
 
     /**
     * Constructor for use in free-standing Java applications.
+     * @param item the item to use as the initial context item. If this is null,
+     * the comtext item is initially undefined (which will cause a dynamic error
+     * if it is referenced).
+     * @param exec the Executable
+    */
+
+    public XPathContextMajor(Item item, Executable exec) {
+        controller = new Controller(exec.getConfiguration(), exec);
+        if (item != null) {
+            UnfailingIterator iter = SingletonIterator.makeIterator(item);
+            iter.next();
+            currentIterator = iter;
+        }
+        origin = controller;
+    }
+
+    /**
+     * Constructor for use in free-standing Java applications.
+     * @param item the item to use as the initial context item. If this is null,
+     * the comtext item is initially undefined (which will cause a dynamic error
+     * if it is referenced).
+     * @param config the Saxon Configuration
+     * @deprecated since 9.0 - use {@link #XPathContextMajor(Item, Executable)}
     */
 
     public XPathContextMajor(Item item, Configuration config) {
-        Executable exec = new Executable();
-        exec.setConfiguration(config);
+        // No longer used internally but retained for backwards compatibility (8.8)
+        Executable exec = new Executable(config);
         exec.setHostLanguage(Configuration.JAVA_APPLICATION);
         controller = new Controller(config, exec);
-        AxisIterator iter = SingletonIterator.makeIterator(item);
-        iter.next();
-        currentIterator = iter;
+        if (item != null) {
+            UnfailingIterator iter = SingletonIterator.makeIterator(item);
+            iter.next();
+            currentIterator = iter;
+        }
         origin = controller;
     }
 
@@ -71,37 +98,46 @@ public class XPathContextMajor extends XPathContextMinor {
         c.currentIterator = currentIterator;
         c.stackFrame = stackFrame;
         c.localParameters = localParameters;
+        c.tunnelParameters = tunnelParameters;
         c.last = last;
         c.currentReceiver = currentReceiver;
         c.isTemporaryDestination = isTemporaryDestination;
-        c.xsltContext = xsltContext;
+        c.currentMode = currentMode;
+        c.currentTemplate = currentTemplate;
+        c.currentRegexIterator = currentRegexIterator;
+        c.currentGroupIterator = currentGroupIterator;
         c.caller = this;
         c.tailCallFunction = null;
         return c;
     }
 
-    public static XPathContextMajor newContext(XPathContextMinor p) {
-        XPathContextMajor c = new XPathContextMajor();
-        c.controller = p.getController();
-        c.currentIterator = p.getCurrentIterator();
-        c.stackFrame = p.getStackFrame();
-        c.localParameters = p.getLocalParameters();
-
-        c.last = p.last;
-        c.currentReceiver = p.currentReceiver;
-        c.isTemporaryDestination = p.isTemporaryDestination;
-        c.xsltContext = p.getXSLTContext();
-        c.caller = p;
-        c.tailCallFunction = null;
-        return c;
-    }
-
     /**
-     * Get the XSLT-specific part of the context
+     * Create a new "major" context (one that is capable of holding a stack frame with local variables
+     * @param prev the previous context (the one causing the new context to be created)
+     * @return the new major context
      */
 
-    public XSLTContext getXSLTContext() {
-        return xsltContext;
+    public static XPathContextMajor newContext(XPathContextMinor prev) {
+        XPathContextMajor c = new XPathContextMajor();
+        XPathContext p = prev;
+        while (!(p instanceof XPathContextMajor)) {
+            p = p.getCaller();
+        }
+        c.controller = p.getController();
+        c.currentIterator = prev.getCurrentIterator();
+        c.stackFrame = prev.getStackFrame();
+        c.localParameters = p.getLocalParameters();
+        c.tunnelParameters = p.getTunnelParameters();
+        c.last = prev.last;
+        c.currentReceiver = prev.currentReceiver;
+        c.isTemporaryDestination = prev.isTemporaryDestination;
+        c.currentMode = p.getCurrentMode();
+        c.currentTemplate = p.getCurrentTemplateRule();
+        c.currentRegexIterator = p.getCurrentRegexIterator();
+        c.currentGroupIterator = p.getCurrentGroupIterator();
+        c.caller = prev;
+        c.tailCallFunction = null;
+        return c;
     }
 
     /**
@@ -128,11 +164,7 @@ public class XPathContextMajor extends XPathContextMinor {
      */
 
     public ParameterSet getTunnelParameters() {
-        if (xsltContext != null) {
-            return xsltContext.tunnelParameters;
-        } else {
-            return null;
-        }
+        return tunnelParameters;
     }
 
     /**
@@ -141,18 +173,17 @@ public class XPathContextMajor extends XPathContextMinor {
      */
 
     public void setTunnelParameters(ParameterSet tunnelParameters) {
-        xsltContext = new XSLTContext(xsltContext);
-        xsltContext.tunnelParameters = tunnelParameters;
+        this.tunnelParameters = tunnelParameters;
     }
 
     /**
      * Set the creating expression (for use in diagnostics). The origin is generally set to "this" by the
      * object that creates the new context. It's up to the debugger to determine whether this information
-     * is useful. The object will either be an {@link InstructionInfoProvider}, allowing information
+     * is useful. The object will either be an {@link Expression}, allowing information
      * about the calling instruction to be obtained, or null.
      */
 
-    public void setOrigin(InstructionInfoProvider expr) {
+    public void setOrigin(InstructionInfo expr) {
         origin = expr;
     }
 
@@ -160,6 +191,9 @@ public class XPathContextMajor extends XPathContextMinor {
      * Set the local stack frame. This method is used when creating a Closure to support
      * delayed evaluation of expressions. The "stack frame" is actually on the Java heap, which
      * means it can survive function returns and the like.
+     * @param map the SlotManager, which holds static details of the allocation of variables to slots
+     * @param variables the array of "slots" to hold the actual variable values. This array will be
+     * copied if it is too small to hold all the variables defined in the SlotManager
      */
 
     public void setStackFrame(SlotManager map, ValueRepresentation[] variables) {
@@ -176,6 +210,8 @@ public class XPathContextMajor extends XPathContextMinor {
     /**
      * Reset the stack frame variable map, while reusing the StackFrame object itself. This
      * is done on a tail call to a different function
+     * @param map the SlotManager representing the stack frame contents
+     * @param numberOfParams the number of parameters required on the new stack frame
      */
 
     public void resetStackFrameMap(SlotManager map, int numberOfParams) {
@@ -194,6 +230,8 @@ public class XPathContextMajor extends XPathContextMinor {
      * Reset the local stack frame. This method is used when processing a tail-recursive function.
      * Instead of the function being called recursively, the parameters are set to new values and the
      * function body is evaluated repeatedly
+     * @param fn the user function being called using tail recursion
+     * @param variables the parameter to be supplied to the user function
      */
 
     public void requestTailCall(UserFunction fn, ValueRepresentation[] variables) {
@@ -209,6 +247,7 @@ public class XPathContextMajor extends XPathContextMinor {
 
     /**
      * Determine whether the body of a function is to be repeated, due to tail-recursive function calls
+     * @return null if no tail call has been requested, or the name of the function to be called otherwise
      */
 
     public UserFunction getTailCallFunction() {
@@ -239,25 +278,9 @@ public class XPathContextMajor extends XPathContextMinor {
      */
 
     public void openStackFrame(int numberOfVariables) {
-        stackFrame = new StackFrame(null, new ValueRepresentation[numberOfVariables]);
+        stackFrame = new StackFrame(new SlotManager(numberOfVariables),
+                                    new ValueRepresentation[numberOfVariables]);
     }
-
-    /**
-     * Get the value of a local variable, identified by its slot number
-     */
-
-//    public ValueRepresentation evaluateLocalVariable(int slotnumber) {
-//        return slots[slotnumber];
-//    }
-
-    /**
-     * Set the value of a local variable, identified by its slot number
-     */
-
-//    public void setLocalVariable(int slotnumber, ValueRepresentation value) {
-//        slots[slotnumber] = value;
-//    }
-
 
     /**
      * Set the current mode.
@@ -265,10 +288,7 @@ public class XPathContextMajor extends XPathContextMinor {
      */
 
     public void setCurrentMode(Mode mode) {
-        if ((mode != null && !mode.isDefaultMode()) || (getCurrentMode() != null)) {
-            xsltContext = new XSLTContext(xsltContext);
-            xsltContext.currentMode = mode;
-        }
+        this.currentMode = mode;
     }
 
     /**
@@ -277,11 +297,7 @@ public class XPathContextMajor extends XPathContextMinor {
      */
 
     public Mode getCurrentMode() {
-        if (xsltContext != null) {
-            return xsltContext.currentMode;
-        } else {
-            return null;
-        }
+        return currentMode;
     }
 
     /**
@@ -293,8 +309,7 @@ public class XPathContextMajor extends XPathContextMinor {
      */
 
     public void setCurrentTemplateRule(Rule rule) {
-        xsltContext = new XSLTContext(xsltContext);
-        xsltContext.currentTemplate = rule;
+        this.currentTemplate = rule;
     }
 
     /**
@@ -304,22 +319,17 @@ public class XPathContextMajor extends XPathContextMinor {
      */
 
     public Rule getCurrentTemplateRule() {
-        if (xsltContext != null) {
-            return xsltContext.currentTemplate;
-        } else {
-            return null;
-        }
+        return currentTemplate;
     }
 
     /**
      * Set the current grouping iterator. This supports the current-group() and
      * current-grouping-key() functions in XSLT 2.0
-     * @param collection the new current GroupIterator
+     * @param iterator the new current GroupIterator
      */
 
-    public void setCurrentGroupIterator(GroupIterator collection) {
-        xsltContext = new XSLTContext(xsltContext);
-        xsltContext.currentGroupIterator = collection;
+    public void setCurrentGroupIterator(GroupIterator iterator) {
+        this.currentGroupIterator = iterator;
     }
 
     /**
@@ -329,22 +339,17 @@ public class XPathContextMajor extends XPathContextMinor {
      */
 
     public GroupIterator getCurrentGroupIterator() {
-        if (xsltContext != null) {
-            return xsltContext.currentGroupIterator;
-        } else {
-            return null;
-        }
+        return currentGroupIterator;
     }
 
     /**
      * Set the current regex iterator. This supports the functionality of the regex-group()
      * function in XSLT 2.0.
-     * @param currentJRegexIterator the current regex iterator
+     * @param currentRegexIterator the current regex iterator
      */
 
-    public void setCurrentRegexIterator(RegexIterator currentJRegexIterator) {
-        xsltContext = new XSLTContext(xsltContext);
-        xsltContext.currentJRegexIterator = currentJRegexIterator;
+    public void setCurrentRegexIterator(RegexIterator currentRegexIterator) {
+        this.currentRegexIterator = currentRegexIterator;
     }
 
     /**
@@ -354,63 +359,28 @@ public class XPathContextMajor extends XPathContextMinor {
      */
 
     public RegexIterator getCurrentRegexIterator() {
-        if (xsltContext != null) {
-            return xsltContext.currentJRegexIterator;
-        } else {
-            return null;
-        }
+        return currentRegexIterator;
     }
 
     /**
     * Use local parameter. This is called when a local xsl:param element is processed.
     * If a parameter of the relevant name was supplied, it is bound to the xsl:param element.
     * Otherwise the method returns false, so the xsl:param default will be evaluated
-    * @param fingerprint    The fingerprint of the parameter name
+    * @param qName    The fingerprint of the parameter name
     * @param binding        The XSLParam element to bind its value to
     * @param isTunnel      True if a tunnel parameter is required, else false
     * @return true if a parameter of this name was supplied, false if not
     */
 
-    public boolean useLocalParameter(int fingerprint,
+    public boolean useLocalParameter(StructuredQName qName,
                                      LocalParam binding,
                                      boolean isTunnel) throws XPathException {
 
         ParameterSet params = (isTunnel ? getTunnelParameters() : localParameters);
     	if (params==null) return false;
-    	ValueRepresentation val = params.get(fingerprint);
+    	ValueRepresentation val = params.get(binding.getParameterId());
         stackFrame.slots[binding.getSlotNumber()] = val;
         return (val != null);
-    }
-
-    /**
-     * An XSLTContext object holds all the additional dynamic context items used in XSLT.
-     * These are held in a separate object for two reasons: firstly, they don't change often,
-     * so it's costly to copy them every time a new context object is created, and secondly,
-     * they aren't used at all in XQuery, they just add overhead.
-     */
-
-    protected static class XSLTContext {
-        public ParameterSet tunnelParameters = null;
-        public Mode currentMode = null;
-        public Rule currentTemplate = null;
-        public GroupIterator currentGroupIterator = null;
-        public RegexIterator currentJRegexIterator = null;
-
-        /**
-         * Create a new XSLTContext optionally by copying an existing XSLTContext
-         * @param original the existing XSLTContext. May be null, in which case a new XSLTContext is
-         * created from scratch.
-         */
-
-        public XSLTContext(XSLTContext original) {
-            if (original != null) {
-                this.tunnelParameters = original.tunnelParameters;
-                this.currentMode = original.currentMode;
-                this.currentTemplate = original.currentTemplate;
-                this.currentGroupIterator = original.currentGroupIterator;
-                this.currentJRegexIterator = original.currentJRegexIterator;
-            }
-        }
     }
 
 }

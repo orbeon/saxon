@@ -5,8 +5,6 @@ import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.trans.XPathException;
 
-import javax.xml.transform.TransformerConfigurationException;
-
 /**
 * Handler for xsl:matching-substring and xsl:non-matching-substring elements in stylesheet.
 * New at XSLT 2.0<BR>

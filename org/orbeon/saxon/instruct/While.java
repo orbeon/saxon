@@ -1,12 +1,11 @@
 package org.orbeon.saxon.instruct;
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.*;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.TypeHierarchy;
 
-import java.io.PrintStream;
 import java.util.Iterator;
 
 
@@ -52,36 +51,47 @@ public class While extends Instruction {
      * @exception XPathException if an error is discovered during expression
      *     rewriting
      * @return the simplified expression
+     * @param visitor an expression visitor
      */
 
-    public Expression simplify(StaticContext env) throws XPathException {
-        test = test.simplify(env);
-        action = action.simplify(env);
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        test = visitor.simplify(test);
+        action = visitor.simplify(action);
         return this;
     }
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        test = test.typeCheck(env, contextItemType);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        test = visitor.typeCheck(test, contextItemType);
         adoptChildExpression(test);
-        action = action.typeCheck(env, contextItemType);
+        action = visitor.typeCheck(action, contextItemType);
         adoptChildExpression(action);
         return this;
     }
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        test = test.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        test = visitor.optimize(test, contextItemType);
         adoptChildExpression(test);
-        action = action.optimize(opt, env, contextItemType);
+        action = visitor.optimize(action, contextItemType);
         adoptChildExpression(action);
         return this;
     }
 
 
     /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new While(test.copy(), action.copy());
+    }
+
+    /**
      * Get the item type of the items returned by evaluating this instruction
      *
      * @return the static item type of the instruction
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
@@ -95,7 +105,9 @@ public class While extends Instruction {
      */
 
     protected void promoteInst(PromotionOffer offer) throws XPathException {
-        test = doPromotion(test, offer);
+        if (offer.action != PromotionOffer.EXTRACT_GLOBAL_VARIABLES) {
+            test = doPromotion(test, offer);
+        }
         action = doPromotion(action, offer);
     }
 
@@ -118,6 +130,18 @@ public class While extends Instruction {
 
     public Iterator iterateSubExpressions() {
         return new PairIterator(test, action);
+    }
+
+    /**
+     * Given an expression that is an immediate child of this expression, test whether
+     * the evaluation of the parent expression causes the child expression to be
+     * evaluated repeatedly
+     * @param child the immediate subexpression
+     * @return true if the child expression is evaluated repeatedly
+     */
+
+    public boolean hasLoopingSubexpression(Expression child) {
+        return child == action;
     }
 
     /**
@@ -150,19 +174,17 @@ public class While extends Instruction {
 
 
     /**
-     * Diagnostic print of expression structure. The expression is written to the System.err
-     * output stream
-     *
-     * @param level indentation level for this expression
-     @param out
-     @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "while");
-        test.display(level+1, out, config);
-        out.println(ExpressionTool.indent(level) + "do");
-        action.display(level+1, out, config);
+    public void explain(ExpressionPresenter out) {
+        out.startElement("saxonWhile");
+        test.explain(out);
+        out.startSubsidiaryElement("do");
+        action.explain(out);
+        out.endSubsidiaryElement();
+        out.endElement();
     }
 }
 

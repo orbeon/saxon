@@ -3,14 +3,20 @@ import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.instruct.InstructionDetails;
 import org.orbeon.saxon.instruct.SlotManager;
 import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.sxpath.IndependentContext;
+import org.orbeon.saxon.sxpath.XPathVariable;
 import org.orbeon.saxon.trace.Location;
-import org.orbeon.saxon.trans.*;
+import org.orbeon.saxon.trans.SaxonErrorCode;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.ObjectValue;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.Value;
 
-import java.util.Iterator;
 import java.io.Serializable;
+import java.util.Iterator;
 
 
 /**
@@ -20,7 +26,7 @@ import java.io.Serializable;
 
 public class Evaluate extends SystemFunction {
 
-    // TODO: make saxon:expression into a data type rather than a function. The function then comes "for free"
+    // TODO: IDEA: make saxon:expression into a data type rather than a function. The function then comes "for free"
     // as a constructor function, but it also becomes possible to write things like
     // <xsl:variable name="exp" as="saxon:expression">@price * @qty</xsl:variable>
     // <xsl:value-of select="sum(//item, $exp)"/>
@@ -52,18 +58,20 @@ public class Evaluate extends SystemFunction {
     * the argument expressions have been read
     */
 
-    public void checkArguments(StaticContext env) throws XPathException {
+    public void checkArguments(ExpressionVisitor visitor) throws XPathException {
+        visitor.getExecutable().setReasonUnableToCompile(
+                "Cannot compile a stylesheet containing calls to saxon:evaluate");
         if (staticContext == null) {
             // only do this once
-            super.checkArguments(env);
+            StaticContext env = visitor.getStaticContext();
+            super.checkArguments(visitor);
             if (operation == EVALUATE || operation == EXPRESSION) {
                 NamespaceResolver nsContext = env.getNamespaceResolver();
                 staticContext = new IndependentContext(env.getConfiguration());
                 staticContext.setBaseURI(env.getBaseURI());
                 staticContext.setImportedSchemaNamespaces(env.getImportedSchemaNamespaces());
                 staticContext.setDefaultFunctionNamespace(env.getDefaultFunctionNamespace());
-                staticContext.setDefaultElementNamespace(
-                        env.getNamePool().getURIFromURICode(env.getDefaultElementNamespace()));
+                staticContext.setDefaultElementNamespace(env.getDefaultElementNamespace());
 
                 for (Iterator iter = nsContext.iteratePrefixes(); iter.hasNext();) {
                     String prefix = (String)iter.next();
@@ -89,28 +97,34 @@ public class Evaluate extends SystemFunction {
      * known at compile time, then it is compiled at compile time.
      * In other cases this method suppresses compile-time evaluation by doing nothing
      * (because the value of the expression depends on the runtime context).
+     * @param visitor an expression visitor
      */
 
-    public Expression preEvaluate(StaticContext env) throws XPathException {
-        if (operation == EXPRESSION) {
-            // compile-time evaluation of saxon:expression is allowed
-            if (argument[0] instanceof StringValue) {
-                PreparedExpression pexpr = new PreparedExpression();
-                //staticContext.setFunctionLibrary(env.getFunctionLibrary());
-                String exprText = ((StringValue)argument[0]).getStringValue();
-                pexpr.variables = new Variable[10];
-                for (int i=1; i<10; i++) {
-                    QNameValue qname = new QNameValue("", "", "p"+i, null);
-                    pexpr.variables[i-1] = staticContext.declareVariable(qname);
-                }
-                Expression expr = ExpressionTool.make(exprText, staticContext, 0, Token.EOF, 1);
+    public Expression preEvaluate(ExpressionVisitor visitor) throws XPathException {
+        if (operation == EXPRESSION && getNumberOfArguments()==1) {
+            // compile-time evaluation of saxon:expression is attempted. However, it may fail
+            // if the expression references stylesheet functions, because the static context does not
+            // yet include these. See xslts-extra/evaluate001
+            if (argument[0] instanceof StringLiteral) {
+                try {
+                    PreparedExpression pexpr = new PreparedExpression();
+                    String exprText = ((StringLiteral)argument[0]).getStringValue();
+                    pexpr.variables = new XPathVariable[10];
+                    for (int i=1; i<10; i++) {
+                        pexpr.variables[i-1] = staticContext.declareVariable("", "p"+i);
+                    }
+                    Expression expr = ExpressionTool.make(exprText, staticContext, 0, Token.EOF, 1, false);
 
-                ItemType contextItemType = Type.ITEM_TYPE;
-                expr = expr.typeCheck(staticContext, contextItemType);
-                pexpr.stackFrameMap = staticContext.getStackFrameMap();
-                ExpressionTool.allocateSlots(expr, pexpr.stackFrameMap.getNumberOfVariables(), pexpr.stackFrameMap);
-                pexpr.expression = expr;
-                return new ObjectValue(pexpr);
+                    ItemType contextItemType = Type.ITEM_TYPE;
+                    expr = visitor.typeCheck(expr, contextItemType);
+                    pexpr.stackFrameMap = staticContext.getStackFrameMap();
+                    ExpressionTool.allocateSlots(expr, pexpr.stackFrameMap.getNumberOfVariables(), pexpr.stackFrameMap);
+                    pexpr.expression = expr;
+                    return new Literal(new ObjectValue(pexpr));
+                } catch (XPathException e) {
+                    // If precompilation failed, try again at runtime
+                    return this;
+                }
             }
         }
         // the other operations don't allow compile time evaluation because they need a run-time context
@@ -148,25 +162,28 @@ public class Evaluate extends SystemFunction {
             env.setFunctionLibrary(getExecutable().getFunctionLibrary());
             env.setNamespaces(node);
             exprText = node.getStringValue();
-            AxisIterator single = SingletonIterator.makeIterator(node);
+            UnfailingIterator single = SingletonIterator.makeIterator(node);
             single.next();
             context.setCurrentIterator(single);
             Expression expr;
             try {
-                expr = ExpressionTool.make(exprText, env, 0, Token.EOF, 1);
+                expr = ExpressionTool.make(exprText, env, 0, Token.EOF, 1, false);
+                expr.setContainer(env);
             } catch (XPathException e) {
-                String name = context.getNamePool().getDisplayName(getFunctionNameCode());
-                DynamicError err = new DynamicError("Static error in XPath expression supplied to " + name + ": " +
+                String name = getFunctionName().getDisplayName();
+                XPathException err = new XPathException("Static error in XPath expression supplied to " + name + ": " +
                         e.getMessage().trim());
                 err.setXPathContext(context);
                 throw err;
             }
             ItemType contextItemType = Type.ITEM_TYPE;
-            expr = expr.typeCheck(env, contextItemType);
+            ExpressionVisitor visitor = ExpressionVisitor.make(env);
+            visitor.setExecutable(env.getExecutable());
+            expr = visitor.typeCheck(expr, contextItemType);
             pexpr.stackFrameMap = env.getStackFrameMap();
             ExpressionTool.allocateSlots(expr, pexpr.stackFrameMap.getNumberOfVariables(), pexpr.stackFrameMap);
             pexpr.expression = expr;
-            ComputedExpression.setParentExpression(expr, this);
+            expr.setContainer(env);
             return pexpr;
 
         }
@@ -175,30 +192,69 @@ public class Evaluate extends SystemFunction {
         exprText = exprSource.getStringValue();
         IndependentContext env = staticContext.copy();
         env.setFunctionLibrary(getExecutable().getFunctionLibrary());
+        if (operation == EXPRESSION && getNumberOfArguments() == 2) {
+            NodeInfo node = (NodeInfo)argument[1].evaluateItem(context);
+            env.setNamespaces(node);
+        }
         pexpr.expStaticContext = env;
-        pexpr.variables = new Variable[10];
+        pexpr.variables = new XPathVariable[10];
         for (int i=1; i<10; i++) {
-            QNameValue qname = new QNameValue("", "", "p"+i, null);
-            pexpr.variables[i-1] = env.declareVariable(qname);
+            pexpr.variables[i-1] = env.declareVariable("", "p"+i);
         }
 
         Expression expr;
         try {
-            expr = ExpressionTool.make(exprText, env, 0, Token.EOF, 1);
+            expr = ExpressionTool.make(exprText, env, 0, Token.EOF, 1, false);
         } catch (XPathException e) {
-            String name = context.getNamePool().getDisplayName(getFunctionNameCode());
-            DynamicError err = new DynamicError("Static error in XPath expression supplied to " + name + ": " +
+            String name = getFunctionName().getDisplayName();
+            XPathException err = new XPathException("Static error in XPath expression supplied to " + name + ": " +
                     e.getMessage().trim());
+            err.setErrorCode(e.getErrorCodeNamespace(), e.getErrorCodeLocalPart());
             err.setXPathContext(context);
             throw err;
         }
         ItemType contextItemType = Type.ITEM_TYPE;
-        expr = expr.typeCheck(env, contextItemType);
+        ExpressionVisitor visitor = ExpressionVisitor.make(env);
+        visitor.setExecutable(env.getExecutable());
+        expr = ExpressionTool.resolveCallsToCurrentFunction(expr, env.getConfiguration());
+        expr = visitor.typeCheck(expr, contextItemType);
         pexpr.stackFrameMap = env.getStackFrameMap();
         ExpressionTool.allocateSlots(expr, pexpr.stackFrameMap.getNumberOfVariables(), pexpr.stackFrameMap);
         pexpr.expression = expr;
+        expr.setContainer(env);
 
         return pexpr;
+    }
+
+
+    /**
+     * Add a representation of this expression to a PathMap. The PathMap captures a map of the nodes visited
+     * by an expression in a source tree.
+     * <p/>
+     * <p>The default implementation of this method assumes that an expression does no navigation other than
+     * the navigation done by evaluating its subexpressions, and that the subexpressions are evaluated in the
+     * same context as the containing expression. The method must be overridden for any expression
+     * where these assumptions do not hold. For example, implementations exist for AxisExpression, ParentExpression,
+     * and RootExpression (because they perform navigation), and for the doc(), document(), and collection()
+     * functions because they create a new navigation root. Implementations also exist for PathExpression and
+     * FilterExpression because they have subexpressions that are evaluated in a different context from the
+     * calling expression.</p>
+     *
+     * <p>This particular implementation has to deal with the fact that saxon:evaluate() and related functions
+     * can navigate anywhere in the tree.
+     *
+     * @param pathMap        the PathMap to which the expression should be added
+     * @param pathMapNodeSet the PathMapNodeSet to which the paths embodied in this expression should be added
+     * @return the pathMapNodeSet representing the points in the source document that are both reachable by this
+     *         expression, and that represent possible results of this expression. For an expression that does
+     *         navigation, it represents the end of the arc in the path map that describes the navigation route. For other
+     *         expressions, it is the same as the input pathMapNode.
+     */
+
+    public PathMap.PathMapNodeSet addToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodeSet) {
+        // TODO: this isn't working for a call such as saxon:expression("@xyz") that can be pre-evaluated
+        // It may not be working in other cases either (not tested)
+        return new RootExpression().addToPathMap(pathMap, pathMapNodeSet);
     }
 
     /**
@@ -216,11 +272,13 @@ public class Evaluate extends SystemFunction {
             c2.openStackFrame(pexpr.stackFrameMap);
             return pexpr.expression.evaluateItem(c2);
         } else {
-            PreparedExpression pexpr = prepareExpression(c);
-            for (int i=1; i<argument.length; i++) {
-                pexpr.variables[i-1].setXPathValue(ExpressionTool.eagerEvaluate(argument[i],c));
-            }
             XPathContextMajor c2 = c.newCleanContext();
+            PreparedExpression pexpr = prepareExpression(c2);
+            for (int i=1; i<argument.length; i++) {
+                int slot = pexpr.variables[i-1].getLocalSlotNumber();
+                c2.setLocalVariable(slot, ExpressionTool.eagerEvaluate(argument[i],c));
+            }
+
             c2.setOrigin(details);
             c2.openStackFrame(pexpr.stackFrameMap);
             c2.setCurrentIterator(c.getCurrentIterator());
@@ -238,13 +296,14 @@ public class Evaluate extends SystemFunction {
         if (operation == EXPRESSION) {
             return SingletonIterator.makeIterator(new ObjectValue(pexpr));
         } else {
-            for (int i=1; i<argument.length; i++) {
-                pexpr.variables[i-1].setXPathValue(ExpressionTool.eagerEvaluate(argument[i],c));
-            }
             XPathContextMajor c2 = c.newCleanContext();
             c2.setOrigin(details);
             c2.openStackFrame(pexpr.stackFrameMap);
             c2.setCurrentIterator(c.getCurrentIterator());
+            for (int i=1; i<argument.length; i++) {
+                int slot = pexpr.variables[i-1].getLocalSlotNumber();
+                c2.setLocalVariable(slot, ExpressionTool.eagerEvaluate(argument[i],c));
+            }
             return Value.getIterator(
                     ExpressionTool.lazyEvaluate(pexpr.expression,  c2, 1));
         }
@@ -267,7 +326,7 @@ public class Evaluate extends SystemFunction {
     public static class PreparedExpression implements Serializable {
         public IndependentContext expStaticContext;
         public Expression expression;
-        public Variable[] variables;
+        public XPathVariable[] variables;
         public SlotManager stackFrameMap;
     }
 

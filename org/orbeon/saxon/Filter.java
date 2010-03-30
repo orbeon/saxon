@@ -390,7 +390,7 @@ public class Filter implements XMLFilter {
             result.setLexicalHandler(lexicalHandler);
         }
         try {
-            result.open();
+            //result.open();
             result.setOutputProperties(controller.getOutputProperties());
             controller.transform(source, result);
         } catch (TransformerException err) {

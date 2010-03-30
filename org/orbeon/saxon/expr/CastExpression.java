@@ -1,12 +1,7 @@
 package org.orbeon.saxon.expr;
-import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.NameChecker;
-import org.orbeon.saxon.om.QNameException;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.sort.IntHashMap;
-import org.orbeon.saxon.trans.DynamicError;
-import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.*;
@@ -30,29 +25,29 @@ public final class CastExpression extends UnaryExpression  {
      */
 
     static {
-        final int uat = Type.UNTYPED_ATOMIC;
-        final int str = Type.STRING;
-        final int flt = Type.FLOAT;
-        final int dbl = Type.DOUBLE;
-        final int dec = Type.DECIMAL;
-        final int ing = Type.INTEGER;
-        final int dur = Type.DURATION;
-        final int ymd = Type.YEAR_MONTH_DURATION;
-        final int dtd = Type.DAY_TIME_DURATION;
-        final int dtm = Type.DATE_TIME;
-        final int tim = Type.TIME;
-        final int dat = Type.DATE;
-        final int gym = Type.G_YEAR_MONTH;
-        final int gyr = Type.G_YEAR;
-        final int gmd = Type.G_MONTH_DAY;
-        final int gdy = Type.G_DAY;
-        final int gmo = Type.G_MONTH;
-        final int boo = Type.BOOLEAN;
-        final int b64 = Type.BASE64_BINARY;
-        final int hxb = Type.HEX_BINARY;
-        final int uri = Type.ANY_URI;
-        final int qnm = Type.QNAME;
-        final int not = Type.NOTATION;
+        final int uat = StandardNames.XS_UNTYPED_ATOMIC;
+        final int str = StandardNames.XS_STRING;
+        final int flt = StandardNames.XS_FLOAT;
+        final int dbl = StandardNames.XS_DOUBLE;
+        final int dec = StandardNames.XS_DECIMAL;
+        final int ing = StandardNames.XS_INTEGER;
+        final int dur = StandardNames.XS_DURATION;
+        final int ymd = StandardNames.XS_YEAR_MONTH_DURATION;
+        final int dtd = StandardNames.XS_DAY_TIME_DURATION;
+        final int dtm = StandardNames.XS_DATE_TIME;
+        final int tim = StandardNames.XS_TIME;
+        final int dat = StandardNames.XS_DATE;
+        final int gym = StandardNames.XS_G_YEAR_MONTH;
+        final int gyr = StandardNames.XS_G_YEAR;
+        final int gmd = StandardNames.XS_G_MONTH_DAY;
+        final int gdy = StandardNames.XS_G_DAY;
+        final int gmo = StandardNames.XS_G_MONTH;
+        final int boo = StandardNames.XS_BOOLEAN;
+        final int b64 = StandardNames.XS_BASE64_BINARY;
+        final int hxb = StandardNames.XS_HEX_BINARY;
+        final int uri = StandardNames.XS_ANY_URI;
+        final int qnm = StandardNames.XS_QNAME;
+        final int not = StandardNames.XS_NOTATION;
 
         final int[] t01 = {uat, str, flt, dbl, dec, ing, dur, ymd, dtd, dtm, tim, dat,
                           gym, gyr, gmd, gdy, gmo, boo, b64, hxb, uri};
@@ -107,11 +102,11 @@ public final class CastExpression extends UnaryExpression  {
      */
 
     public static boolean isPossibleCast(int source, int target) {
-        if (source == Type.ANY_ATOMIC || source == Type.EMPTY) {
+        if (source == StandardNames.XS_ANY_ATOMIC_TYPE || source == Type.EMPTY) {
             return true;
         }
-        if (source == Type.NUMBER) {
-            source = Type.DOUBLE;
+        if (source == StandardNames.XS_NUMERIC) {
+            source = StandardNames.XS_DOUBLE;
         }
         int[] targets = (int[])castingTable.get(source);
         if (targets == null) {
@@ -132,7 +127,13 @@ public final class CastExpression extends UnaryExpression  {
     private boolean derived = false;
     private boolean upcast = false;
 
-
+    /**
+     * Create a cast expression
+     * @param source expression giving the value to be converted
+     * @param target the type to which the value is to be converted
+     * @param allowEmpty true if the expression allows an empty sequence as input, producing
+     * an empty sequence as output. If false, an empty sequence is a type error.
+     */
 
     public CastExpression(Expression source, AtomicType target, boolean allowEmpty) {
         super(source);
@@ -144,22 +145,71 @@ public final class CastExpression extends UnaryExpression  {
     }
 
     /**
-    * Simplify the expression
-    * @return the simplified expression
-    */
+     * Get the primitive base type of the target type of the cast
+     * @return the primitive type of the target type
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
-        if ((targetType instanceof BuiltInAtomicType) && !env.isAllowedBuiltInType(targetType)) {
+    public AtomicType getTargetPrimitiveType() {
+        return targetPrimitiveType;
+    }
+
+    /**
+     * Get the target type (the result type)
+     * @return the target type
+     */
+
+    public AtomicType getTargetType() {
+        return targetType;
+    }
+
+    /**
+     * Ask whether the expression accepts an empty sequence as input (producing an empty sequence as output)
+     * @return true if an empty sequence is accepted
+     */
+
+    public boolean allowsEmpty() {
+        return allowEmpty;
+    }
+
+    /**
+     * Ask whether the target type is a derived type (not a primitive type)
+     * @return true if the target type is a derived type
+     */
+
+    public boolean targetIsDerived() {
+        return derived;
+    }
+
+    /**
+     * Ask whether this is a cast to a supertype of the original type
+     * @return true if this is an upcast. This means the value stays unchanged and only the
+     * type label changes
+     */
+
+    public boolean isUpCast() {
+        return upcast;
+    }
+
+    /**
+     * Simplify the expression
+     * @return the simplified expression
+     * @param visitor an expression visitor
+     */
+
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        StaticContext env = visitor.getStaticContext();
+        if ((targetType instanceof BuiltInAtomicType) && !env.isAllowedBuiltInType((BuiltInAtomicType)targetType)) {
             // this is checked here because the ConstructorFunctionLibrary doesn't have access to the static
             // context at bind time
-            StaticError err = new StaticError("The type " + targetType.getDisplayName() +
+            XPathException err = new XPathException("The type " + targetType.getDisplayName() +
                     " is not recognized by a Basic XSLT Processor", this);
             err.setErrorCode("XPST0080");
+            err.setIsStaticError(true);
             throw err;
         }
-        operand = operand.simplify(env);
-        if (operand instanceof AtomicValue) {
-            return typeCheck(env, Type.ITEM_TYPE);
+        operand = visitor.simplify(operand);
+        if (Literal.isAtomic(operand)) {
+            return typeCheck(visitor, Type.ITEM_TYPE);
         }
         return this;
     }
@@ -168,15 +218,15 @@ public final class CastExpression extends UnaryExpression  {
     * Type-check the expression
     */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        operand = operand.typeCheck(env, contextItemType);
-        SequenceType atomicType = SequenceType.makeSequenceType(Type.ANY_ATOMIC_TYPE, getCardinality());
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.typeCheck(operand, contextItemType);
+        SequenceType atomicType = SequenceType.makeSequenceType(BuiltInAtomicType.ANY_ATOMIC, getCardinality());
 
-        RoleLocator role = new RoleLocator(RoleLocator.TYPE_OP, "cast as", 0, null);
-        role.setSourceLocator(this);
-        operand = TypeChecker.staticTypeCheck(operand, atomicType, false, role, env);
+        RoleLocator role = new RoleLocator(RoleLocator.TYPE_OP, "cast as", 0);
+        //role.setSourceLocator(this);
+        operand = TypeChecker.staticTypeCheck(operand, atomicType, false, role, visitor);
 
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
         ItemType sourceType = operand.getItemType(th);
         if (th.isSubType(sourceType, targetType)) {
             // It's generally true that any expression defined to return an X is allowed to return a subtype of X.
@@ -184,32 +234,32 @@ public final class CastExpression extends UnaryExpression  {
             upcast = true;
             return this;
         }
-//            if (operand instanceof ComputedExpression) {
-//                ((ComputedExpression)operand).setParentExpression(getParentExpression());
-//            }
-//            return operand;
-//        }
-//        if (targetType.isNamespaceSensitive() && operand instanceof StringValue
-//                && !(operand instanceof UntypedAtomicValue)) {
-//            return castStringToQName(env);
-//        }
-        if (operand instanceof AtomicValue) {
-            return (AtomicValue)evaluateItem(env.makeEarlyEvaluationContext());
-        }
-        if (operand instanceof EmptySequence) {
-            if (allowEmpty) {
-                return operand;
-            } else {
-                StaticError err = new StaticError("Cast can never succeed: the operand must not be an empty sequence");
-                err.setErrorCode("XPTY0004");
-                err.setLocator(this);
-                err.setIsTypeError(true);
-                throw err;
+
+        if (operand instanceof Literal) {
+            Value literalOperand = ((Literal)operand).getValue();
+            if (literalOperand instanceof AtomicValue) {
+                AtomicValue av = ((AtomicValue)evaluateItem(visitor.getStaticContext().makeEarlyEvaluationContext()));
+                if (av instanceof StringValue) {
+                    return new StringLiteral((StringValue)av);
+                } else {
+                    return new Literal(av);
+                }
+            }
+            if (literalOperand instanceof EmptySequence) {
+                if (allowEmpty) {
+                    return operand;
+                } else {
+                    XPathException err = new XPathException("Cast can never succeed: the operand must not be an empty sequence");
+                    err.setErrorCode("XPTY0004");
+                    err.setLocator(this);
+                    err.setIsTypeError(true);
+                    throw err;
+                }
             }
         }
         int p = sourceType.getPrimitiveType();
         if (!isPossibleCast(p, targetType.getPrimitiveType())) {
-            StaticError err = new StaticError("Casting from " + sourceType + " to " + targetType +
+            XPathException err = new XPathException("Casting from " + sourceType + " to " + targetType +
                     " can never succeed");
             err.setErrorCode("XPTY0004");
             err.setLocator(this);
@@ -230,8 +280,8 @@ public final class CastExpression extends UnaryExpression  {
     }
 
     /**
-    * Get the static type of the expression
-     * @param th
+     * Get the static type of the expression
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
@@ -249,6 +299,16 @@ public final class CastExpression extends UnaryExpression  {
     }
 
     /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new CastExpression(getBaseExpression().copy(), targetType, allowEmpty);
+    }
+
+    /**
     * Evaluate the expression
     */
 
@@ -258,7 +318,7 @@ public final class CastExpression extends UnaryExpression  {
             if (allowEmpty) {
                 return null;
             } else {
-                DynamicError e = new DynamicError("Cast does not allow an empty sequence");
+                XPathException e = new XPathException("Cast does not allow an empty sequence");
                 e.setXPathContext(context);
                 e.setLocator(this);
                 e.setErrorCode("XPTY0004");
@@ -267,27 +327,23 @@ public final class CastExpression extends UnaryExpression  {
         }
         if (upcast) {
             // When casting to a supertype of the original type, we can bypass validation
-            AtomicValue result = value.convert(targetPrimitiveType, context, false);
+            AtomicValue result = (AtomicValue)value.convert(targetPrimitiveType, false, context);
             if (derived) {
-                result = result.convert(targetType, context, false);
+                result = (AtomicValue)result.convert(targetType, false, context);
             }
             return result;
         }
-        AtomicValue result = value.convert(targetPrimitiveType, context, true);
-        if (result instanceof ValidationErrorValue) {
-            XPathException err = ((ValidationErrorValue)result).getException();
-            String code = err.getErrorCodeLocalPart();
-            dynamicError(err.getMessage(), code, context);
-        }
-        if (derived) {
-            result = result.convert(targetType, context, true);
-            if (result instanceof ValidationErrorValue) {
-                XPathException err = ((ValidationErrorValue)result).getException();
-                String code = err.getErrorCodeLocalPart();
-                dynamicError(err.getMessage(), code, context);
+        ConversionResult result = value.convert(targetType, true, context);
+        if (result instanceof ValidationFailure) {
+            ValidationFailure err = (ValidationFailure)result;
+            String code = err.getErrorCode();
+            if (code == null) {
+                code = "FORG0001";
             }
+            dynamicError(err.getMessage(), code, context);
+            return null;
         }
-        return result;
+        return (AtomicValue)result;
     }
 
     /**
@@ -301,20 +357,40 @@ public final class CastExpression extends UnaryExpression  {
     }
 
     /**
-     * Give a string representation of the operator for use in diagnostics
-     * @return the operator, as a string
-     * @param config
+     * The toString() method for an expression attempts to give a representation of the expression
+     * in an XPath-like form, but there is no guarantee that the syntax will actually be true XPath.
+     * In the case of XSLT instructions, the toString() method gives an abstracted view of the syntax
      */
 
-    protected String displayOperator(Configuration config) {
-        return "cast as " + targetType.toString(config.getNamePool());
+    public String toString() {
+        try {
+            NamePool pool = getExecutable().getConfiguration().getNamePool();
+            return targetType.toString(pool) + "(" + operand.toString() + ")";
+        } catch (Exception err) {
+            return targetType.toString() + "(" + operand.toString() + ")";
+        }
+    }    
+
+    /**
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     */
+
+    public void explain(ExpressionPresenter out) {
+        out.startElement("cast");
+        out.emitAttribute("as", targetType.toString(out.getConfiguration().getNamePool()));
+        operand.explain(out);
+        out.endElement();
     }
 
     /**
      * Evaluate the "pseudo-cast" of a string literal to a QName or NOTATION value. This can only happen
      * at compile time
+     * @param operand the value to be converted
+     * @param targetType the type to which it is to be converted
+     * @param env the static context
      * @return the QName or NOTATION value that results from casting the string to a QName.
-     * This will either be a QNameValue or a DerivedAtomicValue derived from QName or NOTATION
+     * This will either be a QNameValue or a derived AtomicValue derived from QName or NOTATION
      */
 
     public static AtomicValue castStringToQName(
@@ -323,12 +399,16 @@ public final class CastExpression extends UnaryExpression  {
             CharSequence arg = Whitespace.trimWhitespace(operand);
             String parts[] = env.getConfiguration().getNameChecker().getQNameParts(arg);
             String uri;
-            if ("".equals(parts[0])) {
-                uri = env.getNamePool().getURIFromURICode(env.getDefaultElementNamespace());
+            if (parts[0].length() == 0) {
+                uri = env.getDefaultElementNamespace();
             } else {
-                uri = env.getURIForPrefix(parts[0]);
-                if (uri==null) {
-                    StaticError e = new StaticError("Prefix '" + parts[0] + "' has not been declared");
+                try {
+                    uri = env.getURIForPrefix(parts[0]);
+                } catch (XPathException e) {
+                    uri = null;
+                }
+                if (uri == null) {
+                    XPathException e = new XPathException("Prefix '" + parts[0] + "' has not been declared");
                     e.setErrorCode("FONS0004");
                     throw e;
                 }
@@ -336,29 +416,32 @@ public final class CastExpression extends UnaryExpression  {
             final NameChecker checker = env.getConfiguration().getNameChecker();
             final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
             if (targetType.getFingerprint() == StandardNames.XS_QNAME) {
-                return new QNameValue(parts[0], uri, parts[1], checker);
-            } else if (th.isSubType(targetType, Type.QNAME_TYPE)) {
-                QNameValue q = new QNameValue(parts[0], uri, parts[1], checker);
-                AtomicValue av = targetType.makeDerivedValue(q, arg, true);
-                if (av instanceof ValidationErrorValue) {
-                    throw ((ValidationErrorValue)av).getException();
+                return new QNameValue(parts[0], uri, parts[1], BuiltInAtomicType.QNAME, checker);
+            } else if (th.isSubType(targetType, BuiltInAtomicType.QNAME)) {
+                QNameValue q = new QNameValue(parts[0], uri, parts[1], targetType, checker);
+                ValidationFailure vf = targetType.validate(q, null, checker);
+                if (vf != null) {
+                    throw vf.makeException();
                 }
-                return av;
+                q.setTypeLabel(targetType);
+                return q;
             } else {
                 NotationValue n = new NotationValue(parts[0], uri, parts[1], checker);
-                AtomicValue av =  targetType.makeDerivedValue(n, arg, true);
-                if (av instanceof ValidationErrorValue) {
-                    throw ((ValidationErrorValue)av).getException();
+                ValidationFailure vf = targetType.validate(n, null, checker);
+                if (vf != null) {
+                    throw vf.makeException();
                 }
-                return av;
+                n.setTypeLabel(targetType);
+                return n;
             }
         } catch (XPathException err) {
-            StaticError e = new StaticError(err);
-            e.setErrorCode("FONS0004");
-            throw e;
+            if (err.getErrorCodeLocalPart() == null) {
+                err.setErrorCode("FONS0004");
+            }
+            throw err;
         } catch (QNameException err) {
-            StaticError e = new StaticError(err);
-            e.setErrorCode("FONS0004");
+            XPathException e = new XPathException(err);
+            e.setErrorCode("FORG0001");
             throw e;
         }
     }

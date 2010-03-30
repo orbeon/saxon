@@ -1,61 +1,24 @@
 package org.orbeon.saxon.sort;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.value.AtomicValue;
 
 /**
- * A Comparator used for sorting values that are known to be instances of xs:decimal (including xs:integer),
+ * An AtomicComparer used for sorting values that are known to be instances of xs:decimal (including xs:integer),
  * It also supports a separate method for getting a collation key to test equality of items
  *
  * @author Michael H. Kay
  *
  */
 
-public class DecimalSortComparer implements AtomicComparer {
+public class DecimalSortComparer extends ComparableAtomicValueComparer {
 
     private static DecimalSortComparer THE_INSTANCE = new DecimalSortComparer();
 
-    public static DecimalSortComparer getInstance() {
+    public static DecimalSortComparer getDecimalSortComparerInstance() {
         return THE_INSTANCE;
     }
 
-    private DecimalSortComparer() {
-
-    }
-
-    /**
-    * Compare two AtomicValue objects according to the rules for their data type. UntypedAtomic
-    * values are compared as if they were strings; if different semantics are wanted, the conversion
-    * must be done by the caller.
-    * @param a the first object to be compared. It is intended that this should normally be an instance
-    * of AtomicValue, though this restriction is not enforced. If it is a StringValue, the
-    * collator is used to compare the values, otherwise the value must implement the java.util.Comparable
-    * interface.
-    * @param b the second object to be compared. This must be comparable with the first object: for
-    * example, if one is a string, they must both be strings.
-    * @return <0 if a<b, 0 if a=b, >0 if a>b
-    * @throws ClassCastException if the objects are not comparable
-    */
-
-    public int compare(Object a, Object b) {
-        if (a == null) {
-            return (b == null ? 0 : -1);
-        } else if (b == null) {
-            return +1;
-        }
-
-        a = ((AtomicValue)a).getPrimitiveValue();
-        b = ((AtomicValue)b).getPrimitiveValue();
-
-        return ((Comparable)a).compareTo(b);
-    }
-
-    /**
-     * Test whether two values compare equal.
-     */
-
-    public boolean comparesEqual(AtomicValue a, AtomicValue b) {
-        return compare(a, b) == 0;
-    }
+    private DecimalSortComparer() {}
 
     /**
      * Get a comparison key for an object. This must satisfy the rule that if two objects are equal as defined
@@ -65,8 +28,7 @@ public class DecimalSortComparer implements AtomicComparer {
     */
 
     public ComparisonKey getComparisonKey(AtomicValue a) {
-        AtomicValue prim = a.getPrimitiveValue();
-        return new ComparisonKey(StandardNames.XDT_NUMERIC, prim);
+        return new ComparisonKey(StandardNames.XS_NUMERIC, a);
     }
 
 }

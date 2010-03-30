@@ -1,10 +1,8 @@
 package org.orbeon.saxon.number;
+import org.orbeon.saxon.charcode.UTF16;
 import org.orbeon.saxon.om.FastStringBuffer;
-import org.orbeon.saxon.om.XMLChar;
 
 import java.io.Serializable;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,10 +13,6 @@ import java.util.List;
   */
 
 public class NumberFormatter implements Serializable {
-
-    public static boolean methodInitialized = false;
-    public static Method isLetterOrDigitMethod = null;
-    private static int[] nonBmpZeroDigits = {0x104a0, 0x107ce, 0x107d8, 0x107e2, 0x107ec, 0x107f6};
 
     private ArrayList formatTokens;
     private ArrayList punctuationTokens;
@@ -57,15 +51,15 @@ public class NumberFormatter implements Serializable {
         while (i<len) {
             int c = format.charAt(i);
             t=i;
-            if (XMLChar.isHighSurrogate(c)) {
-                c = XMLChar.supplemental((char)c, format.charAt(++i));
+            if (UTF16.isHighSurrogate(c)) {
+                c = UTF16.combinePair((char)c, format.charAt(++i));
             }
             while (isLetterOrDigit(c)) {
                 i++;
                 if (i==len) break;
                 c = format.charAt(i);
-                if (XMLChar.isHighSurrogate(c)) {
-                    c = XMLChar.supplemental((char)c, format.charAt(++i));
+                if (UTF16.isHighSurrogate(c)) {
+                    c = UTF16.combinePair((char)c, format.charAt(++i));
                 }
             }
             if (i>t) {
@@ -80,16 +74,16 @@ public class NumberFormatter implements Serializable {
             if (i==len) break;
             t=i;
             c = format.charAt(i);
-            if (XMLChar.isHighSurrogate(c)) {
-                c = XMLChar.supplemental((char)c, format.charAt(++i));
+            if (UTF16.isHighSurrogate(c)) {
+                c = UTF16.combinePair((char)c, format.charAt(++i));
             }
             while (!isLetterOrDigit(c)) {
                 first = false;
                 i++;
                 if (i==len) break;
                 c = format.charAt(i);
-                if (XMLChar.isHighSurrogate(c)) {
-                    c = XMLChar.supplemental((char)c, format.charAt(++i));
+                if (UTF16.isHighSurrogate(c)) {
+                    c = UTF16.combinePair((char)c, format.charAt(++i));
                 }
             }
             if (i>t) {
@@ -98,7 +92,7 @@ public class NumberFormatter implements Serializable {
             }
         }
 
-        if (formatTokens.size() == 0) {
+        if (formatTokens.isEmpty()) {
             formatTokens.add("1");
             if (punctuationTokens.size() == 1) {
                 punctuationTokens.add(punctuationTokens.get(0));
@@ -115,59 +109,13 @@ public class NumberFormatter implements Serializable {
      */
 
     private static boolean isLetterOrDigit(int c) {
-        if (c <= 65535) {
-            return Character.isLetterOrDigit((char)c);
+        if (c <= 0x7F) {
+            // Fast path for ASCII characters
+            return (c >= 0x30 && c <= 0x39) || (c >= 0x41 && c <= 0x5A) || (c >= 0x61 && c <= 0x7A);
         } else {
-            // on JDK 1.5, we introspectively call the Character.isLetterOrDigit(codepoint) method.
-            // on JDK 1.4, we give up on the letters, but use local data to test for numbers.
-            if (!methodInitialized) {
-                try {
-                    Class[] args = {int.class};
-                    isLetterOrDigitMethod = Character.class.getDeclaredMethod("isLetterOrDigit", args);
-                } catch (NoSuchMethodException err) {
-                    //
-                }
-            }
-            if (isLetterOrDigitMethod != null) {
-                try {
-                    Object[] args = {new Integer(c)};
-                    Boolean b = (Boolean)isLetterOrDigitMethod.invoke(null, args);
-                    return b.booleanValue();
-                } catch (IllegalAccessException e) {
-                    return false;
-                } catch (InvocationTargetException e) {
-                    return false;
-                }
-            } else {
-                // give up on the letters, but we know about the digits, which are more important...
-                return getDigitValue(c) != -1;
-            }
+            return Alphanumeric.isAlphanumeric(c);
         }
     }
-
-    /**
-     * Determine whether a character represents a digit and if so, which digit.
-     * @param in the Unicode character being tested. It's known that this is alphanumeric.
-     * @return -1 if it's not a digit, otherwise the digit value.
-     */
-
-    public static int getDigitValue(int in) {
-        if (in <= 65535) {
-            if (Character.isDigit((char)in)) {
-                return Character.getNumericValue((char)in);
-            } else {
-                return -1;
-            }
-        } else {
-            for (int z=0; z<nonBmpZeroDigits.length; z++) {
-                if (in >= nonBmpZeroDigits[z] && in <= nonBmpZeroDigits[z]+9) {
-                    return in - nonBmpZeroDigits[z];
-                }
-            }
-            return -1;
-        }
-    }
-
 
     /**
     * Format a list of numbers.

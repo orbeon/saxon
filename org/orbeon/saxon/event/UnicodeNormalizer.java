@@ -1,7 +1,6 @@
 package org.orbeon.saxon.event;
 import org.orbeon.saxon.codenorm.Normalizer;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.value.Whitespace;
 
 /**
@@ -27,7 +26,7 @@ public class UnicodeNormalizer extends ProxyReceiver {
         } else if (form.equals("NFKD")) {
             fb = Normalizer.KD;
         } else {
-            DynamicError err = new DynamicError("Unknown normalization form " + form);
+            XPathException err = new XPathException("Unknown normalization form " + form);
             err.setErrorCode("SESU0011");
             throw err;
         }

@@ -17,19 +17,21 @@ public interface NodeFactory {
     /**
     * Create an Element node
     * @param parent The parent element
-    * @param nameCode The element name
-    * @param attlist The attribute collection, excluding any namespace attributes
-    * @param namespaces List of new namespace declarations for this element, as a sequence
-    * of namespace codes representing pairs of strings: (prefix1, uri1), (prefix2, uri2)...
-    * @param namespacesUsed the number of elemnts of the namespaces array actually used
-    * @param locator Indicates the source document and line number containing the node
-    * @param locationId Indicates the source document and line number containing the node
-    * @param sequenceNumber Sequence number to be assigned to represent document order.
-    */
+     * @param nameCode The element name
+     * @param typeCode
+     * @param attlist The attribute collection, excluding any namespace attributes
+     * @param namespaces List of new namespace declarations for this element, as a sequence
+  * of namespace codes representing pairs of strings: (prefix1, uri1), (prefix2, uri2)...
+     * @param namespacesUsed the number of elemnts of the namespaces array actually used
+     * @param locator Indicates the source document and line number containing the node
+     * @param locationId Indicates the source document and line number containing the node
+     * @param sequenceNumber Sequence number to be assigned to represent document order.
+     */
 
     public ElementImpl makeElementNode(
             NodeInfo parent,
             int nameCode,
+            int typeCode,
             AttributeCollectionImpl attlist,
             int[] namespaces,
             int namespacesUsed,

@@ -7,6 +7,7 @@ public interface IntIterator {
 
     /**
      * Test whether there are any more integers in the sequence
+     * @return true if there are more integers to come
      */
 
     public boolean hasNext();
@@ -14,6 +15,7 @@ public interface IntIterator {
     /**
      * Return the next integer in the sequence. The result is undefined unless hasNext() has been called
      * and has returned true.
+     * @return the next integer in the sequence
      */
 
     public int next();

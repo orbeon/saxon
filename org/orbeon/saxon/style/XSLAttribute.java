@@ -1,9 +1,9 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.Err;
+import org.orbeon.saxon.trans.Err;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.instruct.Attribute;
+import org.orbeon.saxon.expr.StringLiteral;
+import org.orbeon.saxon.instruct.ComputedAttribute;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.FixedAttribute;
 import org.orbeon.saxon.om.*;
@@ -12,6 +12,7 @@ import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.type.SimpleType;
 import org.orbeon.saxon.value.AnyURIValue;
 import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.Whitespace;
 
 /**
 * xsl:attribute element in stylesheet. <br>
@@ -40,17 +41,17 @@ public final class XSLAttribute extends XSLStringConstructor {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
 			if (f==StandardNames.NAME) {
-        		nameAtt = atts.getValue(a).trim();
+        		nameAtt = Whitespace.trim(atts.getValue(a));
         	} else if (f==StandardNames.NAMESPACE) {
-        		namespaceAtt = atts.getValue(a).trim();
+        		namespaceAtt = Whitespace.trim(atts.getValue(a));
         	} else if (f==StandardNames.SELECT) {
         		selectAtt = atts.getValue(a);
         	} else if (f==StandardNames.SEPARATOR) {
         		separatorAtt = atts.getValue(a);
         	} else if (f==StandardNames.VALIDATION) {
-        		validationAtt = atts.getValue(a).trim();
+        		validationAtt = Whitespace.trim(atts.getValue(a));
         	} else if (f==StandardNames.TYPE) {
-        		typeAtt = atts.getValue(a).trim();
+        		typeAtt = Whitespace.trim(atts.getValue(a));
         	} else {
         		checkUnknownAttribute(nc);
         	}
@@ -61,8 +62,8 @@ public final class XSLAttribute extends XSLStringConstructor {
             return;
         }
         attributeName = makeAttributeValueTemplate(nameAtt);
-        if (attributeName instanceof StringValue) {
-            if (!getConfiguration().getNameChecker().isQName(((StringValue)attributeName).getStringValue())) {
+        if (attributeName instanceof StringLiteral) {
+            if (!getConfiguration().getNameChecker().isQName(((StringLiteral)attributeName).getStringValue())) {
                 invalidAttributeName("Attribute name " + Err.wrap(nameAtt) + " is not a valid QName");
             }
             if (nameAtt.equals("xmlns")) {
@@ -76,7 +77,7 @@ public final class XSLAttribute extends XSLStringConstructor {
                 } else {
                     // ignore the prefix "xmlns"
                     nameAtt = nameAtt.substring(6);
-                    attributeName = new StringValue(nameAtt);
+                    attributeName = new StringLiteral(nameAtt);
                 }
             }
         }
@@ -84,8 +85,8 @@ public final class XSLAttribute extends XSLStringConstructor {
 
         if (namespaceAtt!=null) {
             namespace = makeAttributeValueTemplate(namespaceAtt);
-            if (namespace instanceof StringValue) {
-                if (!AnyURIValue.isValidURI(((StringValue)namespace).getStringValue())) {
+            if (namespace instanceof StringLiteral) {
+                if (!AnyURIValue.isValidURI(((StringLiteral)namespace).getStringValue())) {
                     compileError("The value of the namespace attribute must be a valid URI", "XTDE0865");
                 }
             }
@@ -97,9 +98,9 @@ public final class XSLAttribute extends XSLStringConstructor {
 
         if (separatorAtt == null) {
             if (selectAtt == null) {
-                separator = StringValue.EMPTY_STRING;
+                separator = new StringLiteral(StringValue.EMPTY_STRING);
             } else {
-                separator = StringValue.SINGLE_SPACE;
+                separator = new StringLiteral(StringValue.SINGLE_SPACE);
             }
         } else {
             separator = makeAttributeValueTemplate(separatorAtt);
@@ -135,6 +136,7 @@ public final class XSLAttribute extends XSLStringConstructor {
                         type = null;
                     }
                 }
+                validationAction = Validation.BY_TYPE;
             }
         }
 
@@ -147,21 +149,18 @@ public final class XSLAttribute extends XSLStringConstructor {
 
     private void invalidAttributeName(String message) throws XPathException {
 //        if (forwardsCompatibleModeIsEnabled()) {
-//            DynamicError err = new DynamicError(message);
+//            DynamicError err = new XPathException(message);
 //            err.setErrorCode("XTDE0850");
 //            err.setLocator(this);
 //            attributeName = new ErrorExpression(err);
 //        } else {
             compileError(message, "XTDE0850");
             // prevent a duplicate error message...
-            attributeName = new StringValue("saxon-error-attribute");
+            attributeName = new StringLiteral("saxon-error-attribute");
 //        }
     }
 
     public void validate() throws XPathException {
-        if (!(getParent() instanceof XSLAttributeSet)) {
-            checkWithinTemplate();
-        }
         if (schemaType != null) {
             if (schemaType.isNamespaceSensitive()) {
                 compileError("Validation at attribute level must not specify a " +
@@ -192,8 +191,8 @@ public final class XSLAttribute extends XSLStringConstructor {
 
         // deal specially with the case where the attribute name is known statically
 
-        if (attributeName instanceof StringValue) {
-            String qName = ((StringValue)attributeName).getStringValue().trim();
+        if (attributeName instanceof StringLiteral) {
+            String qName = Whitespace.trim(((StringLiteral)attributeName).getStringValue());
             String[] parts;
             try {
                 parts = getConfiguration().getNameChecker().getQNameParts(qName);
@@ -211,18 +210,16 @@ public final class XSLAttribute extends XSLStringConstructor {
                         return null;
                     }
                 }
-                int nameCode = getTargetNamePool().allocate(parts[0], nsuri, parts[1]);
+                int nameCode = getNamePool().allocate(parts[0], nsuri, parts[1]);
                 FixedAttribute inst = new FixedAttribute(nameCode,
                                                          validationAction,
                                                          schemaType,
                                                          annotation);
-                inst.setParentExpression(this);     // temporarily
+                inst.setContainer(this);     // temporarily
                 compileContent(exec, inst, separator);
-                //inst.setSeparator(separator);
-                ExpressionTool.makeParentReferences(inst);
                 return inst;
-            } else if (namespace instanceof StringValue) {
-                String nsuri = ((StringValue)namespace).getStringValue();
+            } else if (namespace instanceof StringLiteral) {
+                String nsuri = ((StringLiteral)namespace).getStringValue();
                 if (nsuri.equals("")) {
                     parts[0] = "";
                 } else if (parts[0].equals("")) {
@@ -241,8 +238,8 @@ public final class XSLAttribute extends XSLStringConstructor {
                     }
                     // Otherwise see the URI is known to the namepool
                     if (parts[0].equals("")) {
-                        String p = getTargetNamePool().suggestPrefixForURI(
-                                ((StringValue)namespace).getStringValue());
+                        String p = getNamePool().suggestPrefixForURI(
+                                ((StringLiteral)namespace).getStringValue());
                         if (p != null) {
                             parts[0] = p;
                         }
@@ -253,14 +250,12 @@ public final class XSLAttribute extends XSLStringConstructor {
                         parts[0] = "ns0";
                     }
                 }
-                int nameCode = getTargetNamePool().allocate(parts[0], nsuri, parts[1]);
+                int nameCode = getNamePool().allocate(parts[0], nsuri, parts[1]);
                 FixedAttribute inst = new FixedAttribute(nameCode,
                                                          validationAction,
                                                          schemaType,
                                                          annotation);
                 compileContent(exec, inst, separator);
-                //inst.setSeparator(separator);
-                ExpressionTool.makeParentReferences(inst);
                 return inst;
             }
         } else {
@@ -272,7 +267,7 @@ public final class XSLAttribute extends XSLStringConstructor {
             }
         }
 
-        Attribute inst = new Attribute( attributeName,
+        ComputedAttribute inst = new ComputedAttribute( attributeName,
                                         namespace,
                                         nsContext,
                                         validationAction,

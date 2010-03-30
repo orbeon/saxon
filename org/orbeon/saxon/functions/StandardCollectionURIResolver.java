@@ -1,13 +1,15 @@
 package org.orbeon.saxon.functions;
 
-import org.orbeon.saxon.*;
-import org.orbeon.saxon.event.Builder;
+import org.orbeon.saxon.AugmentedSource;
+import org.orbeon.saxon.CollectionURIResolver;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.event.PipelineConfiguration;
 import org.orbeon.saxon.event.Stripper;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.NodeKindTest;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.Err;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AnyURIValue;
 import org.orbeon.saxon.value.ObjectValue;
@@ -78,41 +80,52 @@ public class StandardCollectionURIResolver implements CollectionURIResolver {
             return null;
         }
 
-        if (base == null) {
-            base = JavaPlatform.tryToExpand(base);
-            if (base == null) {
-                DynamicError err = new DynamicError(
-                    "Cannot resolve relative URI: no base URI available");
-                err.setErrorCode("FODC0002");
-                err.setXPathContext(context);
-                throw err;
-            }
-        }
-
-        URI resolvedURI;
         URIQueryParameters params = null;
+        URI relativeURI;
         try {
-            URI relative = new URI(href);
-            String query = relative.getQuery();
+            relativeURI = new URI(ResolveURI.escapeSpaces(href));
+            String query = relativeURI.getQuery();
             if (query != null) {
                 params = new URIQueryParameters(query, context.getConfiguration());
                 int q = href.indexOf('?');
-                href = href.substring(0, q);
+                href = ResolveURI.escapeSpaces(href.substring(0, q));
+                relativeURI = new URI(href);
             }
-            resolvedURI = new URI(base).resolve(href);
+
         } catch (URISyntaxException e) {
-            DynamicError err = new DynamicError(
-                    "Invalid URI " + Err.wrap(href) + " passed to collection() function");
-            err.setErrorCode("FODC0002");
+            XPathException err = new XPathException("Invalid relative URI " + Err.wrap(href, Err.VALUE) + " passed to collection() function");
+            err.setErrorCode("FODC0004");
             err.setXPathContext(context);
             throw err;
+        }
+
+        URI resolvedURI;
+        if (!relativeURI.isAbsolute()) {
+            if (base == null) {
+                base = ResolveURI.tryToExpand(base);
+                if (base == null) {
+                    XPathException err = new XPathException("Cannot resolve relative URI: no base URI available");
+                    err.setErrorCode("FODC0004");
+                    err.setXPathContext(context);
+                    throw err;
+                }
+            }
+            try {
+                resolvedURI = Configuration.getPlatform().makeAbsolute(href, base);
+            } catch (URISyntaxException e) {
+                XPathException err = new XPathException("Cannot resolve relative URI: " + e.getMessage());
+                err.setErrorCode("FODC0004");
+                err.setXPathContext(context);
+                throw err;
+            }
+        } else {
+            resolvedURI = relativeURI;
         }
 
         if ("file".equals(resolvedURI.getScheme())) {
             File file = new File(resolvedURI);
             if (!file.exists()) {
-                DynamicError err = new DynamicError(
-                        "The file or directory " + resolvedURI + " does not exist");
+                XPathException err = new XPathException("The file or directory " + resolvedURI + " does not exist");
                 err.setErrorCode("FODC0004");
                 err.setXPathContext(context);
                 throw err;
@@ -172,7 +185,7 @@ public class StandardCollectionURIResolver implements CollectionURIResolver {
                 }
                 public void error(TransformerException exception) throws TransformerException {
                     oldErrorListener.warning(exception);
-                    DynamicError supp = new DynamicError("The document will be excluded from the collection");
+                    XPathException supp = new XPathException("The document will be excluded from the collection");
                     supp.setLocator(exception.getLocator());
                     oldErrorListener.warning(supp);
                 }
@@ -189,10 +202,10 @@ public class StandardCollectionURIResolver implements CollectionURIResolver {
     /**
      * Return a collection defined as a list of URIs in a catalog file
      * @param catalogFile the URI of the catalog file
-     * @param params
-     * @param context
-     * @return
-     * @throws XPathException
+     * @param params the query parameters in the URI (not used
+     * @param context the dynamic evaluation context
+     * @return an iterator over the documents in the collection
+     * @throws XPathException if any failures occur
      */
 
     private SequenceIterator catalogContents(URI catalogFile, URIQueryParameters params, final XPathContext context)
@@ -201,11 +214,15 @@ public class StandardCollectionURIResolver implements CollectionURIResolver {
         boolean stable = true;
         NamePool pool = context.getController().getNamePool();
 
-        DocumentInfo catalog =
-                (DocumentInfo) Document.makeDoc(catalogFile.toString(), null, context, null);
+        StreamSource source = new StreamSource(catalogFile.toString());
+        AugmentedSource as = AugmentedSource.makeAugmentedSource(source);
+        as.setSchemaValidationMode(Validation.SKIP);
+        DocumentInfo catalog = context.getConfiguration().buildDocument(as);        
+//        DocumentInfo catalog =
+//                (DocumentInfo) Document.makeDoc(catalogFile.toString(), null, context, null);
         if (catalog==null) {
             // we failed to read the catalogue
-            DynamicError err = new DynamicError("Failed to load collection catalogue " + catalogFile);
+            XPathException err = new XPathException("Failed to load collection catalogue " + catalogFile);
             err.setErrorCode("FODC0004");
             err.setXPathContext(context);
             throw err;
@@ -219,9 +236,8 @@ public class StandardCollectionURIResolver implements CollectionURIResolver {
         while (true) {
             top = (NodeInfo)iter.next();
             if (top == null) break;
-            if (!("collection".equals(top.getLocalPart()) &&
-                    top.getURI().equals("") )) {
-                DynamicError err = new DynamicError("collection catalogue must contain top-level element <collection>");
+            if (!("collection".equals(top.getLocalPart()) && top.getURI().length() == 0)) {
+                XPathException err = new XPathException("collection catalogue must contain top-level element <collection>");
                 err.setErrorCode("FODC0004");
                 err.setXPathContext(context);
                 throw err;
@@ -236,7 +252,8 @@ public class StandardCollectionURIResolver implements CollectionURIResolver {
             } else if ("false".equals(stableAtt)) {
                 stable = false;
             } else {
-                DynamicError err = new DynamicError("The 'stable' attribute of element <collection> must be true or false");
+                XPathException err = new XPathException(
+                        "The 'stable' attribute of element <collection> must be true or false");
                 err.setErrorCode("FODC0004");
                 err.setXPathContext(context);
                 throw err;
@@ -251,17 +268,15 @@ public class StandardCollectionURIResolver implements CollectionURIResolver {
             public Item map(Item item) throws XPathException {
                 NodeInfo element = (NodeInfo)item;
                 if (!("doc".equals(element.getLocalPart()) &&
-                        element.getURI().equals("") )) {
-                    DynamicError err = new DynamicError(
-                            "children of <collection> element must be <doc> elements");
+                        element.getURI().length() == 0)) {
+                    XPathException err = new XPathException("children of <collection> element must be <doc> elements");
                     err.setErrorCode("FODC0004");
                     err.setXPathContext(context);
                     throw err;
                 }
                 String href = Navigator.getAttributeValue(element, "", "href");
                 if (href==null) {
-                    DynamicError err = new DynamicError(
-                            "\"<doc> element in catalogue has no @href attribute\"");
+                    XPathException err = new XPathException("\"<doc> element in catalogue has no @href attribute\"");
                     err.setErrorCode("FODC0004");
                     err.setXPathContext(context);
                     throw err;
@@ -270,8 +285,8 @@ public class StandardCollectionURIResolver implements CollectionURIResolver {
                 try {
                     uri = new URI(element.getBaseURI()).resolve(href).toString();
                 } catch (URISyntaxException e) {
-                    DynamicError err = new DynamicError("Invalid base URI or href URI in collection catalog: ("
-                        + element.getBaseURI() + ", " + href + ")");
+                    XPathException err = new XPathException("Invalid base URI or href URI in collection catalog: ("
+                            + element.getBaseURI() + ", " + href + ")");
                     err.setErrorCode("FODC0004");
                     err.setXPathContext(context);
                     throw err;
@@ -280,13 +295,8 @@ public class StandardCollectionURIResolver implements CollectionURIResolver {
                     return new AnyURIValue(uri);
                 } else {
                     // stability not required, bypass the document pool and URI resolver
-                    StreamSource source = new StreamSource(uri);
-                    PipelineConfiguration pipe = context.getController().makePipelineConfiguration();
-                    NodeInfo contextNode = Builder.build(source, null, pipe);
-                    return contextNode.getDocumentRoot();
+                    return context.getConfiguration().buildDocument(new StreamSource(uri));
                 }
-//                NodeInfo target = Document.makeDoc(href, element.getBaseURI(), context, null);
-//                return target;
             }
         };
 
@@ -305,6 +315,7 @@ public class StandardCollectionURIResolver implements CollectionURIResolver {
         boolean recurse = false;
         int strip = Whitespace.UNSPECIFIED;
         int validation = Validation.STRIP;
+        Boolean xinclude = null;
         XMLReader parser = null;
         int onError = URIQueryParameters.ON_ERROR_FAIL;
         FilenameFilter filter = null;
@@ -326,6 +337,7 @@ public class StandardCollectionURIResolver implements CollectionURIResolver {
                 if (v != null) {
                     validation = v.intValue();
                 }
+                xinclude = params.getXInclude();
                 strip = params.getStripSpace();
                 Integer e = params.getOnError();
                 if (e != null) {
@@ -349,7 +361,7 @@ public class StandardCollectionURIResolver implements CollectionURIResolver {
          *         sequence.
          */
 
-        public Object map(Item item) throws XPathException {
+        public SequenceIterator map(Item item) throws XPathException {
             File file = (File)((ObjectValue)item).getObject();
             if (file.isDirectory()) {
                 if (recurse) {
@@ -377,12 +389,16 @@ public class StandardCollectionURIResolver implements CollectionURIResolver {
                         source = AugmentedSource.makeAugmentedSource(source);
                         ((AugmentedSource)source).setSchemaValidationMode(validation);
                     }
+                    if (xinclude != null) {
+                        source = AugmentedSource.makeAugmentedSource(source);
+                        ((AugmentedSource)source).setXIncludeAware(xinclude.booleanValue());
+                    }
                     if (parser != null) {
                         source = AugmentedSource.makeAugmentedSource(source);
                         ((AugmentedSource)source).setXMLReader(parser);
                     }
 
-                    Stripper stripper = null;
+                    Stripper stripper;
                     if (params != null) {
                         int stripSpace = params.getStripSpace();
                         switch (strip) {
@@ -399,8 +415,8 @@ public class StandardCollectionURIResolver implements CollectionURIResolver {
                                 ((AugmentedSource)source).setStripSpace(stripSpace);
                         }
                     }
-                    NodeInfo contextNode = Builder.build(source, null, pipe);
-                    return contextNode.getDocumentRoot();
+                    return SingletonIterator.makeIterator(
+                            pipe.getConfiguration().buildDocument(source));
                 } catch (XPathException err) {
                     if (onError == URIQueryParameters.ON_ERROR_IGNORE) {
                         return null;
@@ -408,7 +424,7 @@ public class StandardCollectionURIResolver implements CollectionURIResolver {
                         try {
                             if (!err.hasBeenReported()) {
                                 pipe.getErrorListener().warning(err);
-                                DynamicError supp = new DynamicError("The document will be excluded from the collection");
+                                XPathException supp = new XPathException("The document will be excluded from the collection");
                                 supp.setLocator(err.getLocator());
                                 pipe.getErrorListener().warning(supp);
                             }

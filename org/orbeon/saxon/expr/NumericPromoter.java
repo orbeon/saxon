@@ -1,12 +1,10 @@
 package org.orbeon.saxon.expr;
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.*;
 
@@ -16,7 +14,7 @@ import org.orbeon.saxon.value.*;
 
 public final class NumericPromoter extends UnaryExpression {
 
-    private int requiredType; // always xs:float or xs:double
+    private BuiltInAtomicType requiredType; // always xs:float or xs:double
 
     /**
     * Constructor
@@ -26,7 +24,7 @@ public final class NumericPromoter extends UnaryExpression {
     * using the rules for "cast as".
     */
 
-    public NumericPromoter(Expression sequence, int requiredType) {
+    public NumericPromoter(Expression sequence, BuiltInAtomicType requiredType) {
         super(sequence);
         this.requiredType = requiredType;
         ExpressionTool.copyLocationInfo(sequence, this);
@@ -34,14 +32,20 @@ public final class NumericPromoter extends UnaryExpression {
 
     /**
     * Simplify an expression
-    */
+     * @param visitor an expression visitor
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
-        operand = operand.simplify(env);
-        if (operand instanceof AtomicValue) {
-            return promote(((AtomicValue)operand), null);
-        } else if (operand instanceof Value) {
-            return ((Value)SequenceExtent.makeSequenceExtent(iterate(env.makeEarlyEvaluationContext()))).reduce();
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        operand = visitor.simplify(operand);
+        if (operand instanceof Literal) {
+            if (((Literal)operand).getValue() instanceof AtomicValue) {
+                return Literal.makeLiteral(
+                        promote(((AtomicValue)((Literal)operand).getValue()), null));
+            } else {
+                return Literal.makeLiteral(
+                        ((Value)SequenceExtent.makeSequenceExtent(
+                                iterate(visitor.getStaticContext().makeEarlyEvaluationContext()))).reduce());
+            }
         }
         return this;
     }
@@ -50,8 +54,8 @@ public final class NumericPromoter extends UnaryExpression {
     * Type-check the expression
     */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        operand = operand.typeCheck(env, contextItemType);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.typeCheck(operand, contextItemType);
         return this;
     }
 
@@ -59,8 +63,8 @@ public final class NumericPromoter extends UnaryExpression {
     * Optimize the expression
     */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        operand = operand.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.optimize(operand, contextItemType);
         return this;
     }
 
@@ -79,6 +83,16 @@ public final class NumericPromoter extends UnaryExpression {
     }
 
     /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new NumericPromoter(getBaseExpression().copy(), requiredType);
+    }
+
+    /**
     * Evaluate as an Item. This should only be called if the expression has cardinality zero-or-one
     */
 
@@ -90,32 +104,49 @@ public final class NumericPromoter extends UnaryExpression {
 
     /**
      * Perform the promotion
+     * @param value the numeric or untyped atomic value to be promoted
+     * @param context the XPath dynamic evaluation context
+     * @return the value that results from the promotion
      */
 
     private AtomicValue promote(AtomicValue value, XPathContext context) throws XPathException {
-        AtomicValue v = value.getPrimitiveValue();
-        if (!(v instanceof NumericValue || v instanceof UntypedAtomicValue)) {
+        if (!(value instanceof NumericValue || value instanceof UntypedAtomicValue)) {
             final TypeHierarchy th = context.getConfiguration().getTypeHierarchy();
-            DynamicError err = new DynamicError("Cannot promote non-numeric value to " + getItemType(th).toString());
+            XPathException err = new XPathException(
+                    "Cannot promote non-numeric value to " + getItemType(th).toString(), "XPTY0004", context);
             err.setLocator(this);
-            err.setXPathContext(context);
             throw err;
         }
-        return v.convert(requiredType, context);
+        if (requiredType.equals(BuiltInAtomicType.FLOAT) && value instanceof DoubleValue) {
+            XPathException err = new XPathException(
+                    "Cannot promote from xs:double to xs:float", "XPTY0004", context);
+            err.setLocator(this);
+            throw err;
+        }
+        return value.convert(requiredType, true, context).asAtomic();
+    }
+
+    /**
+     * Get the required type. Always StandardNames.XS_DOUBLE or StandardNames.XS_FLOAT
+     * @return the fingerprint of the name of the required type
+     */
+
+    public int getRequiredType() {
+        return requiredType.getFingerprint();
     }
 
     /**
     * Determine the data type of the items returned by the expression, if possible
     * @return a value such as Type.STRING, Type.BOOLEAN, Type.NUMBER, Type.NODE,
     * or Type.ITEM (meaning not known in advance)
-     * @param th
+     * @param th the type hierarchy cache
      */
 
 	public ItemType getItemType(TypeHierarchy th) {
-        if (requiredType == StandardNames.XS_DOUBLE) {
-            return Type.DOUBLE_TYPE;
+        if (requiredType.equals(BuiltInAtomicType.DOUBLE)) {
+            return BuiltInAtomicType.DOUBLE;
         } else {
-	        return Type.FLOAT_TYPE;
+            return BuiltInAtomicType.FLOAT;
         }
 	}
 
@@ -129,14 +160,15 @@ public final class NumericPromoter extends UnaryExpression {
     }
 
     /**
-     * Give a string representation of the operator for use in diagnostics
-     * @return the operator, as a string
-     * @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    protected String displayOperator(Configuration config) {
-        final TypeHierarchy th = config.getTypeHierarchy();
-        return "promote items to " + getItemType(th).toString(config.getNamePool());
+    public void explain(ExpressionPresenter out) {
+        out.startElement("promoteNumeric");
+        out.emitAttribute("to", getItemType(out.getTypeHierarchy()).toString(out.getConfiguration().getNamePool()));
+        operand.explain(out);
+        out.endElement();
     }
 
 }

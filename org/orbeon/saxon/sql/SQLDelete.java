@@ -2,6 +2,7 @@ package org.orbeon.saxon.sql;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.SimpleExpression;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.StringLiteral;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.style.ExtensionInstruction;
@@ -38,11 +39,13 @@ public class SQLDelete extends ExtensionInstruction {
 		table = getAttributeList().getValue("", "table");
 		if (table==null) {
             reportAbsence("table");
+            table = "saxon-error-table";
         }
+        table = SQLConnect.quoteSqlName(table);
 
         String dbWhere = getAttributeList().getValue("", "where");
         if (dbWhere == null) {
-            where = StringValue.EMPTY_STRING;
+            where = new StringLiteral(StringValue.EMPTY_STRING);
         } else {
             where = makeAttributeValueTemplate(dbWhere);
         }
@@ -105,7 +108,7 @@ public class SQLDelete extends ExtensionInstruction {
             Connection connection = (Connection)((ObjectValue)conn).getObject();
             PreparedStatement ps = null;
 
-            String dbWhere = arguments[WHERE].evaluateAsString(context);
+            String dbWhere = arguments[WHERE].evaluateAsString(context).toString();
             String localstmt = statement;
 
             if (!dbWhere.equals("")) {

@@ -7,12 +7,13 @@ import org.orbeon.saxon.number.NumberFormatter;
 import org.orbeon.saxon.number.Numberer;
 import org.orbeon.saxon.number.Numberer_en;
 import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.pattern.Pattern;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.Whitespace;
 
 /**
 * An xsl:number element in the stylesheet. <br>
@@ -80,27 +81,27 @@ public class XSLNumber extends StyleElement {
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-			if (f==StandardNames.SELECT) {
+			if (f.equals(StandardNames.SELECT)) {
         		selectAtt = atts.getValue(a);
-            } else if (f==StandardNames.VALUE) {
+            } else if (f.equals(StandardNames.VALUE)) {
         		valueAtt = atts.getValue(a);
-        	} else if (f==StandardNames.COUNT) {
+        	} else if (f.equals(StandardNames.COUNT)) {
         		countAtt = atts.getValue(a);
-        	} else if (f==StandardNames.FROM) {
+        	} else if (f.equals(StandardNames.FROM)) {
         		fromAtt = atts.getValue(a);
-        	} else if (f==StandardNames.LEVEL) {
-        		levelAtt = atts.getValue(a).trim();
-        	} else if (f==StandardNames.FORMAT) {
+        	} else if (f.equals(StandardNames.LEVEL)) {
+        		levelAtt = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.FORMAT)) {
         		formatAtt = atts.getValue(a);
-        	} else if (f==StandardNames.LANG) {
+        	} else if (f.equals(StandardNames.LANG)) {
         		langAtt = atts.getValue(a);
-        	} else if (f==StandardNames.LETTER_VALUE) {
-        		letterValueAtt = atts.getValue(a).trim();
-        	} else if (f==StandardNames.GROUPING_SIZE) {
-        		gsizeAtt = atts.getValue(a).trim();
-        	} else if (f==StandardNames.GROUPING_SEPARATOR) {
+        	} else if (f.equals(StandardNames.LETTER_VALUE)) {
+        		letterValueAtt = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.GROUPING_SIZE)) {
+        		gsizeAtt = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.GROUPING_SEPARATOR)) {
         		gsepAtt = atts.getValue(a);
-            } else if (f==StandardNames.ORDINAL) {
+            } else if (f.equals(StandardNames.ORDINAL)) {
                 ordinalAtt = atts.getValue(a);
         	} else {
         		checkUnknownAttribute(nc);
@@ -161,9 +162,9 @@ public class XSLNumber extends StyleElement {
 
         if (formatAtt != null) {
             format = makeAttributeValueTemplate(formatAtt);
-            if (format instanceof StringValue) {
+            if (format instanceof StringLiteral) {
                 formatter = new NumberFormatter();
-                formatter.prepare(((StringValue)format).getStringValue());
+                formatter.prepare(((StringLiteral)format).getStringValue());
             }
             // else we'll need to allocate the formatter at run-time
         } else {
@@ -181,8 +182,8 @@ public class XSLNumber extends StyleElement {
             numberer = defaultNumberer;
         } else {
             lang = makeAttributeValueTemplate(langAtt);
-            if (lang instanceof StringValue) {
-                numberer = makeNumberer(((StringValue)lang).getStringValue());
+            if (lang instanceof StringLiteral) {
+                numberer = makeNumberer(((StringLiteral)lang).getStringValue());
             }   // else we allocate a numberer at run-time
         }
 
@@ -197,7 +198,6 @@ public class XSLNumber extends StyleElement {
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
         checkEmpty();
 
         select = typeCheck("select", select);
@@ -214,12 +214,12 @@ public class XSLNumber extends StyleElement {
         if (select != null) {
             try {
                 RoleLocator role =
-                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:number/select", 0, null);
-                role.setSourceLocator(new ExpressionLocation(this));
+                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:number/select", 0);
+                //role.setSourceLocator(new ExpressionLocation(this));
                 role.setErrorCode("XTTE1000");
                 select = TypeChecker.staticTypeCheck(select,
                                             SequenceType.SINGLE_NODE,
-                                            false, role, getStaticContext());
+                                            false, role, makeExpressionVisitor());
             } catch (XPathException err) {
                 compileError(err);
             }
@@ -245,16 +245,17 @@ public class XSLNumber extends StyleElement {
                                         backwardsCompatibleModeIsEnabled());
         int loc = getStaticContext().getLocationMap().allocateLocationId(getSystemId(), getLineNumber());
         expr.setLocationId(loc);
-        ExpressionTool.makeParentReferences(expr);
         ValueOf inst = new ValueOf(expr, false, false);
         inst.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
-        ExpressionTool.makeParentReferences(inst);
         inst.setIsNumberingInstruction();
         return inst;
     }
 
     /**
     * Load a Numberer class for a given language and check it is OK.
+     * @param language the identifier of the language, for example "en" or "de"
+     * @return the Numberer to use for that language. If a class named "org.orbeon.saxon.number.Numberer_XX" exists,
+     * this class is instantiated, otherwise the Numberer for the default language (English) is returned.
     */
 
     protected Numberer makeNumberer (String language) {

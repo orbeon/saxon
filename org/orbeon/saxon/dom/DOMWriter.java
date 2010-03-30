@@ -1,9 +1,10 @@
 package org.orbeon.saxon.dom;
 import org.orbeon.saxon.event.PipelineConfiguration;
 import org.orbeon.saxon.event.Receiver;
+import org.orbeon.saxon.event.ReceiverOptions;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NamespaceConstant;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.w3c.dom.*;
 
@@ -18,6 +19,8 @@ public class DOMWriter implements Receiver {
     private NamePool namePool;
     private Node currentNode;
     private Document document;
+    private Node nextSibling;
+    private int level = 0;
     private boolean canNormalize = true;
     private String systemId;
 
@@ -27,7 +30,7 @@ public class DOMWriter implements Receiver {
 
     public void setPipelineConfiguration(PipelineConfiguration pipe) {
         this.pipe = pipe;
-        this.namePool = pipe.getConfiguration().getNamePool();
+        namePool = pipe.getConfiguration().getNamePool();
     }
 
     /**
@@ -101,11 +104,16 @@ public class DOMWriter implements Receiver {
         String uri = namePool.getURI(nameCode);
         try {
             Element element = document.createElementNS(("".equals(uri) ? null : uri), qname);
-            currentNode.appendChild(element);
+            if (nextSibling != null && level == 0) {
+                currentNode.insertBefore(element, nextSibling);
+            } else {
+                currentNode.appendChild(element);
+            }
             currentNode = element;
         } catch (DOMException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
+        level++;
     }
 
     public void namespace (int namespaceCode, int properties) throws XPathException {
@@ -115,7 +123,6 @@ public class DOMWriter implements Receiver {
     		Element element = (Element)currentNode;
             if (!(uri.equals(NamespaceConstant.XML))) {
                 if (prefix.length() == 0) {
-                    // ORBEON: backfixed from Saxon 9
                     element.setAttributeNS(NamespaceConstant.XMLNS, "xmlns", uri);
                 } else {
                     element.setAttributeNS(NamespaceConstant.XMLNS, "xmlns:" + prefix, uri);
@@ -123,7 +130,7 @@ public class DOMWriter implements Receiver {
                 }
             }
         } catch (DOMException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
@@ -134,16 +141,13 @@ public class DOMWriter implements Receiver {
         try {
     		Element element = (Element)currentNode;
             element.setAttributeNS(("".equals(uri) ? null : uri), qname, value.toString());
-            // TODO: activate the following code under JDK 1.5
-//            if (nameCode == StandardNames.XML_ID || (properties & ReceiverOptions.IS_ID) != 0) {
-//                int colon = qname.indexOf(':');
-//                if (colon >= 0) {
-//                    qname = qname.substring(colon);
-//                }
-//                element.setIdAttributeNS(uri, qname, true);
-//            }
+            // The following code assumes JDK 1.5 or JAXP 1.3
+            if ((nameCode & NamePool.FP_MASK) == StandardNames.XML_ID || (properties & ReceiverOptions.IS_ID) != 0) {
+                String localName = namePool.getLocalName(nameCode);
+                element.setIdAttributeNS(uri, localName, true);
+            }
         } catch (DOMException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
@@ -163,7 +167,7 @@ public class DOMWriter implements Receiver {
 	    }
 
         currentNode = currentNode.getParentNode();
-
+        level--;
     }
 
 
@@ -175,9 +179,13 @@ public class DOMWriter implements Receiver {
     {
         try {
             Text text = document.createTextNode(chars.toString());
-            currentNode.appendChild(text);
+            if (nextSibling != null && level == 0) {
+                currentNode.insertBefore(text, nextSibling);
+            } else {
+                currentNode.appendChild(text);
+            }
         } catch (DOMException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
@@ -192,9 +200,13 @@ public class DOMWriter implements Receiver {
         try {
             ProcessingInstruction pi =
                 document.createProcessingInstruction(target, data.toString());
-            currentNode.appendChild(pi);
+            if (nextSibling != null && level == 0) {
+                currentNode.insertBefore(pi, nextSibling);
+            } else {
+                currentNode.appendChild(pi);
+            }
         } catch (DOMException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
@@ -206,14 +218,19 @@ public class DOMWriter implements Receiver {
     {
         try {
             Comment comment = document.createComment(chars.toString());
-            currentNode.appendChild(comment);
+            if (nextSibling != null && level == 0) {
+                currentNode.insertBefore(comment, nextSibling);
+            } else {
+                currentNode.appendChild(comment);
+            }
         } catch (DOMException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
     /**
-    * Set output destination
+     * Set the attachment point for the new subtree
+     * @param node the node to which the new subtree will be attached
     */
 
     public void setNode (Node node) {
@@ -226,6 +243,17 @@ public class DOMWriter implements Receiver {
         } else {
             document = currentNode.getOwnerDocument();
         }
+    }
+
+    /**
+     * Set next sibling
+     * @param nextSibling the node, which must be a child of the attachment point, before which the new subtree
+     * will be created. If this is null the new subtree will be added after any existing children of the
+     * attachment point.
+     */
+
+    public void setNextSibling(Node nextSibling) {
+        this.nextSibling = nextSibling;
     }
 
 }

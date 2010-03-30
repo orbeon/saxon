@@ -1,7 +1,6 @@
 package org.orbeon.saxon.om;
 
 import org.orbeon.saxon.expr.LastPositionFinder;
-import org.orbeon.saxon.expr.ReversibleIterator;
 
 
 /**
@@ -10,8 +9,8 @@ import org.orbeon.saxon.expr.ReversibleIterator;
   */
 
 
-public final class ReverseArrayIterator implements AxisIterator,
-                                                   ReversibleIterator,
+public class ReverseArrayIterator implements UnfailingIterator,
+        org.orbeon.saxon.expr.ReversibleIterator,
                                                    LookaheadIterator,
                                                    LastPositionFinder {
 
@@ -73,6 +72,9 @@ public final class ReverseArrayIterator implements AxisIterator,
 
     public int getLastPosition() {
         return end - start;
+    }
+
+    public void close() {
     }
 
     public SequenceIterator getAnother() {

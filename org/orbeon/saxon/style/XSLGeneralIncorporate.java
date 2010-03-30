@@ -1,15 +1,16 @@
 package org.orbeon.saxon.style;
+import org.orbeon.saxon.AugmentedSource;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.PreparedStylesheet;
-import org.orbeon.saxon.AugmentedSource;
 import org.orbeon.saxon.event.IDFilter;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.AttributeCollection;
-import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.tree.DocumentImpl;
 import org.orbeon.saxon.tree.ElementImpl;
+import org.orbeon.saxon.value.Whitespace;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.TransformerException;
@@ -27,7 +28,8 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
     DocumentImpl includedDoc;
 
     /**
-    * isImport() returns true if this is an xsl:import statement rather than an xsl:include
+    * isImport() returns true if this is an xsl:import declaration rather than an xsl:include
+     * @return true if this is an xsl:import declaration, false if it is an xsl:include
     */
 
     public abstract boolean isImport();
@@ -39,8 +41,8 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-			if (f==StandardNames.HREF) {
-        		href = atts.getValue(a).trim();
+			if (f.equals(StandardNames.HREF)) {
+        		href = Whitespace.trim(atts.getValue(a));
         	} else {
         		checkUnknownAttribute(nc);
         	}
@@ -55,6 +57,14 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
         checkEmpty();
         checkTopLevel(isImport() ? "XTSE0190" : "XTSE0170");
     }
+
+    /**
+     * Get the included or imported stylesheet module
+     * @param importer the module that requested the include or export (used to check for cycles)
+     * @param precedence the import precedence to be allocated to the included or imported module
+     * @return the xsl:stylesheet element at the root of the included/imported module
+     * @throws XPathException if any failure occurs
+     */
 
     public XSLStylesheet getIncludedStylesheet(XSLStylesheet importer, int precedence)
                  throws XPathException {
@@ -93,7 +103,7 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
             try {
                 source = resolver.resolve(relative, getBaseURI());
             } catch (TransformerException e) {
-                throw StaticError.makeStaticError(e);
+                throw XPathException.makeXPathException(e);
             }
 
             // if a user URI resolver returns null, try the standard one
@@ -123,8 +133,8 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
                 }
             }
 
-            StyleNodeFactory snFactory = new StyleNodeFactory(config, getPreparedStylesheet().getErrorListener());
-            includedDoc = PreparedStylesheet.loadStylesheetModule(source, config, getNamePool(), snFactory);
+            StyleNodeFactory snFactory = new StyleNodeFactory(config, pss.getErrorListener());
+            includedDoc = pss.loadStylesheetModule(source, snFactory);
 
             // allow the included document to use "Literal Result Element as Stylesheet" syntax
 
@@ -141,6 +151,7 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
                 return null;
             }
             XSLStylesheet incSheet = (XSLStylesheet)outermost;
+            incSheet.validate();
 
             if (incSheet.validationError!=null) {
                 if (reportingCircumstances == REPORT_ALWAYS) {
@@ -157,6 +168,7 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
             incSheet.spliceIncludes();          // resolve any nested includes;
 
             // Check the consistency of input-type-annotations
+            //assert thisSheet != null;
             thisSheet.setInputTypeAnnotations(incSheet.getInputTypeAnnotationsAttribute() |
                     incSheet.getInputTypeAnnotations());
 
@@ -164,6 +176,7 @@ public abstract class XSLGeneralIncorporate extends StyleElement {
 
         } catch (XPathException err) {
             err.setErrorCode("XTSE0165");
+            err.setIsStaticError(true);
             compileError(err);
             return null;
         }

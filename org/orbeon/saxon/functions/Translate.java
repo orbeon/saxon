@@ -1,27 +1,29 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.FastStringBuffer;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.sort.IntToIntHashMap;
+import org.orbeon.saxon.sort.IntToIntMap;
 
-
+/**
+ * Implement the XPath translate() function
+ */
 
 public class Translate extends SystemFunction {
 
-    private IntToIntHashMap staticMap = null;
+    private IntToIntMap staticMap = null;
             // if the second and third arguments are known statically, we build a hash table for fast
             // lookup at run-time.
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        Expression e = super.typeCheck(env, contextItemType);
-        if (e == this && argument[1] instanceof StringValue && argument[2] instanceof StringValue) {
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression e = super.typeCheck(visitor, contextItemType);
+        if (e == this && argument[1] instanceof StringLiteral && argument[2] instanceof StringLiteral) {
             // second and third arguments known statically: build an index
-            staticMap = buildMap((StringValue)argument[1], (StringValue)argument[2]);
+            staticMap = buildMap((StringValue)((StringLiteral)argument[1]).getValue(),
+                    (StringValue)((StringLiteral)argument[2]).getValue());
         }
         return e;
     }
@@ -51,10 +53,18 @@ public class Translate extends SystemFunction {
     }
 
     /**
+     * Get the translation map built at compile time if there is one
+     */
+
+    public IntToIntMap getStaticMap() {
+        return staticMap;
+    }
+
+    /**
     * Perform the translate function
     */
 
-    private static CharSequence translate(StringValue sv0, StringValue sv1, StringValue sv2) {
+    public static CharSequence translate(StringValue sv0, StringValue sv1, StringValue sv2) {
 
         // if any string contains surrogate pairs, expand everything to 32-bit characters
         if (sv0.containsSurrogatePairs() || sv1.containsSurrogatePairs() || sv2.containsSurrogatePairs()) {
@@ -86,53 +96,16 @@ public class Translate extends SystemFunction {
     }
 
     /**
-    * Perform the translate function when surrogate pairs are in use
-    */
+     * Build an index
+     * @param arg1
+     * @param arg2
+     * @return
+     */
 
-//    private static CharSequence slowTranslate(StringValue sv0, StringValue sv1, StringValue sv2) {
-//        int[] a0 = sv0.expand();
-//        int[] a1 = sv1.expand();
-//        int[] a2 = sv2.expand();
-//        FastStringBuffer sb = new FastStringBuffer(a0.length);
-//        for (int i=0; i<a0.length; i++) {
-//            int c = a0[i];
-//            int j = -1;
-//            for (int test=0; test<a1.length; test++) {
-//                if (a1[test]==c) {
-//                    j = test;
-//                    break;
-//                }
-//            }
-//            int newchar = -1;
-//            if (j<0) {
-//                newchar = a0[i];
-//            } else if (j<a2.length) {
-//                newchar = a2[j];
-//            } else {
-//                // no new character
-//            }
-//
-//            if (newchar>=0) {
-//                if (newchar<65536) {
-//                    sb.append((char)newchar);
-//                }
-//                else {  // output a surrogate pair
-//                    //To compute the numeric value of the character corresponding to a surrogate
-//                    //pair, use this formula (all numbers are hex):
-//            	    //(FirstChar - D800) * 400 + (SecondChar - DC00) + 10000
-//                    newchar -= 65536;
-//                    sb.append((char)((newchar / 1024) + 55296));
-//                    sb.append((char)((newchar % 1024) + 56320));
-//                }
-//            }
-//        }
-//        return sb;
-//    }
-
-    private static IntToIntHashMap buildMap(StringValue arg1, StringValue arg2) {
+    private static IntToIntMap buildMap(StringValue arg1, StringValue arg2) {
         int[] a1 = arg1.expand();
         int[] a2 = arg2.expand();
-        IntToIntHashMap map = new IntToIntHashMap(a1.length, 0.5);
+        IntToIntMap map = new IntToIntHashMap(a1.length, 0.5);
             // allow plenty of free space, it's better for lookups (though worse for iteration)
         for (int i=0; i<a1.length; i++) {
             if (map.find(a1[i])) {
@@ -144,7 +117,16 @@ public class Translate extends SystemFunction {
         return map;
     }
 
-    private static CharSequence translateUsingMap(CharSequence in, IntToIntHashMap map) {
+    /**
+     * Implement the translate() function using an index built at compile time
+     * @param in the string to be translated
+     * @param map index built at compile time, mapping input characters to output characters. The map returns
+     * -1 for a character that is to be deleted from the input string, Integer.MAX_VALUE for a character that is
+     * to remain intact
+     * @return the translated character string
+     */
+
+    public static CharSequence translateUsingMap(CharSequence in, IntToIntMap map) {
         int len = in.length();
         FastStringBuffer sb = new FastStringBuffer(len);
         for (int i=0; i<len; i++) {

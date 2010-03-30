@@ -1,7 +1,6 @@
 package org.orbeon.saxon.instruct;
-import org.orbeon.saxon.om.NamespaceResolver;
+import org.orbeon.saxon.om.StructuredQName;
 import org.orbeon.saxon.trace.InstructionInfo;
-import org.orbeon.saxon.trace.InstructionInfoProvider;
 import org.orbeon.saxon.trace.Location;
 
 import java.io.Serializable;
@@ -12,14 +11,13 @@ import java.util.Iterator;
 * Details about an instruction, used when reporting errors and when tracing
 */
 
-public final class InstructionDetails implements InstructionInfo, InstructionInfoProvider, Serializable {
+public final class InstructionDetails implements InstructionInfo, Serializable {
 
     private int constructType = Location.UNCLASSIFIED;
     private String systemId = null;
     private int lineNumber = -1;
     private int columnNumber = -1;
-    private int objectNameCode = -1;
-    private NamespaceResolver namespaceResolver;
+    private StructuredQName objectName;
     private HashMap properties = new HashMap(5);
 
     public InstructionDetails() {}
@@ -37,24 +35,6 @@ public final class InstructionDetails implements InstructionInfo, InstructionInf
      */
     public int getConstructType() {
         return constructType;
-    }
-
-    /**
-     * Set the namespace context for the instruction being traced. This is needed if the
-     * tracelistener wants to evaluate XPath expressions in the context of the current instruction
-     */
-
-    public void setNamespaceResolver(NamespaceResolver resolver) {
-        namespaceResolver = resolver;
-    }
-
-    /**
-     * Get the namespace resolver to supply the namespace context of the instruction
-     * that is being traced
-     */
-
-    public NamespaceResolver getNamespaceResolver() {
-        return namespaceResolver;
     }
 
     /**
@@ -98,8 +78,8 @@ public final class InstructionDetails implements InstructionInfo, InstructionInf
      * variable name, key name, element name, etc. This is used only where the name is known statically.
      */
 
-    public void setObjectNameCode(int nameCode) {
-        objectNameCode = nameCode;
+    public void setObjectName(StructuredQName qName) {
+        objectName = qName;
     }
 
     /**
@@ -107,8 +87,12 @@ public final class InstructionDetails implements InstructionInfo, InstructionInf
      * variable name, key name, element name, etc. This is used only where the name is known statically.
      */
 
-    public int getObjectNameCode() {
-        return objectNameCode;
+    public StructuredQName getObjectName() {
+        if (objectName != null) {
+            return objectName;
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -191,12 +175,16 @@ public final class InstructionDetails implements InstructionInfo, InstructionInf
         return this;
     }
 
-    public String getSystemId(int locationId) {
+    public String getSystemId(long locationId) {
         return getSystemId();
     }
 
-    public int getLineNumber(int locationId) {
+    public int getLineNumber(long locationId) {
         return getLineNumber();
+    }
+
+    public int getColumnNumber(long locationId) {
+        return getColumnNumber();
     }
 }
 
@@ -216,5 +204,4 @@ public final class InstructionDetails implements InstructionInfo, InstructionInf
 // Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
 //
 // Contributor(s):
-// Portions marked "e.g." are from Edwin Glaser (edwin@pannenleiter.de)
 //

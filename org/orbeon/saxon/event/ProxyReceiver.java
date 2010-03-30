@@ -2,6 +2,7 @@ package org.orbeon.saxon.event;
 
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.trans.XPathException;
 
 /**
@@ -13,6 +14,7 @@ public abstract class ProxyReceiver extends SequenceReceiver {
     protected Receiver nextReceiver;
 
     public void setSystemId(String systemId) {
+        //noinspection StringEquality
         if (systemId != this.systemId) {
             // use of == rather than equals() is deliberate, since this is only an optimization
             this.systemId = systemId;
@@ -23,7 +25,9 @@ public abstract class ProxyReceiver extends SequenceReceiver {
     }
 
      /**
-     * Set the underlying receiver. This call is mandatory before using the Receiver.
+      * Set the underlying receiver. This call is mandatory before using the Receiver.
+      * @param receiver the underlying receiver, the one that is to receive events after processing
+      * by this filter.
      */
 
     public void setUnderlyingReceiver(Receiver receiver) {
@@ -45,8 +49,8 @@ public abstract class ProxyReceiver extends SequenceReceiver {
 
 
     public void setPipelineConfiguration(PipelineConfiguration pipe) {
-        if (this.pipelineConfiguration != pipe) {
-            this.pipelineConfiguration = pipe;
+        if (pipelineConfiguration != pipe) {
+            pipelineConfiguration = pipe;
             if (nextReceiver != null) {
                 nextReceiver.setPipelineConfiguration(pipe);
             }
@@ -62,7 +66,7 @@ public abstract class ProxyReceiver extends SequenceReceiver {
      */
 
     public NamePool getNamePool() {
-        return getConfiguration().getNamePool();
+        return pipelineConfiguration.getConfiguration().getNamePool();
     }
 
     /**
@@ -202,6 +206,24 @@ public abstract class ProxyReceiver extends SequenceReceiver {
 
     public void setUnparsedEntity(String name, String uri, String publicId) throws XPathException {
         nextReceiver.setUnparsedEntity(name, uri, publicId);
+    }
+
+    /**
+     * Append an arbitrary item (node or atomic value) to the output
+     *
+     * @param item           the item to be appended
+     * @param locationId     the location of the calling instruction, for diagnostics
+     * @param copyNamespaces if the item is an element node, this indicates whether its namespaces
+*                       need to be copied. Values are {@link org.orbeon.saxon.om.NodeInfo#ALL_NAMESPACES},
+*                       {@link org.orbeon.saxon.om.NodeInfo#LOCAL_NAMESPACES}, {@link org.orbeon.saxon.om.NodeInfo#NO_NAMESPACES}
+     */
+
+    public void append(Item item, int locationId, int copyNamespaces) throws XPathException {
+        if (nextReceiver instanceof SequenceReceiver) {
+            ((SequenceReceiver)nextReceiver).append(item, locationId, copyNamespaces);
+        } else {
+            throw new UnsupportedOperationException("append() method is not supported in this class");
+        }
     }
 
     /**

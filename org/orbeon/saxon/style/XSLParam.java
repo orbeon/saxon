@@ -36,10 +36,9 @@ public class XSLParam extends XSLVariableDeclaration {
     public void validate() throws XPathException {
 
         NodeInfo parent = getParent();
-        boolean local = (parent instanceof XSLTemplate || parent instanceof XSLFunction);
         global = (parent instanceof XSLStylesheet);
 
-        if (!local && !global) {
+        if (!((parent instanceof StyleElement) && ((StyleElement)parent).mayContainParam())) {
             compileError("xsl:param must be immediately within a template, function or stylesheet", "XTSE0010");
         }
 
@@ -51,7 +50,7 @@ public class XSLParam extends XSLVariableDeclaration {
                     break;
                 }
                 if (node instanceof XSLParam) {
-                    if (this.getVariableFingerprint() == ((XSLParam)node).getVariableFingerprint()) {
+                    if (this.getVariableQName().equals(((XSLParam)node).getVariableQName())) {
                         compileError("The name of the parameter is not unique", "XTSE0580");
                     }
                 } else if (node instanceof StyleElement) {
@@ -68,7 +67,7 @@ public class XSLParam extends XSLVariableDeclaration {
             if (p==null) {
                 compileError("Local variable must be declared within a template or function", "XTSE0010");
             } else {
-                setSlotNumber(p.allocateSlotNumber(getVariableFingerprint()));
+                setSlotNumber(p.allocateSlotNumber(getVariableQName()));
             }
 
         }
@@ -103,14 +102,14 @@ public class XSLParam extends XSLVariableDeclaration {
             if (requiredType != null) {
                 SuppliedParameterReference pref = new SuppliedParameterReference(slot);
                 pref.setLocationId(staticContext.getLocationMap().allocateLocationId(getSystemId(), getLineNumber()));
-                RoleLocator role = new RoleLocator(RoleLocator.PARAM, getVariableName(), 0, null);
-                role.setSourceLocator(new ExpressionLocation(this));
+                RoleLocator role = new RoleLocator(RoleLocator.PARAM, getVariableDisplayName(), 0);
+                //role.setSourceLocator(new ExpressionLocation(this));
                 role.setErrorCode("XTTE0590");
                 conversion = TypeChecker.staticTypeCheck(
                         pref,
                         requiredType,
                         false,
-                        role, getStaticContext());
+                        role, makeExpressionVisitor());
             }
 
             GeneralVariable inst;
@@ -118,19 +117,23 @@ public class XSLParam extends XSLVariableDeclaration {
                 inst = new GlobalParam();
                 ((GlobalParam)inst).setHostLanguage(Configuration.XSLT);
                 ((GlobalParam)inst).setExecutable(getExecutable());
+                ((GlobalParam)inst).setContainer(((GlobalParam)inst));
                 if (isRequiredParam()) {
-                    getExecutable().addRequiredParam(getVariableFingerprint());
+                    getExecutable().addRequiredParam(getVariableQName());
                 }
-                ComputedExpression.setParentExpression(select, inst);
+                if (select != null) {
+                    select.setContainer(((GlobalVariable)inst));
+                }
             } else {
                 inst = new LocalParam();
                 ((LocalParam)inst).setConversion(conversion);
+                ((LocalParam)inst).setParameterId(
+                        getPrincipalStylesheet().allocateUniqueParameterNumber(getVariableQName()));
             }
             initializeInstruction(exec, inst);
-            inst.setVariableName(getVariableName());
+            inst.setVariableQName(getVariableQName());
             inst.setSlotNumber(slot);
             inst.setRequiredType(getRequiredType());
-            ExpressionTool.makeParentReferences(inst);
             fixupBinding(inst);
             return inst;
         }

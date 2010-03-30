@@ -2,17 +2,18 @@ package org.orbeon.saxon.query;
 
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.StandardErrorListener;
+import org.orbeon.saxon.trace.TraceListener;
 import org.orbeon.saxon.functions.Component;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.ValueRepresentation;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.DateTimeValue;
 
 import javax.xml.transform.ErrorListener;
 import javax.xml.transform.URIResolver;
 import java.util.HashMap;
+import java.io.PrintStream;
 
 /**
  * This object represents a dynamic context for query execution. This class is used
@@ -28,13 +29,26 @@ public class DynamicQueryContext {
     private Configuration config;
     private URIResolver uriResolver;
     private ErrorListener errorListener;
-
+    private TraceListener traceListener;
     private DateTimeValue currentDateTime;
+    private PrintStream traceFunctionDestination = System.err;
+
+    /**
+     * Create the dynamic context for a query
+     * @param config the Saxon configuration
+
+     * @since 8.4.
+     */
 
     public DynamicQueryContext(Configuration config) {
         this.config = config;
         uriResolver = config.getURIResolver();
         errorListener = config.getErrorListener();
+        try {
+            traceListener = config.makeTraceListener();
+        } catch (XPathException err) {
+            throw new IllegalStateException(err.getMessage());
+        }
         if (errorListener instanceof StandardErrorListener) {
             errorListener = ((StandardErrorListener)errorListener).makeAnother(Configuration.XQUERY);
             ((StandardErrorListener)errorListener).setRecoveryPolicy(Configuration.DO_NOT_RECOVER);
@@ -46,7 +60,7 @@ public class DynamicQueryContext {
      * the context node will be undefined. The context node is available as the value of
      * the expression ".".
      * To obtain a NodeInfo by parsing a source document, see the method
-     * {@link org.orbeon.saxon.query.StaticQueryContext#buildDocument buildDocument}
+     * {@link org.orbeon.saxon.Configuration#buildDocument buildDocument}
      * in class QueryProcessor.
      *
      * @param node      The node that is to be the context node for the query
@@ -58,7 +72,7 @@ public class DynamicQueryContext {
         if (node==null) {
             throw new NullPointerException("Context node cannot be null");
         }
-        contextItem = node;
+        setContextItem(node);
     }
 
     /**
@@ -66,15 +80,23 @@ public class DynamicQueryContext {
      * the context node will be undefined. The context item is available as the value of
      * the expression ".",.
      * To obtain a node by parsing a source document, see the method
-     * {@link org.orbeon.saxon.query.StaticQueryContext#buildDocument buildDocument}
+     * {@link org.orbeon.saxon.Configuration#buildDocument buildDocument}
      * in class QueryProcessor.
      * @param item The item that is to be the context item for the query
+     * @throws IllegalArgumentException if the supplied item is a node that was built under the wrong
+     * Saxon Configuration
      * @since 8.4
      */
 
     public void setContextItem(Item item) {
         if (item==null) {
             throw new NullPointerException("Context item cannot be null");
+        }
+        if (item instanceof NodeInfo) {
+            if (!((NodeInfo)item).getConfiguration().isCompatible(config)) {
+                throw new IllegalArgumentException(
+                            "Supplied node must be built using the same or a compatible Configuration");
+            }
         }
         contextItem = item;
     }
@@ -158,9 +180,13 @@ public class DynamicQueryContext {
     /**
      * Get all the supplied parameters as a HashMap. The key is the expanded QName in Clark notation,
      * the value is the value as supplied to setParameterValue
+     * @return a HashMap containing all the parameters
      */
 
     public HashMap getParameters() {
+        if (parameters == null) {
+            return new HashMap(4);
+        }
         return parameters;
     }
 
@@ -213,6 +239,55 @@ public class DynamicQueryContext {
 		return errorListener;
 	}
 
+    /**
+     * Set the trace listener. The trace listener receives reports of all run-time
+     * expression evaluation.
+     *
+     * @param listener the TraceListener to be used
+     * @since 9.0
+     */
+
+    public void setTraceListener(TraceListener listener) {
+        traceListener = listener;
+    }
+
+    /**
+     * Get the trace listener.
+     *
+     * @return the TraceListener in use, or null if none is in use
+     * @since 9.0
+     */
+
+    public TraceListener getTraceListener() {
+        return traceListener;
+    }
+
+    /**
+     * Set the destination for output from the fn:trace() function.
+     * By default, the destination is System.err. If a TraceListener is in use,
+     * this is ignored, and the trace() output is sent to the TraceListener.
+     * @param stream the PrintStream to which trace output will be sent. If set to
+     * null, trace output is suppressed entirely. It is the caller's responsibility
+     * to close the stream after use.
+     * @since 9.1
+     */
+
+    public void setTraceFunctionDestination(PrintStream stream) {
+        traceFunctionDestination = stream;
+    }
+
+    /**
+     * Get the destination for output from the fn:trace() function.
+     * @return the PrintStream to which trace output will be sent. If no explicitly
+     * destination has been set, returns System.err. If the destination has been set
+     * to null to suppress trace output, returns null.
+     * @since 9.1
+     */
+
+    public PrintStream getTraceFunctionDestination() {
+        return traceFunctionDestination;
+    }    
+
 
     /**
      * Get the date and time set previously using {@link #setCurrentDateTime(org.orbeon.saxon.value.DateTimeValue)}
@@ -228,15 +303,17 @@ public class DynamicQueryContext {
     /**
      * Set a value to be used as the current date and time for the query. By default, the "real" current date and
      * time are used. The main purpose of this method is that it allows repeatable results to be achieved when
-     * testing queries
-     * @param dateTime The value to be used as the current date and time. This must include a timezone.
+     * testing queries.
+     * <p>This method also has the effect of setting the implicit timezone.</p>
+     * @param dateTime The value to be used as the current date and time. This must include a timezone. The timezone
+     * from this value will also be used as the implicit timezone
      * @since 8.5
      */
 
     public void setCurrentDateTime(DateTimeValue dateTime) throws XPathException {
-        this.currentDateTime = dateTime;
+        currentDateTime = dateTime;
         if (dateTime.getComponent(Component.TIMEZONE) == null) {
-            throw new DynamicError("Supplied date/time must include a timezone");
+            throw new XPathException("Supplied date/time must include a timezone");
         }
     }
 

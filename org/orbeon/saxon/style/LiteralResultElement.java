@@ -1,18 +1,15 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.PreparedStylesheet;
-import org.orbeon.saxon.expr.ComputedExpression;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.Literal;
 import org.orbeon.saxon.instruct.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trace.Location;
-import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.tree.DocumentImpl;
 import org.orbeon.saxon.tree.TreeBuilder;
 import org.orbeon.saxon.type.SchemaType;
-import org.orbeon.saxon.value.EmptySequence;
 
 import javax.xml.transform.TransformerException;
 
@@ -63,7 +60,7 @@ public class LiteralResultElement extends StyleElement {
         // values (especially AVTs), but we do not apply namespace aliasing to the
         // attribute names.
 
-        int num = attributeList.getLength();
+        int num = getAttributeList().getLength();
 
         if (num == 0) {
             numberOfAttributes = 0;
@@ -173,28 +170,35 @@ public class LiteralResultElement extends StyleElement {
             // (e) there are no attributes in a non-null namespace,
             // then we don't need to output any namespace declarations to the result.
 
-            boolean optimizeNS = false;
-            NodeInfo parent = getParent();
-            if ((parent instanceof LiteralResultElement) &&
-                    ((LiteralResultElement)parent).inheritNamespaces &&
-                    (namespaceList==null || namespaceList.length==0) &&
-                    ( elementURICode == namePool.getURICode(getParent().getFingerprint()))) {
-                optimizeNS = true;
-            }
-            if (optimizeNS) {
-                for (int a=0; a<attributeList.getLength(); a++ ) {
-                    if (NamePool.getPrefixIndex(attributeList.getNameCode(a)) != 0) {	// prefix != ""
-                        optimizeNS = false;
-                        break;
-                    }
-                }
-            }
+            // It seems this optimization wasn't working in 8.9, because there was always an xmlns="" namespace
+            // present on the LRE (causing it to fail test (b)). Having removed that namespace declaration,
+            // it appears that the optimization is faulty (test atrs24), because test (e) doesn't take into account
+            // attributes that might be created using child instructions or xsl:attribute-set. So in 9.0 we're
+            // removing this optimization entirely, and replacing it with a rewrite done during the optimize()
+            // phase of processing.
 
-            if (optimizeNS) {
-            	namespaceCodes = NodeInfo.EMPTY_NAMESPACE_LIST;
-            } else {
+//            boolean optimizeNS = false;
+//            NodeInfo parent = getParent();
+//            if ((parent instanceof LiteralResultElement) &&
+//                    ((LiteralResultElement)parent).inheritNamespaces &&
+//                    (namespaceList==null || namespaceList.length==0) &&
+//                    ( elementURICode == namePool.getURICode(getParent().getFingerprint()))) {
+//                optimizeNS = true;
+//            }
+//            if (optimizeNS) {
+//                for (int a=0; a<attributeList.getLength(); a++ ) {
+//                    if (NamePool.getPrefixIndex(attributeList.getNameCode(a)) != 0) {	// prefix != ""
+//                        optimizeNS = false;
+//                        break;
+//                    }
+//                }
+//            }
+//
+//            if (optimizeNS) {
+//            	namespaceCodes = NodeInfo.EMPTY_NAMESPACE_LIST;
+//            } else {
                 namespaceCodes = getInScopeNamespaceCodes();
-	        }
+//	        }
 
             // apply any aliases required to create the list of output namespaces
 
@@ -229,12 +233,14 @@ public class LiteralResultElement extends StyleElement {
                 attributeSets = getAttributeSets(useAttSets, null);
             }
 
+            validation = getContainingStylesheet().getDefaultValidation();
             String type = getAttributeValue(StandardNames.XSL_TYPE);
             if (type != null) {
                 if (!getConfiguration().isSchemaAware(Configuration.XSLT)) {
                     compileError("The xsl:type attribute is available only with a schema-aware XSLT processor", "XTSE1660");
                 }
                 schemaType = getSchemaType(type);
+                validation = Validation.BY_TYPE;
             }
 
             String validate = getAttributeValue(StandardNames.XSL_VALIDATION);
@@ -250,8 +256,6 @@ public class LiteralResultElement extends StyleElement {
                 if (schemaType != null) {
                     compileError("The attributes xsl:type and xsl:validation are mutually exclusive", "XTSE1505");
                 }
-            } else {
-                validation = getContainingStylesheet().getDefaultValidation();
             }
 
             // establish the names to be used for all the output attributes;
@@ -296,14 +300,18 @@ public class LiteralResultElement extends StyleElement {
             }
 
             int count = namespaceCodes.length - numberExcluded;
-            int[] newNamespaceCodes = new int[count];
-            count = 0;
-            for (int i=0; i<namespaceCodes.length; i++) {
-                if (namespaceCodes[i] != -1) {
-                    newNamespaceCodes[count++] = namespaceCodes[i];
+            if (count == 0) {
+                namespaceCodes = null;
+            } else {
+                int[] newNamespaceCodes = new int[count];
+                count = 0;
+                for (int i=0; i<namespaceCodes.length; i++) {
+                    if (namespaceCodes[i] != -1) {
+                        newNamespaceCodes[count++] = namespaceCodes[i];
+                    }
                 }
+                namespaceCodes = newNamespaceCodes;
             }
-            namespaceCodes = newNamespaceCodes;
         }
     }
 
@@ -335,7 +343,6 @@ public class LiteralResultElement extends StyleElement {
 
         inst.setBaseURI(getBaseURI());
         Expression content = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
-        ComputedExpression.setParentExpression(content, inst);
 
         if (numberOfAttributes > 0) {
             for (int i=attributeNames.length - 1; i>=0; i--) {
@@ -343,15 +350,13 @@ public class LiteralResultElement extends StyleElement {
                         attributeNames[i],
                         Validation.STRIP,
                         null,
-                        StandardNames.XDT_UNTYPED_ATOMIC);
+                        StandardNames.XS_UNTYPED_ATOMIC);
                 try {
                     att.setSelect(attributeValues[i], exec.getConfiguration());
                 } catch (XPathException err) {
                     compileError(err);
                 }
                 att.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
-                att.setParentExpression(inst);
-                ExpressionTool.makeParentReferences(att);
                 Expression exp = att;
                 if (getConfiguration().isCompileWithTracing()) {
                     TraceExpression trace = new TraceExpression(exp);
@@ -361,8 +366,7 @@ public class LiteralResultElement extends StyleElement {
                     trace.setNamespaceResolver(getNamespaceResolver());
                     trace.setConstructType(Location.LITERAL_RESULT_ATTRIBUTE);
                     trace.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
-                    trace.setObjectNameCode(attributeNames[i]);
-                    trace.setParentExpression(inst);
+                    trace.setObjectName(new StructuredQName(getNamePool(), attributeNames[i]));
                     exp = trace;
                 }
 
@@ -370,10 +374,7 @@ public class LiteralResultElement extends StyleElement {
                     content = exp;
                 } else {
                     content = Block.makeBlock(exp, content);
-                    if (content instanceof ComputedExpression) {
-                        ((ComputedExpression)content).setLocationId(
-                                allocateLocationId(getSystemId(), getLineNumber()));
-                    }
+                    content.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
                 }
             }
         }
@@ -384,25 +385,23 @@ public class LiteralResultElement extends StyleElement {
                 content = use;
             } else {
                 content = Block.makeBlock(use, content);
-                if (content instanceof ComputedExpression) {
-                    ((ComputedExpression)content).setLocationId(
-                            allocateLocationId(getSystemId(), getLineNumber()));
-                }
+                content.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
             }
         }
 
         if (content == null) {
-            content = EmptySequence.getInstance();
+            content = Literal.makeEmptySequence();
         }
         inst.setContentExpression(content);
-
-        ExpressionTool.makeParentReferences(inst);
         return inst;
     }
 
     /**
-    * Make a top-level literal result element into a stylesheet. This implements
-    * the "Simplified Stylesheet" facility.
+     * Make a top-level literal result element into a stylesheet. This implements
+     * the "Simplified Stylesheet" facility.
+     * @param pss the PreparedStylesheet (the compiled stylesheet as provided)
+     * @param nodeFactory the node factory used to construct the stylesheet tree
+     * @return the reconstructed stylesheet with an xsl:stylesheet and xsl:template element added
     */
 
     public DocumentImpl makeStylesheet(PreparedStylesheet pss,
@@ -417,7 +416,7 @@ public class LiteralResultElement extends StyleElement {
         if (xslPrefix==null) {
             String message;
             if (getLocalPart().equals("stylesheet") || getLocalPart().equals("transform")) {
-                if (getPrefixForURI(NamespaceConstant.MICROSOFT_XSL)!=null) {
+                if (getPrefixForURI(NamespaceConstant.MICROSOFT_XSL) != null) {
                     message = "Saxon is not able to process Microsoft's WD-xsl dialect";
                 } else {
                     message = "Namespace for stylesheet element should be " + NamespaceConstant.XSLT;
@@ -425,12 +424,15 @@ public class LiteralResultElement extends StyleElement {
             } else {
                 message = "The supplied file does not appear to be a stylesheet";
             }
-            StaticError err = new StaticError (message);
+            XPathException err = new XPathException(message);
             err.setLocator(this);
-            err.setErrorCode("XTSE0165");
+            err.setErrorCode("XTSE0150");
+            err.setIsStaticError(true);
+            //noinspection EmptyCatchBlock
             try {
                 pss.reportError(err);
-            } catch (TransformerException err2) {}
+            } catch (TransformerException err2) {
+            }
             throw err;
 
         }
@@ -440,17 +442,20 @@ public class LiteralResultElement extends StyleElement {
 
         String version = getAttributeValue(StandardNames.XSL_VERSION);
         if (version==null) {
-            StaticError err = new StaticError (
-                "Simplified stylesheet: xsl:version attribute is missing");
+            XPathException err = new XPathException("Simplified stylesheet: xsl:version attribute is missing");
             err.setErrorCode("XTSE0150");
+            err.setIsStaticError(true);
             err.setLocator(this);
+            //noinspection EmptyCatchBlock
             try {
                 pss.reportError(err);
-            } catch(TransformerException err2) {}
+            } catch (TransformerException err2) {
+            }
             throw err;
         }
 
         try {
+            DocumentImpl oldRoot = (DocumentImpl)getDocumentRoot();
             TreeBuilder builder = new TreeBuilder();
             builder.setPipelineConfiguration(pss.getConfiguration().makePipelineConfiguration());
             builder.setNodeFactory(nodeFactory);
@@ -460,14 +465,14 @@ public class LiteralResultElement extends StyleElement {
             builder.startDocument(0);
 
             int st = StandardNames.XSL_STYLESHEET;
-            builder.startElement(st, StandardNames.XDT_UNTYPED, 0, 0);
+            builder.startElement(st, StandardNames.XS_UNTYPED, 0, 0);
             builder.namespace(NamespaceConstant.XSLT_CODE, 0);
-            builder.attribute(pool.allocate("", "", "version"), StandardNames.XDT_UNTYPED_ATOMIC, version, 0, 0);
+            builder.attribute(pool.allocate("", "", "version"), StandardNames.XS_UNTYPED_ATOMIC, version, 0, 0);
             builder.startContent();
 
             int te = StandardNames.XSL_TEMPLATE;
-            builder.startElement(te, StandardNames.XDT_UNTYPED, 0, 0);
-            builder.attribute(pool.allocate("", "", "match"), StandardNames.XDT_UNTYPED_ATOMIC, "/", 0, 0);
+            builder.startElement(te, StandardNames.XS_UNTYPED, 0, 0);
+            builder.attribute(pool.allocate("", "", "match"), StandardNames.XS_UNTYPED_ATOMIC, "/", 0, 0);
             builder.startContent();
 
             builder.graftElement(this);
@@ -477,7 +482,9 @@ public class LiteralResultElement extends StyleElement {
             builder.endDocument();
             builder.close();
 
-            return (DocumentImpl)builder.getCurrentRoot();
+            DocumentImpl newRoot = (DocumentImpl)builder.getCurrentRoot();
+            newRoot.graftLocationMap(oldRoot);
+            return newRoot;
         } catch (XPathException err) {
             //TransformerConfigurationException e = new TransformerConfigurationException(err);
             err.setLocator(this);
@@ -500,6 +507,7 @@ public class LiteralResultElement extends StyleElement {
      * Get a name identifying the object of the expression, for example a function name, template name,
      * variable name, key name, element name, etc. This is used only where the name is known statically.
      * If there is no name, the value will be -1.
+     * @return the name of the literal result element
      */
 
     public int getObjectNameCode() {

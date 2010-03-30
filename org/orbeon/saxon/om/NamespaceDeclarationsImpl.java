@@ -12,8 +12,12 @@ public class NamespaceDeclarationsImpl implements NamespaceDeclarations {
     private int used;
 
     private static final int[] emptyArray = new int[0];
+
+    /**
+     * Create an uninitialized instance
+     */
  
-    public NamespaceDeclarationsImpl() {};
+    public NamespaceDeclarationsImpl() {}
 
     /**
      * Construct a set of namespace declarations
@@ -27,16 +31,17 @@ public class NamespaceDeclarationsImpl implements NamespaceDeclarations {
      */
 
     public NamespaceDeclarationsImpl(NamePool pool, int[] codes) {
-        this.namePool = pool;
+        namePool = pool;
         setNamespaceCodes(codes);
     }
 
     /**
      * Set the name pool
+     * @param pool the NamePool
      */
 
     public void setNamePool(NamePool pool) {
-        this.namePool = pool;
+        namePool = pool;
     }
 
     /**
@@ -53,7 +58,7 @@ public class NamespaceDeclarationsImpl implements NamespaceDeclarations {
         if (codes == null) {
             codes = emptyArray;
         }
-        this.namespaceCodes = codes;
+        namespaceCodes = codes;
         used = codes.length;
         for (int i=0; i<codes.length; i++) {
             if (codes[i] == -1) {

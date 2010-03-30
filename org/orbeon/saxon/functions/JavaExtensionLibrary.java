@@ -1,12 +1,8 @@
 package org.orbeon.saxon.functions;
 
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.expr.ComputedExpression;
+import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ExternalObjectType;
 import org.orbeon.saxon.type.ItemType;
@@ -49,6 +45,10 @@ public class JavaExtensionLibrary implements FunctionLibrary {
 
     private transient PrintStream diag = System.err;
 
+    // flag to indicate that only the "java:" URI format is recognized
+
+    private boolean strictUriFormat = false;
+
     /**
      * Construct a JavaExtensionLibrary and establish the default uri->class mappings.
      * @param config The Saxon configuration
@@ -74,6 +74,15 @@ public class JavaExtensionLibrary implements FunctionLibrary {
     }
 
     /**
+     * Indicate that only the strict "java:" URI format is to be recognized
+     * @param strict true if only the strict format is recognized
+     */
+
+    public void setStrictJavaUriFormat(boolean strict) {
+        strictUriFormat = strict;
+    }
+
+    /**
      * Declare a mapping from a specific namespace URI to a Java class
      * @param uri the namespace URI of the function name
      * @param theClass the Java class that implements the functions in this namespace
@@ -87,22 +96,18 @@ public class JavaExtensionLibrary implements FunctionLibrary {
      * Test whether an extension function with a given name and arity is available. This supports
      * the function-available() function in XSLT. This method may be called either at compile time
      * or at run time.
-     * @param fingerprint The code that identifies the function name in the NamePool. This must
-     * match the supplied URI and local name.
-     * @param uri  The URI of the function name
-     * @param local  The local part of the function name
+     * @param functionName The qualified name of the extension function
      * @param arity The number of arguments. This is set to -1 in the case of the single-argument
      * function-available() function; in this case the method should return true if there is some
-     * matching extension function, regardless of its arity.
      */
 
-    public boolean isAvailable(int fingerprint, String uri, String local, int arity) {
+    public boolean isAvailable(StructuredQName functionName, int arity) {
         if (!config.isAllowExternalFunctions()) {
             return false;
         }
         Class reqClass;
         try {
-            reqClass = getExternalJavaClass(uri);
+            reqClass = getExternalJavaClass(functionName.getNamespaceURI());
             if (reqClass == null) {
                 return false;
             }
@@ -115,6 +120,7 @@ public class JavaExtensionLibrary implements FunctionLibrary {
 
         // if the method name is "new", look for a matching constructor
 
+        String local = functionName.getLocalName();
         if ("new".equals(local)) {
 
             int mod = theClass.getModifiers();
@@ -142,7 +148,7 @@ public class JavaExtensionLibrary implements FunctionLibrary {
 
             // convert any hyphens in the name, camelCasing the following character
 
-            String name = toCamelCase(local, false, diag);
+            String name = ExtensionFunctionCall.toCamelCase(local, false, diag);
 
             // look through the methods of this class to find one that matches the local name
 
@@ -207,18 +213,16 @@ public class JavaExtensionLibrary implements FunctionLibrary {
      * Bind an extension function, given the URI and local parts of the function name,
      * and the list of expressions supplied as arguments. This method is called at compile
      * time.
-     * @param nameCode The namepool code of the function name. This must match the supplied
-     * URI and local name.
-     * @param uri  The URI of the function name
-     * @param local  The local part of the function name
+     * @param functionName the qualified name of the function being called
      * @param staticArgs  The expressions supplied statically in the function call. The intention is
      * that the static type of the arguments (obtainable via getItemType() and getCardinality()) may
      * be used as part of the binding algorithm.
+     * @param env the static context
      * @return An object representing the extension function to be called, if one is found;
      * null if no extension function was found matching the required name, arity, or signature.
      */
 
-    public Expression bind(int nameCode, String uri, String local, Expression[] staticArgs)
+    public Expression bind(StructuredQName functionName, Expression[] staticArgs, StaticContext env)
             throws XPathException {
 
         boolean debug = config.isTraceExternalFunctions();
@@ -235,16 +239,16 @@ public class JavaExtensionLibrary implements FunctionLibrary {
         Class resultClass = null;
 
         try {
-            reqClass = getExternalJavaClass(uri);
+            reqClass = getExternalJavaClass(functionName.getNamespaceURI());
             if (reqClass == null) {
                 return null;
             }
         } catch (Exception err) {
-            throw new StaticError("Cannot load external Java class", err);
+            throw new XPathException("Cannot load external Java class", err);
         }
 
         if (debug) {
-            diag.println("Looking for method " + local + " in Java class " + reqClass);
+            diag.println("Looking for method " + functionName.getLocalName() + " in Java class " + reqClass);
             diag.println("Number of actual arguments = " + staticArgs.length);
         }
 
@@ -255,7 +259,7 @@ public class JavaExtensionLibrary implements FunctionLibrary {
 
         // if the method name is "new", look for a matching constructor
 
-        if ("new".equals(local)) {
+        if ("new".equals(functionName.getLocalName())) {
 
             if (debug) {
                 diag.println("Looking for a constructor");
@@ -263,13 +267,13 @@ public class JavaExtensionLibrary implements FunctionLibrary {
 
             int mod = theClass.getModifiers();
             if (Modifier.isAbstract(mod)) {
-                theException = new StaticError("Class " + theClass + " is abstract");
+                theException = new XPathException("Class " + theClass + " is abstract");
             } else if (Modifier.isInterface(mod)) {
-                theException = new StaticError(theClass + " is an interface");
+                theException = new XPathException(theClass + " is an interface");
             } else if (Modifier.isPrivate(mod)) {
-                theException = new StaticError("Class " + theClass + " is private");
+                theException = new XPathException("Class " + theClass + " is private");
             } else if (Modifier.isProtected(mod)) {
-                theException = new StaticError("Class " + theClass + " is protected");
+                theException = new XPathException("Class " + theClass + " is protected");
             }
 
             if (theException != null) {
@@ -289,8 +293,8 @@ public class JavaExtensionLibrary implements FunctionLibrary {
                     candidateMethods.add(theConstructor);
                 }
             }
-            if (candidateMethods.size() == 0) {
-                theException = new StaticError("No constructor with " + numArgs +
+            if (candidateMethods.isEmpty()) {
+                theException = new XPathException("No constructor with " + numArgs +
                         (numArgs == 1 ? " parameter" : " parameters") +
                         " found in class " + theClass.getName());
                 if (debug) {
@@ -302,7 +306,7 @@ public class JavaExtensionLibrary implements FunctionLibrary {
 
             // convert any hyphens in the name, camelCasing the following character
 
-            String name = toCamelCase(local, debug, diag);
+            String name = ExtensionFunctionCall.toCamelCase(functionName.getLocalName(), debug, diag);
 
             // look through the methods of this class to find one that matches the local name
 
@@ -349,9 +353,15 @@ public class JavaExtensionLibrary implements FunctionLibrary {
                     if (significantArgs >= 0) {
 
                         if (debug) {
-                            diag.println("Method has " + theParameterTypes.length + " argument" +
-                                    (theParameterTypes.length == 1 ? "" : "s") +
-                                    "; expecting " + significantArgs);
+                            if (isStatic) {
+                                diag.println("Method has " + theParameterTypes.length + " argument" +
+                                        (theParameterTypes.length == 1 ? "" : "s") +
+                                        "; expecting " + significantArgs);
+                            } else {
+                                diag.println("Method has " + theParameterTypes.length + " argument" +
+                                        (theParameterTypes.length == 1 ? "" : "s") +
+                                        "; expecting " + numArgs + " plus one for the target object");
+                            }
                         }
 
                         if (theParameterTypes.length == significantArgs &&
@@ -431,8 +441,8 @@ public class JavaExtensionLibrary implements FunctionLibrary {
 
             // No method found?
 
-            if (candidateMethods.size() == 0) {
-                theException = new StaticError("No method or field matching " + name +
+            if (candidateMethods.isEmpty()) {
+                theException = new XPathException("No method or field matching " + name +
                         " with " + numArgs +
                         (numArgs == 1 ? " parameter" : " parameters") +
                         " found in class " + theClass.getName());
@@ -442,9 +452,10 @@ public class JavaExtensionLibrary implements FunctionLibrary {
                 return null;
             }
         }
-        if (candidateMethods.size() == 0) {
+        if (candidateMethods.isEmpty()) {
             if (debug) {
-                diag.println("There is no suitable method matching the arguments of function " + local);
+                diag.println("There is no suitable method matching the arguments of function "
+                        + functionName.getLocalName());
             }
             return null;
         }
@@ -455,12 +466,13 @@ public class JavaExtensionLibrary implements FunctionLibrary {
                 // This may be because insufficient type information is available at this stage.
                 // Return an UnresolvedExtensionFunction, and try to resolve it later when more
                 // type information is known.
-                return new UnresolvedExtensionFunction(nameCode, theClass, candidateMethods, staticArgs);
+                return new UnresolvedExtensionFunction(functionName, theClass, candidateMethods, staticArgs);
             }
             return null;
         } else {
-            ExtensionFunctionFactory factory = config.getExtensionFunctionFactory();
-            return factory.makeExtensionFunctionCall(nameCode, theClass, method, staticArgs);
+            JavaExtensionFunctionFactory factory =
+                    (JavaExtensionFunctionFactory)config.getExtensionFunctionFactory("java");
+            return factory.makeExtensionFunctionCall(functionName, theClass, method, staticArgs);
         }
     }
 
@@ -470,7 +482,8 @@ public class JavaExtensionLibrary implements FunctionLibrary {
      * of the supplied arguments
      * @param candidateMethods a list of all the methods, fields, and constructors that match the extension
      * function call in name and arity (but not necessarily in the types of the arguments)
-     * @param args the expressions supplied as arguments.F
+     * @param args the expressions supplied as arguments.
+     * @param theClass the class that implements the extension function
      * @return the result is either a Method or a Constructor or a Field, or null if no unique best fit
      * method could be found.
      */
@@ -489,10 +502,7 @@ public class JavaExtensionLibrary implements FunctionLibrary {
             // if one argument is less-preferred
 
             if (debug) {
-                diag.println("Finding best fit method with arguments:");
-                for (int v = 0; v < args.length; v++) {
-                    args[v].display(10, diag, config);
-                }
+                diag.println("Finding best fit method for arguments");
             }
 
             boolean eliminated[] = new boolean[candidates];
@@ -503,8 +513,7 @@ public class JavaExtensionLibrary implements FunctionLibrary {
             if (debug) {
                 for (int i = 0; i < candidates; i++) {
                     int[] pref_i = getConversionPreferences(
-                            args,
-                            (AccessibleObject) candidateMethods.get(i), theClass);
+                            args, (AccessibleObject)candidateMethods.get(i), theClass);
                     diag.println("Trying option " + i + ": " + candidateMethods.get(i).toString());
                     if (pref_i == null) {
                         diag.println("Arguments cannot be converted to required types");
@@ -590,43 +599,11 @@ public class JavaExtensionLibrary implements FunctionLibrary {
     }
 
     /**
-     * Convert a name to camelCase (by removing hyphens and changing the following
-     * letter to capitals)
-     * @param name the name to be converted to camelCase
-     * @param debug true if tracing is required
-     * @return the camelCased name
-     */
-
-    public static String toCamelCase(String name, boolean debug, PrintStream diag) {
-        if (name.indexOf('-') >= 0) {
-            FastStringBuffer buff = new FastStringBuffer(name.length());
-            boolean afterHyphen = false;
-            for (int n = 0; n < name.length(); n++) {
-                char c = name.charAt(n);
-                if (c == '-') {
-                    afterHyphen = true;
-                } else {
-                    if (afterHyphen) {
-                        buff.append(Character.toUpperCase(c));
-                    } else {
-                        buff.append(c);
-                    }
-                    afterHyphen = false;
-                }
-            }
-            name = buff.toString();
-            if (debug) {
-                diag.println("Seeking a method with adjusted name " + name);
-            }
-        }
-        return name;
-    }
-
-    /**
      * Get an array of integers representing the conversion distances of each "real" argument
      * to a given method
-     * @param args: the actual expressions supplied in the function call
-     * @param method: the method or constructor.
+     * @param args the actual expressions supplied in the function call
+     * @param method  the method or constructor.
+     * @param theClass  the class that implements the extension function
      * @return an array of integers, one for each argument, indicating the conversion
      * distances. A high number indicates low preference. If any of the arguments cannot
      * be converted to the corresponding type defined in the method signature, return null.
@@ -678,6 +655,7 @@ public class JavaExtensionLibrary implements FunctionLibrary {
 
     /**
      * Get the conversion preference from a given XPath type to a given Java class
+     * @param th the type hierarchy cache
      * @param arg the supplied XPath expression (the static type of this expression
      * is used as input to the algorithm)
      * @param required the Java class of the relevant argument of the Java method
@@ -732,7 +710,7 @@ public class JavaExtensionLibrary implements FunctionLibrary {
     /**
      * Get the conversion preference from an XPath primitive atomic type to a Java class
      * @param primitiveType integer code identifying the XPath primitive type, for example
-     * {@link org.orbeon.saxon.type.Type#INTEGER} or {@link org.orbeon.saxon.type.Type#STRING}
+     * {@link StandardNames#XS_STRING} or {@link StandardNames#XS_STRING}
      * @param required The Java Class named in the method signature
      * @return an integer indicating the relative preference for converting this primitive type
      * to this Java class. A high number indicates a low preference. All values are in the range
@@ -743,24 +721,24 @@ public class JavaExtensionLibrary implements FunctionLibrary {
     protected int atomicConversionPreference(int primitiveType, Class required) {
         if (required == Object.class) return 100;
         switch (primitiveType) {
-            case Type.STRING:
+            case StandardNames.XS_STRING:
                 if (required.isAssignableFrom(StringValue.class)) return 50;
                 if (required == String.class) return 51;
                 if (required == CharSequence.class) return 51;
                 return -1;
-            case Type.DOUBLE:
+            case StandardNames.XS_DOUBLE:
                 if (required.isAssignableFrom(DoubleValue.class)) return 50;
                 if (required == double.class) return 50;
                 if (required == Double.class) return 51;
                 return -1;
-            case Type.FLOAT:
+            case StandardNames.XS_FLOAT:
                 if (required.isAssignableFrom(FloatValue.class)) return 50;
                 if (required == float.class) return 50;
                 if (required == Float.class) return 51;
                 if (required == double.class) return 52;
                 if (required == Double.class) return 53;
                 return -1;
-            case Type.DECIMAL:
+            case StandardNames.XS_DECIMAL:
                 if (required.isAssignableFrom(DecimalValue.class)) return 50;
                 if (required == BigDecimal.class) return 50;
                 if (required == double.class) return 51;
@@ -768,8 +746,8 @@ public class JavaExtensionLibrary implements FunctionLibrary {
                 if (required == float.class) return 53;
                 if (required == Float.class) return 54;
                 return -1;
-            case Type.INTEGER:
-                if (required.isAssignableFrom(IntegerValue.class)) return 50;
+            case StandardNames.XS_INTEGER:
+                if (required.isAssignableFrom(Int64Value.class)) return 50;
                 if (required == BigInteger.class) return 51;
                 if (required == BigDecimal.class) return 52;
                 if (required == long.class) return 53;
@@ -785,52 +763,52 @@ public class JavaExtensionLibrary implements FunctionLibrary {
                 if (required == float.class) return 63;
                 if (required == Float.class) return 64;
                 return -1;
-            case Type.BOOLEAN:
+            case StandardNames.XS_BOOLEAN:
                 if (required.isAssignableFrom(BooleanValue.class)) return 50;
                 if (required == boolean.class) return 51;
                 if (required == Boolean.class) return 52;
                 return -1;
-            case Type.DATE:
-            case Type.G_DAY:
-            case Type.G_MONTH_DAY:
-            case Type.G_MONTH:
-            case Type.G_YEAR_MONTH:
-            case Type.G_YEAR:
+            case StandardNames.XS_DATE:
+            case StandardNames.XS_G_DAY:
+            case StandardNames.XS_G_MONTH_DAY:
+            case StandardNames.XS_G_MONTH:
+            case StandardNames.XS_G_YEAR_MONTH:
+            case StandardNames.XS_G_YEAR:
                 if (required.isAssignableFrom(DateValue.class)) return 50;
                 if (required.isAssignableFrom(Date.class)) return 51;
                 return -1;
-            case Type.DATE_TIME:
+            case StandardNames.XS_DATE_TIME:
                 if (required.isAssignableFrom(DateTimeValue.class)) return 50;
                 if (required.isAssignableFrom(Date.class)) return 51;
                 return -1;
-            case Type.TIME:
+            case StandardNames.XS_TIME:
                 if (required.isAssignableFrom(TimeValue.class)) return 50;
                 return -1;
-            case Type.DURATION:
-            case Type.YEAR_MONTH_DURATION:
-            case Type.DAY_TIME_DURATION:
+            case StandardNames.XS_DURATION:
+            case StandardNames.XS_YEAR_MONTH_DURATION:
+            case StandardNames.XS_DAY_TIME_DURATION:
                 if (required.isAssignableFrom(DurationValue.class)) return 50;
                 return -1;
-            case Type.ANY_URI:
+            case StandardNames.XS_ANY_URI:
                 if (required.isAssignableFrom(AnyURIValue.class)) return 50;
                 if (required == URI.class) return 51;
                 if (required == URL.class) return 52;
                 if (required == String.class) return 53;
                 if (required == CharSequence.class) return 53;
                 return -1;
-            case Type.QNAME:
-                if (required.isAssignableFrom(QNameValue.class)) return 50;
+            case StandardNames.XS_QNAME:
+                if (required.isAssignableFrom(QualifiedNameValue.class)) return 50;
                 //if (required.isAssignableFrom(QName.class)) return 51;
                 // TODO: reinstate above line under JDK 1.5
                 if (required.getClass().getName().equals("javax.xml.namespace.QName")) return 51;
                 return -1;
-            case Type.BASE64_BINARY:
+            case StandardNames.XS_BASE64_BINARY:
                 if (required.isAssignableFrom(Base64BinaryValue.class)) return 50;
                 return -1;
-            case Type.HEX_BINARY:
+            case StandardNames.XS_HEX_BINARY:
                 if (required.isAssignableFrom(HexBinaryValue.class)) return 50;
                 return -1;
-            case Type.UNTYPED_ATOMIC:
+            case StandardNames.XS_UNTYPED_ATOMIC:
                 return 50;
             default:
                 return -1;
@@ -863,16 +841,21 @@ public class JavaExtensionLibrary implements FunctionLibrary {
                 return config.getClass(uri.substring(5), config.isTraceExternalFunctions(), null);
             }
 
-            // extract the class name as anything in the URI after the last "/"
-            // if there is one, or the whole class name otherwise
-
-            int slash = uri.lastIndexOf('/');
-            if (slash < 0) {
-                return config.getClass(uri, config.isTraceExternalFunctions(), null);
-            } else if (slash == uri.length() - 1) {
+            if (strictUriFormat) {
                 return null;
             } else {
-                return config.getClass(uri.substring(slash + 1), config.isTraceExternalFunctions(), null);
+
+                // extract the class name as anything in the URI after the last "/"
+                // if there is one, or the whole class name otherwise
+
+                int slash = uri.lastIndexOf('/');
+                if (slash < 0) {
+                    return config.getClass(uri, config.isTraceExternalFunctions(), null);
+                } else if (slash == uri.length() - 1) {
+                    return null;
+                } else {
+                    return config.getClass(uri.substring(slash + 1), config.isTraceExternalFunctions(), null);
+                }
             }
         } catch (XPathException err) {
             return null;
@@ -888,14 +871,14 @@ public class JavaExtensionLibrary implements FunctionLibrary {
 
     private class UnresolvedExtensionFunction extends CompileTimeFunction {
 
-        List candidateMethods;
-        int nameCode;
-        Class theClass;
+        private List candidateMethods;
+        private Class theClass;
 
 
-        public UnresolvedExtensionFunction(int nameCode, Class theClass, List candidateMethods, Expression[] staticArgs) {
+        public UnresolvedExtensionFunction(StructuredQName functionName, Class theClass,
+                                           List candidateMethods, Expression[] staticArgs) {
             setArguments(staticArgs);
-            this.nameCode = nameCode;
+            setFunctionName(functionName);
             this.theClass = theClass;
             this.candidateMethods = candidateMethods;
         }
@@ -904,9 +887,9 @@ public class JavaExtensionLibrary implements FunctionLibrary {
          * Type-check the expression.
          */
 
-        public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+        public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
             for (int i=0; i<argument.length; i++) {
-                Expression exp = argument[i].typeCheck(env, contextItemType);
+                Expression exp = visitor.typeCheck(argument[i], contextItemType);
                 if (exp != argument[i]) {
                     adoptChildExpression(exp);
                     argument[i] = exp;
@@ -914,19 +897,17 @@ public class JavaExtensionLibrary implements FunctionLibrary {
             }
             AccessibleObject method = getBestFit(candidateMethods, argument, theClass);
             if (method == null) {
-                StaticError err = new StaticError("There is more than one method matching the function call " +
-                        config.getNamePool().getDisplayName(nameCode) +
+                XPathException err = new XPathException("There is more than one method matching the function call " +
+                        getFunctionName().getDisplayName() +
                         ", and there is insufficient type information to determine which one should be used");
                 err.setLocator(this);
                 throw err;
             } else {
-                ExtensionFunctionFactory factory = config.getExtensionFunctionFactory();
-                Expression call = factory.makeExtensionFunctionCall(nameCode, theClass, method, argument);
-                if (call instanceof ComputedExpression) {
-                    ((ComputedExpression)call).setLocationId(getLocationId());
-                    ((ComputedExpression)call).setParentExpression(getParentExpression());
-                }
-                return call;
+                JavaExtensionFunctionFactory factory =
+                        (JavaExtensionFunctionFactory)config.getExtensionFunctionFactory("java");
+                Expression call = factory.makeExtensionFunctionCall(getFunctionName(), theClass, method, argument);
+                ExpressionTool.copyLocationInfo(this, call);
+                return call.typeCheck(visitor, contextItemType);
             }
         }
     }

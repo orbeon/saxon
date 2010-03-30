@@ -2,17 +2,20 @@ package org.orbeon.saxon.expr;
 import org.orbeon.saxon.functions.NumberFn;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.sort.GenericAtomicComparer;
-import org.orbeon.saxon.sort.CodepointCollator;
 import org.orbeon.saxon.sort.AtomicComparer;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.sort.CodepointCollator;
+import org.orbeon.saxon.sort.GenericAtomicComparer;
+import org.orbeon.saxon.sort.StringCollator;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.type.*;
-import org.orbeon.saxon.value.*;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.type.BuiltInAtomicType;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.TypeHierarchy;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.BooleanValue;
+import org.orbeon.saxon.value.DoubleValue;
+import org.orbeon.saxon.value.StringValue;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
@@ -58,21 +61,25 @@ public class GeneralComparison10 extends BinaryExpression {
     * @return the checked expression
     */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
 
-        operand0 = operand0.typeCheck(env, contextItemType);
-        operand1 = operand1.typeCheck(env, contextItemType);
+        operand0 = visitor.typeCheck(operand0, contextItemType);
+        operand1 = visitor.typeCheck(operand1, contextItemType);
 
-        Comparator comp = env.getCollation(env.getDefaultCollationName());
+        StaticContext env = visitor.getStaticContext();
+        StringCollator comp = env.getCollation(env.getDefaultCollationName());
         if (comp==null) {
             comp = CodepointCollator.getInstance();
         }
 
-        Configuration config = env.getConfiguration();
-        TypeHierarchy th = config.getTypeHierarchy();
-        int pt0 = operand0.getItemType(th).getPrimitiveType();
-        int pt1 = operand1.getItemType(th).getPrimitiveType();
-        comparer = new GenericAtomicComparer(comp, config);
+        XPathContext context = env.makeEarlyEvaluationContext();
+        comparer = new GenericAtomicComparer(comp, context);
+
+        // evaluate the expression now if both arguments are constant
+
+        if ((operand0 instanceof Literal) && (operand1 instanceof Literal)) {
+            return Literal.makeLiteral((AtomicValue)evaluateItem(context));
+        }
 
         return this;
     }
@@ -82,10 +89,13 @@ public class GeneralComparison10 extends BinaryExpression {
     * @return the checked expression
     */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
 
-        operand0 = operand0.optimize(opt, env, contextItemType);
-        operand1 = operand1.optimize(opt, env, contextItemType);
+        Optimizer opt = visitor.getConfiguration().getOptimizer();
+        StaticContext env = visitor.getStaticContext();
+
+        operand0 = visitor.optimize(operand0, contextItemType);
+        operand1 = visitor.optimize(operand1, contextItemType);
 
         // Neither operand needs to be sorted
 
@@ -94,8 +104,9 @@ public class GeneralComparison10 extends BinaryExpression {
 
         // evaluate the expression now if both arguments are constant
 
-        if ((operand0 instanceof Value) && (operand1 instanceof Value)) {
-            return (AtomicValue)evaluateItem(env.makeEarlyEvaluationContext());
+        if ((operand0 instanceof Literal) && (operand1 instanceof Literal)) {
+            return Literal.makeLiteral(
+                    (AtomicValue)evaluateItem(env.makeEarlyEvaluationContext()));
         }
 
         final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
@@ -109,34 +120,32 @@ public class GeneralComparison10 extends BinaryExpression {
             atomize1 = false;
         }
 
-        if (th.relationship(type0, Type.BOOLEAN_TYPE) == TypeHierarchy.DISJOINT) {
+        if (th.relationship(type0, BuiltInAtomicType.BOOLEAN) == TypeHierarchy.DISJOINT) {
             maybeBoolean0 = false;
         }
-        if (th.relationship(type1, Type.BOOLEAN_TYPE) == TypeHierarchy.DISJOINT) {
+        if (th.relationship(type1, BuiltInAtomicType.BOOLEAN) == TypeHierarchy.DISJOINT) {
             maybeBoolean1 = false;
         }
 
         if (!maybeBoolean0 && !maybeBoolean1) {
-            int n0 = th.relationship(type0, Type.NUMBER_TYPE);
-            int n1 = th.relationship(type1, Type.NUMBER_TYPE);
+            int n0 = th.relationship(type0, BuiltInAtomicType.NUMERIC);
+            int n1 = th.relationship(type1, BuiltInAtomicType.NUMERIC);
             boolean maybeNumeric0 = (n0 != TypeHierarchy.DISJOINT);
             boolean maybeNumeric1 = (n1 != TypeHierarchy.DISJOINT);
             boolean numeric0 = (n0 == TypeHierarchy.SUBSUMED_BY || n0 == TypeHierarchy.SAME_TYPE);
             boolean numeric1 = (n1 == TypeHierarchy.SUBSUMED_BY || n1 == TypeHierarchy.SAME_TYPE);
-
             // Use the 2.0 path if we don't have to deal with the possibility of boolean values,
             // or the complications of converting values to numbers
-            if (!maybeNumeric0 && !maybeNumeric1) {
-                GeneralComparison gc = new GeneralComparison(operand0, operator, operand1);
-                gc.setLocationId(getLocationId());
-                gc.setParentExpression(getParentExpression());
-                return gc.typeCheck(env, contextItemType).optimize(opt, env, contextItemType);
-            }
-            if (numeric0 && numeric1) {
-                GeneralComparison gc = new GeneralComparison(operand0, operator, operand1);
-                gc.setLocationId(getLocationId());
-                gc.setParentExpression(getParentExpression());
-                return gc.typeCheck(env, contextItemType).optimize(opt, env, contextItemType);
+            if (operator == Token.EQUALS || operator == Token.NE) {
+                if ((!maybeNumeric0 && !maybeNumeric1) || (numeric0 && numeric1)) {
+                    BinaryExpression gc = opt.makeGeneralComparison(operand0, operator, operand1, false);
+                    ExpressionTool.copyLocationInfo(this, gc);
+                    return visitor.optimize(visitor.typeCheck(gc, contextItemType), contextItemType);
+                }
+            } else if (numeric0 && numeric1) {
+                BinaryExpression gc = opt.makeGeneralComparison(operand0, operator, operand1, false);
+                ExpressionTool.copyLocationInfo(this, gc);
+                return visitor.optimize(visitor.typeCheck(gc, contextItemType), contextItemType);
             }
         }
 
@@ -214,11 +223,11 @@ public class GeneralComparison10 extends BinaryExpression {
         }
 
         if (atomize0) {
-            iter0 = Atomizer.AtomizingFunction.getAtomizingIterator(iter0);
+            iter0 = Atomizer.getAtomizingIterator(iter0);
         }
 
         if (atomize1) {
-            iter1 = Atomizer.AtomizingFunction.getAtomizingIterator(iter1);
+            iter1 = Atomizer.getAtomizingIterator(iter1);
         }
 
         // If the operator is one of <, >, <=, >=, then convert both operands to sequences of xs:double
@@ -256,18 +265,15 @@ public class GeneralComparison10 extends BinaryExpression {
                             seq1 = new ArrayList(40);
                         }
                         seq1.add(item1);
-                    } catch (DynamicError e) {
+                    } catch (XPathException e) {
                         // re-throw the exception with location information added
-                        if (e.getXPathContext() == null) {
-                            e.setXPathContext(context);
-                        }
-                        if (e.getLocator() == null) {
-                            e.setLocator(this);
-                        }
+                        e.maybeSetLocation(this);
+                        e.maybeSetContext(context);
                         throw e;
                     }
                 }
             } else {
+                //assert seq1 != null;
                 Iterator listIter1 = seq1.iterator();
                 while (listIter1.hasNext()) {
                     AtomicValue item1 = (AtomicValue)listIter1.next();
@@ -279,24 +285,48 @@ public class GeneralComparison10 extends BinaryExpression {
         }
     }
 
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        GeneralComparison10 gc = new GeneralComparison10(operand0.copy(), operator, operand1.copy());
+        gc.comparer = comparer;
+        gc.atomize0 = atomize0;
+        gc.atomize1 = atomize1;
+        gc.maybeBoolean0 = maybeBoolean0;
+        gc.maybeBoolean1 = maybeBoolean1;
+        return gc;
+    }
+
     /**
     * Compare two atomic values
+     * @param a0 the first value to be compared
+     * @param operator the comparison operator
+     * @param a1 the second value to be compared
+     * @param comparer the comparer to be used (perhaps including a collation)
+     * @param context the XPath dynamic context
+     * @return the result of the comparison
     */
 
-    protected static boolean compare(AtomicValue a0,
+    private static boolean compare(AtomicValue a0,
                                      int operator,
                                      AtomicValue a1,
                                      AtomicComparer comparer,
                                      XPathContext context) throws XPathException {
 
-        final TypeHierarchy th = context.getConfiguration().getTypeHierarchy();
-        int t0 = a0.getItemType(th).getPrimitiveType();
-        int t1 = a1.getItemType(th).getPrimitiveType();
+        comparer = comparer.provideContext(context);
+
+        BuiltInAtomicType t0 = a0.getPrimitiveType();
+        BuiltInAtomicType t1 = a1.getPrimitiveType();
 
         // If either operand is a number, convert both operands to xs:double using
         // the rules of the number() function, and compare them
 
-        if (Type.isNumericPrimitiveType(t0) || Type.isNumericPrimitiveType(t1)) {
+        if (t0.isPrimitiveNumeric() || t1.isPrimitiveNumeric()) {
             DoubleValue v0 = NumberFn.convert(a0);
             DoubleValue v1 = NumberFn.convert(a1);
             return ValueComparison.compare(v0, operator, v1, comparer);
@@ -305,28 +335,22 @@ public class GeneralComparison10 extends BinaryExpression {
         // If either operand is a string, or if both are untyped atomic, convert
         // both operands to strings and compare them
 
-        if (t0 == Type.STRING || t1 == Type.STRING ||
-                (t0 == Type.UNTYPED_ATOMIC && t1 == Type.UNTYPED_ATOMIC)) {
-            StringValue s0 = (StringValue)a0.convert(Type.STRING, context);
-            StringValue s1 = (StringValue)a1.convert(Type.STRING, context);
+        if (t0.equals(BuiltInAtomicType.STRING) || t1.equals(BuiltInAtomicType.STRING) ||
+                (t0.equals(BuiltInAtomicType.UNTYPED_ATOMIC) && t1.equals(BuiltInAtomicType.UNTYPED_ATOMIC))) {
+            StringValue s0 = (StringValue)a0.convert(BuiltInAtomicType.STRING, true, context).asAtomic();
+            StringValue s1 = (StringValue)a1.convert(BuiltInAtomicType.STRING, true, context).asAtomic();
             return ValueComparison.compare(s0, operator, s1, comparer);
         }
 
         // If either operand is untyped atomic,
         // convert it to the type of the other operand, and compare
 
-        if (t0 == Type.UNTYPED_ATOMIC) {
-            a0 = a0.convertPrimitive((BuiltInAtomicType)BuiltInSchemaFactory.getSchemaType(t1), true, context);
-            if (a0 instanceof ValidationErrorValue) {
-                throw ((ValidationErrorValue)a0).getException();
-            }
+        if (t0.equals(BuiltInAtomicType.UNTYPED_ATOMIC)) {
+            a0 = a0.convert(t1, true, context).asAtomic();
         }
 
-        if (t1 == Type.UNTYPED_ATOMIC) {
-            a1 = a1.convertPrimitive((BuiltInAtomicType)BuiltInSchemaFactory.getSchemaType(t0), true, context);
-            if (a1 instanceof ValidationErrorValue) {
-                throw ((ValidationErrorValue)a1).getException();
-            }
+        if (t1.equals(BuiltInAtomicType.UNTYPED_ATOMIC)) {
+            a1 = a1.convert(t0, true, context).asAtomic();
         }
 
         return ValueComparison.compare(a0, operator, a1, comparer);
@@ -335,15 +359,17 @@ public class GeneralComparison10 extends BinaryExpression {
     /**
     * Determine the data type of the expression
     * @return Type.BOOLEAN
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
-        return Type.BOOLEAN_TYPE;
+        return BuiltInAtomicType.BOOLEAN;
     }
 
     /**
     * Return the singleton form of the comparison operator, e.g. FEQ for EQUALS, FGT for GT
+     * @param op the general comparison operator, for example Token.EQUALS
+     * @return the corresponding value comparison operator, for example Token.FEQ
     */
 
     private static int getSingletonOperator(int op) {

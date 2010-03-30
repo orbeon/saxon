@@ -1,0 +1,48 @@
+<html>
+
+<head>
+<title>Package overview for org.orbeon.saxon.charcode</title>
+</head>
+
+<body>
+
+<p>This package provides classes for handling different output character sets. </p>
+
+<p>The sole
+function of these classes is to determine whether a particular character is present in the
+character set or not: if not, Saxon has to replace it with a character reference.</p>
+
+<p>The actual translation of Unicode characters to characters in the selected encoding
+is left to the Java run-time library. (Note that different versions of Java support
+different sets of encodings, and there is no easy way to find out which encodings
+are supported in a given installation).</p>
+
+<p>It is possible to configure Saxon to support additional character sets by writing an
+implementation of the PluggableCharacterSet interface, and registering this class as the
+value of the system property whose name is given by the expression:</p>
+
+<p><code>OutputKeys.ENCODING + "." + encoding</code></p>
+
+<p>where "encoding" is the name of the encoding as used in &lt;xsl:output&gt; - for example,
+iso-8859-10.</p>
+
+<p>If an output encoding is requested that Saxon does not recognize, but which the Java
+platform does recognize, then Saxon attempts to determine which characters the encoding
+can represent, so that unsupported characters can be written as numeric character references.
+Saxon uses two approaches to doing this. (The logic for this is in the
+<code>CharacterSetFactory</code> class.) Where possible, it uses the <code>UnknownCharacterSet</code>
+class, which tests the availability of individual characters using the Java interrogative
+<code>encoding.canEncode()</code>. However, some encodings do not implement this method
+reliably; Saxon attempts to detect this, and represents such encodings instead using the
+<code>BuggyCharacterSet</code> class. This class attempts to encode each character, and relies
+on catching an exception when it fails: expensive, but it only happens once for any given character.</p>
+
+
+
+<hr>
+
+<p align="center"><i>Michael H. Kay<br/>
+Saxonica Limited<br/>
+9 February 2005</i></p>
+</body>
+</html>

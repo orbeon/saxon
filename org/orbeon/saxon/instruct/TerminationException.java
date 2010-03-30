@@ -1,11 +1,11 @@
 package org.orbeon.saxon.instruct;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 
 /**
 * An exception thrown by xsl:message terminate="yes".
 */
 
-public class TerminationException extends DynamicError {
+public class TerminationException extends XPathException {
 
     /**
     * Construct a TerminationException

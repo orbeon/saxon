@@ -1,8 +1,8 @@
 package org.orbeon.saxon.sort;
 
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 
@@ -25,22 +25,28 @@ public class DocumentSorter extends UnaryExpression {
         }
     }
 
-    public Expression simplify(StaticContext env) throws XPathException {
-        operand = operand.simplify(env);
+    public NodeOrderComparer getComparer() {
+         return comparer;
+    }  
+
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        operand = visitor.simplify(operand);
         if ((operand.getSpecialProperties() & StaticProperty.ORDERED_NODESET) != 0) {
             // this can happen as a result of further simplification
-            ComputedExpression.setParentExpression(operand, getParentExpression());
             return operand;
         }
         return this;
     }
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        operand = operand.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.optimize(operand, contextItemType);
         if ((operand.getSpecialProperties() & StaticProperty.ORDERED_NODESET) != 0) {
             // this can happen as a result of further simplification
-            ComputedExpression.setParentExpression(operand, getParentExpression());
             return operand;
+        }
+        if (operand instanceof PathExpression) {
+            return visitor.getConfiguration().getOptimizer().makeConditionalDocumentSorter(
+                    this, (PathExpression)operand);
         }
         return this;
     }
@@ -48,6 +54,16 @@ public class DocumentSorter extends UnaryExpression {
 
     public int computeSpecialProperties() {
         return operand.getSpecialProperties() | StaticProperty.ORDERED_NODESET;
+    }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new DocumentSorter(getBaseExpression().copy());
     }
 
     /**
@@ -65,6 +81,7 @@ public class DocumentSorter extends UnaryExpression {
     }
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
+        //System.err.println("** SORTING **");
         return new DocumentOrderIterator(operand.iterate(context), comparer);
     }
 
@@ -73,17 +90,15 @@ public class DocumentSorter extends UnaryExpression {
     }
 
     /**
-     * Give a string representation of the operator for use in diagnostics
-     * @return the operator, as a string
-     * @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    protected String displayOperator(Configuration config) {
-        if (comparer instanceof LocalOrderComparer) {
-            return "intra-document sort and deduplicate";
-        } else {
-            return "sort and deduplicate";
-        }
+    public void explain(ExpressionPresenter out) {
+        out.startElement("sortAndDeduplicate");
+        out.emitAttribute("intraDocument", comparer instanceof LocalOrderComparer ? "true" : "false");
+        operand.explain(out);
+        out.endElement();
     }
 
 }

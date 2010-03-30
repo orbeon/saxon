@@ -21,7 +21,7 @@ public interface LocationProvider {
      * @return the URI of the document or module.
      */
 
-    public String getSystemId(int locationId);
+    public String getSystemId(long locationId);
 
     /**
      * Get the line number within the document or module containing a particular location
@@ -29,7 +29,16 @@ public interface LocationProvider {
      * @return the line number within the document or module.
      */
 
-    public int getLineNumber(int locationId);
+    public int getLineNumber(long locationId);
+
+    /**
+     * Get the column number within the document or module containing a particular location
+     * @param locationId identifier of the location in question (as passed down the Receiver pipeline)
+     * @return the column number within the document or module, or -1 if this is not available
+     */
+
+    public int getColumnNumber(long locationId);
+
 
 }
 

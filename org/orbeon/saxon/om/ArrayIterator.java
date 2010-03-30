@@ -1,9 +1,7 @@
 package org.orbeon.saxon.om;
 
 import org.orbeon.saxon.expr.LastPositionFinder;
-import org.orbeon.saxon.expr.ReversibleIterator;
 import org.orbeon.saxon.value.SequenceExtent;
-import org.orbeon.saxon.value.Value;
 
 /**
  * ArrayIterator is used to enumerate items held in an array.
@@ -13,17 +11,17 @@ import org.orbeon.saxon.value.Value;
  */
 
 
-public final class ArrayIterator implements AxisIterator,
-                                            ReversibleIterator,
+public class ArrayIterator implements UnfailingIterator,
+        org.orbeon.saxon.expr.ReversibleIterator,
                                             LastPositionFinder,
                                             LookaheadIterator,
                                             GroundedIterator {
 
-    private Item[] items;
+    protected Item[] items;
     private int index;          // position in array of current item, zero-based
                                 // set equal to end+1 when all the items required have been read.
-    private int start;          // position of first item to be returned, zero-based
-    private int end;            // position of first item that is NOT returned, zero-based
+    protected int start;          // position of first item to be returned, zero-based
+    protected int end;            // position of first item that is NOT returned, zero-based
     private Item current = null;
 
     /**
@@ -34,16 +32,16 @@ public final class ArrayIterator implements AxisIterator,
      */
 
     public ArrayIterator(Item[] nodes) {
-        this.items = nodes;
-        this.start = 0;
-        this.end = nodes.length;
+        items = nodes;
+        start = 0;
+        end = nodes.length;
         index = 0;
     }
 
     /**
      * Create an iterator over a range of an array. Note that the start position is zero-based
      *
-     * @param nodes the array (of nodes or simple values) to be processed by
+     * @param items the array (of nodes or simple values) to be processed by
      *     the iterator
      * @param start the position of the first item to be processed
      *     (numbering from zero). Must be between zero and nodes.length-1; if not,
@@ -52,8 +50,8 @@ public final class ArrayIterator implements AxisIterator,
      *     beween 1 and nodes.length; if not, undefined exceptions are likely to occur.
      */
 
-    public ArrayIterator(Item[] nodes, int start, int end) {
-        this.items = nodes;
+    public ArrayIterator(Item[] items, int start, int end) {
+        this.items = items;
         this.end = end;
         this.start = start;
         index = start;
@@ -68,6 +66,7 @@ public final class ArrayIterator implements AxisIterator,
      * by the new ArrayIterator, relative to the original. For example, min=2, max=3
      * delivers the two items ($base[2], $base[3]). Set this to Integer.MAX_VALUE if
      * there is no end limit.
+     * @return an iterator over the items between the min and max positions
      */
 
     public SequenceIterator makeSliceIterator(int min, int max) {
@@ -93,18 +92,18 @@ public final class ArrayIterator implements AxisIterator,
 
     /**
      * Test whether there are any more items
-     *
      * @return true if there are more items
      */
+
     public boolean hasNext() {
         return index < end;
     }
 
     /**
      * Get the next item in the array
-     *
      * @return the next item in the array
      */
+
     public Item next() {
         if (index >= end) {
             index = end+1;
@@ -144,6 +143,10 @@ public final class ArrayIterator implements AxisIterator,
      */
     public int getLastPosition() {
         return end - start;
+    }
+
+    public void close() {
+
     }
 
     /**
@@ -214,7 +217,7 @@ public final class ArrayIterator implements AxisIterator,
      * @return the corresponding SequenceValue
      */
 
-    public Value materialize() {
+    public GroundedValue materialize() {
         if (start==0 && end == items.length) {
             return new SequenceExtent(items);
         } else {

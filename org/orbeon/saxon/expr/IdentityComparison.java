@@ -3,8 +3,8 @@ import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.sort.GlobalOrderComparer;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.BooleanValue;
 import org.orbeon.saxon.value.SequenceType;
@@ -37,6 +37,7 @@ public final class IdentityComparison extends BinaryExpression {
     /**
      * Set flag to indicate different empty-sequence behavior when emulating
      * comparison of two generate-id's
+     * @param flag true if this function is being used to compare generate-id() output
      */
 
     public void setGenerateIdEmulation(boolean flag) {
@@ -44,27 +45,80 @@ public final class IdentityComparison extends BinaryExpression {
     }
 
     /**
+     * Test the flag that indicates different empty-sequence behavior when emulating
+     * comparison of two generate-id's
+     * @return true if this function is being used to compare generate-id() output
+     */
+
+    public boolean isGenerateIdEmulation() {
+        return generateIdEmulation;
+    }
+
+    /**
     * Type-check the expression
     */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
 
-        operand0 = operand0.typeCheck(env, contextItemType);
-        operand1 = operand1.typeCheck(env, contextItemType);
+        operand0 = visitor.typeCheck(operand0, contextItemType);
+        operand1 = visitor.typeCheck(operand1, contextItemType);
 
-        RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0, null);
-        role0.setSourceLocator(this);
+        if (!generateIdEmulation) {
+            if (Literal.isEmptySequence(operand0) || Literal.isEmptySequence(operand1)) {
+                return Literal.makeEmptySequence();
+            }
+        }
+
+        RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0);
+        //role0.setSourceLocator(this);
         operand0 = TypeChecker.staticTypeCheck(
-                operand0, SequenceType.OPTIONAL_NODE, false, role0, env);
+                operand0, SequenceType.OPTIONAL_NODE, false, role0, visitor);
 
-        RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1, null);
-        role1.setSourceLocator(this);
+        RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1);
+        //role1.setSourceLocator(this);
         operand1 = TypeChecker.staticTypeCheck(
-                operand1, SequenceType.OPTIONAL_NODE, false, role1, env);
+                operand1, SequenceType.OPTIONAL_NODE, false, role1, visitor);
         return this;
     }
 
+    /**
+     * Perform optimisation of an expression and its subexpressions.
+     * <p/>
+     * <p>This method is called after all references to functions and variables have been resolved
+     * to the declaration of the function or variable, and after all type checking has been done.</p>
+     *
+     * @param visitor an expression visitor
+     * @param contextItemType the static type of "." at the point where this expression is invoked.
+     *                        The parameter is set to null if it is known statically that the context item will be undefined.
+     *                        If the type of the context item is not known statically, the argument is set to
+     *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
+     * @return the original expression, rewritten if appropriate to optimize execution
+     * @throws XPathException if an error is discovered during this phase
+     *                                        (typically a type error)
+     */
 
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression r = super.optimize(visitor, contextItemType);
+        if (r != this) {
+            if (!generateIdEmulation) {
+                if (Literal.isEmptySequence(operand0) || Literal.isEmptySequence(operand1)) {
+                    return Literal.makeEmptySequence();
+                }
+            }
+        }
+        return r;
+    }
+
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new IdentityComparison(operand0.copy(), operator, operand1.copy());
+    }
 
     /**
     * Evaluate the expression
@@ -93,16 +147,12 @@ public final class IdentityComparison extends BinaryExpression {
     public boolean effectiveBooleanValue(XPathContext context) throws XPathException {
         NodeInfo node1 = getNode(operand0, context);
         if (node1==null) {
-            if (generateIdEmulation) {
-                return getNode(operand1, context) == null;
-            }
-            return false;
+            return generateIdEmulation && getNode(operand1, context) == null;
         }
 
         NodeInfo node2 = getNode(operand1, context);
-        if (node2==null) return false;
+        return node2 != null && compareIdentity(node1, node2);
 
-        return compareIdentity(node1, node2);
     }
 
     private boolean compareIdentity(NodeInfo node1, NodeInfo node2) {
@@ -110,8 +160,6 @@ public final class IdentityComparison extends BinaryExpression {
         switch (operator) {
         case Token.IS:
             return node1.isSameNodeInfo(node2);
-//        case Token.ISNOT:
-//            return !node1.isSameNode(node2);
         case Token.PRECEDES:
             return GlobalOrderComparer.getInstance().compare(node1, node2) < 0;
         case Token.FOLLOWS:
@@ -129,11 +177,11 @@ public final class IdentityComparison extends BinaryExpression {
     /**
     * Determine the data type of the expression
     * @return Type.BOOLEAN
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
-        return Type.BOOLEAN_TYPE;
+        return BuiltInAtomicType.BOOLEAN;
     }
 
 

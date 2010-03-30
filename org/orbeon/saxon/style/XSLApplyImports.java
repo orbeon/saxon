@@ -1,9 +1,11 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.instruct.ApplyImports;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.om.AxisIterator;
+import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.Whitespace;
@@ -35,7 +37,7 @@ public class XSLApplyImports extends StyleElement {
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
+        //checkWithinTemplate();
         AxisIterator kids = iterateAxis(Axis.CHILD);
         while (true) {
             NodeInfo child = (NodeInfo)kids.next();
@@ -60,7 +62,6 @@ public class XSLApplyImports extends StyleElement {
         ApplyImports inst = new ApplyImports(backwardsCompatibleModeIsEnabled());
         inst.setActualParameters(getWithParamInstructions(exec, false, inst),
                                  getWithParamInstructions(exec, true, inst));
-        ExpressionTool.makeParentReferences(inst);
         return inst;
     }
 

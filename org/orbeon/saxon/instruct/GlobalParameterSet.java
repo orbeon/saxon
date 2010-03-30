@@ -1,18 +1,20 @@
 package org.orbeon.saxon.instruct;
 
+import org.orbeon.saxon.om.StructuredQName;
+
+import java.util.HashMap;
+
 
 /**
  * A GlobalParameterSet is a set of parameters supplied when invoking a stylesheet or query.
- * It is a collection of name-value pairs, the names being represented by numeric references
- * to the NamePool. The values are objects, as supplied by the caller: conversion of the object
+ * It is a collection of name-value pairs, the names being represented by StructuredQName objects.
+ * The values are objects, as supplied by the caller: conversion of the object
  * to a required type takes place when the parameter is actually used.
  */
 
 public class GlobalParameterSet
 {
-	private int[] keys = new int[10];
-    private Object[] values = new Object[10];
-    private int used = 0;
+	private HashMap params = new HashMap(10);
 
     /**
      * Create an empty parameter set
@@ -25,51 +27,33 @@ public class GlobalParameterSet
      */
 
     public GlobalParameterSet(GlobalParameterSet existing) {
-        for (int i=0; i<existing.used; i++) {
-            put(existing.keys[i], existing.values[i]);
-        }
+        params = new HashMap(existing.params);
     }
 
     /**
      * Add a parameter to the ParameterSet
      *
-     * @param fingerprint The fingerprint of the parameter name.
-     * @param value The value of the parameter
+     * @param qName The fingerprint of the parameter name.
+     * @param value The value of the parameter, or null if the parameter is to be removed
      */
 
-    public void put (int fingerprint, Object value) {
-        for (int i=0; i<used; i++) {
-            if (keys[i]==fingerprint) {
-                values[i]=value;
-                return;
-            }
+    public void put (StructuredQName qName, Object value) {
+        if (value == null) {
+            params.remove(qName);
+        } else {
+            params.put(qName, value);
         }
-        if (used+1 > keys.length) {
-        	int[] newkeys = new int[used*2];
-            Object[] newvalues = new Object[used*2];     // was (incorrectly) Value[]
-            System.arraycopy(values, 0, newvalues, 0, used);
-            System.arraycopy(keys, 0, newkeys, 0, used);
-            values = newvalues;
-            keys = newkeys;
-        }
-        keys[used] = fingerprint;
-        values[used++] = value;
     }
 
     /**
      * Get a parameter
      *
-     * @param fingerprint The fingerprint of the name.
+     * @param qName The parameter name.
      * @return The value of the parameter, or null if not defined
      */
 
-    public Object get (int fingerprint) {
-        for (int i=0; i<used; i++) {
-            if (keys[i]==fingerprint) {
-                return values[i];
-            }
-        }
-        return null;
+    public Object get (StructuredQName qName) {
+        return params.get(qName);
     }
 
     /**
@@ -77,7 +61,23 @@ public class GlobalParameterSet
      */
 
     public void clear() {
-        used = 0;
+        params.clear();
+    }
+
+    /**
+     * Get all the keys that have been allocated
+     */
+
+    public java.util.Collection getKeys() {
+        return params.keySet();
+    }
+
+    /**
+     * Get the number of entries in the result of getKeys() that are significant
+     */
+
+    public int getNumberOfKeys() {
+        return params.size();
     }
 
 }

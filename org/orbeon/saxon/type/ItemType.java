@@ -41,7 +41,7 @@ public interface ItemType extends Serializable {
     /**
      * Get the type from which this item type is derived by restriction. This
      * is the supertype in the XPath type heirarchy, as distinct from the Schema
-     * base type: this means that the supertype of xs:boolean is xdt:anyAtomicType,
+     * base type: this means that the supertype of xs:boolean is xs:anyAtomicType,
      * whose supertype is item() (rather than xs:anySimpleType).
      * <p>
      * In fact the concept of "supertype" is not really well-defined, because the types
@@ -49,7 +49,7 @@ public interface ItemType extends Serializable {
      * is that it returns a type that strictly subsumes this type, ideally as narrowly
      * as possible.
      * @return the supertype, or null if this type is item()
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getSuperType(TypeHierarchy th);
@@ -60,7 +60,8 @@ public interface ItemType extends Serializable {
      * it is the value representing the node kind, for example Type.ELEMENT.
      * For anyAtomicValue it is Type.ATOMIC_VALUE. For numeric it is Type.NUMBER.
      * For other atomic types it is the primitive type as defined in XML Schema,
-     * except that INTEGER is considered to be a primitive type.
+     * except that integer, xs:dayTimeDuration, and xs:yearMonthDuration
+     * are considered to be primitive types.
      */
 
     public ItemType getPrimitiveItemType();

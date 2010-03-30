@@ -1,11 +1,11 @@
 package org.orbeon.saxon.event;
 import org.orbeon.saxon.om.FastStringBuffer;
-import org.orbeon.saxon.om.XMLChar;
 import org.orbeon.saxon.sort.IntHashMap;
 import org.orbeon.saxon.sort.IntIterator;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.tinytree.CompressedWhitespace;
 import org.orbeon.saxon.value.Whitespace;
+import org.orbeon.saxon.charcode.UTF16;
 
 import java.util.List;
 
@@ -146,10 +146,10 @@ public class CharacterMapExpander extends ProxyReceiver {
         while(i < in.length()) {
             char c = in.charAt(i++);
             if (c >= min && c <= max) {
-                if (XMLChar.isHighSurrogate(c)) {
+                if (UTF16.isHighSurrogate(c)) {
                     // assume the string is properly formed
                     char d = in.charAt(i++);
-                    int s = XMLChar.supplemental(c, d);
+                    int s = UTF16.combinePair(c, d);
                     String rep = (String)charMap.get(s);
                     if (rep == null) {
                         buffer.append(c);

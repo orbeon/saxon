@@ -1,5 +1,7 @@
 package org.orbeon.saxon.exslt;
-import java.text.SimpleDateFormat;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.trans.XPathException;
+
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 
@@ -14,45 +16,29 @@ public final class Date  {
     * Private constructor to disallow instantiation
     */
 
-    private Date() {};
+    private Date() {}
 
     /**
-    * The date:date-time function returns the current date and time as a date/time string.
-    * The date/time string that's returned must be a string in the format defined as the
-    * lexical representation of xs:dateTime in [3.2.7 dateTime] of [XML Schema Part 2: Datatypes].
-    * The date/time format is basically CCYY-MM-DDThh:mm:ss+hh:mm.
-    * The date/time string format must include a time zone, either a Z to indicate
-    * Coordinated Universal Time or a + or - followed by the difference between the
-    * difference from UTC represented as hh:mm.
+     * The date:date-time function returns the current date and time as a date/time string.
+     * The date/time string that's returned must be a string in the format defined as the
+     * lexical representation of xs:dateTime in [3.2.7 dateTime] of [XML Schema Part 2: Datatypes].
+     * The date/time format is basically CCYY-MM-DDThh:mm:ss+hh:mm.
+     * The date/time string format must include a time zone, either a Z to indicate
+     * Coordinated Universal Time or a + or - followed by the difference between the
+     * difference from UTC represented as hh:mm.
+     * @param context the XPath dynamic context
+     * @return the current date and time as a date/time string
     */
 
-    public static String dateTime() {
-        Calendar calendar = new GregorianCalendar();
-        int tzoffset = calendar.get(Calendar.ZONE_OFFSET) +
-                        calendar.get(Calendar.DST_OFFSET);
-        char sign = '+';
-        if (tzoffset < 0) {
-            sign = '-';
-            tzoffset = -tzoffset;
-        }
-        int tzminutes = tzoffset / 60000;
-        int tzhours = tzminutes / 60;
-        tzminutes = tzminutes % 60;
-        String tzh = "" + tzhours;
-        while (tzh.length() < 2) tzh = "0" + tzh;
-        String tzm = "" + tzminutes;
-        while (tzm.length() < 2) tzm = "0" + tzm;
-
-        SimpleDateFormat formatter
-            = new SimpleDateFormat ("yyyy-MM-dd'T'HH:mm:ss");
-        String base = formatter.format(new java.util.Date());
-        return base + sign + tzh + ':' + tzm;
+    public static String dateTime(XPathContext context) throws XPathException {
+        return context.getCurrentDateTime().getStringValue();
     }
 
     /**
-    * The date:date function returns the date specified in the date/time string given as the
-    * argument.
-    * @param dateTime must start with [+|-]CCYY-MM-DD
+     * The date:date function returns the date specified in the date/time string given as the
+     * argument.
+     * @param dateTime must start with [+|-]CCYY-MM-DD
+     * @return the date portion of the supplied dateTime
     */
 
     public static String date(String dateTime) {
@@ -69,17 +55,20 @@ public final class Date  {
     }
 
     /**
-    * The date:date function returns the current date.
+     * The date:date function returns the current date.
+     * @param context the XPath dynamic context
+     * @return the current date as a string
     */
 
-    public static String date() {
-        return date(dateTime());
+    public static String date(XPathContext context) throws XPathException {
+        return date(dateTime(context));
     }
 
     /**
-    * The date:time function returns the time specified in the date/time string given as the
-    * argument.
-    * @param dateTime must start with [+|-]CCYY-MM-DDThh:mm:ss
+     * The date:time function returns the time specified in the date/time string given as the
+     * argument.
+     * @param dateTime must start with [+|-]CCYY-MM-DDThh:mm:ss
+     * @return the time part of the string
     */
 
     public static String time(String dateTime) {
@@ -92,17 +81,20 @@ public final class Date  {
     }
 
     /**
-    * The date:time function returns the current time.
-    */
+     * The date:time function returns the current time.
+     * @param context the XPath dynamic context
+     * @return the current time as a string
+     */
 
-    public static String time() {
-        return time(dateTime());
+    public static String time(XPathContext context) throws XPathException {
+        return time(dateTime(context));
     }
 
     /**
-    * The date:year function returns the year specified in the date/time string given as the
-    * argument.
-    * @param dateTime must begin with CCYY
+     * The date:year function returns the year specified in the date/time string given as the
+     * argument.
+     * @param dateTime must begin with CCYY
+     * @return the year part of the supplied date/time
     */
 
     public static double year(String dateTime) {
@@ -117,16 +109,20 @@ public final class Date  {
     }
 
     /**
-    * The date:year function returns the current year.
+     * The date:year function returns the current year.
+     * @param context the XPath dynamic context
+     * @return the current year as a double
     */
 
-    public static double year() {
-        return year(dateTime());
+    public static double year(XPathContext context) throws XPathException {
+        return year(dateTime(context));
     }
 
     /**
-    * Return true if the year specified in the date/time string
-    * given as the argument is a leap year.
+     * Return true if the year specified in the date/time string
+     * given as the argument is a leap year.
+     * @param dateTime a dateTime as a string
+     * @return true if the year is a leap year
     */
 
     public static boolean leapYear(String dateTime) {
@@ -139,16 +135,20 @@ public final class Date  {
     }
 
     /**
-    * Returns true if the current year is a leap year
-    */
+     * Returns true if the current year is a leap year
+     * @param context the XPath dynamic context
+     * @return true if the current year is a leap year
+     */
 
-    public static boolean leapYear() {
-        return leapYear(dateTime());
+    public static boolean leapYear(XPathContext context) throws XPathException {
+        return leapYear(dateTime(context));
     }
 
     /**
-    * Return the month number from a date.
-    * The date must start with either "CCYY-MM" or "--MM"
+     * Return the month number from a date.
+     * The date must start with either "CCYY-MM" or "--MM"
+     * @param dateTime a dateTime as a string
+     * @return the month extracted from the dateTime
     */
 
     public static double monthInYear(String dateTime) {
@@ -168,16 +168,19 @@ public final class Date  {
 
     /**
     * Return the month number from the current date.
+     * @param context the XPath dynamic context
+     * @return the current month number
     */
 
-    public static double monthInYear() {
-        return monthInYear(date());
+    public static double monthInYear(XPathContext context) throws XPathException {
+        return monthInYear(dateTime(context));
     }
 
     /**
-    * Return the month name from a date.
-    * The date must start with either "CCYY-MM" or "--MM"
-    * @return the English month name, for example "January", "February"
+     * Return the month name from a date.
+     * The date must start with either "CCYY-MM" or "--MM"
+     * @param date the date/time as a string
+     * @return the English month name, for example "January", "February"
     */
 
     public static String monthName(String date) {
@@ -192,16 +195,17 @@ public final class Date  {
 
     /**
     * Return the month name from the current date.
+    * @param context the XPath dynamic context
     * @return the English month name, for example "January", "February"
     */
 
-    public static String monthName() {
-        return monthName(date());
+    public static String monthName(XPathContext context) throws XPathException {
+        return monthName(dateTime(context));
     }
 
     /**
     * Return the month abbreviation from a date.
-    * The date must start with either "CCYY-MM" or "--MM"
+    * @param date The date must start with either "CCYY-MM" or "--MM"
     * @return the English month abbreviation, for example "Jan", "Feb"
     */
 
@@ -217,16 +221,19 @@ public final class Date  {
 
     /**
     * Return the month abbreviation from the current date.
+     * @param context the XPath dynamic context
     * @return the English month abbreviation, for example "Jan", "Feb"
     */
 
-    public static String monthAbbreviation() {
-        return monthAbbreviation(date());
+    public static String monthAbbreviation(XPathContext context) throws XPathException {
+        return monthAbbreviation(dateTime(context));
     }
 
     /**
     * Return the ISO week number of a specified date within the year
     * (Note, this returns the ISO week number: the result in EXSLT is underspecified)
+     * @param dateTime the current date starting CCYY-MM-DD
+     * @return the ISO week number
     */
 
     public static double weekInYear(String dateTime) {
@@ -253,17 +260,21 @@ public final class Date  {
     }
 
     /**
-    * Return the ISO week number of the current date within the year
+    * Return the ISO week number of the current date
+     * @param context the XPath dynamic context
     * (Note, this returns the ISO week number: the result in EXSLT is underspecified)
+     * @return the ISO week number
     */
 
-    public static double weekInYear() {
-        return weekInYear(date());
+    public static double weekInYear(XPathContext context) throws XPathException {
+        return weekInYear(dateTime(context));
     }
 
     /**
     * Return the week number of a specified date within the month
     * (Note, this function is underspecified in EXSLT)
+     * @param dateTime the date starting CCYY-MM-DD
+     * @return the week number within the month
     */
 
     public static double weekInMonth(String dateTime) {
@@ -272,14 +283,18 @@ public final class Date  {
 
     /**
     * Return the ISO week number of the current date within the month
+     * @param context the XPath dynamic context
+     * @return the week number within the month
     */
 
-    public static double weekInMonth() {
-        return weekInMonth(date());
+    public static double weekInMonth(XPathContext context) throws XPathException {
+        return weekInMonth(dateTime(context));
     }
 
     /**
     * Return the day number of a specified date within the year
+     * @param dateTime the date starting with CCYY-MM-DD
+     * @return the day number within the year, as a double
     */
 
     public static double dayInYear(String dateTime) {
@@ -304,15 +319,18 @@ public final class Date  {
 
     /**
     * Return the day number of the current date within the year
+     * @param context the XPath dynamic context
+     * @return the day number within the year, as a double
     */
 
-    public static double dayInYear() {
-        return dayInYear(date());
+    public static double dayInYear(XPathContext context) throws XPathException {
+        return dayInYear(dateTime(context));
     }
 
     /**
     * Return the day number of a specified date within the month
     * @param dateTime must start with CCYY-MM-DD, or --MM-DD, or ---DD
+     * @return the day number within the month, as a double
     */
 
     public static double dayInMonth(String dateTime) {
@@ -331,16 +349,20 @@ public final class Date  {
 
     /**
     * Return the day number of the current date within the month
+     * @param context the XPath dynamic context
+     * @return the current day number, as a double
     */
 
-    public static double dayInMonth() {
-        return dayInMonth(date());
+    public static double dayInMonth(XPathContext context) throws XPathException {
+        return dayInMonth(dateTime(context));
     }
 
     /**
     * Return the day-of-the-week in a month of a date as a number
     * (for example 3 for the 3rd Tuesday in May).
     * @param dateTime must start with CCYY-MM-DD
+     * @return the the day-of-the-week in a month of a date as a number
+    * (for example 3 for the 3rd Tuesday in May).
     */
 
     public static double dayOfWeekInMonth(String dateTime) {
@@ -354,10 +376,13 @@ public final class Date  {
     /**
     * Return the day-of-the-week in a month of the current date as a number
     * (for example 3 for the 3rd Tuesday in May).
+     * @param context the XPath dynamic context
+     * @return the the day-of-the-week in a month of the current date as a number
+    * (for example 3 for the 3rd Tuesday in May).
     */
 
-    public static double dayOfWeekInMonth() {
-        return dayOfWeekInMonth(date());
+    public static double dayOfWeekInMonth(XPathContext context) throws XPathException {
+        return dayOfWeekInMonth(dateTime(context));
     }
 
     /**
@@ -365,6 +390,7 @@ public final class Date  {
     * The numbering of days of the week starts at 1 for Sunday, 2 for Monday
     * and so on up to 7 for Saturday.
     * @param dateTime must start with CCYY-MM-DD
+     * @return the day of the week as a number
     */
 
     public static double dayInWeek(String dateTime) {
@@ -387,16 +413,19 @@ public final class Date  {
     * Return the day of the week in the current date as a number.
     * The numbering of days of the week starts at 1 for Sunday, 2 for Monday
     * and so on up to 7 for Saturday.
+     * @param context the XPath dynamic context
+     * @return the day of the week as a number
     */
 
-    public static double dayInWeek() {
-        return dayInWeek(date());
+    public static double dayInWeek(XPathContext context) throws XPathException {
+        return dayInWeek(dateTime(context));
     }
 
     /**
     * Return the day of the week given in a date as an English day name:
     * one of 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday' or 'Friday'.
     * @param dateTime must start with CCYY-MM-DD
+     * @return the English name of the day of the week
     */
 
     public static String dayName(String dateTime) {
@@ -412,16 +441,19 @@ public final class Date  {
     /**
     * Return the day of the week given in the current date as an English day name:
     * one of 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday' or 'Friday'.
+     * @param context the XPath dynamic context
+     * @return the English name of the day of the week
     */
 
-    public static String dayName() {
-        return dayName(date());
+    public static String dayName(XPathContext context) throws XPathException {
+        return dayName(dateTime(context));
     }
 
     /**
     * Return the day of the week given in a date as an English day abbreviation:
     * one of 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', or 'Sat'.
     * @param dateTime must start with CCYY-MM-DD
+     * @return the English day abbreviation
     */
 
     public static String dayAbbreviation(String dateTime) {
@@ -436,15 +468,18 @@ public final class Date  {
     /**
     * Return the day of the week given in the current date as an English day abbreviation:
     * one of 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', or 'Sat'.
+     * @param context the XPath dynamic context
+     * @return the English day abbreviation
     */
 
-    public static String dayAbbreviation() {
-        return dayAbbreviation(date());
+    public static String dayAbbreviation(XPathContext context) throws XPathException {
+        return dayAbbreviation(dateTime(context));
     }
 
     /**
     * Return the hour of the day in the specified date or date/time
     * @param dateTime must start with CCYY-MM-DDThh:mm:ss or hh:mm:ss
+     * @return the hour
     */
 
     public static double hourInDay(String dateTime) {
@@ -459,15 +494,18 @@ public final class Date  {
 
     /**
     * Return the current hour of the day
+     * @param context the XPath dynamic context
+     * @return the hour
     */
 
-    public static double hourInDay() {
-        return hourInDay(time());
+    public static double hourInDay(XPathContext context) throws XPathException {
+        return hourInDay(dateTime(context));
     }
 
     /**
     * Return the minute of the hour in the specified date or date/time
     * @param dateTime must start with CCYY-MM-DDThh:mm:ss or hh:mm:ss
+     * @return the minute
     */
 
     public static double minuteInHour(String dateTime) {
@@ -482,15 +520,18 @@ public final class Date  {
 
     /**
     * Return the current minute of the hour
+     * @param context the XPath dynamic context
+     * @return the minute
     */
 
-    public static double minuteInHour() {
-        return minuteInHour(time());
+    public static double minuteInHour(XPathContext context) throws XPathException {
+        return minuteInHour(dateTime(context));
     }
 
     /**
     * Return the second of the minute in the specified date or date/time
     * @param dateTime must start with CCYY-MM-DDThh:mm:ss or hh:mm:ss
+     * @return the second
     */
 
     public static double secondInMinute(String dateTime) {
@@ -505,10 +546,12 @@ public final class Date  {
 
     /**
     * Return the current second of the minute
+     * @param context the XPath dynamic context
+     * @return the second
     */
 
-    public static double secondInMinute() {
-        return secondInMinute(time());
+    public static double secondInMinute(XPathContext context) throws XPathException {
+        return secondInMinute(dateTime(context));
     }
 
 }

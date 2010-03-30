@@ -1,15 +1,13 @@
 package org.orbeon.saxon.event;
 
-import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.AugmentedSource;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.StrippedDocument;
 import org.orbeon.saxon.tinytree.TinyBuilder;
 import org.orbeon.saxon.tinytree.TinyDocumentImpl;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.tree.TreeBuilder;
 
@@ -25,6 +23,10 @@ import java.util.Date;
  */
 
 public abstract class Builder implements Receiver {
+    /**
+     * Constant denoting a request for the default tree model
+     */
+    public static final int UNSPECIFIED_TREE_MODEL = -1;
     /**
      * Constant denoting the "linked tree" in which each node is represented as an object
      */
@@ -49,6 +51,7 @@ public abstract class Builder implements Receiver {
 
     protected boolean started = false;
     protected boolean timing = false;
+    private boolean open = false;
 
     private long startTime;
 
@@ -61,18 +64,23 @@ public abstract class Builder implements Receiver {
 
     public void setPipelineConfiguration(PipelineConfiguration pipe) {
         //System.err.println("Builder#setPipelineConfiguration pipe = " + pipe);
-        if (pipe == null) {
-            new NullPointerException("pipe not initialized").printStackTrace();
-        }
+//        if (pipe == null) {
+//            new NullPointerException("pipe not initialized").printStackTrace();
+//        }
         this.pipe = pipe;
-        this.config = pipe.getConfiguration();
-        this.namePool = config.getNamePool();
-        this.lineNumbering = (lineNumbering || config.isLineNumbering());
+        config = pipe.getConfiguration();
+        namePool = config.getNamePool();
+        lineNumbering = (lineNumbering || config.isLineNumbering());
     }
 
     public PipelineConfiguration getPipelineConfiguration () {
         return pipe;
     }
+
+    /**
+     * Get the Configuration
+     * @return the Saxon configuration
+     */
 
     public Configuration getConfiguration() {
         return config;
@@ -138,6 +146,8 @@ public abstract class Builder implements Receiver {
 
     /**
      * Set timing option on or off
+     * @param on set to true to turn timing on. This causes the builder to display statistical information
+     * about the tree that is constructed. It corresponds to the command line -t option
      */
 
     public void setTiming(boolean on) {
@@ -146,6 +156,7 @@ public abstract class Builder implements Receiver {
 
     /**
      * Get timing option
+     * @return true if timing information has been requested
      */
 
     public boolean isTiming() {
@@ -153,14 +164,15 @@ public abstract class Builder implements Receiver {
     }
 
     public void open() throws XPathException {
-        if (timing) {
+        if (timing && !open) {
             System.err.println("Building tree for " + getSystemId() + " using " + getClass());
             startTime = (new Date()).getTime();
         }
+        open = true;
     }
 
     public void close() throws XPathException {
-        if (timing) {
+        if (timing && open) {
             long endTime = (new Date()).getTime();
             System.err.println("Tree built in " + (endTime - startTime) + " milliseconds");
             if (currentRoot instanceof TinyDocumentImpl) {
@@ -168,6 +180,7 @@ public abstract class Builder implements Receiver {
             }
             startTime = endTime;
         }
+        open = false;
     }
 
     /**
@@ -195,8 +208,31 @@ public abstract class Builder implements Receiver {
     }
 
     /**
+     * Reset the builder to its initial state. The most important effect of calling this
+     * method (implemented in subclasses) is to release any links to the constructed document
+     * tree, allowing the memory occupied by the tree to released by the garbage collector even
+     * if the Builder is still in memory. This can happen because the Builder is referenced from a
+     * parser in the Configuration's parser pool.
+     */
+
+    public void reset() {
+        pipe = null;
+        config = null;
+        namePool = null;
+        systemId = null;
+        baseURI = null;
+        currentRoot = null;
+        lineNumbering = false;
+        started = false;
+        timing = false;
+        open = false;
+    }
+
+    /**
      * Static method to build a document from any kind of Source object. If the source
      * is already in the form of a tree, it is wrapped as required.
+     * <p><i>The preferred way to construct a document tree from a Source object is to
+     * use the method {@link Configuration#buildDocument}.</i></p>
      * @param source Any javax.xml.transform.Source object
      * @param stripper A stripper object, if whitespace text nodes are to be stripped;
      * otherwise null.
@@ -211,6 +247,8 @@ public abstract class Builder implements Receiver {
     /**
      * Static method to build a document from any kind of Source object. If the source
      * is already in the form of a tree, it is wrapped as required.
+     * <p><i>The preferred way to construct a document tree from a Source object is to
+     * use the method {@link Configuration#buildDocument}.</i></p>
      * @param source Any javax.xml.transform.Source object
      * @param stripper A stripper object, if whitespace text nodes are to be stripped;
      * otherwise null.
@@ -227,7 +265,7 @@ public abstract class Builder implements Receiver {
 
         NodeInfo start;
         if (source instanceof DOMSource || source instanceof NodeInfo) {
-            start = Controller.unravel(source, config);
+            start = config.unravel(source);
             if (stripper != null) {
                 DocumentInfo docInfo = start.getDocumentRoot();
                 StrippedDocument strippedDoc = new StrippedDocument(docInfo, stripper);
@@ -255,9 +293,10 @@ public abstract class Builder implements Receiver {
             try {
                 new Sender(pipe).send(source, receiver);
             } catch (XPathException err) {
-                throw DynamicError.makeDynamicError(err);
+                throw XPathException.makeXPathException(err);
             }
             start = b.getCurrentRoot();
+            b.reset();
         }
         return start;
     }

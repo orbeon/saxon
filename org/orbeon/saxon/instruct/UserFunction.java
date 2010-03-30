@@ -1,19 +1,21 @@
 package org.orbeon.saxon.instruct;
 
 import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.expr.XPathContextMajor;
+import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.evpull.EventIterator;
+import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.trace.InstructionInfo;
-import org.orbeon.saxon.trace.InstructionInfoProvider;
+import org.orbeon.saxon.sort.SortExpression;
+import org.orbeon.saxon.sort.TupleSorter;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.SequenceType;
 import org.orbeon.saxon.value.Value;
 
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Set;
 
 /**
  * This object represents the compiled form of a user-written function
@@ -26,23 +28,67 @@ import java.util.HashMap;
  * convert the supplied arguments.
  */
 
-public final class UserFunction extends Procedure implements InstructionInfoProvider {
+public class UserFunction extends Procedure {
 
-    private int functionNameCode;
+    private StructuredQName functionName;
     private boolean memoFunction = false;
+    private boolean tailCalls = false;
+            // indicates that the function contains tail calls, not necessarily recursive ones.
     private boolean tailRecursive = false;
-            // this actually means the function contains tail calls,
-            // they are not necessarily recursive calls
+            // indicates that the function contains tail calls on itself
     private UserFunctionParameter[] parameterDefinitions;
     private SequenceType resultType;
     private int evaluationMode = ExpressionTool.UNDECIDED;
-    private transient InstructionDetails details = null;
+    private boolean isUpdating = false;
+
+    /**
+     * Create a user-defined function with no body (the body must be added later)
+     */
 
     public UserFunction() {}
 
+    /**
+     * Create a user-defined function
+     * @param body the expression comprising the body of the function, which is evaluated to compute the result
+     * of the function
+     */
+
     public UserFunction(Expression body) {
         setBody(body);
-    };
+    }
+
+    /**
+     * Set the function name
+     * @param name the function name
+     */
+
+    public void setFunctionName(StructuredQName name) {
+        functionName = name;
+    }
+
+    /**
+     * Get the function name
+     * @return the function name, as a StructuredQName
+     */
+
+    public StructuredQName getFunctionName() {
+        return functionName;
+    }
+
+
+    /**
+     * Get a name identifying the object of the expression, for example a function name, template name,
+     * variable name, key name, element name, etc. This is used only where the name is known statically.
+     *
+     */
+
+    public StructuredQName getObjectName() {
+        return functionName;
+    }
+
+    /**
+     * Determine the preferred evaluation mode for this function
+     */
 
     public void computeEvaluationMode() {
         if (tailRecursive || memoFunction) {
@@ -56,33 +102,118 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
         }
     }
 
+    /**
+     * Set the definitions of the declared parameters for this function
+     * @param params an array of parameter definitions
+     */
+
     public void setParameterDefinitions(UserFunctionParameter[] params) {
-        this.parameterDefinitions = params;
+        parameterDefinitions = params;
     }
+
+    /**
+     * Get the definitions of the declared parameters for this function
+     * @return an array of parameter definitions
+     */
 
     public UserFunctionParameter[] getParameterDefinitions() {
         return parameterDefinitions;
     }
 
+    /**
+     * Set the declared result type of the function
+     * @param resultType the declared return type
+     */
+
     public void setResultType(SequenceType resultType) {
         this.resultType = resultType;
     }
 
-    public void setTailRecursive(boolean tailCalls) {
-        tailRecursive = tailCalls;
+    /**
+     * Indicate whether the function contains a tail call
+     * @param tailCalls true if the function contains a tail call (on any function)
+     * @param recursiveTailCalls true if the function contains a tail call (on itself)
+     */
+
+    public void setTailRecursive(boolean tailCalls, boolean recursiveTailCalls) {
+        this.tailCalls = tailCalls;
+        tailRecursive = recursiveTailCalls;
     }
+
+    /**
+     * Determine whether the function contains tail calls (on this or other functions)
+     * @return true if the function contains tail calls
+     */
+
+    public boolean containsTailCalls() {
+        return tailCalls;
+    }
+
+    /**
+     * Determine whether the function contains a tail call, calling itself
+     * @return true if the function contains a directly-recursive tail call
+     */
 
     public boolean isTailRecursive() {
         return tailRecursive;
     }
 
     /**
+     * Set whether this is an updating function (as defined in XQuery Update)
+     * @param isUpdating true if this is an updating function
+     */
+
+    public void setUpdating(boolean isUpdating) {
+        this.isUpdating = isUpdating;
+    }
+
+    /**
+     * Ask whether this is an updating function (as defined in XQuery Update)
+     * @return true if this is an updating function
+     */
+
+    public boolean isUpdating() {
+        return isUpdating;
+    }
+    
+
+    /**
      * Get the type of value returned by this function
+     * @param th the type hierarchy cache
      * @return the declared result type, or the inferred result type
      * if this is more precise
      */
-    public SequenceType getResultType() {
+
+    public SequenceType getResultType(TypeHierarchy th) {
+        if (resultType == SequenceType.ANY_SEQUENCE) {
+            // see if we can infer a more precise result type. We don't do this if the function contains
+            // calls on further functions, to prevent infinite regress.
+            if (!containsUserFunctionCalls(getBody())) {
+                resultType = SequenceType.makeSequenceType(
+                        getBody().getItemType(th), getBody().getCardinality());
+            }
+        }
         return resultType;
+    }
+
+    /**
+     * Determine whether a given expression contains calls on user-defined functions
+     * @param exp the expression to be tested
+     * @return true if the expression contains calls to user functions.
+     */
+
+    private static boolean containsUserFunctionCalls(Expression exp) {
+        if (exp instanceof UserFunctionCall) {
+            return true;
+        }
+        Iterator i = exp.iterateSubExpressions();
+        while (i.hasNext()) {
+            Expression e = (Expression)i.next();
+            if (containsUserFunctionCalls(e)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -96,7 +227,8 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
     }
 
     /**
-     * Get the evaluation mode
+     * Get the evaluation mode. The evaluation mode will be computed if this has not already been done
+     * @return the computed evaluation mode
      */
 
     public int getEvaluationMode() {
@@ -125,22 +257,57 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
     }
 
     /**
-     * Set the namepool name code of the function
-     * @param nameCode represents the function name
+     * Ask whether this function is a memo function
+     * @return true if this function is marked as a memo function
      */
 
-    public void setFunctionNameCode(int nameCode) {
-        functionNameCode = nameCode;
+    public boolean isMemoFunction() {
+        return memoFunction;
     }
 
     /**
-     * Get the namepool name code of the function
-     * @return a name code representing the function name
+     * Gather the direct contributing callees of this function. A callee is a function that this one
+     * calls. A contributing callee is a function whose output is added directly to the output of this
+     * function without further processing (other than by attaching it to a parent element or document
+     * node). A direct contributing callee is a function that is called directly, rather than indirectly.
+     * @param result the list into which the callees are gathered.
      */
 
-    public int getFunctionNameCode() {
-        return functionNameCode;
+    public void gatherDirectContributingCallees(Set result) {
+        Expression body = getBody();
+        gatherDirectContributingCallees(body, result);
     }
+
+    private void gatherDirectContributingCallees(Expression exp, Set result) {
+        Iterator kids = exp.iterateSubExpressions();
+        while (kids.hasNext()) {
+            Expression kid = (Expression)kids.next();
+            if (kid instanceof UserFunctionCall) {
+                result.add(((UserFunctionCall)kid).getFunction());
+            } else if (kid instanceof Assignation) {
+                gatherDirectContributingCallees(((Assignation)kid).getAction(), result);
+//            } else if (kid instanceof IfExpression) {
+//                gatherDirectContributingCallees(((IfExpression)kid).getThenExpression(), result);
+//                gatherDirectContributingCallees(((IfExpression)kid).getElseExpression(), result);
+            } else if (kid instanceof Choose) {
+                Expression[] actions = ((Choose)kid).getActions();
+                for (int c=0; c<actions.length; c++) {
+                    gatherDirectContributingCallees(actions[c], result);
+                }
+            } else if (kid instanceof ParentNodeConstructor) {
+                gatherDirectContributingCallees(((ParentNodeConstructor)kid).getContentExpression(), result);
+            } else if (kid instanceof FilterExpression) {
+                gatherDirectContributingCallees(((FilterExpression)kid).getBaseExpression(), result);
+            } else if (kid instanceof SortExpression) {
+                gatherDirectContributingCallees(((SortExpression)kid).getBaseExpression(), result);
+            } else if (kid instanceof TupleSorter) {
+                gatherDirectContributingCallees(((TupleSorter)kid).getBaseExpression(), result);
+            } else if (kid instanceof TailCallLoop) {
+                gatherDirectContributingCallees(((TailCallLoop)kid).getBaseExpression(), result);
+            }
+        }
+    }
+
 
     /**
      * Call this function to return a value.
@@ -177,9 +344,7 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
         try {
             result = ExpressionTool.evaluate(getBody(), evaluationMode, context, 1);
         } catch (XPathException err) {
-            if (err.getLocator() == null) {
-                err.setLocator(this);
-            }
+            err.maybeSetLocation(this);
             throw err;
         }
 
@@ -209,6 +374,24 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
          getBody().process(context);
      }
 
+    /**
+      * Call this function in "pull" mode, returning the results as a sequence of PullEvents.
+      * @param actualArgs the arguments supplied to the function. These must have the correct
+      * types required by the function signature (it is the caller's responsibility to check this).
+      * It is acceptable to supply a {@link org.orbeon.saxon.value.Closure} to represent a value whose
+      * evaluation will be delayed until it is needed. The array must be the correct size to match
+      * the number of arguments: again, it is the caller's responsibility to check this.
+      * @param context This provides the run-time context for evaluating the function. It is the caller's
+      * responsibility to allocate a "clean" context for the function to use; the context that is provided
+      * will be overwritten by the function.
+      * @return an iterator over the results of the function call
+      */
+
+     public EventIterator iterateEvents(ValueRepresentation[] actualArgs, XPathContextMajor context)
+             throws XPathException {
+         context.setStackFrame(getStackFrameMap(), actualArgs);
+         return getBody().iterateEvents(context);
+     }
 
     /**
      * Call this function. This method allows an XQuery function to be called directly from a Java
@@ -229,7 +412,31 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
     }
 
     /**
+     * Call an updating function.
+     * @param actualArgs the arguments supplied to the function. These must have the correct
+     * types required by the function signature (it is the caller's responsibility to check this).
+     * It is acceptable to supply a {@link org.orbeon.saxon.value.Closure} to represent a value whose
+     * evaluation will be delayed until it is needed. The array must be the correct size to match
+     * the number of arguments: again, it is the caller's responsibility to check this.
+     * @param context the dynamic evaluation context
+     * @param pul the pending updates list, to which the function's update actions are to be added.
+     */
+
+    public void callUpdating(ValueRepresentation[] actualArgs, XPathContextMajor context, PendingUpdateList pul)
+    throws XPathException {
+        context.setStackFrame(getStackFrameMap(), actualArgs);
+        try {
+            getBody().evaluatePendingUpdates(context, pul);
+        } catch (XPathException err) {
+            err.maybeSetLocation(this);
+            throw err;
+        }
+    }
+
+    /**
      * For memo functions, get a saved value from the cache.
+     * @param controller the run-time Controller
+     * @param params the supplied parameters for the function call
      * @return the cached value, or null if no value has been saved for these parameters
      */
 
@@ -245,6 +452,9 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
 
     /**
      * For memo functions, put the computed value in the cache.
+     * @param controller the run-time Controller
+     * @param params the supplied parameter values
+     * @param value the computed result of the function
      */
 
     private void putCachedValue(Controller controller, ValueRepresentation[] params, ValueRepresentation value) throws XPathException {
@@ -259,6 +469,8 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
 
     /**
      * Get a key value representing the values of all the supplied arguments
+     * @param params the supplied values of the function arguments
+     * @return a key value which can be used to index the cache of remembered function results
      */
 
     private static String getCombinedKey(ValueRepresentation[] params) throws XPathException {
@@ -288,22 +500,17 @@ public final class UserFunction extends Procedure implements InstructionInfoProv
         return sb.toString();
     }
 
+
     /**
-     * Get the InstructionInfo details about the construct. This information isn't used for tracing,
-     * but it is available when inspecting the context stack.
+     * Get the type of construct. This will either be the fingerprint of a standard XSLT instruction name
+     * (values in {@link org.orbeon.saxon.om.StandardNames}: all less than 1024)
+     * or it will be a constant in class {@link org.orbeon.saxon.trace.Location}.
      */
 
-    public InstructionInfo getInstructionInfo() {
-        if (details == null) {
-            details = new InstructionDetails();
-            details.setSystemId(getSystemId());
-            details.setLineNumber(getLineNumber());
-            details.setConstructType(StandardNames.XSL_FUNCTION);
-            details.setObjectNameCode(functionNameCode);
-            details.setProperty("function", this);
-        }
-        return details;
+    public int getConstructType() {
+        return Location.FUNCTION;
     }
+
 }
 
 

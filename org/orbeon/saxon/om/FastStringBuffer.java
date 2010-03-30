@@ -1,10 +1,15 @@
 package org.orbeon.saxon.om;
 
+//import org.orbeon.saxon.tinytree.CharSlice;
+//import org.orbeon.saxon.tinytree.CompressedWhitespace;
+
 import org.orbeon.saxon.tinytree.CharSlice;
 import org.orbeon.saxon.tinytree.CompressedWhitespace;
+import org.orbeon.saxon.charcode.UTF16;
 
 import java.io.Writer;
 import java.io.Serializable;
+import java.util.Arrays;
 
 /**
  * A simple implementation of a class similar to StringBuffer. Unlike
@@ -18,9 +23,20 @@ public final class FastStringBuffer implements CharSequence, Serializable {
     private char[] array;
     private int used = 0;
 
+    /**
+     * Create a FastStringBuffer with a given initial capacity
+     * @param initialSize the initial capacity
+     */
+
     public FastStringBuffer(int initialSize) {
         array = new char[initialSize];
     }
+
+    /**
+     * Create a FastStringBuffer with initial content
+     * @param cs the initial content. The buffer is created with just enough capacity for
+     * this content (it will be expanded if more content is added later).
+     */
 
     public FastStringBuffer(CharSequence cs) {
         array = new char[cs.length()];
@@ -138,12 +154,13 @@ public final class FastStringBuffer implements CharSequence, Serializable {
 
     /**
      * Append a wide character to the buffer (as a surrogate pair if necessary)
+     * @param ch the character, as a 32-bit Unicode codepoint
      */
 
     public void appendWideChar(int ch) {
         if (ch > 0xffff) {
-            append(XMLChar.highSurrogate(ch));
-            append(XMLChar.lowSurrogate(ch));
+            append(UTF16.highSurrogate(ch));
+            append(UTF16.lowSurrogate(ch));
         } else {
             append((char)ch);
         }
@@ -151,14 +168,15 @@ public final class FastStringBuffer implements CharSequence, Serializable {
 
     /**
      * Prepend a wide character to the buffer (as a surrogate pair if necessary)
+     * @param ch the character, as a 32-bit Unicode codepoint
      */
 
     public void prependWideChar(int ch) {
         if (ch > 0xffff) {
-            insertCharAt(0, XMLChar.lowSurrogate(ch));
-            insertCharAt(0, XMLChar.highSurrogate(ch));
+            prepend(UTF16.lowSurrogate(ch));
+            prepend(UTF16.highSurrogate(ch));
         } else {
-            insertCharAt(0, (char)ch);
+            prepend((char)ch);
         }
     }
 
@@ -276,13 +294,14 @@ public final class FastStringBuffer implements CharSequence, Serializable {
      */
 
     public String toString() {
-        condense();
+        condense();    // has side-effects which is nasty on the debugger!
         return new String(array, 0, used);
     }
 
     /**
      * Get a char[] array containing the characters. The caller should not modify the
      * array.
+     * @return a char[] array containing the characters
      */
 
     public char[] getCharArray() {
@@ -333,8 +352,36 @@ public final class FastStringBuffer implements CharSequence, Serializable {
             throw new IndexOutOfBoundsException(""+index);
         }
         used--;
-        for (int i=index; i<used; i++) {
-            array[i] = array[i+1];
+        System.arraycopy(array, index + 1, array, index, used - index);
+    }
+
+    /**
+     * Insert a given character at the start of the buffer
+     * @param ch the character to insert
+     */
+
+    public void prepend(char ch) {
+        char[] a2 = new char[array.length + 1];
+        System.arraycopy(array, 0, a2, 1, used);
+        a2[0] = ch;
+        used += 1;
+        array = a2;
+    }
+
+    /**
+     * Insert a given character N times at the start of the buffer
+     * @param ch the character to insert
+     * @param repeat the number of occurrences required. Supplying 0 or a negative number is OK,
+     * and is treated as a no-op.
+     */
+
+    public void prependRepeated(char ch, int repeat) {
+        if (repeat > 0) {
+            char[] a2 = new char[array.length + repeat];
+            System.arraycopy(array, 0, a2, repeat, used);
+            Arrays.fill(a2, 0, repeat, ch);
+            used += repeat;
+            array = a2;
         }
     }
 
@@ -354,6 +401,7 @@ public final class FastStringBuffer implements CharSequence, Serializable {
 
     /**
      * Expand the character array if necessary to ensure capacity for appended data
+     * @param extra the amount of additional capacity needed, in characters
      */
 
     public void ensureCapacity(int extra) {
@@ -372,11 +420,12 @@ public final class FastStringBuffer implements CharSequence, Serializable {
      * Remove surplus space from the array. This doesn't reduce the array to the minimum
      * possible size; it only reclaims space if it seems worth doing. Specifically, it
      * contracts the array if the amount of wasted space is more than 256 characters, or
-     * more than half the allocated size.
+     * more than half the allocated size and more than 20 chars.
+     * @return the buffer after removing unused space
      */
 
     public CharSequence condense() {
-        if (array.length - used > 256 || array.length > used * 2) {
+        if (array.length - used > 256 || (array.length > used * 2 && array.length - used > 20)) {
             char[] array2 = new char[used];
             System.arraycopy(array, 0, array2, 0, used);
             array = array2;
@@ -386,6 +435,7 @@ public final class FastStringBuffer implements CharSequence, Serializable {
 
     /**
      * Write the value to a writer
+     * @param writer the writer to which the content is to be written
      */
 
     public void write(Writer writer) throws java.io.IOException {
@@ -393,7 +443,10 @@ public final class FastStringBuffer implements CharSequence, Serializable {
     }
 
     /**
-     * Diagnostic print of the contents of a CharSequence
+     * Diagnostic print of the contents of a CharSequence. Ordinary printable ASCII characters
+     * are displayed as themselves; anything else is displayed as a \\uNNNN escape sequence
+     * @param in the CharSequence whose contents are to be displayed.
+     * @return the diagnostic output
      */
 
     public static String diagnosticPrint(CharSequence in) {
@@ -411,6 +464,7 @@ public final class FastStringBuffer implements CharSequence, Serializable {
         }
         return buff.toString();
     }
+  
 }
 
 //

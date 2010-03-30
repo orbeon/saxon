@@ -25,7 +25,8 @@ public class StackFrame {
         return slots;
     }
 
-    public static final StackFrame EMPTY = new StackFrame(null, ValueRepresentation.EMPTY_VALUE_ARRAY);
+    public static final StackFrame EMPTY =
+            new StackFrame(SlotManager.EMPTY, ValueRepresentation.EMPTY_VALUE_ARRAY);
 }
 
 //

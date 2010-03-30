@@ -1,7 +1,6 @@
 package org.orbeon.saxon.jdom;
 
 import org.orbeon.saxon.Transform;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 import org.jdom.JDOMException;
 import org.jdom.input.SAXBuilder;
@@ -51,9 +50,9 @@ public class JDOMTransform extends Transform {
             }
             return jdomSources;
         } catch (JDOMException e) {
-            throw new DynamicError(e);
+            throw new XPathException(e);
         } catch (IOException e) {
-            throw new DynamicError(e);
+            throw new XPathException(e);
         }
     }
 

@@ -1,36 +1,36 @@
 package org.orbeon.saxon.expr;
 
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.functions.SystemFunction;
 import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.pattern.AnyNodeTest;
 import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.pattern.NodeTest;
 import org.orbeon.saxon.sort.DocumentSorter;
-import org.orbeon.saxon.sort.Reverser;
-import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.Cardinality;
-import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.SequenceType;
-
-import java.io.PrintStream;
-import java.util.Iterator;
 
 /**
  * An expression that establishes a set of nodes by following relationships between nodes
  * in the document. Specifically, it consists of a start expression which defines a set of
- * nodes, and a Step which defines a relationship to be followed from those nodes to create
+ * nodes, and a step which defines a relationship to be followed from those nodes to create
  * a new set of nodes.
+ *
+ * <p>This class inherits from SlashExpression; it is used in the common case where the SlashExpression
+ * is known to return nodes rather than atomic values.</p>
+ *
+ * <p>This class is not responsible for sorting the results into document order or removing duplicates.
+ * That is done by a DocumentSorter expression which is wrapped around the path expression. However, this
+ * class does contain the logic for deciding statically whether the DocumentSorter is needed or not.</p>
  */
 
-public final class PathExpression extends ComputedExpression implements ContextMappingFunction {
+public final class PathExpression extends SlashExpression implements ContextMappingFunction {
 
-    private Expression start;
-    private Expression step;
     private transient int state = 0;    // 0 = raw, 1 = simplified, 2 = analyzed, 3 = optimized
 
     /**
@@ -42,10 +42,7 @@ public final class PathExpression extends ComputedExpression implements ContextM
      */
 
     public PathExpression(Expression start, Expression step) {
-        this.start = start;
-        this.step = step;
-        adoptChildExpression(start);
-        adoptChildExpression(step);
+        super(start, step);
 
         // If start is a path expression such as a, and step is b/c, then
         // instead of a/(b/c) we construct (a/b)/c. This is because it often avoids
@@ -58,45 +55,38 @@ public final class PathExpression extends ComputedExpression implements ContextM
 
         if (step instanceof PathExpression) {
             PathExpression stepPath = (PathExpression) step;
-            if (isFilteredAxisPath(stepPath.start) && isFilteredAxisPath(stepPath.step)) {
-                this.start = new PathExpression(start, stepPath.start);
-                ExpressionTool.copyLocationInfo(start, this.start);
-                this.step = stepPath.step;
-                resetStaticProperties();
+            if (isFilteredAxisPath(stepPath.getStartExpression()) && isFilteredAxisPath(stepPath.getStepExpression())) {
+                setStartExpression(new PathExpression(start, stepPath.start));
+                setStepExpression(stepPath.step);
             }
         }
     }
 
-    /**
-     * Get the start expression (the left-hand operand)
-     */
-
-    public Expression getStartExpression() {
-        return start;
+    public boolean isHybrid() {
+        return false;
     }
 
     /**
-     * Get the step expression (the right-hand operand)
+     * Add a document sorting node to the expression tree, if needed
      */
 
-    public Expression getStepExpression() {
-        return step;
-    }
-
-
-    /**
-     * Indicate that the string value or typed value of nodes returned by this expression is used
-     */
-
-    public void setStringValueIsUsed() {
-        if (step instanceof ComputedExpression) {
-            ((ComputedExpression)step).setStringValueIsUsed();
+    Expression addDocumentSorter() {
+        int props = getSpecialProperties();
+        if ((props & StaticProperty.ORDERED_NODESET) != 0) {
+            return this;
+        } else if ((props & StaticProperty.REVERSE_DOCUMENT_ORDER) != 0) {
+            return SystemFunction.makeSystemFunction("reverse", new Expression[]{this});
+        } else {
+            return new DocumentSorter(this);
         }
     }
 
     /**
-     * Determine whether an operand of a PathExpression is an
+     * Determine whether an expression is an
      * axis step with optional filter predicates.
+     * @param exp the expression to be examined
+     * @return true if the supplied expression is an AxisExpression, or an AxisExpression wrapped by one
+     * or more filter expressions
      */
 
     private static boolean isFilteredAxisPath(Expression exp) {
@@ -111,82 +101,31 @@ public final class PathExpression extends ComputedExpression implements ContextM
     }
 
     /**
-     * Determine the data type of the items returned by this exprssion
-     * @return the type of the step
-     * @param th
-     */
-
-    public final ItemType getItemType(TypeHierarchy th) {
-        return step.getItemType(th);
-    }
-
-    /**
      * Simplify an expression
      * @return the simplified expression
+     * @param visitor the expression visitor
      */
 
-     public Expression simplify(StaticContext env) throws XPathException {
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
         if (state > 0) {
             return this;
         }
         state = 1;
-        start = start.simplify(env);
-        step = step.simplify(env);
-        resetStaticProperties();
 
-        // if the start expression is an empty sequence, then the whole PathExpression is empty
-        if (start instanceof EmptySequence) {
-            return start;
-        }
-
-        // if the simplified Step is an empty sequence, then the whole PathExpression is empty
-        if (step instanceof EmptySequence) {
-            return step;
+        Expression e2 = super.simplify(visitor);
+        if (e2 != this) {
+            return e2;
         }
 
         // Remove a redundant "." from the path
-        // Note: we are careful not to do this unless the other operand is an ordered node-set.
-        // In other cases, ./E (or E/.) is not a no-op, because it forces sorting.
+        // TODO: can we move this logic to the superclass? Does it destroy type-checking?
 
         if (start instanceof ContextItemExpression) {
-            if (step instanceof PathExpression || (step.getSpecialProperties() & StaticProperty.ORDERED_NODESET) != 0) {
-                if (step instanceof ComputedExpression) {
-                    ((ComputedExpression)step).setLocationId(getLocationId());
-                    ((ComputedExpression)step).setParentExpression(getParentExpression());
-                }
-                return step;
-            }
+            return step;
         }
 
-        if (step instanceof ContextItemExpression &&
-                (start instanceof PathExpression || (start.getSpecialProperties() & StaticProperty.ORDERED_NODESET) != 0)) {
-            if (start instanceof ComputedExpression) {
-                ((ComputedExpression)start).setLocationId(getLocationId());
-                ((ComputedExpression)start).setParentExpression(getParentExpression());
-            }
+        if (step instanceof ContextItemExpression) {
             return start;
-        }
-
-        // Remove a redundant "." in the middle of a path expression
-
-        if (step instanceof PathExpression && ((PathExpression)step).getFirstStep() instanceof ContextItemExpression) {
-            PathExpression p2 = new PathExpression(start, ((PathExpression)step).getRemainingSteps());
-            p2.setLocationId(getLocationId());
-            p2.setParentExpression(getParentExpression());
-            return p2;
-        }
-
-        if (start instanceof PathExpression && ((PathExpression)start).getLastStep() instanceof ContextItemExpression) {
-            PathExpression p2 = new PathExpression(((PathExpression)start).getLeadingSteps(), step);
-            p2.setLocationId(getLocationId());
-            p2.setParentExpression(getParentExpression());
-            return p2;
-        }
-
-        // the expression /.. is sometimes used to represent the empty node-set
-
-        if (start instanceof RootExpression && step instanceof ParentNodeExpression) {
-            return EmptySequence.getInstance();
         }
 
         return this;
@@ -250,7 +189,7 @@ public final class PathExpression extends ComputedExpression implements ContextM
         AxisExpression underlyingAxis = (AxisExpression) underlyingStep;
         if (underlyingAxis.getAxis() == Axis.CHILD) {
 
-            ComputedExpression newStep =
+            Expression newStep =
                     new AxisExpression(Axis.DESCENDANT,
                             ((AxisExpression) underlyingStep).getNodeTest());
             ExpressionTool.copyLocationInfo(this, newStep);
@@ -279,7 +218,7 @@ public final class PathExpression extends ComputedExpression implements ContextM
 
             // turn the expression a//@b into a/descendant-or-self::*/@b
 
-            ComputedExpression newStep =
+            Expression newStep =
                     new AxisExpression(Axis.DESCENDANT_OR_SELF, NodeKindTest.ELEMENT);
             ExpressionTool.copyLocationInfo(this, newStep);
 
@@ -294,188 +233,110 @@ public final class PathExpression extends ComputedExpression implements ContextM
     }
 
     /**
-     * Optimize the expression and perform type analysis
+     * Perform type analysis
      */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
 
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
         if (state >= 2) {
             // we've already done the main analysis, and we don't want to do it again because
             // decisions on sorting get upset. But we have new information, namely the contextItemType,
             // so we use that to check that it's a node
-            Expression start2 = start.typeCheck(env, contextItemType);
-            if (start2 != start) {
-                adoptChildExpression(start2);
-                start = start2;
-            }
-            Expression step2 = step.typeCheck(env, start.getItemType(th));
-            if (step2 != step) {
-                adoptChildExpression(step2);
-                step = step2;
-            }
+            setStartExpression(visitor.typeCheck(start, contextItemType));
+            setStepExpression(visitor.typeCheck(step, start.getItemType(th)));
             return this;
-        };
+        }
         state = 2;
 
-        Expression start2 = start.typeCheck(env, contextItemType);
-        if (start2 != start) {
-            adoptChildExpression(start2);
-            start = start2;
-        }
+        setStartExpression(visitor.typeCheck(start, contextItemType));
 
         // The first operand must be of type node()*
 
-        RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, "/", 0, null);
-        role0.setSourceLocator(this);
+        RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, "/", 0);
+        //role0.setSourceLocator(this);
         role0.setErrorCode("XPTY0019");
-        start2 = TypeChecker.staticTypeCheck(start,
-                SequenceType.NODE_SEQUENCE,
-                false, role0, env);
-        if (start2 != start) {
-            adoptChildExpression(start2);
-            start = start2;
-        }
+        setStartExpression(
+                TypeChecker.staticTypeCheck(start, SequenceType.NODE_SEQUENCE, false, role0, visitor));
 
         // Now check the second operand
 
-        Expression step2 = step.typeCheck(env, start.getItemType(th));
-        if (step2 != step) {
-            adoptChildExpression(step2);
-            step = step2;
-        }
+        setStepExpression(visitor.typeCheck(step, start.getItemType(th)));
 
-        // We distinguish three cases for the second operand: either it is known statically to deliver
-        // nodes only (a traditional path expression), or it is known statically to deliver atomic values
-        // only (a simple mapping expression), or we don't yet know.
+        if ((step.getSpecialProperties() & StaticProperty.NON_CREATIVE) != 0) {
 
-        ItemType stepType = step.getItemType(th);
-        if (th.isSubType(stepType, Type.NODE_TYPE)) {
+            // A traditional path expression
 
-            if ((step.getSpecialProperties() & StaticProperty.NON_CREATIVE) != 0) {
+            // We don't need the operands to be sorted; any sorting that's needed
+            // will be done at the top level
 
-                // A traditional path expression
+            Optimizer opt = visitor.getConfiguration().getOptimizer();
+            setStartExpression(ExpressionTool.unsorted(opt, start, false));
+            setStepExpression(ExpressionTool.unsorted(opt, step, false));
 
-                // We don't need the operands to be sorted; any sorting that's needed
-                // will be done at the top level
-
-                Optimizer opt = env.getConfiguration().getOptimizer();
-                start2 = ExpressionTool.unsorted(opt, start, false);
-                if (start2 != start) {
-                    resetStaticProperties();
-                    adoptChildExpression(start2);
-                    start = start2;
-                }
-                step2 = ExpressionTool.unsorted(opt, step, false);
-                if (step2 != step) {
-                    resetStaticProperties();
-                    adoptChildExpression(step2);
-                    step = step2;
-                }
-
-                // Try to simplify expressions such as a//b
-                PathExpression p = simplifyDescendantPath(env);
-                if (p != null) {
-                    p.setParentExpression(getParentExpression());
-                    return p.simplify(env).typeCheck(env, contextItemType);
-                } else {
-                    // a failed attempt to simplify the expression may corrupt the parent pointers
-                    adoptChildExpression(start);
-                    adoptChildExpression(step);
-                }
-            }
-
-            // Decide whether the result needs to be wrapped in a sorting
-            // expression to deliver the results in document order
-
-            int props = getSpecialProperties();
-
-            if ((props & StaticProperty.ORDERED_NODESET) != 0) {
-                return this;
-            } else if ((props & StaticProperty.REVERSE_DOCUMENT_ORDER) != 0) {
-                return new Reverser(this);
+            // Try to simplify expressions such as a//b
+            PathExpression p = simplifyDescendantPath(visitor.getStaticContext());
+            if (p != null) {
+                ExpressionTool.copyLocationInfo(this, p);
+                return visitor.typeCheck(visitor.simplify(p), contextItemType);
             } else {
-                return new DocumentSorter(this);
+                // a failed attempt to simplify the expression may corrupt the parent pointers
+                adoptChildExpression(start);
+                adoptChildExpression(step);
             }
-
-        } else if (stepType.isAtomicType()) {
-            // This is a simple mapping expression: a/b where b returns atomic values
-            SimpleMappingExpression sme = new SimpleMappingExpression(start, step, false);
-            sme.setLocationId(getLocationId());
-            sme.setParentExpression(getParentExpression());
-            return sme.simplify(env).typeCheck(env, contextItemType);
-        } else {
-            // This is a hybrid mapping expression, one where we don't know the type of the step
-            // (and therefore, we don't know whether sorting into document order is required) until run-time
-            SimpleMappingExpression sme = new SimpleMappingExpression(start, step, true);
-            sme.setLocationId(getLocationId());
-            sme.setParentExpression(getParentExpression());
-            return sme.simplify(env).typeCheck(env, contextItemType);
         }
+        return this;
     }
 
     /**
      * Optimize the expression and perform type analysis
      */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
 
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
+        Optimizer opt = visitor.getConfiguration().getOptimizer();
+
+        // TODO: recognize explosive path expressions such as ..//../..//.. : eliminate duplicates early to contain the size
+        // Mainly for benchmarks, but one sees following-sibling::p/preceding-sibling::h2. We could define an expression as
+        // explosive if it contains two adjacent steps with opposite directions (except where both are singletons).
+
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
         if (state >= 3) {
             // we've already done the main analysis, and we don't want to do it again because
             // decisions on sorting get upset. But we have new information, namely the contextItemType,
             // so we use that to check that it's a node
-            Expression start2 = start.optimize(opt, env, contextItemType);
-            if (start2 != start) {
-                adoptChildExpression(start2);
-                start = start2;
-            }
-            Expression step2 = step.optimize(opt, env, start.getItemType(th));
-            if (step2 != step) {
-                adoptChildExpression(step2);
-                step = step2;
-            }
+            setStartExpression(visitor.optimize(start, contextItemType));
+            setStepExpression(step.optimize(visitor, start.getItemType(th)));
             return this;
-        };
+        }
         state = 3;
 
-        Expression k = opt.convertPathExpressionToKey(this, env);
-        if (k != null) {
-            ComputedExpression.setParentExpression(k, getParentExpression());
-            return k;
+        // Rewrite a/b[filter] as (a/b)[filter] to improve the chance of indexing
+
+        Expression lastStep = getLastStep();
+        if (lastStep instanceof FilterExpression && !((FilterExpression)lastStep).isPositional(th)) {
+            Expression leading = getLeadingSteps();
+            Expression p2 = new PathExpression(leading, ((FilterExpression)lastStep).getBaseExpression());
+            Expression f2 = new FilterExpression(p2, ((FilterExpression)lastStep).getFilter());
+            return f2.optimize(visitor, contextItemType);
         }
 
-        Expression start2 = start.optimize(opt, env, contextItemType);
-        if (start2 != start) {
-            adoptChildExpression(start2);
-            start = start2;
+        Expression k = opt.convertPathExpressionToKey(this, visitor);
+        if (k != null) {
+            return k.typeCheck(visitor, contextItemType).optimize(visitor, contextItemType);
         }
-        Expression step2 = step.optimize(opt, env, start.getItemType(th));
-        if (step2 != step) {
-            adoptChildExpression(step2);
-            step = step2;
-        }
+
+        setStartExpression(visitor.optimize(start, contextItemType));
+        setStepExpression(step.optimize(visitor, start.getItemType(th)));
 
         // If any subexpressions within the step are not dependent on the focus,
         // and if they are not "creative" expressions (expressions that can create new nodes), then
         // promote them: this causes them to be evaluated once, outside the path expression
 
-        PromotionOffer offer = new PromotionOffer(opt);
-        offer.action = PromotionOffer.FOCUS_INDEPENDENT;
-        offer.promoteDocumentDependent = (start.getSpecialProperties() & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0;
-        offer.containingExpression = this;
-
-        step = doPromotion(step, offer);
-        resetStaticProperties();
-        if (offer.containingExpression != this) {
-            state = 0;  // allow reanalysis (see test axes286)
-            offer.containingExpression =
-                    offer.containingExpression.typeCheck(env, contextItemType).optimize(opt, env, contextItemType);
-            return offer.containingExpression;
-        }
-        return this;
+        return promoteFocusIndependentSubexpressions(visitor, contextItemType);
 
     }
+
 
     /**
      * Promote this expression if possible
@@ -497,13 +358,13 @@ public final class PathExpression extends ComputedExpression implements ContextM
         if (exp != null) {
             return exp;
         } else {
-            start = doPromotion(start, offer);
+            setStartExpression(doPromotion(start, offer));
             if (offer.action == PromotionOffer.INLINE_VARIABLE_REFERENCES ||
                     offer.action == PromotionOffer.REPLACE_CURRENT) {
                 // Don't pass on other requests. We could pass them on, but only after augmenting
                 // them to say we are interested in subexpressions that don't depend on either the
                 // outer context or the inner context.
-                step = doPromotion(step, offer);
+                setStepExpression(doPromotion(step, offer));
             }
             return this;
         }
@@ -511,48 +372,15 @@ public final class PathExpression extends ComputedExpression implements ContextM
 
 
 
-    /**
-     * Get the immediate subexpressions of this expression
-     */
-
-    public Iterator iterateSubExpressions() {
-        return new PairIterator(start, step);
-    }
-
-   /**
-     * Replace one subexpression by a replacement subexpression
-     * @param original the original subexpression
-     * @param replacement the replacement subexpression
-     * @return true if the original subexpression is found
-     */
-
-    public boolean replaceSubExpression(Expression original, Expression replacement) {
-        boolean found = false;
-        if (start == original) {
-            start = replacement;
-            found = true;
-        }
-        if (step == original) {
-            step = replacement;
-            found = true;
-        }
-        return found;
-    }
 
     /**
-     * Determine which aspects of the context the expression depends on. The result is
-     * a bitwise-or'ed value composed from constants such as XPathContext.VARIABLES and
-     * XPathContext.CURRENT_NODE
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
      */
 
-    public int computeDependencies() {
-        return start.getDependencies() |
-                // not all dependencies in the step matter, because the context node, etc,
-                // are not those of the outer expression
-                (step.getDependencies() &
-                (StaticProperty.DEPENDS_ON_XSLT_CONTEXT |
-                    StaticProperty.DEPENDS_ON_LOCAL_VARIABLES |
-                    StaticProperty.DEPENDS_ON_USER_FUNCTIONS));
+    public Expression copy() {
+        return new PathExpression(start.copy(), step.copy());
     }
 
     /**
@@ -608,6 +436,11 @@ public final class PathExpression extends ComputedExpression implements ContextM
      * This is true if the start nodes are sorted peer nodes
      * and the step is based on an Axis within the subtree rooted at each node.
      * It is also true if the start is a singleton node and the axis is sorted.
+     * @param startProperties the properties of the left-hand expression
+     * @param stepProperties the properties of the right-hand expression
+     * @return true if the natural nested-loop evaluation strategy for the expression
+     * is known to deliver results with no duplicates and in document order, that is,
+     * if no additional sort is required
      */
 
     private boolean testNaturallySorted(int startProperties, int stepProperties) {
@@ -645,22 +478,21 @@ public final class PathExpression extends ComputedExpression implements ContextM
         // no node is an ancestor of another) and the step selects within the subtree rooted
         // at the context node
 
-        if (((startProperties & StaticProperty.PEER_NODESET) != 0) && ((stepProperties & StaticProperty.SUBTREE_NODESET) != 0)) {
-            return true;
-        }
+        return ((startProperties & StaticProperty.PEER_NODESET) != 0) &&
+                ((stepProperties & StaticProperty.SUBTREE_NODESET) != 0);
 
-        return false;
     }
 
     /**
      * Determine if the path expression naturally returns nodes in reverse document order
+     * @return true if the natural nested-loop evaluation strategy returns nodes in reverse
+     * document order
      */
 
     private boolean testNaturallyReverseSorted() {
 
-        // Some examples of expressions that are naturally reverse sorted:
-        //     ../@x
-        //     ancestor::*[@lang]
+        // Some examples of path expressions that are naturally reverse sorted:
+        //     ancestor::*/@x
         //     ../preceding-sibling::x
         //     $x[1]/preceding-sibling::node()
 
@@ -675,54 +507,16 @@ public final class PathExpression extends ComputedExpression implements ContextM
             return !Axis.isForwards[((AxisExpression) step).getAxis()];
         }
 
-        if (!(start instanceof AxisExpression)) {
-            return false;
-        }
+        return !Cardinality.allowsMany(step.getCardinality()) &&
+                (start instanceof AxisExpression) &&
+                !Axis.isForwards[((AxisExpression)start).getAxis()];
 
-        if (Axis.isForwards[((AxisExpression) start).getAxis()]) {
-            return false;
-        }
-
-//        if (step instanceof AttributeReference) {
-//            return true;
-//        }
-
-        return false;
-    }
-
-    /**
-     * Determine the static cardinality of the expression
-     */
-
-    public int computeCardinality() {
-        int c1 = start.getCardinality();
-        int c2 = step.getCardinality();
-        return Cardinality.multiply(c1, c2);
-    }
-
-    /**
-     * Is this expression the same as another expression?
-     */
-
-    public boolean equals(Object other) {
-        if (!(other instanceof PathExpression)) {
-            return false;
-        }
-        PathExpression p = (PathExpression) other;
-        return (start.equals(p.start) && step.equals(p.step));
-    }
-
-    /**
-     * get HashCode for comparing two expressions
-     */
-
-    public int hashCode() {
-        return "PathExpression".hashCode() + start.hashCode() + step.hashCode();
     }
 
     /**
      * Get the first step in this expression. A path expression A/B/C is represented as (A/B)/C, but
      * the first step is A
+     * @return the first step in the expression, after expanding any nested path expressions
      */
 
     public Expression getFirstStep() {
@@ -737,13 +531,14 @@ public final class PathExpression extends ComputedExpression implements ContextM
      * Get all steps after the first.
      * This is complicated by the fact that A/B/C is represented as ((A/B)/C; we are required
      * to return B/C
+     * @return a path expression containing all steps in this path expression other than the first,
+     * after expanding any nested path expressions
      */
 
     public Expression getRemainingSteps() {
         if (start instanceof PathExpression) {
             PathExpression rem =
                     new PathExpression(((PathExpression) start).getRemainingSteps(), step);
-            rem.setParentExpression(getParentExpression());
             ExpressionTool.copyLocationInfo(start, rem);
             return rem;
         } else {
@@ -753,6 +548,7 @@ public final class PathExpression extends ComputedExpression implements ContextM
 
     /**
      * Get the last step of the path expression
+     * @return the last step in the expression, after expanding any nested path expressions
      */
 
     public Expression getLastStep() {
@@ -765,6 +561,8 @@ public final class PathExpression extends ComputedExpression implements ContextM
 
     /**
      * Get a path expression consisting of all steps except the last
+     * @return a path expression containing all steps in this path expression other than the last,
+     * after expanding any nested path expressions
      */
 
     public Expression getLeadingSteps() {
@@ -778,21 +576,67 @@ public final class PathExpression extends ComputedExpression implements ContextM
         }
     }
 
+
     /**
      * Test whether a path expression is an absolute path - that is, a path whose first step selects a
      * document node
+     * @param th the type hierarchy cache
+     * @return true if the first step in this path expression selects a document node
      */
 
     public boolean isAbsolute(TypeHierarchy th) {
         Expression first = getFirstStep();
         if (first.getItemType(th).getPrimitiveType() == Type.DOCUMENT) {
             return true;
-        };
-        // Not sure if this second test is effective in allowing keys to be built. See XMark q9.
-        if (first instanceof AxisExpression && ((AxisExpression)first).getContextItemType().getPrimitiveType() == Type.DOCUMENT) {
-            return true;
-        };
+        }
+        // This second test allows keys to be built. See XMark q9.
+//        if (first instanceof AxisExpression && ((AxisExpression)first).getContextItemType().getPrimitiveType() == Type.DOCUMENT) {
+//            return true;
+//        };
         return false;
+    }
+
+    /**
+     * Test whether a path expression is an absolute path - that is, a path whose first step selects a
+     * document node; if not, see if it can be converted to an absolute path. This is possible in cases where
+     * the path expression has the form a/b/c and it is known that the context item is a document node; in this
+     * case it is safe to change the path expression to /a/b/c
+     * @param th the type hierarchy cache
+     * @return the path expression if it is absolute; the converted path expression if it can be made absolute;
+     * or null if neither condition applies.
+     */
+
+    public PathExpression tryToMakeAbsolute(TypeHierarchy th) {
+        Expression first = getFirstStep();
+        if (first.getItemType(th).getPrimitiveType() == Type.DOCUMENT) {
+            return this;
+        }
+        // This second test allows keys to be built. See XMark q9.
+        if (first instanceof AxisExpression && ((AxisExpression)first).getContextItemType().getPrimitiveType() == Type.DOCUMENT) {
+            RootExpression root = new RootExpression();
+            ExpressionTool.copyLocationInfo(this, root);
+            PathExpression path = new PathExpression(root, this);
+            ExpressionTool.copyLocationInfo(this, path);
+            return path;
+        }
+        return null;
+    }
+
+
+    /**
+     * Add a representation of this expression to a PathMap. The PathMap captures a map of the nodes visited
+     * by an expression in a source tree.
+     *
+     * @param pathMap     the PathMap to which the expression should be added
+     * @param pathMapNodeSet
+     * @return the pathMapNode representing the focus established by this expression, in the case where this
+     *         expression is the first operand of a path expression or filter expression
+     */
+
+    public PathMap.PathMapNodeSet addToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodeSet) {
+        // TODO: not clear why this differs from the superclass method
+        PathMap.PathMapNodeSet target = start.addToPathMap(pathMap, pathMapNodeSet);
+        return step.addToPathMap(pathMap, target);
     }
 
     /**
@@ -809,43 +653,37 @@ public final class PathExpression extends ComputedExpression implements ContextM
         SequenceIterator master = start.iterate(context);
         XPathContext context2 = context.newMinorContext();
         context2.setCurrentIterator(master);
-        context2.setOriginatingConstructType(Location.PATH_EXPRESSION);
+        context2.setOrigin(this);
+        //context2.setOriginatingConstructType(Location.PATH_EXPRESSION);
 
-        master = new ContextMappingIterator(this, context2);
-        return master;
+        return new ContextMappingIterator(this, context2);
 
     }
 
     /**
-     * Mapping function, from a node returned by the start iteration, to a sequence
-     * returned by the child.
+     * The toString() method for an expression attempts to give a representation of the expression
+     * in an XPath-like form, but there is no guarantee that the syntax will actually be true XPath.
+     * In the case of XSLT instructions, the toString() method gives an abstracted view of the syntax
      */
 
-    public SequenceIterator map(XPathContext context) throws XPathException {
-        return step.iterate(context);
+    public String toString() {
+        return "(" + start.toString() + "/" + step.toString() + ")";
     }
 
     /**
-     * Diagnostic print of expression structure
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "path /");
-        start.display(level + 1, out, config);
-        step.display(level + 1, out, config);
-    }
-
-    public PathMap.PathMapNode addToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
-        if (start instanceof ComputedExpression) {
-            PathMap.PathMapNode target = ((ComputedExpression)start).addToPathMap(pathMap, pathMapNode);
-            return ((ComputedExpression)step).addToPathMap(pathMap, target);
-        }
-        return pathMapNode;
+    public void explain(ExpressionPresenter destination) {
+        destination.startElement("path");
+        start.explain(destination);
+        step.explain(destination);
+        destination.endElement();
     }
 
 
 }
-
 
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");
@@ -856,11 +694,10 @@ public final class PathExpression extends ComputedExpression implements ContextM
 // WITHOUT WARRANTY OF ANY KIND, either express or implied.
 // See the License for the specific language governing rights and limitations under the License.
 //
-// The Original Code is: all this file.
+// The Original Code is: all this file
 //
 // The Initial Developer of the Original Code is Michael H. Kay.
 //
-// Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
+// Contributor(s):
 //
-// Contributor(s): none.
-//
+

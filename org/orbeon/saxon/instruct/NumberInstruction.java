@@ -12,15 +12,13 @@ import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.pattern.Pattern;
 import org.orbeon.saxon.pattern.PatternSponsor;
-import org.orbeon.saxon.trans.DynamicError;
-import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.*;
 
-import java.io.PrintStream;
 import java.util.*;
 
 /**
@@ -28,7 +26,7 @@ import java.util.*;
  * into an expression, evaluated using xsl:value-of to create the resulting text node.<br>
  */
 
-public class NumberInstruction extends ComputedExpression {
+public class NumberInstruction extends Expression {
 
     private static final int SINGLE = 0;
     private static final int MULTI = 1;
@@ -53,6 +51,26 @@ public class NumberInstruction extends ComputedExpression {
     private boolean backwardsCompatible;
 
     private static Numberer defaultNumberer = new Numberer_en();
+
+    /**
+     * Construct a NumberInstruction
+     * @param config the Saxon configuration
+     * @param select the expression supplied in the select attribute
+     * @param level one of "single", "level", "multi"
+     * @param count the pattern supplied in the count attribute
+     * @param from the pattern supplied in the from attribute
+     * @param value the expression supplied in the value attribute
+     * @param format the expression supplied in the format attribute
+     * @param groupSize the expression supplied in the group-size attribute
+     * @param groupSeparator the expression supplied in the grouping-separator attribute
+     * @param letterValue the expression supplied in the letter-value attribute
+     * @param ordinal the expression supplied in the ordinal attribute
+     * @param lang the expression supplied in the lang attribute
+     * @param formatter A NumberFormatter to be used
+     * @param numberer A Numberer to be used for localization
+     * @param hasVariablesInPatterns true if one or more of the patterns contains variable references
+     * @param backwardsCompatible true if running in 1.0 compatibility mode
+     */
 
     public NumberInstruction(Configuration config,
                              Expression select,
@@ -98,36 +116,20 @@ public class NumberInstruction extends ComputedExpression {
         }
     }
 
-    public Expression simplify(StaticContext env) throws XPathException {
-        if (select != null) {
-            select = select.simplify(env);
-        }
-        if (value != null) {
-            value = value.simplify(env);
-        }
-        if (format != null) {
-            format = format.simplify(env);
-        }
-        if (groupSize != null) {
-            groupSize = groupSize.simplify(env);
-        }
-        if (groupSeparator != null) {
-            groupSeparator = groupSeparator.simplify(env);
-        }
-        if (letterValue != null) {
-            letterValue = letterValue.simplify(env);
-        }
-        if (ordinal != null) {
-            ordinal = ordinal.simplify(env);
-        }
-        if (lang != null) {
-            lang = lang.simplify(env);
-        }
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        select = visitor.simplify(select);
+        value = visitor.simplify(value);
+        format = visitor.simplify(format);
+        groupSize = visitor.simplify(groupSize);
+        groupSeparator = visitor.simplify(groupSeparator);
+        letterValue = visitor.simplify(letterValue);
+        ordinal = visitor.simplify(ordinal);
+        lang = visitor.simplify(lang);
         if (count != null) {
-            count = count.simplify(env);
+            count = count.simplify(visitor);
         }
         if (from != null) {
-            from = from.simplify(env);
+            from = from.simplify(visitor);
         }
         return this;
     }
@@ -144,53 +146,67 @@ public class NumberInstruction extends ComputedExpression {
      * to the declaration of the function or variable. However, the types of such functions and
      * variables will only be accurately known if they have been explicitly declared.</p>
      *
-     * @param env the static context of the expression
-     * @exception org.orbeon.saxon.trans.StaticError if an error is discovered during this phase
+     * @param visitor an expression visitor
+     * @param contextItemType the static type of "." at the point where this expression is invoked.
+     * The parameter is set to null if it is known statically that the context item will be undefined.
+     * If the type of the context item is not known statically, the argument is set to
+     * {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
+     * @throws XPathException if an error is discovered during this phase
      *     (typically a type error)
      * @return the original expression, rewritten to perform necessary
      *     run-time type checks, and to perform other type-related
      *     optimizations
      */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
         if (select != null) {
-            select = select.typeCheck(env, contextItemType);
+            select = visitor.typeCheck(select, contextItemType);
         } else {
             if (value==null) {
                 // we are numbering the context node
-                if (contextItemType.isAtomicType()) {
-                    StaticError err = new StaticError("xsl:number requires the context item to be a node, but it is an atomic value");
+                XPathException err = null;
+                if (contextItemType == null) {
+                    err = new XPathException(
+                            "xsl:number requires a select attribute, a value attribute, or a context item");
+                } else if (contextItemType.isAtomicType()) {
+                    err = new XPathException(
+                            "xsl:number requires the context item to be a node, but it is an atomic value");
+
+                }
+                if (err != null) {
                     err.setIsTypeError(true);
                     err.setErrorCode("XTTE0990");
+                    err.setLocator(this);
+                    throw err;
                 }
             }
         }
         if (value != null) {
-            value = value.typeCheck(env, contextItemType);
+            value = visitor.typeCheck(value, contextItemType);
         }
         if (format != null) {
-            format = format.typeCheck(env, contextItemType);
+            format = visitor.typeCheck(format, contextItemType);
         }
         if (groupSize != null) {
-            groupSize = groupSize.typeCheck(env, contextItemType);
+            groupSize = visitor.typeCheck(groupSize, contextItemType);
         }
         if (groupSeparator != null) {
-            groupSeparator = groupSeparator.typeCheck(env, contextItemType);
+            groupSeparator = visitor.typeCheck(groupSeparator, contextItemType);
         }
         if (letterValue != null) {
-            letterValue = letterValue.typeCheck(env, contextItemType);
+            letterValue = visitor.typeCheck(letterValue, contextItemType);
         }
         if (ordinal != null) {
-            ordinal = ordinal.typeCheck(env, contextItemType);
+            ordinal = visitor.typeCheck(ordinal, contextItemType);
         }
         if (lang != null) {
-            lang = lang.typeCheck(env, contextItemType);
+            lang = visitor.typeCheck(lang, contextItemType);
         }
         if (count != null) {
-            count = count.analyze(env, contextItemType);
+            visitor.typeCheck(new PatternSponsor(count), contextItemType);
         }
         if (from != null) {
-            from = from.analyze(env, contextItemType);
+            visitor.typeCheck(new PatternSponsor(from), contextItemType);
         }
         return this;
     }
@@ -201,48 +217,45 @@ public class NumberInstruction extends ComputedExpression {
      * <p>This method is called after all references to functions and variables have been resolved
      * to the declaration of the function or variable, and after all type checking has been done.</p>
      *
-     * @param opt             the optimizer in use. This provides access to supporting functions; it also allows
-     *                        different optimization strategies to be used in different circumstances.
-     * @param env             the static context of the expression
+     * @param visitor an expression visitor
      * @param contextItemType the static type of "." at the point where this expression is invoked.
      *                        The parameter is set to null if it is known statically that the context item will be undefined.
      *                        If the type of the context item is not known statically, the argument is set to
      *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
      * @return the original expression, rewritten if appropriate to optimize execution
-     * @throws org.orbeon.saxon.trans.StaticError if an error is discovered during this phase
+     * @throws XPathException if an error is discovered during this phase
      *                                        (typically a type error)
      */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
         if (select != null) {
-            select = select.optimize(opt, env, contextItemType);
+            select = visitor.optimize(select, contextItemType);
         }
         if (value != null) {
-            value = value.optimize(opt, env, contextItemType);
+            value = visitor.optimize(value, contextItemType);
         }
         if (format != null) {
-            format = format.optimize(opt, env, contextItemType);
+            format = visitor.optimize(format, contextItemType);
         }
         if (groupSize != null) {
-            groupSize = groupSize.optimize(opt, env, contextItemType);
+            groupSize = visitor.optimize(groupSize, contextItemType);
         }
         if (groupSeparator != null) {
-            groupSeparator = groupSeparator.optimize(opt, env, contextItemType);
+            groupSeparator = visitor.optimize(groupSeparator, contextItemType);
         }
         if (letterValue != null) {
-            letterValue = letterValue.optimize(opt, env, contextItemType);
+            letterValue = visitor.optimize(letterValue, contextItemType);
         }
         if (ordinal != null) {
-            ordinal = ordinal.optimize(opt, env, contextItemType);
+            ordinal = visitor.optimize(ordinal, contextItemType);
         }
         if (lang != null) {
-            lang = lang.optimize(opt, env, contextItemType);
+            lang = visitor.optimize(lang, contextItemType);
         }
         return this;
     }
 
-
-   /**
+    /**
      * Get the immediate sub-expressions of this expression. Default implementation
      * returns a zero-length array, appropriate for an expression that has no
      * sub-expressions.
@@ -282,6 +295,17 @@ public class NumberInstruction extends ComputedExpression {
             sub.add(new PatternSponsor(from));
         }
         return sub.iterator();
+    }
+
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        throw new UnsupportedOperationException("copy");
     }
 
     /**
@@ -344,7 +368,7 @@ public class NumberInstruction extends ComputedExpression {
     }
 
     public ItemType getItemType(TypeHierarchy th) {
-        return Type.STRING_TYPE;
+        return BuiltInAtomicType.STRING;
     }
 
     public int computeCardinality() {
@@ -421,7 +445,7 @@ public class NumberInstruction extends ComputedExpression {
                 if (val == null) {
                     break;
                 }
-                if (backwardsCompatible && vec.size() > 0) {
+                if (backwardsCompatible && !vec.isEmpty()) {
                     break;
                 }
                 try {
@@ -432,32 +456,32 @@ public class NumberInstruction extends ComputedExpression {
                         num = NumberFn.convert(val);
                     }
                     if (num.isNaN()) {
-                        throw new DynamicError("NaN");  // thrown to be caught
+                        throw new XPathException("NaN");  // thrown to be caught
                     }
                     num = num.round();
-                    if (num.compareTo(IntegerValue.MAX_LONG) > 0) {
-                        vec.add(((BigIntegerValue)num.convert(Type.INTEGER, context)).getBigInteger());
+                    if (num.compareTo(Int64Value.MAX_LONG) > 0) {
+                        vec.add(((BigIntegerValue)num.convert(BuiltInAtomicType.INTEGER, true, context).asAtomic()).asBigInteger());
                     } else {
-                        if (num.compareTo(IntegerValue.ZERO) < 0) {
-                            throw new DynamicError("The numbers to be formatted must not be negative");
+                        if (num.compareTo(Int64Value.ZERO) < 0) {
+                            throw new XPathException("The numbers to be formatted must not be negative");
                             // thrown to be caught
                         }
-                        long i = ((NumericValue) num.convert(Type.INTEGER, context)).longValue();
+                        long i = ((NumericValue)num.convert(BuiltInAtomicType.INTEGER, true, context).asAtomic()).longValue();
                         vec.add(new Long(i));
                     }
-                } catch (DynamicError err) {
+                } catch (XPathException err) {
                     if (backwardsCompatible) {
                         vec.add("NaN");
                     } else {
                         vec.add(val.getStringValue());
-                        DynamicError e = new DynamicError("Cannot convert supplied value to an integer. " + err.getMessage());
+                        XPathException e = new XPathException("Cannot convert supplied value to an integer. " + err.getMessage());
                         e.setErrorCode("XTDE0980");
                         e.setXPathContext(context);
                         throw e;
                     }
                 }
             }
-            if (backwardsCompatible && vec.size()==0) {
+            if (backwardsCompatible && vec.isEmpty()) {
                 vec.add("NaN");
             }
         } else {
@@ -467,7 +491,7 @@ public class NumberInstruction extends ComputedExpression {
             } else {
                 Item item = context.getContextItem();
                 if (!(item instanceof NodeInfo)) {
-                    DynamicError err = new DynamicError("context item for xsl:number must be a node");
+                    XPathException err = new XPathException("context item for xsl:number must be a node");
                     err.setErrorCode("XTTE0990");
                     err.setIsTypeError(true);
                     err.setXPathContext(context);
@@ -499,11 +523,11 @@ public class NumberInstruction extends ComputedExpression {
         String ordinalVal = null;
 
         if (groupSize != null) {
-            String g = groupSize.evaluateAsString(context);
+            String g = groupSize.evaluateAsString(context).toString();
             try {
                 gpsize = Integer.parseInt(g);
             } catch (NumberFormatException err) {
-                DynamicError e = new DynamicError("grouping-size must be numeric");
+                XPathException e = new XPathException("grouping-size must be numeric");
                 e.setXPathContext(context);
                 e.setErrorCode("XTDE0030");
                 throw e;
@@ -511,11 +535,11 @@ public class NumberInstruction extends ComputedExpression {
         }
 
         if (groupSeparator != null) {
-            gpseparator = groupSeparator.evaluateAsString(context);
+            gpseparator = groupSeparator.evaluateAsString(context).toString();
         }
 
         if (ordinal != null) {
-            ordinalVal = ordinal.evaluateAsString(context);
+            ordinalVal = ordinal.evaluateAsString(context).toString();
         }
 
         // fast path for the simple case
@@ -529,7 +553,7 @@ public class NumberInstruction extends ComputedExpression {
         // add it to the table.
         Numberer numb = numberer;
         if (numb == null) {
-            String language = lang.evaluateAsString(context);
+            String language = lang.evaluateAsString(context).toString();
             if (nationalNumberers == null) {
                 nationalNumberers = new HashMap(4);
             }
@@ -543,9 +567,9 @@ public class NumberInstruction extends ComputedExpression {
         if (letterValue == null) {
             letterVal = "";
         } else {
-            letterVal = letterValue.evaluateAsString(context);
+            letterVal = letterValue.evaluateAsString(context).toString();
             if (!("alphabetic".equals(letterVal) || "traditional".equals(letterVal))) {
-                DynamicError e = new DynamicError("letter-value must be \"traditional\" or \"alphabetic\"");
+                XPathException e = new XPathException("letter-value must be \"traditional\" or \"alphabetic\"");
                 e.setXPathContext(context);
                 e.setErrorCode("XTDE0030");
                 throw e;
@@ -560,7 +584,7 @@ public class NumberInstruction extends ComputedExpression {
         NumberFormatter nf;
         if (formatter == null) {              // format not known until run-time
             nf = new NumberFormatter();
-            nf.prepare(format.evaluateAsString(context));
+            nf.prepare(format.evaluateAsString(context).toString());
         } else {
             nf = formatter;
         }
@@ -572,6 +596,8 @@ public class NumberInstruction extends ComputedExpression {
     /**
      * Load a Numberer class for a given language and check it is OK.
      * @param language the language for which a Numberer is required
+     * @param country the country for which a Numberer is required
+     * @param context XPath dynamic evaluation context
      * @return a suitable numberer. If no specific numberer is available
      * for the language, the default (English) numberer is used.
      */
@@ -611,16 +637,35 @@ public class NumberInstruction extends ComputedExpression {
     }
 
     /**
-     * Diagnostic print of expression structure. The expression is written to the System.err
-     * output stream
-     *
-     * @param level indentation level for this expression
-     @param out
-     @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "xsl:number");
+    public void explain(ExpressionPresenter out) {
+        out.startElement("xslNumber");
+        out.emitAttribute("level", (level==ANY ? "any" : level==SINGLE ? "single" : "multi"));
+        if (count != null) {
+            out.emitAttribute("count", count.toString());
+        }
+        if (from != null) {
+            out.emitAttribute("from", from.toString());
+        }
+        if (select != null) {
+            out.startSubsidiaryElement("select");
+            select.explain(out);
+            out.endSubsidiaryElement();
+        }
+        if (value != null) {
+            out.startSubsidiaryElement("value");
+            value.explain(out);
+            out.endSubsidiaryElement();
+        }
+        if (format != null) {
+            out.startSubsidiaryElement("format");
+            format.explain(out);
+            out.endSubsidiaryElement();
+        }
+        out.endElement();
     }
 }
 

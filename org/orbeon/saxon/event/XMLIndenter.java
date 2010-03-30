@@ -1,11 +1,18 @@
 package org.orbeon.saxon.event;
-import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.sort.IntSet;
+import org.orbeon.saxon.sort.IntHashSet;
 import org.orbeon.saxon.tinytree.CharSlice;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.ComplexType;
+import org.orbeon.saxon.type.SchemaType;
+import org.orbeon.saxon.value.Whitespace;
 
 import javax.xml.transform.OutputKeys;
-import java.util.Properties;
 import java.util.Arrays;
+import java.util.Properties;
+import java.util.StringTokenizer;
 
 /**
 * XMLIndenter: This ProxyReceiver indents elements, by adding character data where appropriate.
@@ -30,12 +37,19 @@ public class XMLIndenter extends ProxyReceiver {
     private int column = 0;     // .. in whitespace text nodes between tags
     private int suppressedAtLevel = -1;
     private int xmlspace;
+    private IntSet suppressedElements = null;
+    private IntSet doubleSpacedElements = null;
+
+    /**
+     * Create an XML Indenter
+     */
 
     public XMLIndenter() {
     }
 
     /**
-    * Set the properties for this indenter
+     * Set the properties for this indenter
+     * @param props the serialization properties
     */
 
     public void setOutputProperties(Properties props) {
@@ -44,14 +58,36 @@ public class XMLIndenter extends ProxyReceiver {
             indentSpaces = 3;
         } else {
             try {
-                indentSpaces = Integer.parseInt(s.trim());
+                indentSpaces = Integer.parseInt(Whitespace.trim(s));
             } catch (NumberFormatException err) {
                 indentSpaces = 3;
             }
         }
         String omit = props.getProperty(OutputKeys.OMIT_XML_DECLARATION);
-        afterEndTag = omit==null || !omit.trim().equals("yes") ||
+        afterEndTag = omit==null || !Whitespace.trim(omit).equals("yes") ||
                     props.getProperty(OutputKeys.DOCTYPE_SYSTEM)!=null ;
+        s = props.getProperty(SaxonOutputKeys.SUPPRESS_INDENTATION);
+        if (s != null) {
+            suppressedElements = new IntHashSet(8);
+            NamePool pool = getNamePool();
+            StringTokenizer st = new StringTokenizer(s, " \t\r\n");
+            while (st.hasMoreTokens()) {
+                String clarkName = st.nextToken();
+                int fp = pool.allocateClarkName(clarkName);
+                suppressedElements.add(fp);
+            }
+        }
+        s = props.getProperty(SaxonOutputKeys.DOUBLE_SPACE);
+        if (s != null) {
+            doubleSpacedElements = new IntHashSet(8);
+            NamePool pool = getNamePool();
+            StringTokenizer st = new StringTokenizer(s, " \t\r\n");
+            while (st.hasMoreTokens()) {
+                String clarkName = st.nextToken();
+                int fp = pool.allocateClarkName(clarkName);
+                doubleSpacedElements.add(fp);
+            }
+        }
     }
 
     /**
@@ -70,6 +106,11 @@ public class XMLIndenter extends ProxyReceiver {
 
     public void startElement(int nameCode, int typeCode, int locationId, int properties) throws XPathException {
         if (afterStartTag || afterEndTag) {
+            if (doubleSpacedElements != null && doubleSpacedElements.contains(nameCode&NamePool.FP_MASK)) {
+                nextReceiver.characters("\n", 0, 0);
+                line = 0;
+                column = 0;
+            }
             indent();
         }
         nextReceiver.startElement(nameCode, typeCode, locationId, properties);
@@ -79,6 +120,17 @@ public class XMLIndenter extends ProxyReceiver {
         afterEndTag = false;
         allWhite = true;
         line = 0;
+        SchemaType type;
+        if (suppressedElements != null && suppressedElements.contains(nameCode&NamePool.FP_MASK)) {
+            suppressedAtLevel = level;
+        }
+        if (typeCode >= 1024 && suppressedAtLevel < 0 &&
+                ((type = getConfiguration().getSchemaType(typeCode)) != null && type.isComplexType() &&
+                        ((ComplexType)type).isMixedContent())) {
+            // suppress indentation for elements with mixed content. (Note this also suppresses
+            // indentation for all descendants of such elements. We could be smarter than this.)
+            suppressedAtLevel = level;
+        }
     }
 
     /**
@@ -87,7 +139,9 @@ public class XMLIndenter extends ProxyReceiver {
 
     public void attribute(int nameCode, int typeCode, CharSequence value, int locationId, int properties)
     throws XPathException {
-        if ((nameCode & 0xfffff) == xmlspace && value.equals("preserve") && suppressedAtLevel < 0) {
+        if ((nameCode & NamePool.FP_MASK) == xmlspace && value.equals("preserve") && suppressedAtLevel < 0) {
+            // Note, we are suppressing indentation within an xml:space="preserve" region even if a descendant
+            // specifies xml:space="default
             suppressedAtLevel = level;
         }
         nextReceiver.attribute(nameCode, typeCode, value, locationId, properties);
@@ -197,7 +251,7 @@ public class XMLIndenter extends ProxyReceiver {
         sameline = false;
     }
 
-};
+}
 
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");

@@ -1,7 +1,7 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.expr.ComputedExpression;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.Literal;
 import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.GeneralVariable;
@@ -9,10 +9,8 @@ import org.orbeon.saxon.instruct.GlobalVariable;
 import org.orbeon.saxon.instruct.LocalVariable;
 import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.value.EmptySequence;
-import org.orbeon.saxon.value.SequenceType;
 import org.orbeon.saxon.type.TypeHierarchy;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.value.SequenceType;
 
 /**
 * Handler for xsl:variable elements in stylesheet. <br>
@@ -60,7 +58,7 @@ public class XSLVariable extends XSLVariableDeclaration {
         } else if (requiredType != null) {
             return requiredType;
         } else if (select!=null) {
-            if (select instanceof EmptySequence) {
+            if (Literal.isEmptySequence(select)) {
                 // returning Type.EMPTY gives problems with static type checking
                 return defaultType;
             } else {
@@ -89,7 +87,7 @@ public class XSLVariable extends XSLVariableDeclaration {
 
     public Expression compile(Executable exec) throws XPathException {
 
-        if (references.size()==0 && !assignable) {
+        if (references.isEmpty() && !assignable) {
             redundant = true;
         }
 
@@ -99,14 +97,15 @@ public class XSLVariable extends XSLVariableDeclaration {
                 inst = new GlobalVariable();
                 ((GlobalVariable)inst).setExecutable(getExecutable());
                 ((GlobalVariable)inst).setHostLanguage(Configuration.XSLT);
-                ComputedExpression.setParentExpression(select, inst);
+                if (select != null) {
+                    select.setContainer(((GlobalVariable)inst));
+                }
                 initializeInstruction(exec, inst);
-                inst.setVariableName(getVariableName());
+                inst.setVariableQName(getVariableQName());
                 inst.setSlotNumber(getSlotNumber());
                 inst.setRequiredType(getRequiredType());
-                ExpressionTool.makeParentReferences(inst);
                 fixupBinding(inst);
-                inst.setParentExpression(null);
+                inst.setContainer(((GlobalVariable)inst));
                 return inst;
             } else {
                 throw new AssertionError("Local variable found when compiling a global variable");
@@ -118,7 +117,7 @@ public class XSLVariable extends XSLVariableDeclaration {
 
     public Expression compileLocalVariable(Executable exec) throws XPathException {
 
-        if (references.size()==0 && !assignable) {
+        if (references.isEmpty() && !assignable) {
             redundant = true;
         }
 
@@ -128,11 +127,13 @@ public class XSLVariable extends XSLVariableDeclaration {
                 throw new AssertionError("Global variable found when compiling local variable");
             } else {
                 inst = new LocalVariable();
-                ComputedExpression.setParentExpression(select, inst);
+                inst.setContainer(this);
+                if (select != null) {
+                    select.setContainer(this);
+                }
                 initializeInstruction(exec, inst);
-                inst.setVariableName(getVariableName());
+                inst.setVariableQName(getVariableQName());
                 inst.setRequiredType(getRequiredType());
-                ExpressionTool.makeParentReferences(inst);
                 return inst;
             }
         }

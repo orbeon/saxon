@@ -23,6 +23,10 @@ public class UnionEnumeration implements SequenceIterator, LookaheadIterator {
     /**
     * Create the iterator. The two input iterators must return nodes in document
     * order for this to work.
+     * @param p1 iterator over the first operand sequence (in document order)
+     * @param p2 iterator over the second operand sequence
+     * @param comparer used to test whether nodes are in document order. Different versions
+     * are used for intra-document and cross-document operations
     */
 
     public UnionEnumeration(SequenceIterator p1, SequenceIterator p2,
@@ -36,8 +40,10 @@ public class UnionEnumeration implements SequenceIterator, LookaheadIterator {
     }
 
     /**
-    * Get the next item from one of the input sequences,
-    * checking that it is a node.
+     * Get the next item from one of the input sequences,
+     * checking that it is a node.
+     * @param iter the sequence from which a node is to be read
+     * @return the node that was read
     */
 
     private NodeInfo next(SequenceIterator iter) throws XPathException {
@@ -97,6 +103,11 @@ public class UnionEnumeration implements SequenceIterator, LookaheadIterator {
 
     public int position() {
         return position;
+    }
+
+    public void close() {
+        e1.close();
+        e2.close();
     }
 
     public SequenceIterator getAnother() throws XPathException {

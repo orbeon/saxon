@@ -1,9 +1,9 @@
 package org.orbeon.saxon.om;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.pattern.NodeTest;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.value.Value;
 
 import javax.xml.transform.Source;
 
@@ -36,12 +36,12 @@ import javax.xml.transform.Source;
  * ExtendedNodeInfo, which will be moved into this interface at some time in the future.
  *
  * @author Michael H. Kay
- * @since 8.4
+ * @since 8.4. Extended with three extra methods, previously in ExtendedNodeInfo, in 9.1
  */
 
 public interface NodeInfo extends Source, Item, ValueRepresentation {
 
-    int[] EMPTY_NAMESPACE_LIST = new int[0];
+    final static int[] EMPTY_NAMESPACE_LIST = new int[0];
 
     /**
      * Get the kind of node. This will be a value such as {@link org.orbeon.saxon.type.Type#ELEMENT}
@@ -154,6 +154,32 @@ public interface NodeInfo extends Source, Item, ValueRepresentation {
      */
 
     public int getLineNumber();
+
+    /**
+     * Get column number. Column numbers are not maintained by default. Column numbering
+     * can be requested in the same way as line numbering; but a tree implementation can ignore
+     * the request.
+     * <p>
+     * The granularity of column numbering is normally the element level: for other nodes
+     * such as text nodes and attributes, the line number of the parent element will normally be returned.
+     * <p>
+     * In the case of a tree constructed by taking input from a SAX parser, the column number will reflect the
+     * SAX rules: that is, the column number of an element is the column number where the start tag ends. This
+     * may be a little confusing where elements have many attributes spread over multiple lines, or where
+     * single attributes (as can easily happen with XSLT 2.0 stylesheets) occupy several lines.
+     * <p>
+     * In the case of a tree constructed by a stylesheet or query, the column number may reflect the line in
+     * the stylesheet or query that caused the node to be constructed.
+     * <p>
+     * The column number can be read from within an XPath expression using the Saxon extension function
+     * saxon:column-number()
+     *
+     * @return the column number of the node in its original source document; or
+     *      -1 if not available
+     * @since 9.1
+     */
+
+    public int getColumnNumber();
 
     /**
      * Determine the relative position of this node and another node, in document order.
@@ -430,6 +456,7 @@ public interface NodeInfo extends Source, Item, ValueRepresentation {
     /**
      * Get the document number of the document containing this node. For a free-standing
      * orphan node, just return the hashcode.
+     * @return the document number of the document containing this node
      * @since 8.4
      */
 
@@ -442,7 +469,9 @@ public interface NodeInfo extends Source, Item, ValueRepresentation {
      * part of the Saxon API.
      *
      * @exception XPathException
-     * @param out the Receiver to which the node should be copied
+     * @param out the Receiver to which the node should be copied. It is the caller's
+     *     responsibility to ensure that this Receiver is open before the method is called
+     *     (or that it is self-opening), and that it is closed after use.
      * @param whichNamespaces in the case of an element, controls
      *     which namespace nodes should be copied. Values are {@link #NO_NAMESPACES},
      *     {@link #LOCAL_NAMESPACES}, {@link #ALL_NAMESPACES}
@@ -473,27 +502,11 @@ public interface NodeInfo extends Source, Item, ValueRepresentation {
     int ALL_NAMESPACES = 2;
 
     /**
-     * Output all namespace declarations associated with this element. Does nothing if
-     * the node is not an element.
-     * <p>
-     * This method is primarily for internal use. It should not be considered a stable part of the
-     * Saxon API.
-     *
-     * @param out The relevant Receiver
-     * @param includeAncestors True if namespaces declared on ancestor
-     *     elements must be output; false if it is known that these are
-     *
-     */
-
-    public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors)
-        throws XPathException;
-
-    /**
      * Get all namespace declarations and undeclarations defined on this element.
      * <p>
      * This method is intended primarily for internal use. User applications needing
      * information about the namespace context of a node should use <code>iterateAxis(Axis.NAMESPACE)</code>.
-     * (However, not all implementations support the namespace axis, whereas all implementations are r
+     * (However, not all implementations support the namespace axis, whereas all implementations are
      * required to support this method.)
      *
      * @param buffer If this is non-null, and the result array fits in this buffer, then the result
@@ -510,6 +523,27 @@ public interface NodeInfo extends Source, Item, ValueRepresentation {
      */
 
     public int[] getDeclaredNamespaces(int[] buffer);
+
+    /**
+     * Determine whether this node has the is-id property
+     * @return true if the node is an ID
+     */
+
+    public boolean isId();
+
+    /**
+     * Determine whether this node has the is-idref property
+     * @return true if the node is an IDREF or IDREFS element or attribute
+     */
+
+    public boolean isIdref();
+
+    /**
+     * Determine whether the node has the is-nilled property
+     * @return true if the node has the is-nilled property
+     */
+
+    public boolean isNilled();
 
 }
 

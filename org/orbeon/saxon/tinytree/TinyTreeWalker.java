@@ -6,7 +6,9 @@ import org.orbeon.saxon.pull.PullProvider;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.Configuration;
 
 import javax.xml.transform.SourceLocator;
 import java.util.List;
@@ -44,8 +46,8 @@ public class TinyTreeWalker implements PullProvider, SourceLocator {
             throw new IllegalArgumentException("TinyTreeWalker cannot start at an attribute or namespace node");
         }
         this.startNode = startNode.nodeNr;
-        this.tree = startNode.tree;
-        this.nsDeclarations = new NamespaceDeclarationsImpl();
+        tree = startNode.tree;
+        nsDeclarations = new NamespaceDeclarationsImpl();
         nsDeclarations.setNamePool(startNode.getNamePool());
     }
 
@@ -416,7 +418,7 @@ public class TinyTreeWalker implements PullProvider, SourceLocator {
             throw new IllegalStateException("getTypeAnnotation() called when current event is not ELEMENT_START or ");
         }
         if (tree.typeCodeArray == null) {
-            return StandardNames.XDT_UNTYPED;
+            return StandardNames.XS_UNTYPED;
         }
         return tree.typeCodeArray[currentNode] & NamePool.FP_MASK;
     }
@@ -514,6 +516,31 @@ public class TinyTreeWalker implements PullProvider, SourceLocator {
     public List getUnparsedEntities() {
         return null;
     }
+
+  public static void main(String[] args) throws Exception {
+
+    Controller controller = new Controller(new Configuration());
+    TinyBuilder tb = (TinyBuilder)controller.makeBuilder();
+    tb.open();
+    NamePool p = tb.getConfiguration().getNamePool();
+    int code = p.allocate("a", "b", "c");
+    tb.startElement(code, -1, -1, -1);
+    tb.endElement();
+    tb.startDocument(-1);
+    tb.startElement(code, -1, -1, -1);
+    tb.endElement();
+    tb.endDocument();
+    tb.close();
+    TinyTree tt = tb.getTree();
+    NodeInfo node = tb.getCurrentRoot();
+
+    TinyTreeWalker walker = new TinyTreeWalker((TinyNodeImpl)node);
+    System.out.println(walker.next());
+    System.out.println(walker.next());
+    System.out.println(walker.next());
+    System.out.println(walker.next());
+    System.out.println(walker.next());
+  }
 }
 
 //

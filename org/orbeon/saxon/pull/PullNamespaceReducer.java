@@ -1,4 +1,5 @@
 package org.orbeon.saxon.pull;
+
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trans.XPathException;
 
@@ -10,15 +11,21 @@ import java.util.List;
  * PullNamespaceReducer is a PullFilter responsible for removing duplicate namespace
  * declarations. It also performs namespace fixup: that is, it ensures that the
  * namespaces used in element and attribute names are all declared.
- *
+ * <p/>
  * <p>This class is derived from, and contains much common code with, the NamespaceReducer
  * in the push pipeline. (In the push version, however, namespace fixup is not
  * performed by the NamespaceReducer, but by the ComplexContentOutputter).</p>
+ *
  * @see org.orbeon.saxon.event.NamespaceReducer
  */
 
-public class PullNamespaceReducer extends PullFilter implements NamespaceResolver
-{
+public class PullNamespaceReducer extends PullFilter implements NamespaceResolver {
+
+    // As well as keeping track of namespaces, this class keeps a stack of element names,
+    // so that the current element name is available to the caller after an endElement event
+
+    private int[] namestack = new int[50];              // stack of element name codes
+    int elementJustEnded = -1;                          // namecode of the element that has just ended
 
     // We keep track of namespaces to avoid outputting duplicate declarations. The namespaces
     // vector holds a list of all namespaces currently declared (organised as integer namespace codes).
@@ -28,9 +35,10 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
 
     private int[] allNamespaces = new int[50];          // all namespace codes currently declared
     private int allNamespacesSize = 0;                  // all namespaces currently declared
-    private int[] countStack = new int[50];
-    private int depth = 0;
-    private int[] localNamespaces;
+    private int[] namespaceCountStack = new int[50];    // one entry per started element, holding the number
+    // of namespaces declared at that level
+    private int depth = 0;                              // current depth of element nesting
+    private int[] localNamespaces;                      // namespaces declared on the current start element
     private int localNamespacesSize = 0;
     private int nameCode;                               // the namecode of the current element
 
@@ -43,21 +51,26 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
 
     private int[] pendingUndeclarations = null;
 
+    /**
+     * Create a namespace reducer for a pull pipeline
+     * @param base the next stage in the pipeline, from which events are read
+     */
+
     public PullNamespaceReducer(PullProvider base) {
         super(base);
     }
 
     /**
-    * next(): handle next event.
-    * The START_ELEMENT event removes redundant namespace declarations, and
-    * possibly adds an xmlns="" undeclaration.
-    */
+     * next(): handle next event.
+     * The START_ELEMENT event removes redundant namespace declarations, and
+     * possibly adds an xmlns="" undeclaration.
+     */
 
     public int next() throws XPathException {
 
-        int event = super.next();
+        currentEvent = super.next();
 
-        switch (event) {
+        switch (currentEvent) {
             case START_ELEMENT:
                 startElement();
                 break;
@@ -72,7 +85,7 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
             default:
                 nameCode = -1;
         }
-        return event;
+        return currentEvent;
     }
 
     private void startElement() throws XPathException {
@@ -87,19 +100,20 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
 //            pendingUndeclarations = null;
 //        }
 
-
-
         // Record the current height of the namespace list so it can be reset at endElement time
 
-        countStack[depth] = 0;
+        namespaceCountStack[depth] = 0;
         //disinheritStack[depth] = (properties & ReceiverOptions.DISINHERIT_NAMESPACES) != 0;
-        if (++depth >= countStack.length) {
-            int[] newstack = new int[depth*2];
-            System.arraycopy(countStack, 0, newstack, 0, depth);
+        if (++depth >= namespaceCountStack.length) {
+            int[] newstack = new int[depth * 2];
+            System.arraycopy(namespaceCountStack, 0, newstack, 0, depth);
             //boolean[] disStack2 = new boolean[depth*2];
             //System.arraycopy(disinheritStack, 0, disStack2, 0, depth);
-            countStack = newstack;
+            namespaceCountStack = newstack;
             //disinheritStack = disStack2;
+            int[] name2 = new int[depth * 2];
+            System.arraycopy(namestack, 0, name2, 0, depth);
+            namestack = name2;
         }
 
         // Get the list of namespaces associated with this element
@@ -107,13 +121,13 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
         NamespaceDeclarations declarations = super.getNamespaceDeclarations();
         localNamespaces = declarations.getNamespaceCodes(nsBuffer);
         localNamespacesSize = 0;
-        for (int i=0; i<localNamespaces.length; i++) {
+        for (int i = 0; i < localNamespaces.length; i++) {
             if (localNamespaces[i] == -1) {
                 break;
             } else {
                 if (isNeeded(localNamespaces[i])) {
                     addGlobalNamespace(localNamespaces[i]);
-                    countStack[depth - 1]++;
+                    namespaceCountStack[depth - 1]++;
                     localNamespaces[localNamespacesSize++] = localNamespaces[i];
                 }
             }
@@ -122,7 +136,8 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
         // Namespace fixup: ensure that the element namespace is output
 
 
-       nameCode = checkProposedPrefix(super.getNameCode(), 0);
+        nameCode = checkProposedPrefix(super.getNameCode(), 0);
+        namestack[depth - 1] = nameCode;
 
 //        int elementNS = getNamePool().allocateNamespaceCode(getNameCode());
 //        if (isNeeded(elementNS)) {
@@ -133,17 +148,17 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
 
         attributeCollection = super.getAttributes();
         boolean modified = false;
-        for (int i=0; i<attributeCollection.getLength(); i++) {
+        for (int i = 0; i < attributeCollection.getLength(); i++) {
             int nc = attributeCollection.getNameCode(i);
             if ((nc & ~NamePool.FP_MASK) != 0) {
                 // Only need to do checking for an attribute that's namespaced
-                int newnc = checkProposedPrefix(nc, i+1);
+                int newnc = checkProposedPrefix(nc, i + 1);
                 if (nc != newnc) {
                     if (!modified) {
                         attributeCollection = copyAttributeCollection(attributeCollection);
                         modified = true;
                     }
-                    ((AttributeCollectionImpl)attributeCollection).setAttribute(i, newnc,
+                    ((AttributeCollectionImpl) attributeCollection).setAttribute(i, newnc,
                             attributeCollection.getTypeAnnotation(i),
                             attributeCollection.getValue(i),
                             attributeCollection.getLocationId(i),
@@ -158,7 +173,8 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
         }
 
         declaredNamespaces = new NamespaceDeclarationsImpl(getNamePool(), localNamespaces);
-        countStack[depth-1] = localNamespacesSize;
+                             // TODO: defer construction of this object until the user asks for it
+        namespaceCountStack[depth - 1] = localNamespacesSize;
     }
 
     private int[] nsBuffer = new int[20];
@@ -170,8 +186,8 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
             if (localNamespacesSize == 0) {
                 localNamespaces = new int[10];
             } else {
-                int[] nc2 = new int[localNamespacesSize*2];
-                System.arraycopy (localNamespaces, 0, nc2, 0, localNamespacesSize);
+                int[] nc2 = new int[localNamespacesSize * 2];
+                System.arraycopy(localNamespaces, 0, nc2, 0, localNamespacesSize);
                 localNamespaces = nc2;
                 localNamespaces[localNamespacesSize++] = nc;
             }
@@ -180,34 +196,36 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
     }
 
     /**
-    * Determine whether a namespace declaration is needed
-    */
+     * Determine whether a namespace declaration is needed
+     * @param nscode the namespace code of the declaration (prefix plus uri)
+     * @return true if the namespace declaration is needed
+     */
 
     private boolean isNeeded(int nscode) {
-        if (nscode==NamespaceConstant.XML_NAMESPACE_CODE) {
-        		// Ignore the XML namespace
+        if (nscode == NamespaceConstant.XML_NAMESPACE_CODE) {
+            // Ignore the XML namespace
             return false;
         }
 
         // First cancel any pending undeclaration of this namespace prefix (there may be more than one)
 
         if (pendingUndeclarations != null) {
-            for (int p=0; p<pendingUndeclarations.length; p++) {
-                if ((nscode>>16) == (pendingUndeclarations[p]>>16)) {
+            for (int p = 0; p < pendingUndeclarations.length; p++) {
+                if ((nscode >> 16) == (pendingUndeclarations[p] >> 16)) {
                     pendingUndeclarations[p] = -1;
                     //break;
                 }
             }
         }
 
-        for (int i=allNamespacesSize-1; i>=0; i--) {
-        	if (allNamespaces[i]==nscode) {
-        		// it's a duplicate so we don't need it
-        		return false;
-        	}
-        	if ((allNamespaces[i]>>16) == (nscode>>16)) {
-        		// same prefix, different URI, so we do need it
-        		return true;
+        for (int i = allNamespacesSize - 1; i >= 0; i--) {
+            if (allNamespaces[i] == nscode) {
+                // it's a duplicate so we don't need it
+                return false;
+            }
+            if ((allNamespaces[i] >> 16) == (nscode >> 16)) {
+                // same prefix, different URI, so we do need it
+                return true;
             }
         }
 
@@ -231,12 +249,15 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
     }
 
     /**
-    * Check that the prefix for an element or attribute is acceptable, allocating a substitute
-    * prefix if not. The prefix is acceptable unless a namespace declaration has been
-    * written that assignes this prefix to a different namespace URI. This method
-    * also checks that the element or attribute namespace has been declared, and declares it
-    * if not.
-    */
+     * Check that the prefix for an element or attribute is acceptable, allocating a substitute
+     * prefix if not. The prefix is acceptable unless a namespace declaration has been
+     * written that assignes this prefix to a different namespace URI. This method
+     * also checks that the element or attribute namespace has been declared, and declares it
+     * if not.
+     * @param nameCode the integer name code of the element or attribute
+     * @param seq sequence number used to generate a unique prefix code
+     * @return either the original nameCode, or a new nameCode in which the prefix has been changed
+     */
 
     private int checkProposedPrefix(int nameCode, int seq) {
         NamePool namePool = getNamePool();
@@ -245,10 +266,10 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
             // avoid calling allocate where possible, because it's synchronized
             nscode = namePool.allocateNamespaceCode(nameCode);
         }
-        int nsprefix = nscode>>16;
+        int nsprefix = nscode >> 16;
 
-        for (int i=allNamespacesSize-1; i>=0; i--) {
-            if (nsprefix == (allNamespaces[i]>>16)) {
+        for (int i = allNamespacesSize - 1; i >= 0; i--) {
+            if (nsprefix == (allNamespaces[i] >> 16)) {
                 // same prefix
                 if ((nscode & 0xffff) == (allNamespaces[i] & 0xffff)) {
                     // same URI
@@ -260,10 +281,9 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
                         // the prefix is already defined locally, so allocate a new one
                         String prefix = getSubstitutePrefix(nscode, seq);
 
-                        int newNameCode = namePool.allocate(
-                                            prefix,
-                                            namePool.getURI(nameCode),
-                                            namePool.getLocalName(nameCode));
+                        int newNameCode = namePool.allocate(prefix,
+                                namePool.getURI(nameCode),
+                                namePool.getLocalName(nameCode));
                         int newNSCode = namePool.allocateNamespaceCode(newNameCode);
                         addLocalNamespace(newNSCode);
                         return newNameCode;
@@ -283,25 +303,29 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
     }
 
     /**
-    * It is possible for a single output element to use the same prefix to refer to different
-    * namespaces. In this case we have to generate an alternative prefix for uniqueness. The
-    * one we generate is based on the sequential position of the element/attribute: this is
-    * designed to ensure both uniqueness (with a high probability) and repeatability
-    */
+     * It is possible for a single output element to use the same prefix to refer to different
+     * namespaces. In this case we have to generate an alternative prefix for uniqueness. The
+     * one we generate is based on the sequential position of the element/attribute: this is
+     * designed to ensure both uniqueness (with a high probability) and repeatability
+     * @param nscode the namespace code
+     * @param seq sequence number to help in making the generated prefix unique
+     * @return the invented prefix
+     */
 
     private String getSubstitutePrefix(int nscode, int seq) {
-    	String prefix = getNamePool().getPrefixFromNamespaceCode(nscode);
+        String prefix = getNamePool().getPrefixFromNamespaceCode(nscode);
         return prefix + '_' + seq;
     }
 
     /**
-    * Add a namespace declaration to the stack
-    */
+     * Add a namespace declaration to the stack
+     * @param nscode the namespace code representing the namespace declaration
+     */
 
     private void addGlobalNamespace(int nscode) {
-		// expand the stack if necessary
-        if (allNamespacesSize+1 >= allNamespaces.length) {
-            int[] newlist = new int[allNamespacesSize*2];
+        // expand the stack if necessary
+        if (allNamespacesSize + 1 >= allNamespaces.length) {
+            int[] newlist = new int[allNamespacesSize * 2];
             System.arraycopy(allNamespaces, 0, newlist, 0, allNamespacesSize);
             allNamespaces = newlist;
         }
@@ -312,9 +336,7 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
      * Get the nameCode identifying the name of the current node. This method
      * can be used after the {@link #START_ELEMENT}, {@link #PROCESSING_INSTRUCTION},
      * {@link #ATTRIBUTE}, or {@link #NAMESPACE} events. With some PullProvider implementations,
-     * <b>but not this one</b>, it can also be used after {@link #END_ELEMENT}: a client that
-     * requires the information at that point (for example, to do serialization) should insert an
-     * {@link ElementNameTracker} into the pipeline.
+     * <b>including this one</b>, it can also be used after {@link #END_ELEMENT}
      * If called at other times, the result is undefined and may result in an IllegalStateException.
      * If called when the current node is an unnamed namespace node (a node representing the default namespace)
      * the returned value is -1.
@@ -324,7 +346,11 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
      */
 
     public int getNameCode() {
-        return nameCode;
+        if (currentEvent == END_ELEMENT) {
+            return elementJustEnded;
+        } else {
+            return nameCode;
+        }
     }
 
     /**
@@ -347,8 +373,8 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
     }
 
     private AttributeCollectionImpl copyAttributeCollection(AttributeCollection in) {
-        AttributeCollectionImpl out = new AttributeCollectionImpl(getNamePool());
-        for (int i=0; i<in.getLength(); i++) {
+        AttributeCollectionImpl out = new AttributeCollectionImpl(getPipelineConfiguration().getConfiguration());
+        for (int i = 0; i < in.getLength(); i++) {
             out.addAttribute(in.getNameCode(i),
                     in.getTypeAnnotation(i),
                     in.getValue(i),
@@ -368,6 +394,10 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
      * a set of namespace declarations and undeclarations, representing the differences between
      * this element and its parent.
      * <p/>
+     * <p>This class extends the semantics of the PullProvider interface by allowing this method
+     * to be called also after an END_ELEMENT event. This is to support PullToStax, which requires
+     * this functionality. In this situation it returns the namespaces declared on the startElement
+     * associated with the element that has just ended.</p>
      * <p>It is permissible for this method to return namespace declarations that are redundant.</p>
      * <p/>
      * <p>The NamespaceDeclarations object is guaranteed to remain unchanged until the next START_ELEMENT
@@ -379,35 +409,46 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
      */
 
     public NamespaceDeclarations getNamespaceDeclarations() throws XPathException {
-        return declaredNamespaces;
+        if (currentEvent == END_ELEMENT) {
+            // this case is sufficiently rare that we don't worry about its efficiency.
+            // The namespaces that are needed are still on the namespace stack, even though the
+            // top-of-stack pointer has already been decremented.
+            int nscount = namespaceCountStack[depth];
+            int[] namespaces = new int[nscount];
+            System.arraycopy(allNamespaces, allNamespacesSize, namespaces, 0, nscount);
+            return new NamespaceDeclarationsImpl(getNamePool(), namespaces);
+        } else {
+            return declaredNamespaces;
+        }
     }
 
     /**
-    * endElement: Discard the namespaces declared on this element.
-    */
+     * endElement: Discard the namespaces declared on this element. Note, however, that for the
+     * benefit of PullToStax, the namespaces that go out of scope on this endElement are available
+     * so long as the endElement is the current event
+     */
 
 
-    public void endElement () throws XPathException
-    {
+    public void endElement() throws XPathException {
         if (depth-- == 0) {
             throw new IllegalStateException("Attempt to output end tag with no matching start tag");
         }
-
-        int nscount = countStack[depth];
-        allNamespacesSize -= nscount;
+        elementJustEnded = namestack[depth];
+        allNamespacesSize -= namespaceCountStack[depth];
     }
 
     /**
      * Get the URI code corresponding to a given prefix code, by searching the
      * in-scope namespaces. This is a service provided to subclasses.
+     *
      * @param prefixCode the 16-bit prefix code required
      * @return the 16-bit URI code, or -1 if the prefix is not found
      */
 
     protected short getURICode(short prefixCode) {
-        for (int i=allNamespacesSize-1; i>=0; i--) {
-        	if ((allNamespaces[i]>>16) == (prefixCode)) {
-        		return (short)(allNamespaces[i]&0xffff);
+        for (int i = allNamespacesSize - 1; i >= 0; i--) {
+            if ((allNamespaces[i] >> 16) == (prefixCode)) {
+                return (short) (allNamespaces[i] & 0xffff);
             }
         }
         if (prefixCode == 0) {
@@ -429,7 +470,7 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
 
     public String getURIForPrefix(String prefix, boolean useDefault) {
         NamePool pool = getNamePool();
-        if ("".equals(prefix) && !useDefault) {
+        if ((prefix == null || prefix.length() == 0) && !useDefault) {
             return "";
         } else if ("xml".equals(prefix)) {
             return NamespaceConstant.XML;
@@ -451,7 +492,7 @@ public class PullNamespaceReducer extends PullFilter implements NamespaceResolve
     public Iterator iteratePrefixes() {
         NamePool pool = getNamePool();
         List prefixes = new ArrayList(allNamespacesSize);
-        for (int i=allNamespacesSize-1; i>=0; i--) {
+        for (int i = allNamespacesSize - 1; i >= 0; i--) {
             String prefix = pool.getPrefixFromNamespaceCode(allNamespaces[i]);
             if (!prefixes.contains(prefix)) {
                 prefixes.add(prefix);

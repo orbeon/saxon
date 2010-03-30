@@ -1,29 +1,27 @@
 package org.orbeon.saxon.instruct;
 
-import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.functions.StringJoin;
-import org.orbeon.saxon.functions.SystemFunction;
+import org.orbeon.saxon.Controller;
+import org.orbeon.saxon.event.Builder;
+import org.orbeon.saxon.event.PipelineConfiguration;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.event.SequenceReceiver;
-import org.orbeon.saxon.event.PipelineConfiguration;
+import org.orbeon.saxon.evpull.BracketedDocumentIterator;
+import org.orbeon.saxon.evpull.EventIterator;
+import org.orbeon.saxon.evpull.SingletonEventIterator;
 import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.functions.StringJoin;
+import org.orbeon.saxon.functions.SystemFunction;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.pattern.NodeTest;
 import org.orbeon.saxon.pull.UnconstructedDocument;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.tinytree.TinyBuilder;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.TypeHierarchy;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.value.TextFragmentValue;
+import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.TextFragmentValue;
 import org.orbeon.saxon.value.UntypedAtomicValue;
-
-import java.io.PrintStream;
 
 
 /**
@@ -45,7 +43,13 @@ public class DocumentInstr extends ParentNodeConstructor {
     private boolean textOnly;
     private String constantText;
 
-
+    /**
+     * Create a document constructor instruction
+     * @param textOnly true if the content contains text nodes only
+     * @param constantText if the content contains text nodes only and the text is known at compile time,
+     *        supplies the textual content
+     * @param baseURI the base URI of the instruction
+     */
 
     public DocumentInstr(boolean textOnly,
                          String constantText,
@@ -64,18 +68,10 @@ public class DocumentInstr extends ParentNodeConstructor {
         return Expression.EVALUATE_METHOD;
     }
 
-
-    /**
-     * Set the validation action
-     */
-
-    public void setValidationAction(int action) {
-        validation = action;
-    }
-
     /**
      * Determine whether this is a "text only" document: essentially, an XSLT xsl:variable that contains
      * a single text node or xsl:value-of instruction.
+     * @return true if this is a text-only document
      */
 
     public boolean isTextOnly() {
@@ -89,76 +85,119 @@ public class DocumentInstr extends ParentNodeConstructor {
      * @return the simplified expression
      * @throws org.orbeon.saxon.trans.XPathException
      *          if an error is discovered during expression rewriting
+     * @param visitor an expression visitor
      */
 
-    public Expression simplify(StaticContext env) throws XPathException {
-        setLazyConstruction(env.getConfiguration().isLazyConstructionMode());
-        return super.simplify(env);
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        setLazyConstruction(visitor.getConfiguration().isLazyConstructionMode());
+        return super.simplify(visitor);
     }
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        Expression res = super.typeCheck(env, contextItemType);
-        //verifyLazyConstruction();
-        return res;
-    }
+
 
     /**
-     * Check statically whether the content of the element creates attributes or namespaces
-     * after creating any child nodes
+     * Check statically that the sequence of child instructions doesn't violate any obvious constraints
+     * on the content of the node
      * @param env the static context
      * @throws XPathException
      */
 
-    protected void checkContentForAttributes(StaticContext env) throws XPathException {
+    protected void checkContentSequence(StaticContext env) throws XPathException {
+        checkContentSequence(env, content, validation, getSchemaType());
+    }
+
+    protected static void checkContentSequence(StaticContext env, Expression content, int validation, SchemaType type)
+    throws XPathException {
+        Expression[] components;
         if (content instanceof Block) {
-            TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
-            Expression[] components = ((Block)content).getChildren();
-            for (int i=0; i<components.length; i++) {
-                ItemType it = components[i].getItemType(th);
-                if (it instanceof NodeTest) {
-                    int possibleNodeKinds = ((NodeTest)it).getNodeKindMask();
-                    if (possibleNodeKinds == 1<<Type.ATTRIBUTE) {
-                        DynamicError de = new DynamicError(
-                                "Cannot create an attribute node whose parent is a document node");
-                        de.setErrorCode(isXSLT() ? "XTDE0420" : "XPTY0004");
-                        de.setLocator(this);
+            components = ((Block)content).getChildren();
+        } else {
+            components = new Expression[] {content};
+        }
+
+        int elementCount = 0;
+        boolean isXSLT = content.getHostLanguage() == Configuration.XSLT;
+        TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
+        for (int i=0; i<components.length; i++) {
+            ItemType it = components[i].getItemType(th);
+            if (it instanceof NodeTest) {
+                int possibleNodeKinds = ((NodeTest)it).getNodeKindMask();
+                if (possibleNodeKinds == 1<<Type.ATTRIBUTE) {
+                    XPathException de = new XPathException("Cannot create an attribute node whose parent is a document node");
+                    de.setErrorCode(isXSLT ? "XTDE0420" : "XPTY0004");
+                    de.setLocator(components[i]);
+                    throw de;
+                } else if (possibleNodeKinds == 1<<Type.NAMESPACE) {
+                    XPathException de = new XPathException("Cannot create a namespace node whose parent is a document node");
+                    de.setErrorCode(isXSLT ? "XTDE0420" : "XQTY0024");
+                    de.setLocator(components[i]);
+                    throw de;
+                }
+                if (possibleNodeKinds == 1<<Type.ELEMENT) {
+                    elementCount++;
+                    if (elementCount > 1 &&
+                            (validation==Validation.STRICT || validation==Validation.LAX || type!=null)) {
+                        XPathException de = new XPathException("A valid document must have only one child element");
+                        if (isXSLT) {
+                            de.setErrorCode("XTTE1550");
+                        } else {
+                            de.setErrorCode("XQDY0061");
+                        }
+                        de.setLocator(components[i]);
                         throw de;
-                    } else if (possibleNodeKinds == 1<<Type.NAMESPACE) {
-                        DynamicError de = new DynamicError(
-                                "Cannot create a namespace node whose parent is a document node");
-                        de.setErrorCode(isXSLT() ? "XTDE0420" : "XQTY0024");
-                        de.setLocator(this);
-                        throw de;
+                    }
+                    if (validation==Validation.STRICT && components[i] instanceof FixedElement) {
+                        SchemaDeclaration decl = env.getConfiguration().getElementDeclaration(
+                                ((FixedElement)components[i]).getNameCode(null) & NamePool.FP_MASK);
+                        if (decl != null) {
+                            ((FixedElement)components[i]).getContentExpression().
+                                    checkPermittedContents(decl.getType(), env, true);
+                        }
                     }
                 }
             }
-
         }
     }
 
     /**
      * In the case of a text-only instruction (xsl:variable containing a text node or one or more xsl:value-of
-     * instructions, return an expression that evaluates to the textual content
+     * instructions), return an expression that evaluates to the textual content as an instance of xs:untypedAtomic
+     * @param env the static evaluation context
      * @return an expression that evaluates to the textual content
      */
 
     public Expression getStringValueExpression(StaticContext env) {
         if (textOnly) {
             if (constantText != null) {
-                return new UntypedAtomicValue(constantText);
+                return new StringLiteral(new UntypedAtomicValue(constantText));
             } else if (content instanceof ValueOf) {
                 return ((ValueOf)content).convertToStringJoin(env);
             } else {
-                StringJoin fn = (StringJoin)SystemFunction.makeSystemFunction("string-join", 2, env.getNamePool());
-                Expression[] args = new Expression[2];
-                args[0] = content;
-                args[1] = StringValue.EMPTY_STRING;
-                fn.setArguments(args);
-                return fn;
+                StringJoin fn = (StringJoin)SystemFunction.makeSystemFunction(
+                        "string-join", new Expression[]{content, new StringLiteral(StringValue.EMPTY_STRING)});
+                CastExpression cast = new CastExpression(fn, BuiltInAtomicType.UNTYPED_ATOMIC, false);
+                ExpressionTool.copyLocationInfo(this, cast);
+                return cast;
             }
         } else {
             throw new AssertionError("getStringValueExpression() called on non-text-only document instruction");
         }
+    }
+
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        DocumentInstr doc = new DocumentInstr(textOnly, constantText, getBaseURI());
+        doc.setContentExpression(content.copy());
+        doc.setValidationMode(getValidationMode());
+        doc.setSchemaType(getSchemaType());
+        doc.setLazyConstruction(isLazyConstruction());
+        return doc;
     }
 
     /**
@@ -171,6 +210,7 @@ public class DocumentInstr extends ParentNodeConstructor {
     }
 
     public TailCall processLeavingTail(XPathContext context) throws XPathException {
+        // TODO: we're always constructing the document in memory. Sometimes we could push it out directly.
         Item item = evaluateItem(context);
         if (item != null) {
             SequenceReceiver out = context.getReceiver();
@@ -184,8 +224,9 @@ public class DocumentInstr extends ParentNodeConstructor {
      */
 
     public Item evaluateItem(XPathContext context) throws XPathException {
-        if (isLazyConstruction()) {
-            // TODO: is validation being forgotten on this path?
+        if (isLazyConstruction() && (
+                context.getConfiguration().areAllNodesUntyped() ||
+                        (validation == Validation.PRESERVE && getSchemaType() == null))) {
             return new UnconstructedDocument(this, context);
         } else {
             Controller controller = context.getController();
@@ -197,9 +238,6 @@ public class DocumentInstr extends ParentNodeConstructor {
                 } else {
                     FastStringBuffer sb = new FastStringBuffer(100);
                     SequenceIterator iter = content.iterate(context);
-                    if (iter instanceof AtomizableIterator) {
-                        ((AtomizableIterator)iter).setIsAtomizing(true);
-                    }
                     while (true) {
                         Item item = iter.next();
                         if (item==null) break;
@@ -214,21 +252,21 @@ public class DocumentInstr extends ParentNodeConstructor {
                     XPathContext c2 = context.newMinorContext();
                     c2.setOrigin(this);
 
-                    TinyBuilder builder = new TinyBuilder();
+                    Builder builder = controller.makeBuilder();
                     //builder.setSizeParameters(treeSizeParameters);
                     builder.setLineNumbering(controller.getConfiguration().isLineNumbering());
 
-                    Receiver receiver = builder;
                     //receiver.setSystemId(getBaseURI());
                     builder.setBaseURI(getBaseURI());
+                    builder.setTiming(false);
 
-                    final PipelineConfiguration pipe = controller.makePipelineConfiguration();
+                    PipelineConfiguration pipe = controller.makePipelineConfiguration();
                     pipe.setHostLanguage(getHostLanguage());
                     //pipe.setBaseURI(baseURI);
-                    receiver.setPipelineConfiguration(pipe);
+                    builder.setPipelineConfiguration(pipe);
 
                     c2.changeOutputDestination(null,
-                            receiver,
+                            builder,
                             false,
                             getHostLanguage(),
                             validation,
@@ -244,17 +282,22 @@ public class DocumentInstr extends ParentNodeConstructor {
 
                     root = (DocumentInfo)builder.getCurrentRoot();
                 } catch (XPathException e) {
-                    if (e.getLocator() == null) {
-                        e.setLocator(this);
-                    }
-                    if (e instanceof DynamicError && ((DynamicError)e).getXPathContext() == null) {
-                        ((DynamicError)e).setXPathContext(context);
-                    }
+                    e.maybeSetLocation(this);
+                    e.maybeSetContext(context);
                     throw e;
                 }
             }
             return root;
         }
+    }
+
+    public EventIterator iterateEvents(XPathContext context) throws XPathException {
+        if (validation != Validation.PRESERVE) {
+            // Schema validation can't be done in pull mode
+            return new SingletonEventIterator(evaluateItem(context));
+        }
+        return new BracketedDocumentIterator(content.iterateEvents(context));
+
     }
 
 
@@ -268,12 +311,18 @@ public class DocumentInstr extends ParentNodeConstructor {
     }
 
     /**
-     * Display this instruction as an expression, for diagnostics
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "document-constructor");
-        content.display(level+1, out, config);
+    public void explain(ExpressionPresenter out) {
+        out.startElement("documentNode");
+        out.emitAttribute("validation", Validation.toString(validation));
+        if (getSchemaType() != null) {
+            out.emitAttribute("type", getSchemaType().getDescription());
+        }        
+        content.explain(out);
+        out.endElement();
     }
 }
 

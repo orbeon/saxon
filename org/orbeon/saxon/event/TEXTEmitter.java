@@ -1,5 +1,5 @@
 package org.orbeon.saxon.event;
-import org.orbeon.saxon.trans.DynamicError;
+
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.charcode.UnicodeCharacterSet;
 
@@ -27,10 +27,16 @@ public class TEXTEmitter extends XMLEmitter {
             characterSet = UnicodeCharacterSet.getInstance();
         }
         // Write a BOM if requested
+        String encoding = outputProperties.getProperty(OutputKeys.ENCODING);
+        if (encoding==null || encoding.equalsIgnoreCase("utf8")) {
+            encoding = "UTF-8";
+        }
         String byteOrderMark = outputProperties.getProperty(SaxonOutputKeys.BYTE_ORDER_MARK);
 
-        if ("yes".equals(byteOrderMark) &&
-                    "UTF-8".equalsIgnoreCase(outputProperties.getProperty(OutputKeys.ENCODING))) {
+        if ("yes".equals(byteOrderMark) && (
+                "UTF-8".equalsIgnoreCase(encoding) ||
+                    "UTF-16LE".equalsIgnoreCase(encoding) ||
+                    "UTF-16BE".equalsIgnoreCase(encoding))) {
             try {
                 writer.write('\uFEFF');
                 empty = false;
@@ -61,14 +67,14 @@ public class TEXTEmitter extends XMLEmitter {
         if ((properties & ReceiverOptions.NO_SPECIAL_CHARS) == 0) {
             int badchar = testCharacters(chars);
             if (badchar != 0) {
-                throw new DynamicError(
+                throw new XPathException(
                         "Output character not available in this encoding (decimal " + badchar + ")");
             }
         }
         try {
             writer.write(chars.toString());
         } catch (java.io.IOException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
@@ -78,7 +84,7 @@ public class TEXTEmitter extends XMLEmitter {
     * @param nameCode The element name (tag)
      * @param typeCode The type annotation
      * @param properties Bit fields holding any special properties of the element
-    */
+     */
 
     public void startElement(int nameCode, int typeCode, int locationId, int properties) {
         // no-op

@@ -1,9 +1,10 @@
 package org.orbeon.saxon.value;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.type.TypeHierarchy;
+import org.orbeon.saxon.type.*;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.sort.StringCollator;
+
+import java.math.BigDecimal;
 
 /**
  * NumericValue is an abstract superclass for IntegerValue, DecimalValue,
@@ -29,15 +30,15 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
                 return DoubleValue.NaN;
             }
         } else if (in.indexOf('.') >= 0) {
-            AtomicValue v = DecimalValue.makeDecimalValue(in, true);
-            if (v instanceof ValidationErrorValue) {
+            ConversionResult v = DecimalValue.makeDecimalValue(in, true);
+            if (v instanceof ValidationFailure) {
                 return DoubleValue.NaN;
             } else {
                 return (NumericValue)v;
             }
         } else {
-            AtomicValue v = IntegerValue.stringToInteger(in);
-            if (v instanceof ValidationErrorValue) {
+            ConversionResult v = Int64Value.stringToInteger(in);
+            if (v instanceof ValidationFailure) {
                 return DoubleValue.NaN;
             } else {
                 return (NumericValue)v;
@@ -52,33 +53,46 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
      */
     public double getDoubleValue() {
         try {
-            return ((DoubleValue)convert(Type.DOUBLE, null)).getDoubleValue();
+            return ((DoubleValue)convertPrimitive(BuiltInAtomicType.DOUBLE, true, null).asAtomic()).getDoubleValue();
         } catch (XPathException err) {
             return Double.NaN;
         }
     }
 
     /**
-     * Test whether the value is the double/float value NaN
+     * Get the numeric value converted to a float
+     * @return a float representing this numeric value; NaN if it cannot be converted
      */
 
-    public boolean isNaN() {
-        return false;
+    public float getFloatValue() {
+        try {
+            return ((FloatValue)convertPrimitive(BuiltInAtomicType.FLOAT, true, null).asAtomic()).getFloatValue();
+        } catch (XPathException err) {
+            return Float.NaN;
+        }
     }
 
     /**
-     * Test whether the value is an integer (an instance of a subtype of xs:integer)
+     * Get the numeric value converted to a decimal
+     * @return a decimal representing this numeric value;
+     * @throws XPathException if the value cannot be converted, for example if it is NaN or infinite
+     */
+
+    public BigDecimal getDecimalValue() throws XPathException {
+        return ((DecimalValue)convertPrimitive(BuiltInAtomicType.DECIMAL, true, null).asAtomic()).getDecimalValue();
+    }
+
+
+
+
+    /**
+     * Test whether a value is an integer (an instance of a subtype of xs:integer)
+     * @param value the value being tested
+     * @return true if the value is an instance of xs:integer or a type derived therefrom
      */
 
     public static boolean isInteger(AtomicValue value) {
-        if (value instanceof IntegerValue) {
-            return true;
-        } else if (value instanceof BigIntegerValue) {
-            return true;
-        } else if (!value.hasBuiltInType() && NumericValue.isInteger(value.getPrimitiveValue())) {
-            return true;
-        }
-        return false;
+        return (value instanceof IntegerValue);
     }
 
     /**
@@ -89,7 +103,7 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
      *     towards zero.
      */
     public long longValue() throws XPathException {
-        return ((IntegerValue)convert(Type.INTEGER, null)).longValue();
+        return ((Int64Value)convertPrimitive(BuiltInAtomicType.INTEGER, true, null).asAtomic()).longValue();
     }
 
     /**
@@ -148,20 +162,6 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
     public abstract double signum();
 
     /**
-     * Perform a binary arithmetic operation
-     *
-     * @param operator the binary arithmetic operation to be performed. Uses
-     *     the constants defined in the Tokenizer class
-     * @param other the other operand
-     * @exception XPathException if an arithmetic error occurs
-     * @return the result of the arithmetic operation
-     * @see org.orbeon.saxon.expr.Tokenizer
-     */
-
-    public abstract NumericValue arithmetic(int operator, NumericValue other, XPathContext context)
-    throws XPathException;
-
-    /**
      * Determine whether the value is a whole number, that is, whether it compares
      * equal to some integer
      *
@@ -171,6 +171,20 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
     public abstract boolean isWholeNumber();
 
     /**
+     * Get a Comparable value that implements the XPath ordering comparison semantics for this value.
+     * Returns null if the value is not comparable according to XPath rules. The default implementation
+     * returns null. This is overridden for types that allow ordered comparisons in XPath: numeric, boolean,
+     * string, date, time, dateTime, yearMonthDuration, dayTimeDuration, and anyURI.
+     * @param ordered
+     * @param collator
+     * @param context
+     */
+
+    public Object getXPathComparable(boolean ordered, StringCollator collator, XPathContext context) {
+        return this;
+    }
+
+    /**
      * Compare the value to another numeric value
      *
      * @exception ClassCastException if the other value is not a NumericValue
@@ -178,20 +192,15 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
      *     interface)
      * @param other The other numeric value
      * @return -1 if this one is the lower, 0 if they are numerically equal,
-     *     +1 if this one is the higher.
+     *     +1 if this one is the higher, or if either value is NaN. Where NaN values are
+     *     involved, they should be handled by the caller before invoking this method.
      */
 
     // This is the default implementation. Subclasses of number avoid the conversion to double
     // when comparing with another number of the same type.
 
     public int compareTo(Object other) {
-        if (other instanceof AtomicValue && !((AtomicValue)other).hasBuiltInType()) {
-            return compareTo(((AtomicValue)other).getPrimitiveValue());
-        }
-        if (!(other instanceof NumericValue)) {
-            throw new ClassCastException("Numeric values are not comparable to " + other.getClass());
-        }
-        double a = this.getDoubleValue();
+        double a = getDoubleValue();
         double b = ((NumericValue)other).getDoubleValue();
         if (a == b) return 0;
         if (a < b) return -1;
@@ -216,8 +225,6 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
 
     public final boolean equals(Object other) {
         return compareTo(other) == 0;
-        // Note: this is implementing the XPath definition of equality, not the XML Schema definition.
-        // However, the equals() function is probably used largely for XML Schema comparisons...
     }
 
     /**
@@ -225,30 +232,30 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
      *
      * @param v1 the item type of the first operand
      * @param v2 the item type of the second operand
-     * @param typeHierarchy
+     * @param typeHierarchy the type hierarchy cache
      * @return the item type that should be used for arithmetic between
      *     operands of the two specified item types
      */
 
     public static ItemType promote(ItemType v1, ItemType v2, TypeHierarchy typeHierarchy) {
-        ItemType t1 = (typeHierarchy.isSubType(v1, Type.NUMBER_TYPE) ? v1 : Type.DOUBLE_TYPE);
-        ItemType t2 = (typeHierarchy.isSubType(v2, Type.NUMBER_TYPE) ? v2 : Type.DOUBLE_TYPE);
+        ItemType t1 = (typeHierarchy.isSubType(v1, BuiltInAtomicType.NUMERIC) ? v1 : BuiltInAtomicType.DOUBLE);
+        ItemType t2 = (typeHierarchy.isSubType(v2, BuiltInAtomicType.NUMERIC) ? v2 : BuiltInAtomicType.DOUBLE);
 
         if (t1 == t2) return t1;
 
-        if (t1 == Type.DOUBLE_TYPE || t2 == Type.DOUBLE_TYPE) {
-            return Type.DOUBLE_TYPE;
+        if (t1.equals(BuiltInAtomicType.DOUBLE) || t2.equals(BuiltInAtomicType.DOUBLE)) {
+            return BuiltInAtomicType.DOUBLE;
         }
 
-        if (t1 == Type.FLOAT_TYPE || t2 == Type.FLOAT_TYPE) {
-            return Type.FLOAT_TYPE;
+        if (t1.equals(BuiltInAtomicType.FLOAT) || t2.equals(BuiltInAtomicType.FLOAT)) {
+            return BuiltInAtomicType.FLOAT;
         }
 
-        if (t1 == Type.DECIMAL_TYPE || t2 == Type.DECIMAL_TYPE) {
-            return Type.DECIMAL_TYPE;
+        if (t1.equals(BuiltInAtomicType.DECIMAL) || t2.equals(BuiltInAtomicType.DECIMAL)) {
+            return BuiltInAtomicType.DECIMAL;
         }
 
-        return Type.INTEGER_TYPE;
+        return BuiltInAtomicType.INTEGER;
     }
 
     /**
@@ -270,6 +277,7 @@ public abstract class NumericValue extends AtomicValue implements Comparable {
      * Produce a string representation of the value
      * @return The result of casting the number to a string
      */
+
     public String toString() {
         return getStringValue();
     }

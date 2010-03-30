@@ -19,7 +19,7 @@ public abstract class TreatExpression {
     */
 
     public static Expression make(Expression sequence, SequenceType type) {
-        RoleLocator role = new RoleLocator(RoleLocator.TYPE_OP, "treat as", 0, null);
+        RoleLocator role = new RoleLocator(RoleLocator.TYPE_OP, "treat as", 0);
         role.setErrorCode("XPDY0050");
         Expression e = CardinalityChecker.makeCardinalityChecker(sequence, type.getCardinality(), role);
         ItemChecker checker = new ItemChecker(e, type.getPrimaryType(), role);

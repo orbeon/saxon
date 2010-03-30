@@ -128,21 +128,22 @@ public class IntHashMap implements Serializable {
      *
      * @param key   Key
      * @param value Value
+     * @return the value that was previously associated with the key, or null if there was no previous value
      */
-    public void put(int key, Object value) {
+    public Object put(int key, Object value) {
         if (value == null) {
             throw new NullPointerException("IntHashMap does not allow null values");
         }
         int i = indexOf(key);
-        //if (_filled[i]) {
-        if (_value[i] != null) {
+        Object old = _value[i];
+        if (old != null) {
             _value[i] = value;
         } else {
             _key[i] = key;
             _value[i] = value;
-            //_filled[i] = true;
             grow();
         }
+        return old;
     }
 
 
@@ -299,13 +300,51 @@ public class IntHashMap implements Serializable {
     }
 
     /**
-     * Iterator over values
+     * Iterator over keys
      */
     private class IntHashMapValueIterator implements Iterator, Serializable {
 
-        private IntHashMapKeyIterator k;
+        private int i = 0;
 
         public IntHashMapValueIterator() {
+            i = 0;
+        }
+
+        public boolean hasNext() {
+            while (i < _key.length) {
+                if (_value[i] != null) {
+                    return true;
+                } else {
+                    i++;
+                }
+            }
+            return false;
+        }
+
+        public Object next() {
+            return _value[i++];
+        }
+
+        /**
+         * Removes from the underlying collection the last element returned by the
+         * iterator (optional operation).
+         * @throws UnsupportedOperationException if the <tt>remove</tt>
+         *                                       operation is not supported by this Iterator.
+         */
+        public void remove() {
+            throw new UnsupportedOperationException("remove");
+        }
+    }
+
+
+    /**
+     * Iterator over values
+     */
+    private class IntHashMapValueIteratorOLD implements Iterator, Serializable {
+
+        private IntHashMapKeyIterator k;
+
+        public IntHashMapValueIteratorOLD() {
             k = new IntHashMapKeyIterator();
         }
 

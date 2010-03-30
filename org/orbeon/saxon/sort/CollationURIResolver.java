@@ -2,12 +2,11 @@ package org.orbeon.saxon.sort;
 
 import org.orbeon.saxon.Configuration;
 
-import java.util.Comparator;
 import java.io.Serializable;
 
 /**
  * A CollationURIResolver accepts a collation name as input, and returns
- * a collation (represented by a Comparator) as output. A CollationURIResolver
+ * a collation (represented by a StringCollator) as output. A CollationURIResolver
  * can be registered with the Configuration (or with the TransformerFactory)
  * to resolve all collation URIs used in a stylesheet or query.
  */
@@ -24,19 +23,19 @@ public interface CollationURIResolver extends Serializable {
      * this parameter is currently set to null.
      * @param config The configuration. Provided in case the collation URI resolver
      * needs it.
-     * @return a Comparator, representing the collation to be used. Note that although
-     * any Comparator may be returned, functions such as contains() that need to break
-     * a string into its collation units will work only if the returned Comparator
-     * is a {@link java.text.Collator}. If the Collation URI cannot be resolved, return null.
+     * @return a StringCollator, representing the collation to be used. Note that although
+     * any StringCollator may be returned, functions such as contains() that need to break
+     * a string into its collation units will work only if the returned StringCollator
+     * is a {@link SubstringMatcher}. If the Collation URI cannot be resolved, return null.
      * Note that unlike the JAXP URIResolver, returning null does not cause the default
      * CollationURIResolver to be invoked; if this is required, the user-written CollationURIResolver
      * should explicitly instantiate and invoke the {@link StandardCollationURIResolver} before
      * returning null.
-     * @since 8.5 (this interface is new in Saxon 8.5 and may be revised in the light of
-     * experience)
+     * @since 8.5/8.9 (this interface was introduced provisionally in 8.5, and modified in 8.9 to return
+     * a StringCollator rather than a Comparator)
      */
 
-    public Comparator resolve(String relativeURI, String baseURI, Configuration config);
+    public StringCollator resolve(String relativeURI, String baseURI, Configuration config);
 }
 
 //

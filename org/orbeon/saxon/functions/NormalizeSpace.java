@@ -1,14 +1,12 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.FastStringBuffer;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.value.Whitespace;
 import org.orbeon.saxon.value.Value;
-
-import java.util.StringTokenizer;
+import org.orbeon.saxon.value.Whitespace;
 
 /**
  * Implement the XPath normalize-space() function
@@ -16,13 +14,6 @@ import java.util.StringTokenizer;
 
 public class NormalizeSpace extends SystemFunction {
 
-    /**
-    * Simplify and validate.
-    */
-
-     public Expression simplify(StaticContext env) throws XPathException {
-        return simplifyArguments(env);
-    }
     /**
      * Determine the intrinsic dependencies of an expression, that is, those which are not derived
      * from the dependencies of its subexpressions. For example, position() has an intrinsic dependency
@@ -41,16 +32,29 @@ public class NormalizeSpace extends SystemFunction {
         return d;
     }
 
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        if (argument.length == 0 && contextItemType == null) {
+            XPathException err = new XPathException("The context item for normalize-space() is undefined");
+            err.setErrorCode("XPDY0002");
+            err.setIsTypeError(true);
+            err.setLocator(this);
+            throw err;
+        }
+        return super.typeCheck(visitor, contextItemType);
+    }
+
     /**
     * Pre-evaluate a function at compile time. Functions that do not allow
     * pre-evaluation, or that need access to context information, can override this method.
-    */
+     * @param visitor an expression visitor
+     */
 
-    public Expression preEvaluate(StaticContext env) throws XPathException {
+    public Expression preEvaluate(ExpressionVisitor visitor) throws XPathException {
         if (argument.length == 0) {
             return this;
         } else {
-            return (Value)evaluateItem(env.makeEarlyEvaluationContext());
+            return Literal.makeLiteral((Value)evaluateItem(
+                    visitor.getStaticContext().makeEarlyEvaluationContext()));
         }
     }
 
@@ -63,9 +67,10 @@ public class NormalizeSpace extends SystemFunction {
             Item item = c.getContextItem();
             if (item == null) {
                 dynamicError("Context item for normalize-space() is undefined", "FONC0001", c);
+                return null;
             }
             return StringValue.makeStringValue(
-                    Whitespace.collapseWhitespace(c.getContextItem().getStringValueCS()));
+                    Whitespace.collapseWhitespace(item.getStringValueCS()));
         } else {
             AtomicValue sv = (AtomicValue)argument[0].evaluateItem(c);
             if (sv==null) {
@@ -77,35 +82,39 @@ public class NormalizeSpace extends SystemFunction {
     }
 
     /**
-     * The algorithm that does the work: it removes leading and trailing whitespace, and
-     * replaces internal whitespace by a single space character. The code is optimized for
-     * two special cases: where the string is all whitespace, and where it contains no spaces
-     * at all (including the case where it is empty). In these two cases it avoids creating
-     * a new object.
-    */
+     * Get the effective boolean value of the expression. This returns false if the value
+     * is the empty sequence, a zero-length string, a number equal to zero, or the boolean
+     * false. Otherwise it returns true.
+     *
+     * <p>This method is implemented for normalize-space() because it is quite often used in a
+     * boolean context to test whether a value exists and is non-white, and because testing for the
+     * presence of non-white characters is a lot more efficient than constructing the normalized
+     * string, especially because of early-exit.</p>
+     *
+     * @param c The context in which the expression is to be evaluated
+     * @return the effective boolean value
+     * @throws org.orbeon.saxon.trans.XPathException
+     *          if any dynamic error occurs evaluating the expression
+     */
 
-    public static CharSequence normalize(CharSequence s) {
-        if (Whitespace.containsWhitespace(s)) {
-            StringTokenizer st = new StringTokenizer(s.toString()); // TODO: treats FF (formfeed) as whitespace
-            if (st.hasMoreTokens()) {
-                FastStringBuffer sb = new FastStringBuffer(s.length());
-                while (true) {
-                    sb.append(st.nextToken());
-                    if (st.hasMoreTokens()) {
-                        sb.append(' ');
-                    } else {
-                        break;
-                    }
-                }
-                return sb.condense();
-            } else {
-                return "";
+    public boolean effectiveBooleanValue(XPathContext c) throws XPathException {
+        CharSequence cs;
+        if (argument.length == 0) {
+            Item item = c.getContextItem();
+            if (item == null) {
+                dynamicError("Context item for normalize-space() is undefined", "FONC0001", c);
+                return false;
             }
+            cs = item.getStringValueCS();
         } else {
-            return s;
+            AtomicValue sv = (AtomicValue)argument[0].evaluateItem(c);
+            if (sv==null) {
+                return false;
+            }
+            cs = sv.getStringValueCS();
         }
+        return !Whitespace.isWhite(cs);
     }
-
 }
 
 

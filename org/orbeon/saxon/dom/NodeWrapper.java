@@ -4,17 +4,14 @@ import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.NameTest;
 import org.orbeon.saxon.pattern.NodeTest;
-import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.StringValue;
 import org.orbeon.saxon.value.UntypedAtomicValue;
 import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.value.AtomicValue;
 import org.w3c.dom.*;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 
 
@@ -182,9 +179,9 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 
     public int getTypeAnnotation() {
         if (getNodeKind() == Type.ATTRIBUTE) {
-            return StandardNames.XDT_UNTYPED_ATOMIC;
+            return StandardNames.XS_UNTYPED_ATOMIC;
         }
-        return StandardNames.XDT_UNTYPED;
+        return StandardNames.XS_UNTYPED;
     }
 
     /**
@@ -195,39 +192,18 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     */
 
     public boolean isSameNodeInfo(NodeInfo other) {
-        // DOM does not offer any guarantees that the same node is always represented
-        // by the same object
-
         if (!(other instanceof NodeWrapper)) {
             return false;
         }
-
-        // For a level-3 DOM, use the DOM isSameNode() method
-        if (docWrapper.level3) {
-            try {
-                Class[] argClasses = {Node.class};
-                Method isSameNode = Node.class.getMethod("isSameNode", argClasses);
-                Object[] args = {((NodeWrapper)other).node};
-                Boolean b = (Boolean)(isSameNode.invoke(node, args));
-                return b.booleanValue();
-            } catch (NoSuchMethodException e) {
-                // use fallback implementation
-            } catch (IllegalAccessException e) {
-                // use fallback implementation
-            } catch (InvocationTargetException e) {
-                // use fallback implementation
-            } catch (AbstractMethodError e) {
-                // use fallback implementation
-            }
-        }
-        NodeWrapper ow = (NodeWrapper)other;
-        return getNodeKind()==ow.getNodeKind() &&
+        if (docWrapper.domLevel3) {
+            return node.isSameNode(((NodeWrapper)other).node);
+        } else {
+            NodeWrapper ow = (NodeWrapper)other;
+            return getNodeKind()==ow.getNodeKind() &&
                 getNameCode()==ow.getNameCode() &&  // redundant, but gives a quick exit
                 getSiblingPosition()==ow.getSiblingPosition() &&
                 getParent().isSameNodeInfo(ow.getParent());
-        // Note: this has been known to fail because getParent() returns null. Extra checks have been added to the
-        // methods for constructing DOM document wrappers to ensure that wrapped nodes always belong to a wrapped
-        // Document, which should prevent this happening again.
+        }
     }
 
     /**
@@ -243,11 +219,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
       */
 
      public boolean equals(Object other) {
-        if (other instanceof NodeInfo) {
-            return isSameNodeInfo((NodeInfo)other);
-        } else {
-            return false;
-        }
+        return other instanceof NodeInfo && isSameNodeInfo((NodeInfo)other);
     }
 
      /**
@@ -311,6 +283,15 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     }
 
     /**
+     * Get column number
+     * @return the column number of the node in its original source document; or -1 if not available
+     */
+
+    public int getColumnNumber() {
+        return -1;
+    }
+
+    /**
     * Determine the relative position of this node and another node, in document order.
     * The other node will always be in the same document.
     * @param other The other node, whose position is to be compared with this node
@@ -320,36 +301,23 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     */
 
     public int compareOrder(NodeInfo other) {
-        // Use the DOM Level-3 compareDocumentPosition() method if available
-        if (docWrapper.level3 && other instanceof NodeWrapper) {
+        // Use the DOM Level-3 compareDocumentPosition() method
+        if (other instanceof NodeWrapper && docWrapper.domLevel3) {
             if (isSameNodeInfo(other)) {
                 return 0;
             }
             try {
-                Class[] argClasses = {Node.class};
-                Method compareDocumentPosition = Node.class.getMethod("compareDocumentPosition", argClasses);
-                Object[] args = {((NodeWrapper)other).node};
-                Short i = (Short)(compareDocumentPosition.invoke(node, args));
-                switch (i.shortValue()) {
-                                // the symbolic constants require JDK 1.5
-                    case 2: //Node.DOCUMENT_POSITION_PRECEDING:
-                    case 8: //Node.DOCUMENT_POSITION_CONTAINS:
-                        return +1;
-                    case 4: //Node.DOCUMENT_POSITION_FOLLOWING:
-                    case 16: //Node.DOCUMENT_POSITION_CONTAINED_BY:
-                        return -1;
-                    default:
-                        // use fallback implementation
+                short relationship = node.compareDocumentPosition(((NodeWrapper)other).node);
+                if ((relationship &
+                        (Node.DOCUMENT_POSITION_PRECEDING | Node.DOCUMENT_POSITION_CONTAINS)) != 0) {
+                    return +1;
+                } else if ((relationship &
+                        (Node.DOCUMENT_POSITION_FOLLOWING | Node.DOCUMENT_POSITION_CONTAINED_BY)) != 0) {
+                    return -1;
                 }
-            } catch (NoSuchMethodException e) {
-                // use fallback implementation
-            } catch (IllegalAccessException e) {
-                // use fallback implementation
-            } catch (InvocationTargetException e) {
-                // use fallback implementation
-            } catch (AbstractMethodError e) {
-                // use fallback implementation
+                // otherwise use fallback implementation (e.g. nodes in different documents)
             } catch (DOMException e) {
+                // can happen if nodes are from different DOM implementations.
                 // use fallback implementation
             }
         }
@@ -380,7 +348,6 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
      */
 
     public CharSequence getStringValueCS() {
-        //return getStringValue(node, nodeKind);
         switch (nodeKind) {
             case Type.DOCUMENT:
             case Type.ELEMENT:
@@ -390,16 +357,16 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
                 return sb1;
 
             case Type.ATTRIBUTE:
-                return ((Attr)node).getValue();
+                return emptyIfNull(((Attr)node).getValue());
 
             case Type.TEXT:
                 if (span == 1) {
-                    return node.getNodeValue();
+                    return emptyIfNull(node.getNodeValue());
                 } else {
                     FastStringBuffer fsb = new FastStringBuffer(100);
                     Node textNode = node;
                     for (int i=0; i<span; i++) {
-                        fsb.append(textNode.getNodeValue());
+                        fsb.append(emptyIfNull(textNode.getNodeValue()));
                         textNode = textNode.getNextSibling();
                     }
                     return fsb.condense();
@@ -407,47 +374,20 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 
             case Type.COMMENT:
             case Type.PROCESSING_INSTRUCTION:
-                return node.getNodeValue();
+                return emptyIfNull(node.getNodeValue());
 
             default:
                 return "";
         }
     }
 
-    /**
-     * Get the string value of a DOM node
-     * @param node
-     * @param nodeKind
-     * @return
-     */
-
-    private static CharSequence getStringValue(Node node, int nodeKind) {
-        switch (nodeKind) {
-            case Type.DOCUMENT:
-            case Type.ELEMENT:
-                NodeList children1 = node.getChildNodes();
-                StringBuffer sb1 = new StringBuffer(16);
-                expandStringValue(children1, sb1);
-                return sb1;
-
-            case Type.ATTRIBUTE:
-                return ((Attr)node).getValue();
-
-            case Type.TEXT:
-            case Node.CDATA_SECTION_NODE:
-                return node.getNodeValue();
-
-            case Type.COMMENT:
-            case Type.PROCESSING_INSTRUCTION:
-                return node.getNodeValue();
-
-            default:
-                return "";
-        }
-    }
+    private static String emptyIfNull(String s) {
+        return (s==null ? "" : s);
+    }    
 
     private static void expandStringValue(NodeList list, StringBuffer sb) {
-        for (int i = 0; i < list.getLength(); i++) {
+        final int len = list.getLength();
+        for (int i = 0; i < len; i++) {
             Node child = list.item(i);
             switch (child.getNodeType()) {
                 case Node.ELEMENT_NODE:
@@ -478,7 +418,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
         }
         int nodeKind = getNodeKind();
         if (nodeKind == Type.ELEMENT || nodeKind == Type.ATTRIBUTE) {
-            String prefix = node.getPrefix();
+            String prefix = getPrefix();
             if (prefix==null) {
                 prefix = "";
             }
@@ -514,17 +454,25 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     */
 
     public String getLocalPart() {
-        String s = node.getLocalName();
-        if (s == null) {
-            // Crimson returns null for the attribute "xml:space": test axes-dom132
-            String n = getDisplayName();
-            int colon = n.indexOf(':');
-            if (colon >= 0) {
-                return n.substring(colon+1);
-            }
-            return n;
-        } else {
-            return s;
+        switch (getNodeKind()) {
+            case Type.ELEMENT:
+            case Type.ATTRIBUTE:
+                String s = node.getLocalName();
+                if (s == null) {
+                    // true if the node was created using a DOM level 1 method
+                    String n = getDisplayName();
+                    int colon = n.indexOf(':');
+                    if (colon >= 0) {
+                        return n.substring(colon+1);
+                    }
+                    return n;
+                } else {
+                    return s;
+                }
+            case Type.PROCESSING_INSTRUCTION:
+                return node.getNodeName();
+            default:
+                return null;
         }
     }
 
@@ -576,7 +524,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
             throw new IllegalStateException("Invalid QName in DOM node. " + e);
         }
 
-        if (nodeKind == Type.ATTRIBUTE && parts[0].equals("")) {
+        if (nodeKind == Type.ATTRIBUTE && parts[0].length() == 0) {
             // for an attribute, no prefix means no namespace
             uri = "";
         } else {
@@ -590,7 +538,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
                 }
             }
             if (uri == null) {
-                if (parts[0].equals("")) {
+                if (parts[0].length() == 0) {
                     uri = "";
                 } else {
                     throw new IllegalStateException("Undeclared namespace prefix in DOM input: " + parts[0]);
@@ -603,13 +551,21 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     /**
      * Get the prefix of the name of the node. This is defined only for elements and attributes.
      * If the node has no prefix, or for other kinds of node, return a zero-length string.
-     * This implementation simply returns the prefix defined in the DOM model; this is nto strictly
-     * accurate in all cases, but is good enough for the purpose.
      * @return The prefix of the name of the node.
      */
 
     public String getPrefix() {
-        return node.getPrefix();
+        int kind = getNodeKind();
+        if (kind == Type.ELEMENT || kind == Type.ATTRIBUTE) {
+            String name = node.getNodeName();
+            int colon = name.indexOf(':');
+            if (colon < 0) {
+                return "";
+            } else {
+                return name.substring(0, colon);
+            }
+        }
+        return "";
     }
 
     /**
@@ -624,7 +580,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
             case Type.ELEMENT:
             case Type.ATTRIBUTE:
             case Type.PROCESSING_INSTRUCTION:
-                return node.getNodeName() != null ? node.getNodeName() : "";// ORBEON: Not sure why in some cases the node name is null
+                return node.getNodeName();
             default:
                 return "";
 
@@ -725,7 +681,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
                 return new Navigator.AncestorEnumeration(this, false);
 
             case Axis.ANCESTOR_OR_SELF:
-                if (nodeKind==Type.DOCUMENT) return SingletonIterator.makeIterator(this);
+                if (nodeKind==Type.DOCUMENT) return SingleNodeIterator.makeIterator(this);
                 return new Navigator.AncestorEnumeration(this, true);
 
             case Axis.ATTRIBUTE:
@@ -734,7 +690,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 
             case Axis.CHILD:
                 if (hasChildNodes()) {
-                    return new ChildEnumeration(this, true, true);
+                    return new ChildEnumeration(this, true, true, false);
                 } else {
                     return EmptyIterator.getInstance();
                 }
@@ -759,19 +715,18 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
                     case Type.NAMESPACE:
                         return EmptyIterator.getInstance();
                     default:
-                        return new ChildEnumeration(this, false, true);
+                        return new ChildEnumeration(this, false, true, false);
                  }
 
             case Axis.NAMESPACE:
                  if (nodeKind!=Type.ELEMENT) {
                      return EmptyIterator.getInstance();
                  }
-                 return new NamespaceIterator(this, null);
-                 //return new NamespaceEnumeration(this);
+                 return NamespaceIterator.makeIterator(this, null);
 
             case Axis.PARENT:
                  getParent();
-                 return SingletonIterator.makeIterator(parent);
+                 return SingleNodeIterator.makeIterator(parent);
 
             case Axis.PRECEDING:
                  return new Navigator.PrecedingEnumeration(this, false);
@@ -783,11 +738,11 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
                     case Type.NAMESPACE:
                         return EmptyIterator.getInstance();
                     default:
-                        return new ChildEnumeration(this, false, false);
+                        return new ChildEnumeration(this, false, false, false);
                  }
 
             case Axis.SELF:
-                 return SingletonIterator.makeIterator(this);
+                 return SingleNodeIterator.makeIterator(this);
 
             case Axis.PRECEDING_OR_ANCESTOR:
                  return new Navigator.PrecedingEnumeration(this, true);
@@ -805,6 +760,15 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     */
 
     public AxisIterator iterateAxis(byte axisNumber, NodeTest nodeTest) {
+        if (axisNumber == Axis.CHILD && nodeTest.getPrimitiveType() == Type.ELEMENT) {
+            // common case: avoid creating wrappers for the text nodes
+            if (hasChildNodes()) {
+                return new Navigator.AxisFilter(
+                        new ChildEnumeration(this, true, true, true), nodeTest);
+            } else {
+                return EmptyIterator.getInstance();
+            }
+        }
         return new Navigator.AxisFilter(iterateAxis(axisNumber), nodeTest);
     }
 
@@ -850,11 +814,8 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     */
 
     public boolean hasChildNodes() {
-        // In Xerces, an attribute node has child text nodes
-        if (node.getNodeType() == Node.ATTRIBUTE_NODE) {
-            return false;
-        }
-        return node.hasChildNodes();
+        // An attribute node has child text nodes
+        return node.getNodeType() != Node.ATTRIBUTE_NODE && node.hasChildNodes();
     }
 
     /**
@@ -888,18 +849,6 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     }
 
     /**
-    * Output all namespace nodes associated with this element. Does nothing if
-    * the node is not an element.
-    * @param out The relevant outputter
-     * @param includeAncestors True if namespaces declared on ancestor elements must
-     */
-
-    public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors)
-        throws XPathException {
-        Navigator.sendNamespaceDeclarations(this, out, includeAncestors);
-    }
-
-    /**
      * Get all namespace undeclarations and undeclarations defined on this element.
      *
      * @param buffer If this is non-null, and the result array fits in this buffer, then the result
@@ -924,7 +873,8 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
                 return EMPTY_NAMESPACE_LIST;
             }
             int count = 0;
-            for (int i=0; i<atts.getLength(); i++) {
+            final int attsLen = atts.getLength();
+            for (int i=0; i<attsLen; i++) {
                 Attr att = (Attr)atts.item(i);
                 String attName = att.getName();
                 if (attName.equals("xmlns")) {
@@ -936,10 +886,10 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
             if (count == 0) {
                 return EMPTY_NAMESPACE_LIST;
             } else {
-                int[] result = (count > buffer.length ? new int[count] : buffer);
+                int[] result = (buffer == null || count > buffer.length ? new int[count] : buffer);
                 NamePool pool = getNamePool();
                 int n = 0;
-                for (int i=0; i<atts.getLength(); i++) {
+                for (int i=0; i<attsLen; i++) {
                     Attr att = (Attr)atts.item(i);
                     String attName = att.getName();
                     if (attName.equals("xmlns")) {
@@ -963,6 +913,36 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
     }
 
 
+    /**
+     * Determine whether this node has the is-id property
+     *
+     * @return true if the node is an ID
+     */
+
+    public boolean isId() {
+        return false;
+    }
+
+    /**
+     * Determine whether this node has the is-idref property
+     *
+     * @return true if the node is an IDREF or IDREFS element or attribute
+     */
+
+    public boolean isIdref() {
+        return false;
+    }
+
+    /**
+     * Determine whether the node has the is-nilled property
+     *
+     * @return true if the node has the is-nilled property
+     */
+
+    public boolean isNilled() {
+        return false;
+    }
+
     private final class AttributeEnumeration implements AxisIterator, LookaheadIterator {
 
         private ArrayList attList = new ArrayList(10);
@@ -974,7 +954,8 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
             this.start = start;
             NamedNodeMap atts = start.node.getAttributes();
             if (atts != null) {
-                for (int i=0; i<atts.getLength(); i++) {
+                final int attsLen = atts.getLength();
+                for (int i=0; i<attsLen; i++) {
                     String name = atts.item(i).getNodeName();
                     if (!(name.startsWith("xmlns") &&
                             (name.length() == 5 || name.charAt(5) == ':'))) {
@@ -987,6 +968,17 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 
         public boolean hasNext() {
             return ix < attList.size();
+        }
+
+        /**
+         * Move to the next node, without returning it. Returns true if there is
+         * a next node, false if the end of the sequence has been reached. After
+         * calling this method, the current node may be retrieved using the
+         * current() function.
+         */
+
+        public boolean moveNext() {
+            return (next() != null);
         }
 
         public Item next() {
@@ -1007,6 +999,44 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
             return ix+1;
         }
 
+        public void close() {
+        }
+
+        /**
+         * Return an iterator over an axis, starting at the current node.
+         *
+         * @param axis the axis to iterate over, using a constant such as
+         *             {@link Axis#CHILD}
+         * @param test a predicate to apply to the nodes before returning them.
+         */
+
+        public AxisIterator iterateAxis(byte axis, NodeTest test) {
+            return current.iterateAxis(axis, test);
+        }
+
+        /**
+         * Return the atomized value of the current node.
+         *
+         * @return the atomized value.
+         * @throws NullPointerException if there is no current node
+         */
+
+        public Value atomize() throws XPathException {
+            return current.atomize();
+        }
+
+        /**
+         * Return the string value of the current node.
+         *
+         * @return the string value, as an instance of CharSequence.
+         * @throws NullPointerException if there is no current node
+         */
+
+        public CharSequence getStringValue() {
+            return current.getStringValueCS();
+        }
+
+
         public SequenceIterator getAnother() {
             return new AttributeEnumeration(start);
         }
@@ -1015,8 +1045,8 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
          * Get properties of this iterator, as a bit-significant integer.
          *
          * @return the properties of this iterator. This will be some combination of
-         *         properties such as {@link GROUNDED}, {@link LAST_POSITION_FINDER},
-         *         and {@link LOOKAHEAD}. It is always
+         *         properties such as {@link #GROUNDED}, {@link #LAST_POSITION_FINDER},
+         *         and {@link #LOOKAHEAD}. It is always
          *         acceptable to return the value zero, indicating that there are no known special properties.
          *         It is acceptable for the properties of the iterator to change depending on its state.
          */
@@ -1038,17 +1068,23 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 
         private NodeWrapper start;
         private NodeWrapper commonParent;
-        private ArrayList items = new ArrayList(20);
-        private int ix = 0;
         private boolean downwards;  // iterate children of start node (not siblings)
         private boolean forwards;   // iterate in document order (not reverse order)
+        private boolean elementsOnly;
+        NodeList childNodes;
+        private int childNodesLength;
+        private int ix;             // index of the current DOM node within childNodes;
+                                    // in the case of adjacent text nodes, index of the first in the group
+        private int currentSpan;    // number of DOM nodes mapping to the current XPath node
 
         public ChildEnumeration(NodeWrapper start,
-                                boolean downwards, boolean forwards)  {
+                                boolean downwards, boolean forwards, boolean elementsOnly)  {
             this.start = start;
             this.downwards = downwards;
             this.forwards = forwards;
+            this.elementsOnly = elementsOnly;
             position = 0;
+            currentSpan = 1;
 
             if (downwards) {
                 commonParent = start;
@@ -1056,109 +1092,139 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
                 commonParent = (NodeWrapper)start.getParent();
             }
 
-            NodeList childNodes = commonParent.node.getChildNodes();
+            childNodes = commonParent.node.getChildNodes();
+            childNodesLength = childNodes.getLength();
             if (downwards) {
-                if (!forwards) {
-                    // backwards enumeration: go to the end
-                    ix = childNodes.getLength() - 1;
+                currentSpan = 1;
+                if (forwards) {
+                    ix = -1;                        // just before first
+                } else {
+                    ix = childNodesLength;          // just after last
                 }
             } else {
-                ix = start.getSiblingPosition() + (forwards ? span : -1);
+                ix = start.getSiblingPosition();    // at current node
+                currentSpan = start.span;
             }
+        }
 
-            if (forwards) {
-                boolean previousText = false;
-                for (int i=ix; i<childNodes.getLength(); i++) {
-                    boolean thisText = false;
-                    Node node = childNodes.item(i);
-                    switch (node.getNodeType()) {
-                        case Node.DOCUMENT_TYPE_NODE:
-                            break;
-                        case Node.TEXT_NODE:
-                        case Node.CDATA_SECTION_NODE:
-                            thisText = true;
-                            if (previousText) {
-                                if (isAtomizing()) {
-                                    UntypedAtomicValue old = (UntypedAtomicValue)(items.get(items.size()-1));
-                                    String newval = old.getStringValue() + getStringValue(node, node.getNodeType());
-                                    items.set(items.size()-1, new UntypedAtomicValue(newval));
-                                } else {
-                                    NodeWrapper old = ((NodeWrapper)items.get(items.size()-1));
-                                    old.span++;
-                                }
-                                break;
-                            }
-                            // otherwise fall through to default case
-                        default:
-                            previousText = thisText;
-                            if (isAtomizing()) {
-                                items.add(new UntypedAtomicValue(
-                                        getStringValue(node, node.getNodeType())));
-                            } else {
-                                items.add(makeWrapper(node, docWrapper, commonParent, i));
-                            }
-                    }
-                }
-            } else {
-                boolean previousText = false;
-                for (int i=ix; i>=0; i--) {
-                    boolean thisText = false;
-                    Node node = childNodes.item(i);
-                    switch (node.getNodeType()) {
-                        case Node.DOCUMENT_TYPE_NODE:
-                            break;
-                        case Node.TEXT_NODE:
-                        case Node.CDATA_SECTION_NODE:
-                            thisText = true;
-                            if (previousText) {
-                                if (isAtomizing()) {
-                                    UntypedAtomicValue old = (UntypedAtomicValue)(items.get(items.size()-1));
-                                    String newval = old.getStringValue() + getStringValue(node, node.getNodeType());
-                                    items.set(items.size()-1, new UntypedAtomicValue(newval));
-                                } else {
-                                    NodeWrapper old = ((NodeWrapper)items.get(items.size()-1));
-                                    old.node = node;
-                                    old.span++;
-                                }
-                                break;
-                            }
-                            // otherwise fall through to default case
-                        default:
-                            previousText = thisText;
-                            if (isAtomizing()) {
-                                items.add(new UntypedAtomicValue(
-                                        getStringValue(node, node.getNodeType())));
-                            } else {
-                                items.add(makeWrapper(node, docWrapper, commonParent, i));
-                            }
-                    }
+        /**
+         * Starting with ix positioned at a node, which in the last in a span, calculate the length
+         * of the span, that is the number of DOM nodes mapped to this XPath node.
+         * @return the number of nodes spanned
+         */
+
+        private int skipPrecedingTextNodes() {
+            int count = 0;
+            while (ix >= count) {
+                Node node = childNodes.item(ix - count);
+                short kind = node.getNodeType();
+                if (kind == Node.TEXT_NODE || kind == Node.CDATA_SECTION_NODE) {
+                    count++;
+                } else {
+                    break;
                 }
             }
+            return (count == 0 ? 1 : count);
+        }
+
+        /**
+         * Starting with ix positioned at a node, which in the first in a span, calculate the length
+         * of the span, that is the number of DOM nodes mapped to this XPath node.
+         * @return the number of nodes spanned
+         */
+
+        private int skipFollowingTextNodes() {
+            int count = 0;
+            int pos = ix;
+            final int len = childNodesLength;
+            while (pos < len) {
+                Node node = childNodes.item(pos);
+                short kind = node.getNodeType();
+                if (kind == Node.TEXT_NODE || kind == Node.CDATA_SECTION_NODE) {
+                    pos++;
+                    count++;
+                } else {
+                    break;
+                }
+            }
+            return (count == 0 ? 1 : count);
         }
 
         public boolean hasNext() {
-            return position < items.size();
+            if (forwards) {
+                return ix + currentSpan < childNodesLength;
+            } else {
+                return ix > 0;
+            }
         }
 
         public Item next() {
-            if (position < items.size()) {
-                current = (Item)items.get(position++);
-                return current;
-            } else {
-                return null;
+            while (true) {
+                if (forwards) {
+                    ix += currentSpan;
+                    if (ix >= childNodesLength) {
+                        position = -1;
+                        return null;
+                    } else {
+                        currentSpan = skipFollowingTextNodes();
+                        Node currentDomNode = childNodes.item(ix);
+                        switch (currentDomNode.getNodeType()) {
+                            case Node.DOCUMENT_TYPE_NODE:
+                                continue;
+                            case Node.ELEMENT_NODE:
+                                break;
+                            default:
+                                if (elementsOnly) {
+                                    continue;
+                                } else {
+                                    break;
+                                }
+                        }
+                        NodeWrapper wrapper = makeWrapper(currentDomNode, docWrapper, commonParent, ix);
+                        wrapper.span = currentSpan;
+                        position++;
+                        return current = wrapper;
+                    }
+                } else {
+                    ix--;
+                    if (ix < 0) {
+                        position = -1;
+                        return null;
+                    } else {
+                        currentSpan = skipPrecedingTextNodes();
+                        ix -= (currentSpan - 1);
+                        Node currentDomNode = childNodes.item(ix);
+                        switch (currentDomNode.getNodeType()) {
+                            case Node.DOCUMENT_TYPE_NODE:
+                                continue;
+                            case Node.ELEMENT_NODE:
+                                break;
+                            default:
+                                if (elementsOnly) {
+                                    continue;
+                                } else {
+                                    break;
+                                }
+                        }
+                        NodeWrapper wrapper = makeWrapper(currentDomNode, docWrapper, commonParent, ix);
+                        wrapper.span = currentSpan;
+                        position++;
+                        return current = wrapper;
+                    }
+                }
             }
         }
 
         public SequenceIterator getAnother() {
-            return new ChildEnumeration(start, downwards, forwards);
+            return new ChildEnumeration(start, downwards, forwards, elementsOnly);
         }
 
         /**
          * Get properties of this iterator, as a bit-significant integer.
          *
          * @return the properties of this iterator. This will be some combination of
-         *         properties such as {@link GROUNDED}, {@link LAST_POSITION_FINDER},
-         *         and {@link LOOKAHEAD}. It is always
+         *         properties such as {@link #GROUNDED}, {@link #LAST_POSITION_FINDER},
+         *         and {@link #LOOKAHEAD}. It is always
          *         acceptable to return the value zero, indicating that there are no known special properties.
          *         It is acceptable for the properties of the iterator to change depending on its state.
          */

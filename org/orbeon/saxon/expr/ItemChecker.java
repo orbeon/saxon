@@ -1,19 +1,17 @@
 package org.orbeon.saxon.expr;
+import org.orbeon.saxon.event.SequenceReceiver;
+import org.orbeon.saxon.event.TypeCheckingFilter;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.trans.StaticError;
-import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.type.AnyItemType;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.type.TypeHierarchy;
-import org.orbeon.saxon.value.Value;
-import org.orbeon.saxon.value.Cardinality;
-import org.orbeon.saxon.event.SequenceReceiver;
-import org.orbeon.saxon.event.TypeCheckingFilter;
 import org.orbeon.saxon.pattern.DocumentNodeTest;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.pattern.CombinedNodeTest;
+import org.orbeon.saxon.trace.ExpressionPresenter;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.*;
+import org.orbeon.saxon.value.Cardinality;
+import org.orbeon.saxon.value.Value;
 
 /**
 * A ItemChecker implements the item type checking of "treat as": that is,
@@ -26,18 +24,22 @@ public final class ItemChecker extends UnaryExpression {
     private RoleLocator role;
 
     /**
-    * Constructor
+     * Constructor
+     * @param sequence the expression whose value we are checking
+     * @param itemType the required type of the items in the sequence
+     * @param role information used in constructing an error message
     */
 
     public ItemChecker(Expression sequence, ItemType itemType, RoleLocator role) {
         super(sequence);
-        this.requiredItemType = itemType;
+        requiredItemType = itemType;
         this.role = role;
         adoptChildExpression(sequence);
     }
 
     /**
      * Get the required type
+     * @return the required type of the items in the sequence
      */
 
     public ItemType getRequiredType() {
@@ -45,13 +47,22 @@ public final class ItemChecker extends UnaryExpression {
     }
 
     /**
-    * Simplify an expression
-    */
+     * Get the RoleLocator (used to construct error messages)
+     * @return the RoleLocator
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
-        operand = operand.simplify(env);
+    public RoleLocator getRoleLocator() {
+        return role;
+    }
+
+    /**
+    * Simplify an expression
+     * @param visitor an expression visitor
+     */
+
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        operand = visitor.simplify(operand);
         if (requiredItemType instanceof AnyItemType) {
-            ComputedExpression.setParentExpression(operand, getParentExpression());
             return operand;
         }
         return this;
@@ -61,11 +72,11 @@ public final class ItemChecker extends UnaryExpression {
     * Type-check the expression
     */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        operand = operand.typeCheck(env, contextItemType);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.typeCheck(operand, contextItemType);
         // When typeCheck is called a second time, we might have more information...
 
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
         int card = operand.getCardinality();
         if (card == StaticProperty.EMPTY) {
             //value is always empty, so no item checking needed
@@ -74,20 +85,21 @@ public final class ItemChecker extends UnaryExpression {
         ItemType supplied = operand.getItemType(th);
         int relation = th.relationship(requiredItemType, supplied);
         if (relation == TypeHierarchy.SAME_TYPE || relation == TypeHierarchy.SUBSUMES) {
-            ComputedExpression.setParentExpression(operand, getParentExpression());
             return operand;
         } else if (relation == TypeHierarchy.DISJOINT) {
+            final NamePool namePool = visitor.getConfiguration().getNamePool();
             if (Cardinality.allowsZero(card)) {
-                String message = role.composeErrorMessage(requiredItemType, operand.getItemType(th), env.getNamePool());
-                env.issueWarning("Warning: the only value that can pass type-checking is an empty sequence. " +
+
+                String message = role.composeErrorMessage(
+                        requiredItemType, operand.getItemType(th), namePool);
+                visitor.getStaticContext().issueWarning("The only value that can pass type-checking is an empty sequence. " +
                         message, this);
-            } else if (requiredItemType == Type.STRING_TYPE && th.isSubType(supplied, Type.ANY_URI_TYPE)) {
+            } else if (requiredItemType.equals(BuiltInAtomicType.STRING) && th.isSubType(supplied, BuiltInAtomicType.ANY_URI)) {
                 // URI promotion will take care of this at run-time
-                ComputedExpression.setParentExpression(operand, getParentExpression());
                 return operand;
             } else {
-                String message = role.composeErrorMessage(requiredItemType, operand.getItemType(th), env.getNamePool());
-                StaticError err = new StaticError(message);
+                String message = role.composeErrorMessage(requiredItemType, operand.getItemType(th), namePool);
+                XPathException err = new XPathException(message);
                 err.setErrorCode(role.getErrorCode());
                 err.setLocator(this);
                 err.setIsTypeError(true);
@@ -169,12 +181,21 @@ public final class ItemChecker extends UnaryExpression {
             context.setReceiver(filter);
             next.process(context);
             filter.close();
-            context.setReceiver(filter);
+            context.setReceiver(out);
         } else {
             super.process(context);
         }
     }
 
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new ItemChecker(getBaseExpression().copy(), requiredItemType, role);
+    }
 
 
     private void testConformance(Item item, XPathContext context) throws XPathException {
@@ -200,14 +221,31 @@ public final class ItemChecker extends UnaryExpression {
     }
 
     /**
-    * Determine the data type of the items returned by the expression
-     * @param th
+     * Determine the data type of the items returned by the expression
+     * @param th the type hierarchy cache
      */
 
 	public ItemType getItemType(TypeHierarchy th) {
-        // TODO: take the intersection of the required type with the static type of the operand
-	    return requiredItemType;
-	}
+        ItemType operandType = operand.getItemType(th);
+        int relationship = th.relationship(requiredItemType, operandType);
+        switch (relationship) {
+            case TypeHierarchy.OVERLAPS:
+                if (requiredItemType instanceof NodeTest && operandType instanceof NodeTest) {
+                    return new CombinedNodeTest((NodeTest)requiredItemType, Token.INTERSECT, (NodeTest)operandType);
+                } else {
+                    // we don't know how to intersect atomic types, it doesn't actually happen
+                    return requiredItemType;
+                }
+
+            case TypeHierarchy.SUBSUMES:
+            case TypeHierarchy.SAME_TYPE:
+                // shouldn't happen, but it doesn't matter
+                return operandType;
+            case TypeHierarchy.SUBSUMED_BY:
+            default:
+                return requiredItemType;
+        }
+    }
 
     /**
      * Is this expression the same as another expression?
@@ -219,14 +257,17 @@ public final class ItemChecker extends UnaryExpression {
     }
 
     /**
-     * Give a string representation of the operator for use in diagnostics
-     * @return the operator, as a string
-     * @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    protected String displayOperator(Configuration config) {
-        return "treat as " + requiredItemType.toString(config.getNamePool());
+    public void explain(ExpressionPresenter out) {
+        out.startElement("treat");
+        out.emitAttribute("as", requiredItemType.toString(out.getConfiguration().getNamePool()));
+        operand.explain(out);
+        out.endElement();
     }
+
 
 }
 

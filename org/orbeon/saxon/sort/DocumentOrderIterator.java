@@ -34,7 +34,7 @@ public final class DocumentOrderIterator implements SequenceIterator, Sortable {
             GenericSorter.quickSort(0, sequence.getLength(), this);
             //GenericSorter.mergeSort(0, sequence.getLength(), this);
         }
-        iterator = sequence.iterate(null);
+        iterator = sequence.iterate();
     }
 
     /**
@@ -103,6 +103,9 @@ public final class DocumentOrderIterator implements SequenceIterator, Sortable {
 
     public int position() {
         return position;
+    }
+
+    public void close() {
     }
 
     public SequenceIterator getAnother() throws XPathException {

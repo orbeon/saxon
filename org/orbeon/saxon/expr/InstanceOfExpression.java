@@ -1,14 +1,15 @@
 package org.orbeon.saxon.expr;
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
-import org.orbeon.saxon.value.*;
-
-import java.io.PrintStream;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.BooleanValue;
+import org.orbeon.saxon.value.Cardinality;
+import org.orbeon.saxon.value.SequenceType;
 
 /**
 * InstanceOf Expression: implements "Expr instance of data-type"
@@ -18,6 +19,12 @@ public final class InstanceOfExpression extends UnaryExpression {
 
     ItemType targetType;
     int targetCardinality;
+
+    /**
+     * Construct an "instance of" expression in the form "source instance of target"
+     * @param source the expression whose type is to be tested
+     * @param target the type against which it is tested
+     */
 
     public InstanceOfExpression(Expression source, SequenceType target) {
         super(source);
@@ -29,27 +36,46 @@ public final class InstanceOfExpression extends UnaryExpression {
     }
 
     /**
+     * Get the item type that we are testing for membership of
+     * @return the item type
+     */
+
+    public ItemType getRequiredItemType() {
+        return targetType;
+    }
+
+    /**
+     * Get the cardinality that we are testing for membership of
+     * @return the required cardinality
+     */
+
+    public int getRequiredCardinality() {
+        return targetCardinality;
+    }
+
+    /**
     * Type-check the expression
     * @return the checked expression
     */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        operand = operand.typeCheck(env, contextItemType);
-        if (operand instanceof Value) {
-            return (AtomicValue)evaluateItem(env.makeEarlyEvaluationContext());
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.typeCheck(operand, contextItemType);
+        if (operand instanceof Literal) {
+            return Literal.makeLiteral(
+                    (AtomicValue)evaluateItem(visitor.getStaticContext().makeEarlyEvaluationContext()));
         }
 
         // See if we can get the answer by static analysis.
 
         if (Cardinality.subsumes(targetCardinality, operand.getCardinality())) {
-            final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
+            final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
             int relation = th.relationship(operand.getItemType(th), targetType);
             if (relation == TypeHierarchy.SAME_TYPE || relation == TypeHierarchy.SUBSUMED_BY) {
-                return BooleanValue.TRUE;
+                return Literal.makeLiteral(BooleanValue.TRUE);
             } else if (relation == TypeHierarchy.DISJOINT) {
                 // if the item types are disjoint, the result might still be true if both sequences are empty
                 if (!Cardinality.allowsZero(targetCardinality) || !Cardinality.allowsZero(operand.getCardinality())) {
-                    return BooleanValue.FALSE;
+                    return Literal.makeLiteral(BooleanValue.FALSE);
                 }
             }
         }
@@ -62,32 +88,30 @@ public final class InstanceOfExpression extends UnaryExpression {
      * <p>This method is called after all references to functions and variables have been resolved
      * to the declaration of the function or variable, and after all type checking has been done.</p>
      *
-     * @param opt             the optimizer in use. This provides access to supporting functions; it also allows
-     *                        different optimization strategies to be used in different circumstances.
-     * @param env             the static context of the expression
+     * @param visitor an expression visitor
      * @param contextItemType the static type of "." at the point where this expression is invoked.
      *                        The parameter is set to null if it is known statically that the context item will be undefined.
      *                        If the type of the context item is not known statically, the argument is set to
      *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
      * @return the original expression, rewritten if appropriate to optimize execution
-     * @throws org.orbeon.saxon.trans.StaticError if an error is discovered during this phase
+     * @throws XPathException if an error is discovered during this phase
      *                                        (typically a type error)
      */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        Expression e = super.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression e = super.optimize(visitor, contextItemType);
         if (e != this) {
             return e;
         }
         if (Cardinality.subsumes(targetCardinality, operand.getCardinality())) {
-            final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
+            final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
             int relation = th.relationship(operand.getItemType(th), targetType);
             if (relation == TypeHierarchy.SAME_TYPE || relation == TypeHierarchy.SUBSUMED_BY) {
-                return BooleanValue.TRUE;
+                return Literal.makeLiteral(BooleanValue.TRUE);
             } else if (relation == TypeHierarchy.DISJOINT) {
                 // if the item types are disjoint, the result might still be true if both sequences are empty
                 if (!Cardinality.allowsZero(targetCardinality) || !Cardinality.allowsZero(operand.getCardinality())) {
-                    return BooleanValue.FALSE;
+                    return Literal.makeLiteral(BooleanValue.FALSE);
                 }
             }
         }
@@ -114,12 +138,23 @@ public final class InstanceOfExpression extends UnaryExpression {
     }
 
     /**
-    * Determine the data type of the result of the InstanceOf expression
-     * @param th
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new InstanceOfExpression(getBaseExpression().copy(), 
+                SequenceType.makeSequenceType(targetType, targetCardinality));
+    }
+
+    /**
+     * Determine the data type of the result of the InstanceOf expression
+     * @param th  the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
-        return Type.BOOLEAN_TYPE;
+        return BuiltInAtomicType.BOOLEAN;
     }
 
     /**
@@ -148,32 +183,21 @@ public final class InstanceOfExpression extends UnaryExpression {
                 return false;
             }
         }
-        if (count==0 && ((targetCardinality & StaticProperty.ALLOWS_ZERO)==0)) {
-            return false;
-        }
-        return true;
+        return !(count == 0 && ((targetCardinality & StaticProperty.ALLOWS_ZERO) == 0));
     }
 
+
     /**
-     * Give a string representation of the operator for use in diagnostics
-     * @return the operator, as a string
-     * @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    protected String displayOperator(Configuration config) {
-        return "instance of " + targetType.toString(config.getNamePool()) + Cardinality.getOccurrenceIndicator(targetCardinality);
-    }
-
-    /**
-    * Diagnostic print of expression structure
-    */
-
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "instance of" );
-        operand.display(level+1, out, config);
-        out.println(ExpressionTool.indent(level+1) +
-                targetType.toString(config.getNamePool()) +
-                Cardinality.getOccurrenceIndicator(targetCardinality));
+    public void explain(ExpressionPresenter destination) {
+        destination.startElement("instance");
+        destination.emitAttribute("of", targetType.toString(destination.getNamePool()));
+        destination.emitAttribute("occurs", Cardinality.getOccurrenceIndicator(targetCardinality));
+        operand.explain(destination);
+        destination.endElement();
     }
 
 }

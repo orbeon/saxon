@@ -1,16 +1,18 @@
 package org.orbeon.saxon.pattern;
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.event.LocationProvider;
 import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.instruct.Block;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.instruct.SlotManager;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.event.LocationProvider;
-import org.orbeon.saxon.Configuration;
 
 import java.io.Serializable;
-import java.util.Iterator;
 import java.util.Collections;
+import java.util.Iterator;
 
 /**
 * A Pattern represents the result of parsing an XSLT pattern string. <br>
@@ -18,7 +20,7 @@ import java.util.Collections;
 * The pattern is used to test a particular node by calling match().
 */
 
-public abstract class Pattern implements Serializable, Container {
+public abstract class Pattern implements PatternFinder, Serializable, Container {
 
     private String originalText;
     private Executable executable;
@@ -29,6 +31,7 @@ public abstract class Pattern implements Serializable, Container {
     * Static method to make a Pattern by parsing a String. <br>
     * @param pattern The pattern text as a String
     * @param env An object defining the compile-time context for the expression
+    * @param exec The executable containing this pattern
     * @return The pattern object
     */
 
@@ -41,14 +44,25 @@ public abstract class Pattern implements Serializable, Container {
         // set the pattern text for use in diagnostics
         pat.setOriginalText(pattern);
         pat.setExecutable(exec);
-        pat = pat.simplify(env);
+        ExpressionVisitor visitor = ExpressionVisitor.make(env);
+        visitor.setExecutable(exec);
+        pat = pat.simplify(visitor);
         return pat;
     }
 
+    /**
+     * Get the executable containing this pattern
+     * @return the executable
+     */
 
     public Executable getExecutable() {
         return executable;
     }
+
+    /**
+     * Set the executable containing this pattern
+     * @param executable the executable
+     */
 
     public void setExecutable(Executable executable) {
         this.executable = executable;
@@ -64,37 +78,43 @@ public abstract class Pattern implements Serializable, Container {
 
 
 	/**
-	* Set the original text of the pattern for use in diagnostics
-	*/
+	 * Set the original text of the pattern for use in diagnostics
+     * @param text the original text of the pattern
+	 */
 
 	public void setOriginalText(String text) {
 		originalText = text;
 	}
 
     /**
-    * Simplify the pattern by applying any context-independent optimisations.
-    * Default implementation does nothing.
-    * @return the optimised Pattern
-    */
+     * Simplify the pattern by applying any context-independent optimisations.
+     * Default implementation does nothing.
+     * @return the optimised Pattern
+     * @param visitor the expression visitor
+     */
 
-    public Pattern simplify(StaticContext env) throws XPathException {
+    public Pattern simplify(ExpressionVisitor visitor) throws XPathException {
         return this;
     }
 
     /**
-    * Type-check the pattern.
-    * Default implementation does nothing. This is only needed for patterns that contain
-    * variable references or function calls.
-    * @return the optimised Pattern
+     * Type-check the pattern.
+     * Default implementation does nothing. This is only needed for patterns that contain
+     * variable references or function calls.
+     * @param visitor the expression visitor
+     * @param contextItemType the type of the context item, if known, at the point where the pattern
+     * is defined
+     * @return the optimised Pattern
     */
 
-    public Pattern analyze(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Pattern analyze(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
         return this;
     }
 
     /**
      * Get the dependencies of the pattern. The only possible dependency for a pattern is
      * on local variables. This is analyzed in those patterns where local variables may appear.
+     * @return the dependencies, as a bit-significant mask
      */
 
     public int getDependencies() {
@@ -103,10 +123,22 @@ public abstract class Pattern implements Serializable, Container {
 
     /**
      * Iterate over the subexpressions within this pattern
+     * @return an iterator over the subexpressions. Default implementation returns an empty sequence
      */
 
     public Iterator iterateSubExpressions() {
         return Collections.EMPTY_LIST.iterator();
+    }
+
+   /**
+     * Allocate slots to any variables used within the pattern
+     * @param env the static context in the XSLT stylesheet
+     * @param slotManager the slot manager representing the stack frame for local variables
+     * @param nextFree the next slot that is free to be allocated @return the next slot that is free to be allocated
+     */
+
+    public int allocateSlots(StaticContext env, SlotManager slotManager, int nextFree) {
+        return nextFree;
     }
 
     /**
@@ -133,7 +165,8 @@ public abstract class Pattern implements Serializable, Container {
     }
 
     /**
-    * Set the system ID where the pattern occurred
+     * Set the system ID where the pattern occurred
+     * @param systemId the URI of the module containing the pattern
     */
 
     public void setSystemId(String systemId) {
@@ -141,7 +174,8 @@ public abstract class Pattern implements Serializable, Container {
     }
 
     /**
-    * Set the line number where the pattern occurred
+     * Set the line number where the pattern occurred
+     * @param lineNumber the line number of the pattern in the source module
     */
 
     public void setLineNumber(int lineNumber) {
@@ -173,6 +207,130 @@ public abstract class Pattern implements Serializable, Container {
         return matches(node, context);
     }
 
+   /**
+     * Select nodes in a document using this PatternFinder.
+     * @param doc the document node at the root of a tree
+     * @param context the dynamic evaluation context
+     * @return an iterator over the selected nodes in the document.
+     */
+
+    public SequenceIterator selectNodes(DocumentInfo doc, final XPathContext context) throws XPathException {
+       final int kind = getNodeKind();
+       switch (kind) {
+            case Type.DOCUMENT:
+                if (matches(doc, context)) {
+                    return SingletonIterator.makeIterator(doc);
+                } else {
+                    return EmptyIterator.getInstance();
+                }
+            case Type.ATTRIBUTE: {
+                AxisIterator allElements = doc.iterateAxis(Axis.DESCENDANT, NodeKindTest.ELEMENT);
+                MappingFunction atts = new MappingFunction() {
+                    public SequenceIterator map(Item item) {
+                        return ((NodeInfo)item).iterateAxis(Axis.ATTRIBUTE);
+                    }
+                };
+                SequenceIterator allAttributes = new MappingIterator(allElements, atts);
+                ItemMappingFunction test = new ItemMappingFunction() {
+                    public Item map(Item item) throws XPathException {
+                        if ((matches((NodeInfo)item, context))) {
+                            return item;
+                        } else {
+                            return null;
+                        }
+                    }
+                };
+                return new ItemMappingIterator(allAttributes, test);
+            }
+            case Type.ELEMENT:
+            case Type.COMMENT:
+            case Type.TEXT:
+            case Type.PROCESSING_INSTRUCTION: {
+                AxisIterator allChildren = doc.iterateAxis(Axis.DESCENDANT, NodeKindTest.makeNodeKindTest(kind));
+                ItemMappingFunction test = new ItemMappingFunction() {
+                    public Item map(Item item) throws XPathException {
+                        if ((matches((NodeInfo)item, context))) {
+                            return item;
+                        } else {
+                            return null;
+                        }
+                    }
+                };
+                return new ItemMappingIterator(allChildren, test);
+            }
+            case Type.NODE: {
+                AxisIterator allChildren = doc.iterateAxis(Axis.DESCENDANT);
+                MappingFunction attsOrSelf = new MappingFunction() {
+                    public SequenceIterator map(Item item) {
+                        return new PrependIterator((NodeInfo)item, ((NodeInfo)item).iterateAxis(Axis.ATTRIBUTE));
+                    }
+                };
+                SequenceIterator attributesOrSelf = new MappingIterator(allChildren, attsOrSelf);
+                ItemMappingFunction test = new ItemMappingFunction() {
+                    public Item map(Item item) throws XPathException {
+                        if ((matches((NodeInfo)item, context))) {
+                            return item;
+                        } else {
+                            return null;
+                        }
+                    }
+                };
+                return new ItemMappingIterator(attributesOrSelf, test);
+            }
+            case Type.NAMESPACE:
+               throw new UnsupportedOperationException("Patterns can't match namespace nodes");
+            default:
+               throw new UnsupportedOperationException("Unknown node kind");
+        }
+    }
+
+    /**
+     * Make an expression whose effect is to select all the nodes that match this pattern
+     * in a given document. This expression takes the root of the tree (always a document node)
+     * as the context node; it takes into account all the constraints expressed by the pattern
+     * including the parent and ancestor nodes and the filters
+     */
+
+    public Expression makeSearchExpression() {
+        // TODO:PERF could improve the logic for LocationPathPatterns
+        final int kind = getNodeKind();
+        Expression base;
+        switch (kind) {
+            case Type.DOCUMENT:
+                base = new ContextItemExpression();
+                break;
+            case Type.ATTRIBUTE:
+                Expression allElements = new AxisExpression(Axis.DESCENDANT, NodeKindTest.ELEMENT);
+                base = new PathExpression(allElements,
+                        new AxisExpression(Axis.ATTRIBUTE, AnyNodeTest.getInstance()));
+                break;
+
+            case Type.ELEMENT:
+            case Type.COMMENT:
+            case Type.TEXT:
+            case Type.PROCESSING_INSTRUCTION:
+                base = new AxisExpression(Axis.DESCENDANT, NodeKindTest.makeNodeKindTest(kind));
+                break;
+
+            case Type.NODE:
+                Expression allChildren = new AxisExpression(Axis.DESCENDANT, NodeKindTest.ELEMENT);
+                Block block = new Block();
+                Expression[] union = {new ContextItemExpression(),
+                                      new AxisExpression(Axis.ATTRIBUTE, AnyNodeTest.getInstance())};
+                block.setChildren(union);
+                base = new PathExpression(allChildren, block);
+                break;
+
+            case Type.NAMESPACE:
+               throw new UnsupportedOperationException("Patterns can't match namespace nodes");
+            default:
+               throw new UnsupportedOperationException("Unknown node kind");
+        }
+
+        return new FilterExpression(base, new PatternMatchExpression(this));
+
+    }
+
     /**
     * Determine the types of nodes to which this pattern applies. Used for optimisation.
     * For patterns that match nodes of several types, return Type.NODE
@@ -194,14 +352,16 @@ public abstract class Pattern implements Serializable, Container {
     }
 
     /**
-    * Get a NodeTest that all the nodes matching this pattern must satisfy
+     * Get a NodeTest that all the nodes matching this pattern must satisfy
+     * @return a NodeTest, as specific as possible, which all the matching nodes satisfy
     */
 
     public abstract NodeTest getNodeTest();
 
     /**
-    * Determine the default priority to use if this pattern appears as a match pattern
-    * for a template with no explicit priority attribute.
+     * Determine the default priority to use if this pattern appears as a match pattern
+     * for a template with no explicit priority attribute.
+     * @return the default priority for the pattern
     */
 
     public double getDefaultPriority() {

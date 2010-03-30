@@ -1,8 +1,5 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.PositionIterator;
-import org.orbeon.saxon.expr.TailExpression;
-import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.expr.Token;
+import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.om.EmptyIterator;
 import org.orbeon.saxon.trans.XPathException;
@@ -10,7 +7,8 @@ import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.NumericValue;
-import org.orbeon.saxon.value.IntegerValue;
+import org.orbeon.saxon.value.Int64Value;
+import org.orbeon.saxon.value.EmptySequence;
 
 /**
 * Implements the XPath 2.0 subsequence()  function
@@ -19,14 +17,10 @@ import org.orbeon.saxon.value.IntegerValue;
 
 public class Subsequence extends SystemFunction {
 
-    // Ideally, we would simply convert this at compile time to a filter expression.
-    // Unfortunately, this is not always possible, because a filter expression changes
-    // the focus for evaluating the filter expression, while this function does not.
-
     /**
     * Determine the data type of the items in the sequence
     * @return the type of the argument
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
@@ -43,6 +37,52 @@ public class Subsequence extends SystemFunction {
         return argument[0].getSpecialProperties();
     }
 
+
+    /**
+     * Determine the cardinality of the function.
+     */
+
+    public int computeCardinality() {
+        if (getNumberOfArguments() == 3 && Literal.isConstantOne(argument[2])) {
+            return StaticProperty.ALLOWS_ZERO_OR_ONE;
+        }
+        return argument[0].getCardinality() | StaticProperty.ALLOWS_ZERO;
+    }
+
+    /**
+     * Perform optimisation of an expression and its subexpressions.
+     * <p/>
+     * <p>This method is called after all references to functions and variables have been resolved
+     * to the declaration of the function or variable, and after all type checking has been done.</p>
+     *
+     * @param visitor         an expression visitor
+     * @param contextItemType the static type of "." at the point where this expression is invoked.
+     *                        The parameter is set to null if it is known statically that the context item will be undefined.
+     *                        If the type of the context item is not known statically, the argument is set to
+     *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
+     * @return the original expression, rewritten if appropriate to optimize execution
+     * @throws org.orbeon.saxon.trans.XPathException
+     *          if an error is discovered during this phase
+     *          (typically a type error)
+     */
+
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression e = super.optimize(visitor, contextItemType);
+        if (e != this) {
+            return e;
+        }
+        if (getNumberOfArguments() == 2 && Literal.isAtomic(argument[1])) {
+            NumericValue start = (NumericValue)((Literal)argument[1]).getValue();
+            start = start.round();
+            long intstart = start.longValue();
+            if (intstart > Integer.MAX_VALUE) {
+                return new Literal(EmptySequence.getInstance());
+            }
+            return new TailExpression(argument[0], (int)intstart);
+        }
+        return this;
+    }
+
     /**
     * Evaluate the function to return an iteration of selected nodes.
     */
@@ -50,20 +90,20 @@ public class Subsequence extends SystemFunction {
     public SequenceIterator iterate(XPathContext context) throws XPathException {
         SequenceIterator seq = argument[0].iterate(context);
         AtomicValue startVal0 = (AtomicValue)argument[1].evaluateItem(context);
-        NumericValue startVal = (NumericValue)startVal0.getPrimitiveValue();
+        NumericValue startVal = (NumericValue)startVal0;
 
         if (argument.length == 2) {
             long lstart;
-            if (startVal instanceof IntegerValue) {
-                lstart = ((IntegerValue)startVal).longValue();
+            if (startVal instanceof Int64Value) {
+                lstart = startVal.longValue();
                 if (lstart <= 1) {
                     return seq;
                 }
             } else {
                 startVal = startVal.round();
-                if (startVal.compareTo(IntegerValue.PLUS_ONE) <= 0) {
+                if (startVal.compareTo(Int64Value.PLUS_ONE) <= 0) {
                     return seq;
-                } else if (startVal.compareTo(IntegerValue.MAX_LONG) > 0) {
+                } else if (startVal.compareTo(Int64Value.MAX_LONG) > 0) {
                     return EmptyIterator.getInstance();
                 } else if (startVal.isNaN()) {
                     return EmptyIterator.getInstance();
@@ -77,21 +117,21 @@ public class Subsequence extends SystemFunction {
                 return EmptyIterator.getInstance();
             }
 
-            return new TailExpression.TailIterator(seq, (int)lstart);
+            return TailIterator.make(seq, (int)lstart);
 
         } else {
 
             // There are three arguments
 
             AtomicValue lengthVal0 = (AtomicValue)argument[2].evaluateItem(context);
-            NumericValue lengthVal = (NumericValue)lengthVal0.getPrimitiveValue();
+            NumericValue lengthVal = (NumericValue)lengthVal0;
 
-            if (startVal instanceof IntegerValue && lengthVal instanceof IntegerValue) {
-                long lstart = ((IntegerValue)startVal).longValue();
+            if (startVal instanceof Int64Value && lengthVal instanceof Int64Value) {
+                long lstart = startVal.longValue();
                 if (lstart > Integer.MAX_VALUE) {
                     return EmptyIterator.getInstance();
                 }
-                long llength = ((IntegerValue)lengthVal).longValue();
+                long llength = lengthVal.longValue();
                 if (llength > Integer.MAX_VALUE) {
                     llength = Integer.MAX_VALUE;
                 }
@@ -103,12 +143,12 @@ public class Subsequence extends SystemFunction {
                     return EmptyIterator.getInstance();
                 }
                 int start = (lstart < 1 ? 1 : (int)lstart);
-                return PositionIterator.make(seq, start, (int)lend);
+                return SubsequenceIterator.make(seq, start, (int)lend);
             } else {
                 if (startVal.isNaN()) {
                     return EmptyIterator.getInstance();
                 }
-                if (startVal.compareTo(IntegerValue.MAX_LONG) > 0) {
+                if (startVal.compareTo(Int64Value.MAX_LONG) > 0) {
                     return EmptyIterator.getInstance();
                 }
                 startVal = startVal.round();
@@ -118,18 +158,19 @@ public class Subsequence extends SystemFunction {
                 }
                 lengthVal = lengthVal.round();
 
-                if (lengthVal.compareTo(IntegerValue.ZERO) <= 0) {
+                if (lengthVal.compareTo(Int64Value.ZERO) <= 0) {
                     return EmptyIterator.getInstance();
                 }
-                NumericValue rend = startVal
-                        .arithmetic(Token.PLUS, lengthVal, context)
-                        .arithmetic(Token.MINUS, IntegerValue.PLUS_ONE, context);
-                if (rend.compareTo(IntegerValue.ZERO) <= 0) {
+                NumericValue rend = (NumericValue)ArithmeticExpression.compute(
+                        startVal, Calculator.PLUS, lengthVal, context);
+                rend = (NumericValue)ArithmeticExpression.compute(
+                        rend, Calculator.MINUS, Int64Value.PLUS_ONE, context);
+                if (rend.compareTo(Int64Value.ZERO) <= 0) {
                     return EmptyIterator.getInstance();
                 }
 
                 long lstart;
-                if (startVal.compareTo(IntegerValue.PLUS_ONE) <= 0) {
+                if (startVal.compareTo(Int64Value.PLUS_ONE) <= 0) {
                     lstart = 1;
                 } else {
                     lstart = startVal.longValue();
@@ -139,12 +180,12 @@ public class Subsequence extends SystemFunction {
                 }
 
                 long lend;
-                if (rend.compareTo(IntegerValue.MAX_LONG) >= 0) {
+                if (rend.compareTo(Int64Value.MAX_LONG) >= 0) {
                     lend = Integer.MAX_VALUE;
                 } else {
                     lend = rend.longValue();
                 }
-                return PositionIterator.make(seq, (int)lstart, (int)lend);
+                return SubsequenceIterator.make(seq, (int)lstart, (int)lend);
 
             }
         }

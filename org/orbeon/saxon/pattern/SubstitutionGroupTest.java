@@ -11,24 +11,46 @@ import org.orbeon.saxon.type.Type;
   * a given set of names: it is used for KindTests of the form schema-element(N) where all
   * elements in a substitution group are to be matched.
   *
+  * <p>Note that the SubstitutionGroupTest only tests whether the element name is in the
+  * required set of names. It does not test that the content type matches. For this reason,
+  * it is always used as part of a CombinedNodeTest that also tests the type annotation.</p>
+  *
   * @author Michael H. Kay
   */
 
 public class SubstitutionGroupTest extends NodeTest {
 
-	private int fingerprint;
+	private int head;
     private IntHashSet group;
 
     /**
      * Constructor
+     * @param head The name of the head element of the substitution group
      * @param group An IntSet containing Integer values representing the fingerprints
      * of element names included in the substitution group
      */
 
-	public SubstitutionGroupTest(int fingerprint, IntHashSet group) {
+	public SubstitutionGroupTest(int head, IntHashSet group) {
 		this.group = group;
-        this.fingerprint = fingerprint;
+        this.head = head;
 	}
+
+    /**
+     * Constructor
+     * @param head The name of the head element of the substitution group
+     * @param members An array containing integer values representing the fingerprints
+     * of element names included in the substitution group
+     */
+
+	public SubstitutionGroupTest(int head, int[] members) {
+        //(used from XQuery compiled code)
+        group = new IntHashSet(members.length);
+        for (int i=0; i<members.length; i++) {
+            group.add(members[i]);
+        }
+        this.head = head;
+	}
+
 
    /**
     * Test whether this node test is satisfied by a given node
@@ -112,11 +134,11 @@ public class SubstitutionGroupTest extends NodeTest {
      */
 
     public int getHeadFingerprint() {
-        return fingerprint;
+        return head;
     }
 
     public String toString(NamePool pool) {
-        return "schema-element(" + pool.getDisplayName(fingerprint) + ')';
+        return "schema-element(" + pool.getDisplayName(head) + ')';
     }
 
     /**
@@ -124,12 +146,12 @@ public class SubstitutionGroupTest extends NodeTest {
       */
 
      public int hashCode() {
-         return fingerprint;
+         return head;
      }
 
     public boolean equals(Object other) {
         return other instanceof SubstitutionGroupTest &&
-                ((SubstitutionGroupTest)other).fingerprint == fingerprint;
+                ((SubstitutionGroupTest)other).head == head;
     }
 
 

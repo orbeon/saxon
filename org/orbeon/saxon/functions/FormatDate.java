@@ -1,35 +1,33 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.ExpressionVisitor;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.instruct.NumberInstruction;
+import org.orbeon.saxon.number.NamedTimeZone;
 import org.orbeon.saxon.number.Numberer;
 import org.orbeon.saxon.om.FastStringBuffer;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.trans.DynamicError;
-import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.*;
 
+import java.math.BigDecimal;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.math.BigDecimal;
 
 /**
- * Implement the format-date() function in XPath 2.0
+ * Implement the format-date() function in XSLT 2.0
  */
 
 public class FormatDate extends SystemFunction implements XSLTFunction {
 
-    public void checkArguments(StaticContext env) throws XPathException {
+    public void checkArguments(ExpressionVisitor visitor) throws XPathException {
         int numArgs = argument.length;
         if (numArgs != 2 && numArgs != 5) {
-            throw new StaticError("Function " + getDisplayName(env.getNamePool()) +
+            throw new XPathException("Function " + getDisplayName() +
                     " must have either two or five arguments",
-                    ExpressionTool.getLocator(this));
+                    this);
         }
-        super.checkArguments(env);
+        super.checkArguments(visitor);
     }
 
     /**
@@ -52,7 +50,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
             calendarVal = (StringValue)argument[3].evaluateItem(context);
             countryVal = (StringValue)argument[4].evaluateItem(context);
             if (languageVal==null) {
-                language = Locale.getDefault().getLanguage();
+                language = getDefaultLanguage(context);
             } else {
                 language = languageVal.getStringValue();
                 if (language.length() >= 2) {
@@ -62,15 +60,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
                 }
             }
         } else {
-            // Default language is "en", unless (a) the Java default locale is some other language, and
-            // (b) there is a loadable Numberer for that language.
-            language = Locale.getDefault().getLanguage();
-            if (!language.equals("en")) {
-                Numberer numberer = NumberInstruction.makeNumberer(language, "us", context);
-                if (!numberer.getClass().getName().endsWith("Numberer_" + language)) {
-                    language = "en";
-                }
-            }
+            language = getDefaultLanguage(context);
         }
 
         String country = (countryVal == null ? null : countryVal.getStringValue());
@@ -85,8 +75,31 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
     }
 
     /**
+     * Default language is "en", unless (a) the Java default locale is some other language, and
+     *  (b) there is a loadable Numberer for that language.
+     * @param context the XPath dynamic context
+     * @return the default language
+     */
+    private static String getDefaultLanguage(XPathContext context) {
+        String language = Locale.getDefault().getLanguage();
+        if (!language.equals("en")) {
+            Numberer numberer = NumberInstruction.makeNumberer(language, "us", context);
+            if (!numberer.getClass().getName().endsWith("Numberer_" + language)) {
+                language = "en";
+            }
+        }
+        return language;
+    }
+
+    /**
      * This method analyzes the formatting picture and delegates the work of formatting
      * individual parts of the date.
+     * @param value the value to be formatted
+     * @param format the supplied format picture
+     * @param language the chosen language
+     * @param country the chosen country
+     * @param context the XPath dynamic evaluation context
+     * @return the formatted date/time
      */
 
     private static CharSequence formatDate(CalendarValue value, String format, String language, String country, XPathContext context)
@@ -104,7 +117,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
                 if (format.charAt(i) == ']') {
                     i++;
                     if (i == format.length() || format.charAt(i) != ']') {
-                        DynamicError e = new DynamicError("Closing ']' in date picture must be written as ']]'");
+                        XPathException e = new XPathException("Closing ']' in date picture must be written as ']]'");
                         e.setErrorCode("XTDE1340");
                         e.setXPathContext(context);
                         throw e;
@@ -123,7 +136,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
             } else {
                 int close = (i < format.length() ? format.indexOf("]", i) : -1);
                 if (close == -1) {
-                    DynamicError e = new DynamicError("Date format contains a '[' with no matching ']'");
+                    XPathException e = new XPathException("Date format contains a '[' with no matching ']'");
                     e.setErrorCode("XTDE1340");
                     e.setXPathContext(context);
                     throw e;
@@ -148,7 +161,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
 
         Matcher matcher = componentPattern.matcher(specifier);
         if (!matcher.matches()) {
-            DynamicError error = new DynamicError("Unrecognized date/time component [" + specifier + ']');
+            XPathException error = new XPathException("Unrecognized date/time component [" + specifier + ']');
             error.setErrorCode("XTDE1340");
             error.setXPathContext(context);
             throw error;
@@ -182,200 +195,177 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
         }
 
         switch (component.charAt(0)) {
-            case 'Y':       // year
-                if (ignoreDate) {
-                    DynamicError error = new DynamicError("In formatTime(): an xs:time value does not contain a year component");
-                    error.setErrorCode("XTDE1350");
-                    error.setXPathContext(context);
-                    throw error;
-                } else {
-                    int year = dtvalue.getYear();
-                    if (year < 0) {
-                        year = 1 - year;
-                    }
-                    return formatNumber(component, year, format, defaultFormat, numberer, context);
+        case'Y':       // year
+            if (ignoreDate) {
+                XPathException error = new XPathException("In formatTime(): an xs:time value does not contain a year component");
+                error.setErrorCode("XTDE1350");
+                error.setXPathContext(context);
+                throw error;
+            } else {
+                int year = dtvalue.getYear();
+                if (year < 0) {
+                    year = 1 - year;
                 }
-            case 'M':       // month
-                if (ignoreDate) {
-                    DynamicError error = new DynamicError(
-                            "In formatTime(): an xs:time value does not contain a month component");
-                    error.setErrorCode("XTDE1350");
-                    error.setXPathContext(context);
-                    throw error;
-                } else {
-                    int month = dtvalue.getMonth();
-                    return formatNumber(component, month, format, defaultFormat, numberer, context);
+                return formatNumber(component, year, format, defaultFormat, numberer, context);
+            }
+        case'M':       // month
+            if (ignoreDate) {
+                XPathException error = new XPathException("In formatTime(): an xs:time value does not contain a month component");
+                error.setErrorCode("XTDE1350");
+                error.setXPathContext(context);
+                throw error;
+            } else {
+                int month = dtvalue.getMonth();
+                return formatNumber(component, month, format, defaultFormat, numberer, context);
+            }
+        case'D':       // day in month
+            if (ignoreDate) {
+                XPathException error = new XPathException("In formatTime(): an xs:time value does not contain a day component");
+                error.setErrorCode("XTDE1350");
+                error.setXPathContext(context);
+                throw error;
+            } else {
+                int day = dtvalue.getDay();
+                return formatNumber(component, day, format, defaultFormat, numberer, context);
+            }
+        case'd':       // day in year
+            if (ignoreDate) {
+                XPathException error = new XPathException("In formatTime(): an xs:time value does not contain a day component");
+                error.setErrorCode("XTDE1350");
+                error.setXPathContext(context);
+                throw error;
+            } else {
+                int day = DateValue.getDayWithinYear(dtvalue.getYear(), dtvalue.getMonth(), dtvalue.getDay());
+                return formatNumber(component, day, format, defaultFormat, numberer, context);
+            }
+        case'W':       // week of year
+            if (ignoreDate) {
+                XPathException error = new XPathException("In formatTime(): cannot obtain the week number from an xs:time value");
+                error.setErrorCode("XTDE1350");
+                error.setXPathContext(context);
+                throw error;
+            } else {
+                int week = DateValue.getWeekNumber(dtvalue.getYear(), dtvalue.getMonth(), dtvalue.getDay());
+                return formatNumber(component, week, format, defaultFormat, numberer, context);
+            }
+        case'w':       // week in month
+            if (ignoreDate) {
+                XPathException error = new XPathException("In formatTime(): cannot obtain the week number from an xs:time value");
+                error.setErrorCode("XTDE1350");
+                error.setXPathContext(context);
+                throw error;
+            } else {
+                int week = DateValue.getWeekNumberWithinMonth(dtvalue.getYear(), dtvalue.getMonth(), dtvalue.getDay());
+                return formatNumber(component, week, format, defaultFormat, numberer, context);
+            }
+        case'H':       // hour in day
+            if (ignoreTime) {
+                XPathException error = new XPathException("In formatDate(): an xs:date value does not contain an hour component");
+                error.setErrorCode("XTDE1350");
+                error.setXPathContext(context);
+                throw error;
+            } else {
+                Int64Value hour = (Int64Value)value.getComponent(Component.HOURS);
+                return formatNumber(component, (int)hour.longValue(), format, defaultFormat, numberer, context);
+            }
+        case'h':       // hour in half-day (12 hour clock)
+            if (ignoreTime) {
+                XPathException error = new XPathException("In formatDate(): an xs:date value does not contain an hour component");
+                error.setErrorCode("XTDE1350");
+                error.setXPathContext(context);
+                throw error;
+            } else {
+                Int64Value hour = (Int64Value)value.getComponent(Component.HOURS);
+                int hr = (int)hour.longValue();
+                if (hr > 12) {
+                    hr = hr - 12;
                 }
-            case 'D':       // day in month
-                if (ignoreDate) {
-                    DynamicError error = new DynamicError(
-                            "In formatTime(): an xs:time value does not contain a day component");
-                    error.setErrorCode("XTDE1350");
-                    error.setXPathContext(context);
-                    throw error;
-                } else {
-                    int day = dtvalue.getDay();
-                    return formatNumber(component, day, format, defaultFormat, numberer, context);
+                if (hr == 0) {
+                    hr = 12;
                 }
-            case 'd':       // day in year
-                if (ignoreDate) {
-                    DynamicError error = new DynamicError(
-                            "In formatTime(): an xs:time value does not contain a day component");
-                    error.setErrorCode("XTDE1350");
-                    error.setXPathContext(context);
-                    throw error;
-                } else {
-                    int day = DateValue.getDayWithinYear(dtvalue.getYear(), dtvalue.getMonth(), dtvalue.getDay());
-                    return formatNumber(component, day, format, defaultFormat, numberer, context);
-                }
-            case 'W':       // week of year
-                if (ignoreDate) {
-                    DynamicError error = new DynamicError(
-                            "In formatTime(): cannot obtain the week number from an xs:time value");
-                    error.setErrorCode("XTDE1350");
-                    error.setXPathContext(context);
-                    throw error;
-                } else {
-                    int week = DateValue.getWeekNumber(dtvalue.getYear(), dtvalue.getMonth(), dtvalue.getDay());
-                    return formatNumber(component, week, format, defaultFormat, numberer, context);
-                }
-            case 'w':       // week in month
-                if (ignoreDate) {
-                    DynamicError error = new DynamicError(
-                            "In formatTime(): cannot obtain the week number from an xs:time value");
-                    error.setErrorCode("XTDE1350");
-                    error.setXPathContext(context);
-                    throw error;
-                } else {
-                    int week = DateValue.getWeekNumberWithinMonth(dtvalue.getYear(), dtvalue.getMonth(), dtvalue.getDay());
-                    return formatNumber(component, week, format, defaultFormat, numberer, context);
-                }
-            case 'H':       // hour in day
-                if (ignoreTime) {
-                    DynamicError error = new DynamicError(
-                            "In formatDate(): an xs:date value does not contain an hour component");
-                    error.setErrorCode("XTDE1350");
-                    error.setXPathContext(context);
-                    throw error;
-                } else {
-                    IntegerValue hour = (IntegerValue)value.getComponent(Component.HOURS);
-                    return formatNumber(component, (int)hour.longValue(), format, defaultFormat, numberer, context);
-                }
-            case 'h':       // hour in half-day (12 hour clock)
-                if (ignoreTime) {
-                    DynamicError error = new DynamicError(
-                            "In formatDate(): an xs:date value does not contain an hour component");
-                    error.setErrorCode("XTDE1350");
-                    error.setXPathContext(context);
-                    throw error;
-                } else {
-                    IntegerValue hour = (IntegerValue)value.getComponent(Component.HOURS);
-                    int hr = (int)hour.longValue();
-                    if (hr > 12) {
-                        hr = hr - 12;
-                    }
-                    if (hr == 0) {
-                        hr = 12;
-                    }
-                    return formatNumber(component, hr, format, defaultFormat, numberer, context);
-                }
-            case 'm':       // minutes
-                if (ignoreTime) {
-                    DynamicError error = new DynamicError(
-                            "In formatDate(): an xs:date value does not contain a minutes component");
-                    error.setErrorCode("XTDE1350");
-                    error.setXPathContext(context);
-                    throw error;
-                } else {
-                    IntegerValue min = (IntegerValue)value.getComponent(Component.MINUTES);
-                    return formatNumber(component, (int)min.longValue(), format, defaultFormat, numberer, context);
-                }
-            case 's':       // seconds
-                if (ignoreTime) {
-                    DynamicError error = new DynamicError(
-                            "In formatDate(): an xs:date value does not contain a seconds component");
-                    error.setErrorCode("XTDE1350");
-                    error.setXPathContext(context);
-                    throw error;
-                } else {
-                    // TODO: should we be ignoring the fractional part of the seconds (use Component.WHOLE_SECONDS)
-                    DecimalValue sec = (DecimalValue)value.getComponent(Component.SECONDS);
-                    return formatNumber(component, sec.getValue().intValue(), format, defaultFormat, numberer, context);
-                }
-            case 'f':       // fractional seconds
-                // ignore the format
-                if (ignoreTime) {
-                    DynamicError error = new DynamicError(
-                            "In formatDate(): an xs:date value does not contain a fractional seconds component");
-                    error.setErrorCode("XTDE1350");
-                    error.setXPathContext(context);
-                    throw error;
-                } else {
-                    int micros = (int)((IntegerValue)value.getComponent(Component.MICROSECONDS)).longValue();
-                    return formatNumber(component, micros, format, defaultFormat, numberer, context);
-                }
-            case 'Z':       // timezone in +hh:mm format, unless format=N in which case use timezone name
-                if (value.hasTimezone()) {
-                    if (format.startsWith("N")) {
-                        return numberer.getTimezoneName(value.getTimezoneInMinutes());
-                    } else if (format.startsWith("n")) {
-                        return numberer.getTimezoneName(value.getTimezoneInMinutes()).toLowerCase();
-                    } else {
-                        FastStringBuffer sbz = new FastStringBuffer(8);
-                        value.appendTimezone(sbz);
-                        return sbz.toString();
-                    }
-                } else {
-                    return "";
-                }
-            case 'z':       // timezone
-                if (value.hasTimezone()) {
-                    int tz = value.getTimezoneInMinutes();
-                    return "GMT" + (tz==0 ? "" : ((tz>0 ? "+" : "-") + Math.abs(tz/60) + (tz%60 == 0 ? "" : ".5")));
-                } else {
-                    return "";
-                }
-            case 'F':       // day of week
-                if (ignoreDate) {
-                    DynamicError error = new DynamicError(
-                            "In formatTime(): an xs:time value does not contain day-of-week component");
-                    error.setErrorCode("XTDE1350");
-                    error.setXPathContext(context);
-                    throw error;
-                } else {
-                    int day = DateValue.getDayOfWeek(dtvalue.getYear(), dtvalue.getMonth(), dtvalue.getDay());
-                    return formatNumber(component, day, format, defaultFormat, numberer, context);
-                }
-            case 'P':       // am/pm marker
-                if (ignoreTime) {
-                    DynamicError error = new DynamicError(
-                            "In formatDate(): an xs:date value does not contain an am/pm component");
-                    error.setErrorCode("XTDE1350");
-                    error.setXPathContext(context);
-                    throw error;
-                } else {
-                    int minuteOfDay = dtvalue.getHour()*60 + dtvalue.getMinute();
-                    return formatNumber(component, minuteOfDay, format, defaultFormat, numberer, context);
-                }
-            case 'C':       // calendar
-                return numberer.getCalendarName("AD");
-            case 'E':       // era
-                if (ignoreDate) {
-                    DynamicError error = new DynamicError(
-                            "In formatTime(): an xs:time value does not contain an AD/BC component");
-                    error.setErrorCode("XTDE1350");
-                    error.setXPathContext(context);
-                    throw error;
-                } else {
-                    int year = dtvalue.getYear();
-                    return numberer.getEraName(year);
-                }
-            default:
-                DynamicError e = new DynamicError(
-                        "Unknown formatDate/time component specifier '" + format.charAt(0) + '\'');
-                e.setErrorCode("XTDE1340");
-                e.setXPathContext(context);
-                throw e;
+                return formatNumber(component, hr, format, defaultFormat, numberer, context);
+            }
+        case'm':       // minutes
+            if (ignoreTime) {
+                XPathException error = new XPathException("In formatDate(): an xs:date value does not contain a minutes component");
+                error.setErrorCode("XTDE1350");
+                error.setXPathContext(context);
+                throw error;
+            } else {
+                Int64Value min = (Int64Value)value.getComponent(Component.MINUTES);
+                return formatNumber(component, (int)min.longValue(), format, defaultFormat, numberer, context);
+            }
+        case's':       // seconds
+            if (ignoreTime) {
+                XPathException error = new XPathException("In formatDate(): an xs:date value does not contain a seconds component");
+                error.setErrorCode("XTDE1350");
+                error.setXPathContext(context);
+                throw error;
+            } else {
+                IntegerValue sec = (IntegerValue)value.getComponent(Component.WHOLE_SECONDS);
+                return formatNumber(component, (int)sec.longValue(), format, defaultFormat, numberer, context);
+            }
+        case'f':       // fractional seconds
+            // ignore the format
+            if (ignoreTime) {
+                XPathException error = new XPathException("In formatDate(): an xs:date value does not contain a fractional seconds component");
+                error.setErrorCode("XTDE1350");
+                error.setXPathContext(context);
+                throw error;
+            } else {
+                int micros = (int)((Int64Value)value.getComponent(Component.MICROSECONDS)).longValue();
+                return formatNumber(component, micros, format, defaultFormat, numberer, context);
+            }
+        case'Z':       // timezone in +hh:mm format, unless format=N in which case use timezone name
+            if (value.hasTimezone()) {
+                return getNamedTimeZone(value.toDateTime(), numberer.getCountry(), format);
+            } else {
+                return "";
+            }
+        case'z':       // timezone
+            if (value.hasTimezone()) {
+                int tz = value.getTimezoneInMinutes();
+                return "GMT" + (tz == 0 ? "" : ((tz > 0 ? "+" : "-") + Math.abs(tz / 60) + (tz % 60 == 0 ? "" : ".5")));
+            } else {
+                return "";
+            }
+        case'F':       // day of week
+            if (ignoreDate) {
+                XPathException error = new XPathException("In formatTime(): an xs:time value does not contain day-of-week component");
+                error.setErrorCode("XTDE1350");
+                error.setXPathContext(context);
+                throw error;
+            } else {
+                int day = DateValue.getDayOfWeek(dtvalue.getYear(), dtvalue.getMonth(), dtvalue.getDay());
+                return formatNumber(component, day, format, defaultFormat, numberer, context);
+            }
+        case'P':       // am/pm marker
+            if (ignoreTime) {
+                XPathException error = new XPathException("In formatDate(): an xs:date value does not contain an am/pm component");
+                error.setErrorCode("XTDE1350");
+                error.setXPathContext(context);
+                throw error;
+            } else {
+                int minuteOfDay = dtvalue.getHour() * 60 + dtvalue.getMinute();
+                return formatNumber(component, minuteOfDay, format, defaultFormat, numberer, context);
+            }
+        case'C':       // calendar
+            return numberer.getCalendarName("AD");
+        case'E':       // era
+            if (ignoreDate) {
+                XPathException error = new XPathException("In formatTime(): an xs:time value does not contain an AD/BC component");
+                error.setErrorCode("XTDE1350");
+                error.setXPathContext(context);
+                throw error;
+            } else {
+                int year = dtvalue.getYear();
+                return numberer.getEraName(year);
+            }
+        default:
+            XPathException e = new XPathException("Unknown formatDate/time component specifier '" + format.charAt(0) + '\'');
+            e.setErrorCode("XTDE1340");
+            e.setXPathContext(context);
+            throw e;
         }
     }
 
@@ -398,7 +388,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
     throws XPathException {
         Matcher matcher = formatPattern.matcher(format);
         if (!matcher.matches()) {
-            DynamicError error = new DynamicError("Unrecognized format picture [" + component + format + ']');
+            XPathException error = new XPathException("Unrecognized format picture [" + component + format + ']');
             error.setErrorCode("XTDE1340");
             error.setXPathContext(context);
             throw error;
@@ -419,7 +409,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
         String widths = matcher.group(2);   // was 3
 
         if (!alphanumericPattern.matcher(primary).matches()) {
-            DynamicError error = new DynamicError("In format picture at '" + primary +
+            XPathException error = new XPathException("In format picture at '" + primary +
                     "', primary format must be alphanumeric");
             error.setErrorCode("XTDE1340");
             error.setXPathContext(context);
@@ -444,7 +434,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
             min = 1;
             max = Integer.MAX_VALUE;
         } else {
-            int[] range = getWidths(widths, context);
+            int[] range = getWidths(widths);
             min = range[0];
             max = range[1];
             if (defaultFormat) {
@@ -464,6 +454,10 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
             // A.M./P.M. can only be formatted as a name
             if (!("N".equals(primary) || "n".equals(primary) || "Nn".equals(primary))) {
                 primary = "n";
+            }
+            if (max == Integer.MAX_VALUE) {
+                // if no max specified, use 4. An explicit greater value allows use of "noon" and "midnight"
+                max = 4;
             }
         } else if ("f".equals(component)) {
             // value is supplied as integer number of microseconds
@@ -537,7 +531,7 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
         return s;
     }
 
-    private static int[] getWidths(String widths, XPathContext context) throws XPathException {
+    private static int[] getWidths(String widths) throws XPathException {
         try {
             int min = -1;
             int max = -1;
@@ -558,17 +552,15 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
                         max = Integer.parseInt(smax);
                     }
                 } else {
-                    DynamicError error = new DynamicError("Unrecognized width specifier");
+                    XPathException error = new XPathException("Unrecognized width specifier");
                     error.setErrorCode("XTDE1340");
-                    error.setXPathContext(context);
                     throw error;
                 }
             }
 
             if (min>max && max!=-1) {
-                DynamicError e = new DynamicError("Minimum width in date/time picture exceeds maximum width");
+                XPathException e = new XPathException("Minimum width in date/time picture exceeds maximum width");
                 e.setErrorCode("XTDE1340");
-                e.setXPathContext(context);
                 throw e;
             }
             int[] result = new int[2];
@@ -576,11 +568,35 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
             result[1] = max;
             return result;
         } catch (NumberFormatException err) {
-            DynamicError e = new DynamicError("Invalid integer used as width in date/time picture");
+            XPathException e = new XPathException("Invalid integer used as width in date/time picture");
             e.setErrorCode("XTDE1340");
-            e.setXPathContext(context);
             throw e;
         }
+    }
+
+    private static String getNamedTimeZone(DateTimeValue value, String country, String format) throws XPathException {
+
+        int min = 1;
+        int comma = format.indexOf(',');
+        if (comma > 0) {
+            String widths = format.substring(comma);
+            int[] range = getWidths(widths);
+            min = range[0];
+        }
+        if (format.charAt(0) == 'N' || format.charAt(0) == 'n') {
+            if (min <= 5) {
+                String tzname = NamedTimeZone.getTimeZoneNameForDate(value, country);
+                if (format.charAt(0) == 'n') {
+                    tzname = tzname.toLowerCase();
+                }
+                return tzname;
+            } else {
+                return NamedTimeZone.getOlsenTimeZoneName(value, country);
+            }
+        }
+        FastStringBuffer sbz = new FastStringBuffer(8);
+        value.appendTimezone(sbz);
+        return sbz.toString();
     }
 
 }

@@ -5,7 +5,7 @@ import java.util.Iterator;
 import java.util.ArrayList;
 
 /**
- * An implentation of NamespaceDeclarations that contains all the inscope namespaces
+ * An implementation of NamespaceDeclarations that contains all the inscope namespaces
  * made available by a NamespaceResolver.
  */
 public class NamespaceResolverAsDeclarations implements NamespaceDeclarations {

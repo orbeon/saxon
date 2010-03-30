@@ -1,7 +1,7 @@
 package org.orbeon.saxon.functions;
 
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.ExpressionVisitor;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.trans.XPathException;
@@ -25,12 +25,32 @@ public class Component extends SystemFunction {
     public static final int PREFIX = 10;
     public static final int MICROSECONDS = 11;   // internal use only
     public static final int WHOLE_SECONDS = 12;  // internal use only
+    public static final int YEAR_ALLOWING_ZERO = 13;  // internal use only
 
     int component;
 
-    public Expression simplify(StaticContext env) throws XPathException {
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
         component = (operation >> 16) & 0xffff;
-        return super.simplify(env);
+        return super.simplify(visitor);
+    }
+
+    /**
+     * Get the required component
+     */
+
+    public int getRequiredComponent() {
+        return component;
+    }
+
+    /**
+     * Get the required component name as a string
+     */
+
+    public String getRequiredComponentAsString() {
+        String[] components = {"", "YEAR", "MONTH", "DAY", "HOURS", "MINUTES", "SECONDS",
+                               "TIMEZONE", "LOCALNAME", "NAMESPACE", "PREFIX", "MICROSECONDS",
+                               "WHOLE_SECONDS", "YEAR_ALLOWING_ZERO"};
+        return components[component];
     }
 
     /**
@@ -48,6 +68,18 @@ public class Component extends SystemFunction {
 
     }
 
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        Component c = (Component)super.copy();
+        c.component = (c.operation >> 16) & 0xffff;
+        return c;
+    }
 }
 
 

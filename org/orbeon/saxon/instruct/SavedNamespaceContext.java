@@ -11,9 +11,7 @@ import java.util.Iterator;
   * An object representing a list of Namespaces. Used when the namespace
   * controller in the stylesheet needs to be kept for use at run-time. The list of namespaces
   * is maintained in the form of numeric prefix/uri codes, which are only meaningful
-  * in the controller of a name pool; however, in order to save space, the NamespaceContext
-  * object does not keep a reference to the namepool, it requires this to be supplied
-  * by the caller.
+  * in the context of a name pool
   */
 
 public final class SavedNamespaceContext implements Serializable, NamespaceResolver {
@@ -27,16 +25,39 @@ public final class SavedNamespaceContext implements Serializable, NamespaceResol
     private NamePool namePool;
 
     /**
-    * Create a NamespaceContext object
-    * @param nscodes an array of namespace codes. Each namespace code is an integer
-    * in which the first 16 bits represent the prefix (zero if it's the default namespace)
-    * and the next 16 bits represent the uri. These are codes held in the NamePool. The
-    * list will be searched from the "high" end.
+     * Create a NamespaceContext object
+     * @param nscodes an array of namespace codes. Each namespace code is an integer
+     * in which the first 16 bits represent the prefix (zero if it's the default namespace)
+     * and the next 16 bits represent the uri. These are codes held in the NamePool. The
+     * list will be searched from the "high" end.
+     * @param pool the namepool
     */
 
     public SavedNamespaceContext(int[] nscodes, NamePool pool) {
         namespaceCodes = nscodes;
         namePool = pool;
+    }
+
+    /**
+     * Create a SavedNamespaceContext that captures all the information in a given NamespaceResolver
+     * @param resolver the NamespaceResolver
+     * @param pool the NamePool
+     */
+
+    public SavedNamespaceContext(NamespaceResolver resolver, NamePool pool) {
+        namePool = pool;
+        ArrayList list = new ArrayList();
+        Iterator iter = resolver.iteratePrefixes();
+        while (iter.hasNext()) {
+            String prefix = (String)iter.next();
+            String uri = resolver.getURIForPrefix(prefix, true);
+            int nscode = pool.getNamespaceCode(prefix, uri);
+            list.add(new Integer(nscode));
+        }
+        namespaceCodes = new int[list.size()];
+        for (int i=0; i<list.size(); i++) {
+            namespaceCodes[i] = ((Integer)list.get(i)).intValue();
+        }
     }
 
     /**
@@ -59,7 +80,7 @@ public final class SavedNamespaceContext implements Serializable, NamespaceResol
 
     public String getURIForPrefix(String prefix, boolean useDefault) {
 
-        if (prefix.equals("") && !useDefault) {
+        if (prefix.length() == 0 && !useDefault) {
             return "";
         }
 
@@ -68,12 +89,13 @@ public final class SavedNamespaceContext implements Serializable, NamespaceResol
         }
 
         for (int i=namespaceCodes.length-1; i>=0; i--) {
+            // TODO: isn't it better to turn the prefix into a code and compare the codes?
             if (namePool.getPrefixFromNamespaceCode(namespaceCodes[i]).equals(prefix)) {
                 return namePool.getURIFromNamespaceCode(namespaceCodes[i]);
             }
         }
 
-        if (prefix.equals("") && useDefault) {
+        if (prefix.length() == 0) {
             // use the "default default namespace" - namely ""
             return "";
         } else {

@@ -1,17 +1,19 @@
 package org.orbeon.saxon.query;
 
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.*;
-import org.orbeon.saxon.instruct.GeneralVariable;
+import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.GlobalParam;
 import org.orbeon.saxon.instruct.GlobalVariable;
 import org.orbeon.saxon.instruct.SlotManager;
-import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.StructuredQName;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
+import org.orbeon.saxon.type.AnyItemType;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.value.Value;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -25,11 +27,12 @@ import java.util.List;
 public class GlobalVariableDefinition implements VariableDeclaration, Declaration {
 
     protected List references = new ArrayList(10);
+                                    // Note that variableReferences on this list might be dormant;
+                                    // that is, they might be disconnected from the live expression tree.
     private SequenceType requiredType;
     private Expression value;
-    private int nameCode;
     private boolean isParameter;
-    private String variableName;
+    private StructuredQName variableName;
     private String systemId;        // identifies the module where the variable declaration occurred
     private int lineNumber;         // identifies the line number of the variable declaration
     private GlobalVariable compiledVar;
@@ -54,18 +57,18 @@ public class GlobalVariableDefinition implements VariableDeclaration, Declaratio
 
     /**
      * Set the variable name
-     * @param nameCode the variable name, expressed as a NamePool name code
+     * @param qName the variable name
      */
-    public void setNameCode(int nameCode) {
-        this.nameCode = nameCode;
+    public void setVariableQName(StructuredQName qName) {
+        variableName = qName;
     }
 
     /**
      * Get the variable name
-     * @return the variable name, expressed as a NamePool name code
+     * @return the variable name
      */
-    public int getNameCode() {
-        return nameCode;
+    public StructuredQName getVariableQName() {
+        return variableName;
     }
     /**
      * Set the line number where the variable declaration appears in the source
@@ -103,6 +106,7 @@ public class GlobalVariableDefinition implements VariableDeclaration, Declaratio
 
     /**
      * Set the system ID of the module where the variable declaration appears
+     * @param systemId the System ID (base URI)
      */
     public void setSystemId(String systemId) {
         this.systemId = systemId;
@@ -110,6 +114,7 @@ public class GlobalVariableDefinition implements VariableDeclaration, Declaratio
 
     /**
      * Get the system ID of the module containing the variable declaration
+     * @return the System ID (base URI)
      */
 
     public String getSystemId() {
@@ -117,27 +122,12 @@ public class GlobalVariableDefinition implements VariableDeclaration, Declaratio
     }
 
     /**
-     * Get the name of the variable
-     * @return the variable name, as a lexical QName
-     */
-    public String getVariableName() {
-        return variableName;
-    }
-
-    /**
-     * Set the variable name
-     * @param variableName the variable name, as a lexical QName
-     */
-    public void setVariableName(String variableName) {
-        this.variableName = variableName;
-    }
-
-    /**
      * Set the expression used to define the value of the variable
      * @param val the initializing expression
      */
+
     public void setValueExpression(Expression val) {
-        this.value = val;
+        value = val;
     }
 
     /**
@@ -158,6 +148,7 @@ public class GlobalVariableDefinition implements VariableDeclaration, Declaratio
 
     /**
      * Iterate over the references to this variable
+     * @return an iterator over the references: returns objects of class {@link VariableReference}
      */
 
     public Iterator iterateReferences() {
@@ -167,112 +158,162 @@ public class GlobalVariableDefinition implements VariableDeclaration, Declaratio
 
     /**
      * Create a compiled representation of this global variable
-     * @param env the static context for the query module
+     * @param exec the executable 
      * @param slot the slot number allocated to this variable
      * @return the compiled representation
      * @throws XPathException if compile-time errors are found.
      */
 
-    public GlobalVariable compile(StaticQueryContext env, int slot) throws XPathException {
+    public GlobalVariable compile(Executable exec, int slot) throws XPathException {
 
+        TypeHierarchy th = exec.getConfiguration().getTypeHierarchy();
         GlobalVariable var;
         if (isParameter) {
             var = new GlobalParam();
-            var.setExecutable(env.getExecutable());
+            var.setExecutable(exec);
             var.setRequiredParam(value==null);
         } else {
             var = new GlobalVariable();
-            var.setExecutable(env.getExecutable());
+            var.setExecutable(exec);
         }
 
         var.setHostLanguage(Configuration.XQUERY);
         var.setSelectExpression(value);
-        var.setNameCode(nameCode);
         var.setRequiredType(requiredType);
-        var.setVariableName(variableName);
+        var.setVariableQName(variableName);
         var.setSlotNumber(slot);
 
-        int loc = var.getExecutable().getLocationMap().allocateLocationId(systemId, lineNumber);
+        int loc = exec.getLocationMap().allocateLocationId(systemId, lineNumber);
         var.setLocationId(loc);
+        var.setContainer(var);
 
         Iterator iter = references.iterator();
         while (iter.hasNext()) {
             BindingReference binding = (BindingReference)iter.next();
-            binding.setStaticType(requiredType, null, 0);
+            fixupReference(binding, th);
+            //binding.setStaticType(requiredType, null, 0);
             binding.fixup(var);
         }
-        env.getExecutable().registerGlobalVariable(var);
-        int referenceCount = RangeVariableDeclaration.getReferenceCount(references, var, env, true);
-        if (referenceCount < 10) {
-            // allow for the fact that the references may be in functions that are executed repeatedly
-            referenceCount = 10;
-        }
-        var.setReferenceCount(referenceCount);
+        exec.registerGlobalVariable(var);
+//        int referenceCount = RangeVariable.getReferenceCount(references, true);
+//        if (referenceCount < 10) {
+//            // allow for the fact that the references may be in functions that are executed repeatedly
+//            referenceCount = 10;
+//        }
+//        var.setReferenceCount(referenceCount);
+        var.setReferenceCount(10); // TODO: temporary!
         compiledVar = var;
         return var;
     }
 
     /**
+     * Notify a reference to this variable of the data type
+     * @param ref the variable reference
+     * @param th the type hierarchy cache
+    */
+
+    public void fixupReference(BindingReference ref, TypeHierarchy th) throws XPathException {
+        final SequenceType type = getRequiredType();
+        Value constantValue = null;
+        int properties = 0;
+        Expression select = value;
+        if (select instanceof Literal && !isParameter) {
+            // we can't rely on the constant value because it hasn't yet been type-checked,
+            // which could change it (eg by numeric promotion). Rather than attempt all the type-checking
+            // now, we do a quick check. See test bug64
+            int relation = th.relationship(select.getItemType(th), type.getPrimaryType());
+            if (relation == TypeHierarchy.SAME_TYPE || relation == TypeHierarchy.SUBSUMED_BY) {
+                constantValue = ((Literal)select).getValue();
+            }
+        }
+        if (select != null) {
+            properties = select.getSpecialProperties();
+        }
+        ref.setStaticType(type, constantValue, properties);
+    }
+
+
+    /**
      * Type check the compiled representation of this global variable
-     * @param env the static context for the query module
+     * @param visitor an expression visitor
      * @throws XPathException if compile-time errors are found.
      */
 
-    public static void typeCheck(StaticQueryContext env, GeneralVariable var) throws XPathException {
+    // TODO: watch bug 5224: is the context item defined for use in the body expression?
 
+    public void typeCheck(ExpressionVisitor visitor) throws XPathException {
+        GlobalVariable var = getCompiledVariable();
         Expression value = var.getSelectExpression();
         if (value != null) {
-            ComputedExpression.setParentExpression(value, var);
+            value.checkForUpdatingSubexpressions();
+            if (value.isUpdatingExpression()) {
+                throw new XPathException(
+                        "Initializing expression for global variable must not be an updating expression", "XUST0001");
+            }
+            value.setContainer(var);
             RoleLocator role = new RoleLocator(
-                    RoleLocator.VARIABLE, env.getNamePool().getDisplayName(var.getNameCode()), 0, null);
+                    RoleLocator.VARIABLE, var.getVariableQName(), 0);
             Expression value2 = TypeChecker.strictTypeCheck(
-                                    value.simplify(env).typeCheck(env, Type.ITEM_TYPE),
-                                    var.getRequiredType(),
-                                    role, env);
-            value2 = value2.optimize(env.getConfiguration().getOptimizer(), env, Type.ITEM_TYPE);
+                    visitor.typeCheck(visitor.simplify(value), AnyItemType.getInstance()),
+                    var.getRequiredType(), role, visitor.getStaticContext());
+            value2 = value2.optimize(visitor, AnyItemType.getInstance());
             var.setSelectExpression(value2);
-            ComputedExpression.setParentExpression(value2, var);
+            value2.setContainer(var);
             // the value expression may declare local variables
-            SlotManager map = env.getConfiguration().makeSlotManager();
+            SlotManager map = visitor.getConfiguration().makeSlotManager();
             int slots = ExpressionTool.allocateSlots(value2, 0, map);
             if (slots > 0) {
-                ((GlobalVariable)var).setContainsLocals(map);
+                var.setContainsLocals(map);
             }
-        }
 
-        if (var.getRequiredType() == SequenceType.ANY_SEQUENCE && !(var instanceof GlobalParam)) {
-            // no type was declared; try to deduce a type from the value
-            try {
-                final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
-                final ItemType itemType = value.getItemType(th);
-                final int cardinality = value.getCardinality();
-                var.setRequiredType(SequenceType.makeSequenceType(itemType, cardinality));
-            } catch (Exception err) {
-                // exceptions can happen because references to variables and functions are still unbound
+            if (var.getRequiredType() == SequenceType.ANY_SEQUENCE && !(var instanceof GlobalParam)) {
+                // no type was declared; try to deduce a type from the value
+                try {
+                    final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
+                    final ItemType itemType = value.getItemType(th);
+                    final int cardinality = value.getCardinality();
+                    var.setRequiredType(SequenceType.makeSequenceType(itemType, cardinality));
+                    Value constantValue = null;
+                    if (value2 instanceof Literal) {
+                        constantValue = ((Literal)value2).getValue();
+                    }
+                    for (Iterator iter = references.iterator(); iter.hasNext(); ) {
+                        BindingReference ref = ((BindingReference)iter.next());
+                        if (ref instanceof VariableReference) {
+                            ((VariableReference)ref).refineVariableType(
+                                    itemType, cardinality, constantValue, value.getSpecialProperties(), visitor);
+                        }
+                    }
+                } catch (Exception err) {
+                    // exceptions can happen because references to variables and functions are still unbound
+                }
             }
+
+
         }
     }
 
     /**
      * Get the compiled variable if the definition has been compiled
+     * @return the compiled global variable
      */
 
     public GlobalVariable getCompiledVariable() {
         return compiledVar;
     }
 
-
     /**
      * Produce diagnostic output showing the compiled and optimized expression tree for a function
-     * @param config the configuration to be used
+     * @param out the destination to be used
      */
-    public void explain(Configuration config) {
-        NamePool pool = config.getNamePool();
-        System.err.println("declare variable " + pool.getDisplayName(nameCode) + " := ");
+
+    public void explain(ExpressionPresenter out) {
+        out.startElement("declareVariable");
+        out.emitAttribute("name", variableName.getDisplayName());
         if (value != null) {
-            value.display(4, System.err, config);
+            value.explain(out);
         }
-        System.err.println(";");
+        out.endElement();
     }
 }
 

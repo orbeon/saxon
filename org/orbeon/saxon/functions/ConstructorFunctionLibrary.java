@@ -3,9 +3,10 @@ package org.orbeon.saxon.functions;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.CastExpression;
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.om.NamespaceConstant;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.om.StructuredQName;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AtomicType;
 import org.orbeon.saxon.type.SchemaType;
@@ -33,38 +34,40 @@ public class ConstructorFunctionLibrary implements FunctionLibrary {
      * Test whether a system function with a given name and arity is available. This supports
      * the function-available() function in XSLT. This method may be called either at compile time
      * or at run time.
-     * @param uri  The URI of the function name
-     * @param local  The local part of the function name
+     * @param functionName
      * @param arity The number of arguments. This is set to -1 in the case of the single-argument
      * function-available() function; in this case the method should return true if there is some
-     * matching extension function, regardless of its arity.
      */
 
-    public boolean isAvailable(int fingerprint, String uri, String local, int arity) {
+    public boolean isAvailable(StructuredQName functionName, int arity) {
         if (arity != 1 && arity != -1) {
             return false;
         }
+        String uri = functionName.getNamespaceURI();
+        String local = functionName.getLocalName();
         if (uri.equals(NamespaceConstant.SCHEMA)) {
             AtomicType type = (AtomicType)Type.getBuiltInItemType(uri, local);
             return type != null && type.getFingerprint() != StandardNames.XS_NOTATION;
-        } else if (NamespaceConstant.isXDTNamespace(uri)) {
-            AtomicType type = (AtomicType)Type.getBuiltInItemType(NamespaceConstant.XDT, local);
-            return type != null && type.getFingerprint() != StandardNames.XDT_ANY_ATOMIC_TYPE;
         }
 
-        SchemaType st = config.getSchemaType(fingerprint);
-        return (st != null && st.isAtomicType());
+        int fingerprint = config.getNamePool().getFingerprint(uri, local);
+        if (fingerprint == -1) {
+            return false;
+        } else {
+            SchemaType st = config.getSchemaType(fingerprint);
+            return (st != null && st.isAtomicType());
+        }
     }
 
     /**
      * Bind an extension function, given the URI and local parts of the function name,
      * and the list of expressions supplied as arguments. This method is called at compile
      * time.
-     * @param uri  The URI of the function name
-     * @param localName  The local part of the function name
+     * @param functionName
      * @param arguments  The expressions supplied statically in the function call. The intention is
      * that the static type of the arguments (obtainable via getItemType() and getCardinality() may
      * be used as part of the binding algorithm.
+     * @param env
      * @return An object representing the extension function to be called, if one is found;
      * null if no extension function was found matching the required name and arity.
      * @throws org.orbeon.saxon.trans.XPathException if a function is found with the required name and arity, but
@@ -73,24 +76,23 @@ public class ConstructorFunctionLibrary implements FunctionLibrary {
      * the function call, but no function was found.
      */
 
-    public Expression bind(int nameCode, String uri, String localName, Expression[] arguments)
+    public Expression bind(StructuredQName functionName, Expression[] arguments, StaticContext env)
             throws XPathException {
+        final String uri = functionName.getNamespaceURI();
+        final String localName = functionName.getLocalName();
         String targetURI = uri;
         boolean builtInNamespace = uri.equals(NamespaceConstant.SCHEMA);
-        if (!builtInNamespace && NamespaceConstant.isXDTNamespace(uri)) {
-            targetURI = NamespaceConstant.XDT;
-            builtInNamespace = true;
-        }
         if (builtInNamespace) {
             // it's a constructor function: treat it as shorthand for a cast expression
             if (arguments.length != 1) {
-                throw new StaticError("A constructor function must have exactly one argument");
+                throw new XPathException("A constructor function must have exactly one argument");
             }
             AtomicType type = (AtomicType)Type.getBuiltInItemType(targetURI, localName);
-            if (type==null || type.getFingerprint() == StandardNames.XDT_ANY_ATOMIC_TYPE ||
+            if (type==null || type.getFingerprint() == StandardNames.XS_ANY_ATOMIC_TYPE ||
                     type.getFingerprint() == StandardNames.XS_NOTATION) {
-                StaticError err = new StaticError("Unknown constructor function: {" + uri + '}' + localName);
+                XPathException err = new XPathException("Unknown constructor function: {" + uri + '}' + localName);
                 err.setErrorCode("XPST0017");
+                err.setIsStaticError(true);
                 throw err;
             }
 
@@ -100,9 +102,12 @@ public class ConstructorFunctionLibrary implements FunctionLibrary {
         // Now see if it's a constructor function for a user-defined type
 
         if (arguments.length == 1) {
-            SchemaType st = config.getSchemaType(nameCode & 0xfffff);
-            if (st != null && st.isAtomicType()) {
-                return new CastExpression(arguments[0], (AtomicType)st, true);
+            int fp = config.getNamePool().getFingerprint(uri, localName);
+            if (fp != -1) {
+                SchemaType st = config.getSchemaType(fp);
+                if (st != null && st.isAtomicType()) {
+                    return new CastExpression(arguments[0], (AtomicType)st, true);
+                }
             }
         }
 

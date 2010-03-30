@@ -29,8 +29,8 @@ public class DifferenceEnumeration implements SequenceIterator {
     /**
     * Form an enumeration of the difference of two nodesets, that is, the nodes
     * that are in p1 and that are not in p2.
-    * @param p1 the first operand
-    * @param p2 the second operand
+    * @param p1 the first operand, with nodes delivered in document order
+    * @param p2 the second operand, with nodes delivered in document order
     * @param comparer the comparer
     */
 
@@ -49,6 +49,8 @@ public class DifferenceEnumeration implements SequenceIterator {
     /**
     * Get the next item from one of the input sequences,
     * checking that it is a node.
+     * @param iter the iterator from which the next node is to be read
+     * @return the node that was read, or null if the stream is exhausted
     */
 
     private NodeInfo next(SequenceIterator iter) throws XPathException {
@@ -109,6 +111,11 @@ public class DifferenceEnumeration implements SequenceIterator {
 
     public int position() {
         return position;
+    }
+
+    public void close() {
+        p1.close();
+        p2.close();
     }
 
     public SequenceIterator getAnother() throws XPathException {

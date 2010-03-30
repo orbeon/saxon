@@ -4,16 +4,15 @@ import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.TypeHierarchy;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 
-import java.io.PrintStream;
 import java.util.Iterator;
 
 /**
  * A TailExpression represents a FilterExpression of the form EXPR[position() > n]
  * Here n is usually 2, but we allow other values
  */
-public class TailExpression extends ComputedExpression {
+public class TailExpression extends Expression {
 
     Expression base;
     int start;      // 1-based offset of first item from base expression
@@ -32,13 +31,13 @@ public class TailExpression extends ComputedExpression {
         adoptChildExpression(base);
     }
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        base = base.typeCheck(env, contextItemType);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        base = visitor.typeCheck(base, contextItemType);
         return this;
     }
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        base = base.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        base = visitor.optimize(base, contextItemType);
         return this;
     }
 
@@ -56,6 +55,16 @@ public class TailExpression extends ComputedExpression {
 
     public int computeSpecialProperties() {
         return base.getSpecialProperties();
+    }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new TailExpression(base.copy(), start);
     }
 
     public ItemType getItemType(TypeHierarchy th) {
@@ -83,17 +92,32 @@ public class TailExpression extends ComputedExpression {
              base = replacement;
              found = true;
          }
-                 return found;
+         return found;
      }
 
+    /**
+     * Get the base expression (of which this expression returns the tail part of the value)
+     * @return the base expression
+     */
 
     public Expression getBaseExpression() {
         return base;
     }
 
+    /**
+     * Get the start offset
+     * @return the one-based start offset (returns 2 if all but the first item is being selected)
+     */
+
     public int getStart() {
         return start;
     }
+
+    /**
+     * Compare two expressions to see if they are equal
+     * @param other the other expression
+     * @return true if the expressions are equivalent
+     */
 
     public boolean equals(Object other) {
         return other instanceof TailExpression &&
@@ -107,77 +131,25 @@ public class TailExpression extends ComputedExpression {
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
         SequenceIterator baseIter = base.iterate(context);
-        if (baseIter instanceof ArrayIterator) {
-            return ((ArrayIterator)baseIter).makeSliceIterator(start, Integer.MAX_VALUE);
+        if ((baseIter.getProperties() & SequenceIterator.GROUNDED) != 0) {
+            return new ValueTailIterator(((GroundedIterator)baseIter).materialize(), start - 1);
         } else {
-            return new TailIterator(baseIter, start);
+            return TailIterator.make(baseIter, start);
         }
     }
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "tail " + start);
-        base.display(level+1, out, config);
+    /**
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     */
+
+    public void explain(ExpressionPresenter destination) {
+        destination.startElement("tail");
+        destination.emitAttribute("start", start+"");
+        base.explain(destination);
+        destination.endElement();
     }
 
-    public static class TailIterator implements SequenceIterator, LastPositionFinder, LookaheadIterator {
-
-        private SequenceIterator base;
-        private int start;
-
-        public TailIterator(SequenceIterator base, int start) throws XPathException {
-            this.base = base;
-            this.start = start;
-
-            // discard the first n-1 items from the underlying iterator
-            // TODO: better approaches are possible if the base iterator is grounded
-            for (int i=0; i < start-1; i++) {
-                Item b = base.next();
-                if (b == null) {
-                    break;
-                }
-            }
-        }
-
-        public Item next() throws XPathException {
-            return base.next();
-        }
-
-        public Item current() {
-            return base.current();
-        }
-
-        public int position() {
-            int bp = base.position();
-            return (bp > 0 ? (base.position() - start + 1) : bp);
-        }
-
-        public boolean hasNext() {
-            return ((LookaheadIterator)base).hasNext();
-        }
-
-        public int getLastPosition() throws XPathException {
-            int bl = ((LastPositionFinder)base).getLastPosition() - start + 1;
-            return (bl > 0 ? bl : 0);
-        }
-
-        public SequenceIterator getAnother() throws XPathException {
-            return new TailIterator(base.getAnother(), start);
-        }
-
-        /**
-         * Get properties of this iterator, as a bit-significant integer.
-         *
-         * @return the properties of this iterator. This will be some combination of
-         *         properties such as {@link #GROUNDED}, {@link #LAST_POSITION_FINDER},
-         *         and {@link #LOOKAHEAD}. It is always
-         *         acceptable to return the value zero, indicating that there are no known special properties.
-         *         It is acceptable for the properties of the iterator to change depending on its state.
-         */
-
-        public int getProperties() {
-            return base.getProperties() & (LAST_POSITION_FINDER | LOOKAHEAD);
-        }
-    }
 }
 
 //

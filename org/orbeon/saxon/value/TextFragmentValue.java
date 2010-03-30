@@ -7,8 +7,8 @@ import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 
 import javax.xml.transform.SourceLocator;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Iterator;
+import java.util.Collections;
 
 /**
 * This class represents a temporary tree whose root document node owns a single text node. <BR>
@@ -250,17 +250,6 @@ public final class TextFragmentValue implements DocumentInfo, FingerprintedNode,
     }
 
     /**
-     * Output all namespace nodes associated with this element. Does nothing if
-     * the node is not an element.
-     *
-     * @param out              The relevant outputter
-     * @param includeAncestors True if namespaces declared on ancestor
-     */
-
-    public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors) {
-    }
-
-    /**
      * Get all namespace undeclarations and undeclarations defined on this element.
      *
      * @param buffer If this is non-null, and the result array fits in this buffer, then the result
@@ -371,15 +360,15 @@ public final class TextFragmentValue implements DocumentInfo, FingerprintedNode,
 
             case Axis.SELF:
             case Axis.ANCESTOR_OR_SELF:
-                return SingletonIterator.makeIterator(this);
+                return SingleNodeIterator.makeIterator(this);
 
             case Axis.CHILD:
             case Axis.DESCENDANT:
-                return SingletonIterator.makeIterator(getTextNode());
+                return SingleNodeIterator.makeIterator(getTextNode());
 
             case Axis.DESCENDANT_OR_SELF:
-                Item[] nodes = {this, getTextNode()};
-                return new ArrayIterator(nodes);
+                NodeInfo[] nodes = {this, getTextNode()};
+                return new NodeArrayIterator(nodes);
 
             default:
                  throw new IllegalArgumentException("Unknown axis number " + axisNumber);
@@ -416,15 +405,23 @@ public final class TextFragmentValue implements DocumentInfo, FingerprintedNode,
                 return Navigator.filteredSingleton(getTextNode(), nodeTest);
 
             case Axis.DESCENDANT_OR_SELF:
-                List result = new ArrayList(2);
-                if (nodeTest.matches(this)) {
-                    result.add(this);
-                }
+                boolean b1 = nodeTest.matches(this);
                 NodeInfo textNode2 = getTextNode();
-                if (nodeTest.matches(textNode2)) {
-                    result.add(textNode2);
+                boolean b2 = nodeTest.matches(textNode2);
+                if (b1) {
+                    if (b2) {
+                        NodeInfo[] pair = {this, textNode2};
+                        return new NodeArrayIterator(pair);
+                    } else {
+                        return SingleNodeIterator.makeIterator(this);
+                    }
+                } else {
+                    if (b2) {
+                        return SingleNodeIterator.makeIterator(textNode2);
+                    } else {
+                        return EmptyIterator.getInstance();
+                    }
                 }
-                return new ListIterator(result);
 
             default:
                  throw new IllegalArgumentException("Unknown axis number " + axisNumber);
@@ -478,6 +475,17 @@ public final class TextFragmentValue implements DocumentInfo, FingerprintedNode,
     }
 
     /**
+     * Get the list of unparsed entities defined in this document
+     * @return an Iterator, whose items are of type String, containing the names of all
+     *         unparsed entities defined in this document. If there are no unparsed entities or if the
+     *         information is not available then an empty iterator is returned
+     */
+
+    public Iterator getUnparsedEntityNames() {
+        return Collections.EMPTY_LIST.iterator();
+    }    
+
+    /**
     * Get the unparsed entity with a given name
     * @param name the name of the entity
     * @return the URI and public ID of the entity if there is one, or null if not
@@ -487,6 +495,36 @@ public final class TextFragmentValue implements DocumentInfo, FingerprintedNode,
         return null;
     }
 
+
+    /**
+     * Determine whether this node has the is-id property
+     *
+     * @return true if the node is an ID
+     */
+
+    public boolean isId() {
+        return false;
+    }
+
+    /**
+     * Determine whether this node has the is-idref property
+     *
+     * @return true if the node is an IDREF or IDREFS element or attribute
+     */
+
+    public boolean isIdref() {
+        return false;
+    }
+
+    /**
+     * Determine whether the node has the is-nilled property
+     *
+     * @return true if the node has the is-nilled property
+     */
+
+    public boolean isNilled() {
+        return false;
+    }
 
     /**
     * Make an instance of the text node
@@ -716,17 +754,6 @@ public final class TextFragmentValue implements DocumentInfo, FingerprintedNode,
         }
 
         /**
-         * Output all namespace nodes associated with this element. Does nothing if
-         * the node is not an element.
-         *
-         * @param out              The relevant outputter
-         * @param includeAncestors True if namespaces declared on ancestor
-         */
-
-        public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors) {
-        }
-
-        /**
          * Get all namespace undeclarations and undeclarations defined on this element.
          *
          * @param buffer If this is non-null, and the result array fits in this buffer, then the result
@@ -819,11 +846,11 @@ public final class TextFragmentValue implements DocumentInfo, FingerprintedNode,
                  case Axis.ANCESTOR:
                  case Axis.PARENT:
                  case Axis.PRECEDING_OR_ANCESTOR:
-                     return SingletonIterator.makeIterator(TextFragmentValue.this);
+                     return SingleNodeIterator.makeIterator(TextFragmentValue.this);
 
                  case Axis.ANCESTOR_OR_SELF:
-                     Item[] nodes = {this, TextFragmentValue.this};
-                     return new ArrayIterator(nodes);
+                     NodeInfo[] nodes = {this, TextFragmentValue.this};
+                     return new NodeArrayIterator(nodes);
 
                  case Axis.ATTRIBUTE:
                  case Axis.CHILD:
@@ -837,7 +864,7 @@ public final class TextFragmentValue implements DocumentInfo, FingerprintedNode,
 
                  case Axis.SELF:
                  case Axis.DESCENDANT_OR_SELF:
-                     return SingletonIterator.makeIterator(this);
+                     return SingleNodeIterator.makeIterator(this);
 
                  default:
                       throw new IllegalArgumentException("Unknown axis number " + axisNumber);
@@ -863,12 +890,12 @@ public final class TextFragmentValue implements DocumentInfo, FingerprintedNode,
                     boolean matchesDoc = nodeTest.matches(TextFragmentValue.this);
                     boolean matchesText = nodeTest.matches(this);
                     if (matchesDoc && matchesText) {
-                        Item[] nodes = {this, TextFragmentValue.this};
-                        return new ArrayIterator(nodes);
+                        NodeInfo[] nodes = {this, TextFragmentValue.this};
+                        return new NodeArrayIterator(nodes);
                     } else if (matchesDoc && !matchesText) {
-                        return SingletonIterator.makeIterator(TextFragmentValue.this);
+                        return SingleNodeIterator.makeIterator(TextFragmentValue.this);
                     } else if (matchesText && !matchesDoc) {
-                        return SingletonIterator.makeIterator(this);
+                        return SingleNodeIterator.makeIterator(this);
                     } else {
                         return EmptyIterator.getInstance();
                     }
@@ -928,6 +955,36 @@ public final class TextFragmentValue implements DocumentInfo, FingerprintedNode,
             out.characters(text, 0, 0);
         }
 
+
+        /**
+         * Determine whether this node has the is-id property
+         *
+         * @return true if the node is an ID
+         */
+
+        public boolean isId() {
+            return false;
+        }
+
+        /**
+         * Determine whether this node has the is-idref property
+         *
+         * @return true if the node is an IDREF or IDREFS element or attribute
+         */
+
+        public boolean isIdref() {
+            return false;
+        }
+
+        /**
+         * Determine whether the node has the is-nilled property
+         *
+         * @return true if the node has the is-nilled property
+         */
+
+        public boolean isNilled() {
+            return false;
+        }
     }
 
 }

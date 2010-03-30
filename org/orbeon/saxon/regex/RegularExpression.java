@@ -11,6 +11,24 @@ import java.io.Serializable;
 public interface RegularExpression extends Serializable {
 
     /**
+     * Constant indicating the regular expression language is XPath 2.0
+     */
+
+    public static final int XPATH_SYNTAX = 0;
+
+    /**
+     * Constant indication the regular expression language is XML Schema Part 2
+     */
+
+    public static final int XML_SCHEMA_SYNTAX = 1;
+
+    /**
+     * Constant indicating the regular expression syntax is the native syntax for the platform (Java or .NET)
+     */
+
+    public static final int NATIVE_SYNTAX = 2;
+
+    /**
      * Determine whether the regular expression match a given string in its entirety
      * @param input the string to match
      * @return true if the string matches, false otherwise
@@ -39,6 +57,8 @@ public interface RegularExpression extends Serializable {
      * analyze-string instruction. The resulting RegexIterator provides both the matching and
      * non-matching substrings, and allows them to be distinguished. It also provides access
      * to matched subgroups.
+     * @param input the character string to be analyzed using the regular expression
+     * @return an iterator over matched and unmatched substrings
      */
 
     public RegexIterator analyze(CharSequence input);
@@ -73,6 +93,5 @@ public interface RegularExpression extends Serializable {
 // Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
 //
 // Contributor(s):
-// Portions marked "e.g." are from Edwin Glaser (edwin@pannenleiter.de)
 //
 

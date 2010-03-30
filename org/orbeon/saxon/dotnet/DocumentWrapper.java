@@ -9,6 +9,9 @@ import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.type.Type;
 
+import java.util.Iterator;
+import java.util.Collections;
+
 /**
  * The document node of a tree implemented as a wrapper around a DOM Document.
  */
@@ -49,7 +52,7 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
 //                break;
 //            }
 //        }
-        System.err.println("Setting configuration");
+        //System.err.println("Setting configuration");
         setConfiguration(config);
     }
 
@@ -151,6 +154,17 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
 
     public String getBaseURI() {
         return node.get_BaseURI();
+    }
+
+    /**
+     * Get the list of unparsed entities defined in this document
+     * @return an Iterator, whose items are of type String, containing the names of all
+     *         unparsed entities defined in this document. If there are no unparsed entities or if the
+     *         information is not available then an empty iterator is returned
+     */
+
+    public Iterator getUnparsedEntityNames() {
+        return Collections.EMPTY_LIST.iterator();
     }
 
     /**

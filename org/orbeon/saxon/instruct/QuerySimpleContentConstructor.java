@@ -2,13 +2,13 @@ package org.orbeon.saxon.instruct;
 
 import org.orbeon.saxon.expr.Atomizer;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.StaticProperty;
+import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.om.FastStringBuffer;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.om.FastStringBuffer;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.StringValue;
 
@@ -29,6 +29,10 @@ public class QuerySimpleContentConstructor extends SimpleContentConstructor {
         this.noNodeIfEmpty = noNodeIfEmpty;
     }
 
+    public boolean isNoNodeWhenEmpty() {
+        return noNodeIfEmpty;
+    }
+
     /**
      * Compute the cardinality of the result of the expression.
      * @return the cardinality, @link {StaticProperty.EXACTLY_ONE}
@@ -40,6 +44,15 @@ public class QuerySimpleContentConstructor extends SimpleContentConstructor {
         } else {
             return StaticProperty.EXACTLY_ONE;
         }
+    }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new QuerySimpleContentConstructor(select.copy(), separator.copy(), noNodeIfEmpty);
     }
 
     /**
@@ -88,12 +101,12 @@ public class QuerySimpleContentConstructor extends SimpleContentConstructor {
             if (item instanceof StringValue) {
                 return item;
             } else {
-                return ((AtomicValue)item).convert(Type.STRING, context);
+                return ((AtomicValue)item).convert(BuiltInAtomicType.STRING, true, context).asAtomic();
             }
         }
         SequenceIterator iter = select.iterate(context);
         if (!isAtomic) {
-            iter = Atomizer.AtomizingFunction.getAtomizingIterator(iter);
+            iter = Atomizer.getAtomizingIterator(iter);
         }
         FastStringBuffer sb = new FastStringBuffer(1024);
         boolean first = true;

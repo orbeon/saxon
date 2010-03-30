@@ -28,7 +28,7 @@ public class GroupStartingIterator implements LookaheadIterator, GroupIterator {
 
     public GroupStartingIterator(SequenceIterator population, Pattern startPattern,
                                  XPathContext context)
-    throws XPathException {
+            throws XPathException {
         this.population = population;
         this.startPattern = startPattern;
         baseContext = context;
@@ -36,58 +36,62 @@ public class GroupStartingIterator implements LookaheadIterator, GroupIterator {
         runningContext.setCurrentIterator(population);
         // the first item in the population always starts a new group
         next = population.next();
-     }
+    }
 
-     private void advance() throws XPathException {
-         currentMembers = new ArrayList(10);
-         currentMembers.add(current);
-         while (true) {
-             NodeInfo nextCandidate = (NodeInfo)population.next();
-             if (nextCandidate == null) {
-                 break;
-             }
-             if (startPattern.matches(nextCandidate, runningContext)) {
-                 next = nextCandidate;
-                 return;
-             } else {
-                 currentMembers.add(nextCandidate);
-             }
-         }
-         next = null;
-     }
+    private void advance() throws XPathException {
+        currentMembers = new ArrayList(10);
+        currentMembers.add(current);
+        while (true) {
+            NodeInfo nextCandidate = (NodeInfo)population.next();
+            if (nextCandidate == null) {
+                break;
+            }
+            if (startPattern.matches(nextCandidate, runningContext)) {
+                next = nextCandidate;
+                return;
+            } else {
+                currentMembers.add(nextCandidate);
+            }
+        }
+        next = null;
+    }
 
-     public AtomicValue getCurrentGroupingKey() {
-         return null;
-     }
+    public AtomicValue getCurrentGroupingKey() {
+        return null;
+    }
 
-     public SequenceIterator iterateCurrentGroup() {
-         return new ListIterator(currentMembers);
-     }
+    public SequenceIterator iterateCurrentGroup() {
+        return new ListIterator(currentMembers);
+    }
 
     public boolean hasNext() {
         return next != null;
     }
 
-     public Item next() throws XPathException {
-         if (next != null) {
-             current = next;
-             position++;
-             advance();
-             return current;
-         } else {
-             current = null;
-             position = -1;
-             return null;
-         }
-     }
+    public Item next() throws XPathException {
+        if (next != null) {
+            current = next;
+            position++;
+            advance();
+            return current;
+        } else {
+            current = null;
+            position = -1;
+            return null;
+        }
+    }
 
-     public Item current() {
-         return current;
-     }
+    public Item current() {
+        return current;
+    }
 
-     public int position() {
-         return position;
-     }
+    public int position() {
+        return position;
+    }
+
+    public void close() {
+        population.close();
+    }
 
     public SequenceIterator getAnother() throws XPathException {
         return new GroupStartingIterator(population.getAnother(), startPattern, baseContext);
@@ -95,7 +99,6 @@ public class GroupStartingIterator implements LookaheadIterator, GroupIterator {
 
     /**
      * Get properties of this iterator, as a bit-significant integer.
-     *
      * @return the properties of this iterator. This will be some combination of
      *         properties such as {@link #GROUNDED}, {@link #LAST_POSITION_FINDER},
      *         and {@link #LOOKAHEAD}. It is always
@@ -109,7 +112,6 @@ public class GroupStartingIterator implements LookaheadIterator, GroupIterator {
 
 
 }
-
 
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");

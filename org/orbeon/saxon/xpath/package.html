@@ -1,0 +1,43 @@
+<html>
+
+<head>
+<title>Package overview for org.orbeon.saxon.xpath</title>
+</head>
+
+<body>
+
+<p>This package provides an API for executing XPath expressions
+directly from a Java application. The API can be used either in a free-standing 
+Java application (that is, where there is no XSLT stylesheet), or it can be
+used from within Java extension functions called from XPath expressions within
+a stylesheet.</p>
+
+<p>The API itself is defined by JAXP 1.3, in interfaces such as <code>javax.xml.xpath.XPath</code>.
+This package is therefore dependent on JAXP 1.3. J2SE 5.0 (also known as JDK 1.5) includes JAXP 1.3
+as a standard component, but JDK 1.4 does not. To run the code in this package under JDK 1.4,
+you therefore need to install JAXP 1.3 separately. You can get this from
+<a href="https://jaxp.dev.java.net/">https://jaxp.dev.java.net/</a>. At the time of writing it is
+reached via a link labelled "Unbundled EA Build".</p>
+
+<p>This package (org.orbeon.saxon.xpath) is distributed in a separate JAR file,
+<code>saxon8-xpath.jar</code> to avoid making the whole of Saxon dependent on JAXP 1.3.</p>
+
+<p>The interfaces provided by Saxon extend the JAXP 1.3 interfaces in various ways. There
+are three reasons for this:</p>
+
+<ul>
+<li><p>Saxon supports XPath 2.0 rather than 1.0</p></li>
+<li><p>The package retains support for some interfaces that were provided before JAXP 1.3 came along.
+(These might disappear in the course of time).</p></li>
+<li><p>There are methods that allow an escape into Saxon's more low-level APIs, needed by
+anyone doing serious software integration.</p></li>
+</ul>
+
+<p>An alternative XPath interface, which is not dependent on JAXP 1.3, is available in the
+package <code>org.orbeon.saxon.sxpath</code>.</p>
+
+<p align="center"><i>Michael H. Kay<br/>
+Saxonica Limited<br/>
+9 February 2005</i></p>
+</body>
+</html>

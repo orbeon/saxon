@@ -1,0 +1,119 @@
+<html>
+
+<head>
+<title>Package overview for org.orbeon.saxon.query</title>
+</head>
+
+<body>
+
+<p>This package provides an API for executing XQuery queries
+directly from a Java application. It also includes the internal supporting code
+that implements XQuery within Saxon.</p>
+
+<p>For details of the API, see the JavaDoc documentation of individual classes, starting
+with the <code>StaticQueryContext</code>.</p>
+
+<p>The first thing you need to do is to create a <code>org.orbeon.saxon.Configuration</code> object.
+This holds values of all the system settings, corresponding to flags available on the command line.
+You don't need to set any properties in the <code>Configuration</code> object if you are happy
+with the default settings. For schema-aware processing, you will need to create a
+<code>com.saxonica.SchemaAwareConfiguration</code> instead.</p>
+
+<p>Then you need to create a <code>StaticQueryContext</code> object. As the name
+implies, this holds information about the static (compile-time) context for a query. Most aspects
+of the static context can be defined in the Query Prolog, but this object allows you to initialize
+the static context from the application instead if you need to. Some of the facilities provided are
+very much for advanced users only, for example the ability to declare variables and functions, and
+the ability to specify a NamePool to be used. One aspect of the static context that you may need
+to use is the ability to declare collations. Using the method <code>declareCollation</code> you can
+create a mapping between a collation URI (which can then be used anywhere in the Query) and a Java
+<code>StringCollator</code> object used to implement that collation.</p>
+
+<p>Having created, and possibly configured, the <code>Configuration</code> and
+<code>StaticQueryContext</code> objects, you can now compile a Query using the <code>compileQuery</code>
+method on the <code>StaticQueryContext</code>. The text of the
+Query can be supplied either as a <code>String</code> or as a Java <code>Reader</code>. There
+are thus two different <code>compileQuery</code> methods. Each of them returns the compiled
+query in the form of a <code>XQueryExpression</code>. The <code>XQueryExpression</code>, as you would expect,
+can be executed repeatedly, as often as you want, in the same or in different threads.</p>
+
+<p>Before you run your query, you may want to build one or more trees representing
+XML documents that can be used as input to your query. You don't need to do this: if the query
+loads its source documents using the <code>doc()</code> function then this will be done
+automatically, but doing it yourself gives you more control. A document node at the root of
+a tree is represented in Saxon by the <code>org.orbeon.saxon.DocumentInfo</code> interface.
+The <code>StaticQueryContext</code> provides a convenience method, <code>buildDocument()</code>,
+that allows an instance of <code>DocumentInfo</code> to be constructed. The input parameter to
+this is defined by the class <code>javax.xml.transform.Source</code>, which is part of the 
+standard Java JAXP API: the <code>Source</code> interface is an umbrella for different kinds of
+XML document source, including a <code>StreamSource</code> which parses raw XML from a byte
+or character stream, <code>SAXSource</code> which takes the input from a SAX parser (or an
+object that is simulating a SAX parser), and <code>DOMSource</code> which provides the input
+from a DOM. Saxon also provides a <code>org.orbeon.saxon.jdom.DocumentWrapper</code> which allows
+the input to be taken from a JDOM document.</p>
+
+<p>To execute your compiled query, you need to create a <code>DynamicQueryContext</code> object
+that holds the run-time context information. The main things you can set in the run-time context are:</p>
+
+<ul>
+<li>Values of parameters (external global variables). You can set these using the <code>setParameter()</code>
+method. The mappings from Java classes to XQuery/XPath data types is the same as the mapping used for the
+returned values from an external Java method call, and is described under 
+<a href="extensibility.html#function-result">Result of an Extension Function</a>.</li>
+<li>The context node can be set using the method <code>setContextNode()</code>. For some reason
+it isn't possible to set a context item other than a node.</li>
+<li>You can also set a URIResolver and/or ErrorListener. These default to the ones that were
+used during Query compilation.</li>
+</ul>
+
+<p>You are now ready to evaluate the query. There are several methods on the <code>QueryExpression</code>
+object that you can use to achieve this. The <code>evaluate()</code> method returns the result sequence 
+as a Java <code>java.util.List</code>. The <code>evaluateSingle()</code> method is suitable when you know
+that the result sequence will contain a single item: this returns this item as an Object, or returns null
+if the result is an empty sequence. There is also an <code>iterator</code> method that returns an iterator
+over the results. This is a Saxon object of class <code>org.orbeon.saxon.SequenceIterator</code>: it is similar
+to the standard Java iterator, but not quite identical; for example, it can throw exceptions.</p>
+
+<p>The <code>evaluate()</code> and <code>evaluateSingle()</code> methods return the result as a Java object
+of the most appropriate type: for example a String is returned as a <code>java.lang.String</code>, a 
+boolean as a <code>java.lang.Boolean</code>. A node is returned using the Saxon representation of a node,
+<code>org.orbeon.saxon.om.NodeInfo</code>. With the standard and tinytree models, this object also implements
+the DOM <code>Node</code> interface (but any attempt to update the node throws an error).</p>
+
+<p>The <code>iterator()</code> method, by contrast, does not do any conversion of the result. It is returned
+using its native Saxon representation, for example a String is returned as an instance of 
+<code>sf.net.saxon.value.StringValue</code>. You can then use all the methods available on this class
+to process the returned value.</p>
+
+<p>If you want to process the results of the query in your application, that's all there is to it. But you
+may want to output the results as serialized XML. Saxon provides two ways of doing this: you can produce
+wrapped output, or raw output. Raw output works only if the result consists of a single document or element
+node, and it outputs the subtree rooted at that element node in the form of a serialized XML document. Wrapped
+output works for any result sequence, for example a sequence of integers or a sequence of attribute and
+comment nodes; this works by wrapping each item in the result sequence as an XML element, with details
+of its type and value.</p>
+
+<p>To produce wrapped output, you first wrap the result sequence as an XML tree, and then serialize the
+tree. To produce unwrapped output, you skip the wrapping stage and just call the serializer directly.</p>
+
+<p>Both steps can be done using the <code>QueryResult</code> class. This class doesn't need to be
+instantiated, its methods are static. The method <code>QueryResult.wrap</code> takes as input the iterator
+produced by evaluating the query using the <code>iterator()</code> method, and produces as output
+a <code>DocumentInfo</code> object representing the results wrapped as an XML tree. The method
+<code>QueryResult.serialize</code> takes any document or element node as input, and writes it to
+a specified destination, using specified output properties. The destination is supplied as an object
+of class <code>javax.xml.transform.Result</code>. Like the <code>Source</code>, this is part of the
+JAXP API, and allows the destination to be specified as a StreamResult (representing a byte stream or
+character stream), a SAXResult (which wraps a SAX ContentHandler), or a DOMResult
+ (which delivers the result as a DOM). The output properties are used only when writing to
+ a StreamResult: they correspond to the properties available in the <code>xsl:output</code> element
+ for XSLT. The property names are defined by constants in the JAXP <code>javax.xml.transform.OutputKeys</code>
+ class (or <code>org.orbeon.saxon.event.SaxonOutputKeys</code> for Saxon extensions): for details of the
+ values that are accepted, see the JavaDoc documentation or the JAXP specification.</p>
+
+
+<p align="center"><i>Michael H. Kay<br/>
+Saxonica Limited<br/>
+9 February 2005</i></p>
+</body>
+</html>

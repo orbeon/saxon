@@ -1,18 +1,14 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.Literal;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.om.AttributeCollection;
-import org.orbeon.saxon.om.Axis;
-import org.orbeon.saxon.om.AxisIterator;
-import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.sort.SortExpression;
 import org.orbeon.saxon.sort.SortKeyDefinition;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
-import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.Whitespace;
 
 
@@ -74,7 +70,7 @@ public class XSLPerformSort extends StyleElement {
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-			if (f==StandardNames.SELECT) {
+			if (f.equals(StandardNames.SELECT)) {
         		selectAtt = atts.getValue(a);
         	} else {
         		checkUnknownAttribute(nc);
@@ -88,7 +84,6 @@ public class XSLPerformSort extends StyleElement {
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
         checkSortComesFirst(true);
 
         if (select != null) {
@@ -118,18 +113,14 @@ public class XSLPerformSort extends StyleElement {
     public Expression compile(Executable exec) throws XPathException {
         SortKeyDefinition[] sortKeys = makeSortKeys();
         if (select != null) {
-            SortExpression sortedSequence = new SortExpression(select, sortKeys);
-            ExpressionTool.makeParentReferences(sortedSequence);
-            return sortedSequence;
+            return new SortExpression(select, sortKeys);
         } else {
             Expression body = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
             if (body == null) {
-                body = EmptySequence.getInstance();
+                body = Literal.makeEmptySequence();
             }
             try {
-                SortExpression sortedSequence =  new SortExpression(body.simplify(getStaticContext()), sortKeys);
-                ExpressionTool.makeParentReferences(sortedSequence);
-                return sortedSequence;
+                return new SortExpression(makeExpressionVisitor().simplify(body), sortKeys);
             } catch (XPathException e) {
                 compileError(e);
                 return null;

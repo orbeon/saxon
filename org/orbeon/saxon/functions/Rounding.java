@@ -1,10 +1,11 @@
 package org.orbeon.saxon.functions;
-import org.orbeon.saxon.expr.Token;
+import org.orbeon.saxon.expr.ArithmeticExpression;
+import org.orbeon.saxon.expr.Calculator;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.value.IntegerValue;
+import org.orbeon.saxon.value.Int64Value;
 import org.orbeon.saxon.value.NumericValue;
 
 /**
@@ -28,7 +29,7 @@ public final class Rounding extends SystemFunction {
 
         AtomicValue val0 = (AtomicValue)argument[0].evaluateItem(context);
         if (val0==null) return null;
-        NumericValue val = (NumericValue)val0.getPrimitiveValue();
+        NumericValue val = (NumericValue)val0;
 
         switch (operation) {
             case FLOOR:
@@ -41,7 +42,7 @@ public final class Rounding extends SystemFunction {
                 int scale = 0;
                 if (argument.length==2) {
                     AtomicValue scaleVal0 = (AtomicValue)argument[1].evaluateItem(context);
-                    NumericValue scaleVal = (NumericValue)scaleVal0.getPrimitiveValue();
+                    NumericValue scaleVal = (NumericValue)scaleVal0;
                     scale = (int)scaleVal.longValue();
                 }
                 return val.roundHalfToEven(scale);
@@ -51,7 +52,8 @@ public final class Rounding extends SystemFunction {
                     return val.negate();
                 } else if (sign == 0) {
                     // ensure that the result is positive zero
-                    return val.arithmetic(Token.PLUS, IntegerValue.ZERO, context);
+                    //return val.arithmetic(Token.PLUS, Int64Value.ZERO, context);
+                    return ArithmeticExpression.compute(val, Calculator.PLUS, Int64Value.ZERO, context);
                 } else {
                     return val;
                 }

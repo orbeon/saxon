@@ -1,32 +1,16 @@
 package org.orbeon.saxon.value;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.AugmentedSource;
-import org.orbeon.saxon.event.Builder;
-import org.orbeon.saxon.event.PipelineConfiguration;
-import org.orbeon.saxon.event.Sender;
 import org.orbeon.saxon.event.SequenceReceiver;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.functions.Aggregate;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.tinytree.TinyBuilder;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
 
-import javax.xml.transform.Source;
-import javax.xml.transform.dom.DOMSource;
-import java.io.PrintStream;
 import java.io.Serializable;
-import java.lang.reflect.Array;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.net.URI;
-import java.net.URL;
-import java.util.*;
+import java.util.regex.Pattern;
 
 /**
 * A value is the result of an expression but it is also an expression in its own right.
@@ -34,7 +18,8 @@ import java.util.*;
 * length one.
 */
 
-public abstract class Value implements Expression, Serializable, ValueRepresentation {
+public abstract class Value
+        implements Serializable, SequenceIterable, ValueRepresentation /*, Comparable */ {
 
     /**
      * Static method to make a Value from a given Item (which may be either an AtomicValue
@@ -66,22 +51,41 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
     public static Item asItem(ValueRepresentation value) throws XPathException {
         if (value instanceof Item) {
             return (Item)value;
-        } else if (value instanceof EmptySequence) {
-            return null;
-        } else if (value instanceof SingletonNode) {
-            return ((SingletonNode)value).getNode();
-        } else if (value instanceof AtomicValue) {
-            return (AtomicValue)value;
         } else {
-            SequenceIterator iter = Value.getIterator(value);
-            Item item = iter.next();
-            if (item == null) {
-                return null;
-            } else if (iter.next() != null) {
-                throw new AssertionError("Attempting to access a sequence as an item");
-            } else {
-                return item;
-            }
+            return ((Value)value).asItem();
+        }
+    }
+
+    /**
+     * Return the value in the form of an Item
+     * @return the value in the form of an Item
+     */
+
+    public Item asItem() throws XPathException {
+        SequenceIterator iter = iterate();
+        Item item = iter.next();
+        if (item == null) {
+            return null;
+        } else if (iter.next() != null) {
+            throw new XPathException("Attempting to access a sequence as a singleton item");
+        } else {
+            return item;
+        }
+    }
+
+    /**
+     * Static method to get a Value from an Item
+     * @param item the supplied item
+     * @return the item expressed as a Value
+     */
+
+    public static Value fromItem(Item item) {
+        if (item == null) {
+            return EmptySequence.getInstance();
+        } else if (item instanceof AtomicValue) {
+            return (AtomicValue)item;
+        } else {
+            return new SingletonNode((NodeInfo)item);
         }
     }
 
@@ -89,17 +93,14 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
      * Static method to get an Iterator over any ValueRepresentation (which may be either a Value
      * or a NodeInfo
      * @param val       The supplied value, or null, indicating the empty sequence.
-     * @param context   The evaluation context. This may be null. It should always be possible to
-     *                  iterate over a value without supplying a context, but sometimes the context
-     *                  can provide access to better error information
      * @return          The supplied value, if it is a value, or a SingletonNode that
      *                  wraps the item, if it is a node. If the supplied value was null,
      *                  return an EmptySequence
      */
 
-    public static SequenceIterator asIterator(ValueRepresentation val, XPathContext context) throws XPathException {
+    public static SequenceIterator asIterator(ValueRepresentation val) throws XPathException {
         if (val instanceof Value) {
-            return ((Value)val).iterate(context);
+            return ((Value)val).iterate();
         } else if (val == null) {
             return EmptyIterator.getInstance();
         } else {
@@ -107,15 +108,67 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
         }
     }
 
-
     /**
-    * Static method to convert strings to numbers. Might as well go here as anywhere else.
-    * @param s the String to be converted
-    * @return a double representing the value of the String
+     * Static method to convert strings to doubles.
+     * @param s the String to be converted
+     * @return a double representing the value of the String
      * @throws NumberFormatException if the value cannot be converted
     */
 
     public static double stringToNumber(CharSequence s) throws NumberFormatException {
+        // first try to parse simple numbers by hand (it's cheaper)
+        int len = s.length();
+        if (len < 9) {
+            boolean useJava = false;
+            long num = 0;
+            int dot = -1;
+            int lastDigit = -1;
+            boolean onlySpaceAllowed = false;
+            loop: for (int i=0; i<s.length(); i++) {
+                char c = s.charAt(i);
+                switch (c) {
+                    case ' ':
+                    case '\n':
+                    case '\t':
+                    case '\r':
+                        if (lastDigit != -1) {
+                            onlySpaceAllowed = true;
+                        }
+                        break;
+                    case '0': case '1': case '2': case '3': case '4':
+                    case '5': case '6': case '7': case '8': case '9':
+                        if (onlySpaceAllowed) {
+                            throw new NumberFormatException("Numeric value contains embedded whitespace");
+                        }
+                        lastDigit = i;
+                        num = num*10 + (c - '0');
+                        break;
+                    case '.':
+                        if (onlySpaceAllowed) {
+                            throw new NumberFormatException("Numeric value contains embedded whitespace");
+                        }
+                        if (dot != -1) {
+                            throw new NumberFormatException("Only one decimal point allowed");
+                        }
+                        dot = i;
+                        break;
+                    default:
+                        // there's something like a sign or an exponent: take the slow train instead
+                        useJava = true;
+                        break loop;
+                }
+            }
+            if (!useJava) {
+                if (lastDigit == -1) {
+                    throw new NumberFormatException("No digits found");
+                } else if (dot == -1 || dot > lastDigit) {
+                    return (double)num;
+                } else {
+                    int afterPoint = lastDigit - dot;
+                    return ((double)num)/powers[afterPoint];
+                }
+            }
+        }
         String n = Whitespace.trimWhitespace(s).toString();
         if ("INF".equals(n)) {
             return Double.POSITIVE_INFINITY;
@@ -123,18 +176,30 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
             return Double.NEGATIVE_INFINITY;
         } else if ("NaN".equals(n)) {
             return Double.NaN;
+        } else if (!doublePattern.matcher(n).matches()) {
+            // Need to disallow values that are OK in Java but not in XPath, specifically
+            // - special values like +NaN or -Infinity
+            // - hex digits
+            // - binary exponents
+            // TODO: this checking incurs a performance hit. Perhaps we should do the whole conversion in-house
+            throw new NumberFormatException("Invalid characters in float/double value");
         } else {
             return Double.parseDouble(n);
         }
     }
 
+    private static double[] powers = new double[]{1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000};
+    private static Pattern doublePattern = Pattern.compile("^[0-9.eE+-]+$");
+
     /**
      * Get a SequenceIterator over a ValueRepresentation
+     * @param val the value to iterate over
+     * @return the iterator
      */
 
     public static SequenceIterator getIterator(ValueRepresentation val) throws XPathException {
         if (val instanceof Value) {
-            return ((Value)val).iterate(null);
+            return ((Value)val).iterate();
         } else if (val instanceof NodeInfo) {
             return SingletonIterator.makeIterator((NodeInfo)val);
         } else if (val == null) {
@@ -142,6 +207,27 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
         } else {
             throw new AssertionError("Unknown value representation " + val.getClass());
         }
+    }
+
+    /**
+     * Iterate over the items contained in this value.
+     * @return an iterator over the sequence of items
+     * @throws XPathException if a dynamic error occurs. This is possible only in the case of values
+     * that are materialized lazily, that is, where the iterate() method leads to computation of an
+     * expression that delivers the values.
+     */
+
+    public abstract SequenceIterator iterate() throws XPathException;
+
+    /**
+     * Return an iterator over the results of evaluating an expression
+     * @param context the dynamic evaluation context (not used in this implementation)
+     * @return an iterator over the items delivered by the expression
+     */
+
+    public final SequenceIterator iterate(XPathContext context) throws XPathException {
+        // Note, this method, and the SequenceIterable interface, are used from XQuery compiled code
+        return iterate();
     }
 
     /**
@@ -153,32 +239,19 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
         return getStringValue();
     }
 
-
     /**
-    * Simplify an expression
-    * @return for a Value, this always returns the value unchanged
-    */
+     * Get the canonical lexical representation as defined in XML Schema. This is not always the same
+     * as the result of casting to a string according to the XPath rules.
+     * @return the canonical lexical representation if defined in XML Schema; otherwise, the result
+     * of casting to string according to the XPath 2.0 rules
+     */
 
-    public final Expression simplify(StaticContext env) {
-        return this;
-    }
-
-    /**
-    * TypeCheck an expression
-    * @return for a Value, this always returns the value unchanged
-    */
-
-    public final Expression typeCheck(StaticContext env, ItemType contextItemType) {
-        return this;
-    }
-
-    /**
-    * Optimize an expression
-    * @return for a Value, this always returns the value unchanged
-    */
-
-    public final Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) {
-        return this;
+    public CharSequence getCanonicalLexicalRepresentation() {
+        try {
+            return getStringValueCS();
+        } catch (XPathException err) {
+            throw new IllegalStateException("Failed to get canonical lexical representation: " + err.getMessage());
+        }
     }
 
     /**
@@ -193,11 +266,12 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
 
     /**
      * Determine the cardinality
+     * @return the cardinality
      */
 
     public int getCardinality() {
         try {
-            SequenceIterator iter = iterate(null);
+            SequenceIterator iter = iterate();
             Item next = iter.next();
             if (next == null) {
                 return StaticProperty.EMPTY;
@@ -215,82 +289,20 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
     }
 
     /**
-     * Get the sub-expressions of this expression.
-     * @return for a Value, this always returns an empty array
-     */
-
-    public final Iterator iterateSubExpressions() {
-        return Collections.EMPTY_LIST.iterator();
-    }
-
-    /**
-     * Get the expression that immediately contains this expression. This method
-     * returns null for an outermost expression; it also return null in the case
-     * of literal values. For an XPath expression occurring within an XSLT stylesheet,
-     * this method returns the XSLT instruction containing the XPath expression.
-     * @return the expression that contains this expression, if known; return null
-     * if there is no containing expression or if the containing expression is unknown.
-     */
-
-    public final Container getParentExpression() {
-        return null;
-    }
-
-    /**
-     * Get the static properties of this expression (other than its type). For a
-     * Value, the only special property is {@link StaticProperty#NON_CREATIVE}.
-     * @return {@link StaticProperty#NON_CREATIVE}
-     */
-
-
-    public int getSpecialProperties() {
-        return StaticProperty.NON_CREATIVE;
-    }
-
-    /**
-     * Offer promotion for this subexpression. Values (constant expressions)
-     * are never promoted
-     * @param offer details of the offer, for example the offer to move
-     *     expressions that don't depend on the context to an outer level in
-     *     the containing expression
-     * @return For a Value, this always returns the value unchanged
-     */
-
-     public final Expression promote(PromotionOffer offer) {
-        return this;
-    }
-
-    /**
-    * Determine which aspects of the context the expression depends on. The result is
-    * a bitwise-or'ed value composed from constants such as StaticProperty.VARIABLES and
-    * StaticProperty.CURRENT_NODE
-     * @return for a Value, this always returns zero.
-    */
-
-    public final int getDependencies() {
-        return 0;
-    }
-
-    /**
      * Get the n'th item in the sequence (starting from 0). This is defined for all
      * Values, but its real benefits come for a sequence Value stored extensionally
      * (or for a MemoClosure, once all the values have been read)
+     * @param n position of the required item, counting from zero.
+     * @return the n'th item in the sequence, where the first item in the sequence is
+     * numbered zero. If n is negative or >= the length of the sequence, returns null.
      */
 
     public Item itemAt(int n) throws XPathException {
-        if ((getImplementationMethod() & EVALUATE_METHOD) != 0) {
-            if (n==0) {
-                Item item = evaluateItem(null);
-                return (item == null ? null : item);
-            } else {
-                return null;
-            }
-        }
         if (n < 0) {
             return null;
         }
         int i = 0;        // indexing is zero-based
-        SequenceIterator iter = iterate(null);
+        SequenceIterator iter = iterate();
         while (true) {
             Item item = iter.next();
             if (item == null) {
@@ -304,22 +316,12 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
 
     /**
      * Get the length of the sequence
+     * @return the number of items in the sequence
      */
 
     public int getLength() throws XPathException {
-        return Aggregate.count(iterate(null));
+        return Aggregate.count(iterate());
     }
-
-    /**
-     * Evaluate as a singleton item (or empty sequence). Note: this implementation returns
-     * the first item in the sequence. The method should not be used unless appropriate type-checking
-     * has been done to ensure that the value will be a singleton.
-     */
-
-    public Item evaluateItem(XPathContext context) throws XPathException {
-        return iterate(context).next();
-    }
-
 
     /**
       * Process the value as an instruction, without returning any tail calls
@@ -328,7 +330,7 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
       */
 
     public void process(XPathContext context) throws XPathException {
-        SequenceIterator iter = iterate(context);
+        SequenceIterator iter = iterate();
         SequenceReceiver out = context.getReceiver();
         while (true) {
             Item it = iter.next();
@@ -349,7 +351,7 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
 
     public String getStringValue() throws XPathException {
         FastStringBuffer sb = new FastStringBuffer(1024);
-        SequenceIterator iter = iterate(null);
+        SequenceIterator iter = iterate();
         Item item = iter.next();
         if (item != null) {
             while (true) {
@@ -364,101 +366,132 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
         return sb.toString();
     }
 
-    /**
-     * Evaluate an expression as a String. This function must only be called in contexts
-     * where it is known that the expression will return a single string (or where an empty sequence
-     * is to be treated as a zero-length string). Implementations should not attempt to convert
-     * the result to a string, other than converting () to "". This method is used mainly to
-     * evaluate expressions produced by compiling an attribute value template.
-     *
-     * @exception XPathException if any dynamic error occurs evaluating the
-     *     expression
-     * @exception ClassCastException if the result type of the
-     *     expression is not xs:string?
-     * @param context The context in which the expression is to be evaluated
-     * @return the value of the expression, evaluated in the current context.
-     *     The expression must return a string or (); if the value of the
-     *     expression is (), this method returns "".
-     */
-
-    public String evaluateAsString(XPathContext context) throws XPathException {
-        AtomicValue value = (AtomicValue) evaluateItem(context);
-        if (value == null) return "";
-        return value.getStringValue();
-    }
-
 
     /**
      * Get the effective boolean value of the expression. This returns false if the value
      * is the empty sequence, a zero-length string, a number equal to zero, or the boolean
      * false. Otherwise it returns true.
      *
-     * @param context The context in which the expression is to be evaluated
      * @exception XPathException if any dynamic error occurs evaluating the
      *     expression
      * @return the effective boolean value
      */
 
-    public boolean effectiveBooleanValue(XPathContext context) throws XPathException {
-        return ExpressionTool.effectiveBooleanValue(iterate(context));
+    public boolean effectiveBooleanValue() throws XPathException {
+        return ExpressionTool.effectiveBooleanValue(iterate());
     }
 
     /**
-     * Compare two (sequence) values for equality. This supports identity constraints in XML Schema,
-     * which allow list-valued elements and attributes to participate in key and uniqueness constraints.
-     * This method returns false if any error occurs during the comparison, or if any of the items
-     * in either sequence is a node rather than an atomic value.
+     * Get a Comparable value that implements the XML Schema ordering comparison semantics for this value.
+     * The default implementation is written to compare sequences of atomic values.
+     * This method is overridden for AtomicValue and its subclasses.
+     *
+     * <p>In the case of data types that are partially ordered, the returned Comparable extends the standard
+     * semantics of the compareTo() method by returning the value {@link #INDETERMINATE_ORDERING} when there
+     * is no defined order relationship between two given values.</p>
+     *
+     * @return a Comparable that follows XML Schema comparison rules
+     */
+
+    public Comparable getSchemaComparable() {
+        return new ValueSchemaComparable();
+    }
+
+    private class ValueSchemaComparable implements Comparable {
+        public Value getValue() {
+            return Value.this;
+        }
+        public int compareTo(Object obj) {
+            try {
+                if (obj instanceof ValueSchemaComparable) {
+                    SequenceIterator iter1 = getValue().iterate();
+                    SequenceIterator iter2 = ((ValueSchemaComparable)obj).getValue().iterate();
+                    while (true) {
+                        Item item1 = iter1.next();
+                        Item item2 = iter2.next();
+                        if (item1 == null && item2 == null) {
+                            return 0;
+                        }
+                        if (item1 == null) {
+                            return -1;
+                        } else if (item2 == null) {
+                            return +1;
+                        }
+                        if (item1 instanceof NodeInfo || item2 instanceof NodeInfo) {
+                            throw new UnsupportedOperationException("Sequences containing nodes are not schema-comparable");
+                        }
+                        int c = ((AtomicValue)item1).getSchemaComparable().compareTo(
+                                    ((AtomicValue)item2).getSchemaComparable());
+                        if (c != 0) {
+                            return c;
+                        }
+                    }
+                } else {
+                    return INDETERMINATE_ORDERING;
+                }
+            } catch (XPathException e) {
+                throw new AssertionError("Failure comparing schema values: " + e.getMessage());
+            }
+        }
+
+        public boolean equals(Object obj) {
+            return compareTo(obj) == 0;
+        }
+
+        public int hashCode() {
+            try {
+                int hash = 0x06639662;  // arbitrary seed
+                SequenceIterator iter = getValue().iterate();
+                while (true) {
+                    Item item = iter.next();
+                    if (item == null) {
+                        return hash;
+                    }
+                    hash ^= ((AtomicValue)item).getSchemaComparable().hashCode();
+                }
+            } catch (XPathException e) {
+                return 0;
+            }
+        }
+    }
+
+    /**
+     * Constant returned by compareTo() method to indicate an indeterminate ordering between two values
+     */
+
+    public static final int INDETERMINATE_ORDERING = Integer.MIN_VALUE;
+
+    /**
+     * Compare two (sequence) values for equality. This method implements the XPath eq operator, for cases
+     * where it is defined. For values containing nodes, nodes are compared for identity.
+     * In cases where eq is not defined, it throws ClassCastException. In cases
+     * where the result of eq is an empty sequence, this function returns false, except that two empty
+     * sequences compare equal. The method also returns a ClassCastException
+     * if any failure occurs evaluating either of the values.
      */
 
     public boolean equals(Object obj) {
-        // TODO: this reports a sequence of length one as being equal to a singleton. It's not clear this is correct.
-        // Tests such as idc_NMTOKENS_Name are relevant. Saxon 8.8 reports equal, 8.7.3 reported not equal.
-        try {
-            if (obj instanceof Value) {
-                SequenceIterator iter1 = iterate(null);
-                SequenceIterator iter2 = ((Value)obj).iterate(null);
-                while (true) {
-                    Item item1 = iter1.next();
-                    Item item2 = iter2.next();
-                    if (item1 == null && item2 == null) {
-                        return true;
-                    }
-                    if (item1 == null || item2 == null) {
-                        return false;
-                    }
-                    if (item1 instanceof NodeInfo || item2 instanceof NodeInfo) {
-                        return false;
-                    }
-                    if (!item1.equals(item2)) {
-                        return false;
-                    }
-                }
-            } else {
-                return false;
-            }
-        } catch (XPathException e) {
-            return false;
-        }
-    }
-
-    /**
-     * Return a hash code to support the equals() function
-     */
-
-    public int hashCode() {
-        try {
-            int hash = 0x06639662;  // arbitrary seed
-            SequenceIterator iter = iterate(null);
-            while (true) {
-                Item item = iter.next();
-                if (item == null) {
-                    return hash;
-                }
-                hash ^= item.hashCode();
-            }
-        } catch (XPathException e) {
-            return 0;
-        }
+        throw new UnsupportedOperationException("Value.equals()");
+//        try {
+//            if (obj instanceof Value) {
+//                SequenceIterator iter1 = iterate();
+//                SequenceIterator iter2 = ((Value)obj).iterate();
+//                while (true) {
+//                    Item item1 = iter1.next();
+//                    Item item2 = iter2.next();
+//                    if (item1 == null || item2 == null) {
+//                        return item1 == null && item2 == null;
+//                    }
+//                    if (!item1.equals(item2)) {
+//                        return false;
+//                    }
+//                }
+//            } else {
+//                return false;
+//            }
+//        } catch (XPathException e) {
+//            throw new ClassCastException(e.getMessage());
+//        }
     }
 
 
@@ -467,12 +500,12 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
      * of a given schema type.
      * @param parentType The schema type
      * @param env the static context
-     * @param whole
+     * @param whole true if this value accounts for the entire content of the containing node
      * @throws XPathException if the expression doesn't match the required content type
      */
 
     public void checkPermittedContents(SchemaType parentType, StaticContext env, boolean whole) throws XPathException {
-        return;
+        //return;
     }
 
     /**
@@ -480,6 +513,7 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
      * such as a FunctionCallPackage, then it is reduced to a SequenceExtent. If it is a SequenceExtent containing
      * a single item, then it is reduced to that item. One consequence that is exploited by class FilterExpression
      * is that if the value is a singleton numeric value, then the result will be an instance of NumericValue
+     * @return the value in simplified form
      */
 
     public Value reduce() throws XPathException {
@@ -488,182 +522,198 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
 
     /**
      * Convert to Java object (for passing to external functions)
+     * @param target the required target class
+     * @param context the XPath dynamic evaluation context
+     * @return the (boxed) Java object that best represents the XPath value. This is guaranteed
+     * to be an instance of the target class
      */
 
-    public Object convertToJava(Class target, XPathContext context) throws XPathException {
+//    public Object convertToJava(Class target, XPathContext context) throws XPathException {
+//        // TODO: delete this method and its implementations
+//        // This is overridden in subclasses that handle singleton objects
+//        return convertSequenceToJava(target, context);
+//    }
 
-        if (target == Object.class) {
-            List list = new ArrayList(20);
-            return convertToJavaList(list, context);
-        }
+    /**
+     * Convert this value to a Java object
+     * @param target the required class of the resulting Java object
+     * @param context the XPath evaluation context
+     * @return the Java object, which will always be an instance of the target class
+     * @throws XPathException if conversion is not possible
+     */
 
-        // See if the extension function is written to accept native Saxon objects
-
-        if (target.isAssignableFrom(this.getClass())) {
-            return this;
-        } else if (target.isAssignableFrom(SequenceIterator.class)) {
-            return iterate(context);
-        }
-
-        // Offer the object to registered external object models
-
-        if ((this instanceof ObjectValue || !(this instanceof AtomicValue)) && !(this instanceof EmptySequence)) {
-            List externalObjectModels = context.getConfiguration().getExternalObjectModels();
-            for (int m=0; m<externalObjectModels.size(); m++) {
-                ExternalObjectModel model = (ExternalObjectModel)externalObjectModels.get(m);
-                Object object = model.convertXPathValueToObject(this, target, context);
-                if (object != null) {
-                    return object;
-                }
-            }
-        }
-
-        if (Collection.class.isAssignableFrom(target)) {
-            Collection list;
-            if (target.isAssignableFrom(ArrayList.class)) {
-                list = new ArrayList(100);
-            } else {
-                try {
-                    list = (Collection)target.newInstance();
-                } catch (InstantiationException e) {
-                    DynamicError de = new DynamicError("Cannot instantiate collection class " + target);
-                    de.setXPathContext(context);
-                    throw de;
-                } catch (IllegalAccessException e) {
-                    DynamicError de = new DynamicError("Cannot access collection class " + target);
-                    de.setXPathContext(context);
-                    throw de;
-                }
-            }
-            return convertToJavaList(list, context);
-        } else if (target.isArray()) {
-            Class component = target.getComponentType();
-            if (component.isAssignableFrom(Item.class) ||
-                    component.isAssignableFrom(NodeInfo.class) ||
-                    component.isAssignableFrom(DocumentInfo.class)) {
-                Value extent = this;
-                if (extent instanceof Closure) {
-                    extent = Value.asValue(SequenceExtent.makeSequenceExtent(extent.iterate(null)));
-                }
-                int length = extent.getLength();
-                Object array = Array.newInstance(component, length);
-                SequenceIterator iter = extent.iterate(null);
-                for (int i=0; i<length; i++) {
-                    Item item = iter.next();
-                    try {
-                        Array.set(array, i, item);
-                    } catch (IllegalArgumentException err) {
-                        DynamicError d = new DynamicError(
-                                "Item " + i + " in supplied sequence cannot be converted " +
-                                "to the component type of the Java array (" + component + ')', err);
-                        d.setXPathContext(context);
-                        throw d;
-                    }
-                }
-                return array;
-            } else /* if (!(this instanceof AtomicValue)) */ {
-                // try atomizing the sequence, unless this is a single atomic value, in which case we've already
-                // tried that.
-                SequenceIterator it = Atomizer.AtomizingFunction.getAtomizingIterator(iterate(context));
-                int length;
-                if ((it.getProperties() & SequenceIterator.LAST_POSITION_FINDER) == 0) {
-                    SequenceExtent extent = new SequenceExtent(it);
-                    length = extent.getLength();
-                    it = extent.iterate(context);
-                } else {
-                    length = ((LastPositionFinder)it).getLastPosition();
-                }
-                Object array = Array.newInstance(component, length);
-                for (int i=0; i<length; i++) {
-                    try {
-                        AtomicValue val = (AtomicValue)it.next();
-                        Object jval = val.convertToJava(component, context);
-                        Array.set(array, i, jval);
-                    } catch (XPathException err) {
-                        DynamicError d = new DynamicError(
-                                "Cannot convert item in atomized sequence to the component type of the Java array", err);
-                        d.setXPathContext(context);
-                        throw d;
-                    }
-                }
-                return array;
+//    public final Object convertSequenceToJava(Class target, XPathContext context) throws XPathException {
+//        // TODO: delete this method and its implementations
+//        if (target == Object.class) {
+//            List list = new ArrayList(20);
+//            return convertToJavaList(list, context);
+//        }
+//
+//        // See if the extension function is written to accept native Saxon objects
+//
+//        if (target.isAssignableFrom(getClass())) {
+//            return this;
+//        } else if (target.isAssignableFrom(SequenceIterator.class)) {
+//            return iterate();
+//        }
+//
+//        // Offer the object to registered external object models
+//
+//        if ((this instanceof ObjectValue || !(this instanceof AtomicValue)) && !(this instanceof EmptySequence)) {
+//            List externalObjectModels = context.getConfiguration().getExternalObjectModels();
+//            for (int m=0; m<externalObjectModels.size(); m++) {
+//                ExternalObjectModel model = (ExternalObjectModel)externalObjectModels.get(m);
+//                Object object = model.convertXPathValueToObject(this, target, context);
+//                if (object != null) {
+//                    return object;
+//                }
+//            }
+//        }
+//
+//        if (Collection.class.isAssignableFrom(target)) {
+//            Collection list;
+//            if (target.isAssignableFrom(ArrayList.class)) {
+//                list = new ArrayList(100);
 //            } else {
-//                DynamicError d = new DynamicError(
-//                     "Cannot convert supplied argument value to the required type");
-//                d.setXPathContext(context);
-//                throw d;
-            }
-
-        } else if (target.isAssignableFrom(Item.class) ||
-                target.isAssignableFrom(NodeInfo.class) ||
-                target.isAssignableFrom(DocumentInfo.class)) {
-
-            // try passing the first item in the sequence provided it is the only one
-            SequenceIterator iter = iterate(null);
-            Item first = null;
-            while (true) {
-                Item next = iter.next();
-                if (next == null) {
-                    break;
-                }
-                if (first != null) {
-                    DynamicError err = new DynamicError("Sequence contains more than one value; Java method expects only one");
-                    err.setXPathContext(context);
-                    throw err;
-                }
-                first = next;
-            }
-            if (first == null) {
-                // sequence is empty; pass a Java null
-                return null;
-            }
-            if (target.isAssignableFrom(first.getClass())) {
-                // covers Item and NodeInfo
-                return first;
-            }
-
-            Object n = first;
-            while (n instanceof VirtualNode) {
-                // If we've got a wrapper around a DOM or JDOM node, and the user wants a DOM
-                // or JDOM node, we unwrap it
-                Object vn = ((VirtualNode) n).getUnderlyingNode();
-                if (target.isAssignableFrom(vn.getClass())) {
-                    return vn;
-                } else {
-                    n = vn;
-                }
-            }
-
-            throw new DynamicError("Cannot convert supplied XPath value to the required type for the extension function");
-        } else if (!(this instanceof AtomicValue)) {
-            // try atomizing the value, unless this is an atomic value, in which case we've already tried that
-            SequenceIterator it = Atomizer.AtomizingFunction.getAtomizingIterator(iterate(context));
-            Item first = null;
-            while (true) {
-                Item next = it.next();
-                if (next == null) {
-                    break;
-                }
-                if (first != null) {
-                    DynamicError err = new DynamicError("Sequence contains more than one value; Java method expects only one");
-                    err.setXPathContext(context);
-                    throw err;
-                }
-                first = next;
-            }
-            if (first == null) {
-                // sequence is empty; pass a Java null
-                return null;
-            }
-            if (target.isAssignableFrom(first.getClass())) {
-                return first;
-            } else {
-                return ((AtomicValue)first).convertToJava(target, context);
-            }
-        } else {
-            throw new DynamicError("Cannot convert supplied XPath value to the required type for the extension function");
-        }
-    }
+//                try {
+//                    list = (Collection)target.newInstance();
+//                } catch (InstantiationException e) {
+//                    XPathException de = new XPathException("Cannot instantiate collection class " + target);
+//                    de.setXPathContext(context);
+//                    throw de;
+//                } catch (IllegalAccessException e) {
+//                    XPathException de = new XPathException("Cannot access collection class " + target);
+//                    de.setXPathContext(context);
+//                    throw de;
+//                }
+//            }
+//            return convertToJavaList(list, context);
+//        } else if (target.isArray()) {
+//            Class component = target.getComponentType();
+//            if (component.isAssignableFrom(Item.class) ||
+//                    component.isAssignableFrom(NodeInfo.class) ||
+//                    component.isAssignableFrom(DocumentInfo.class)) {
+//                Value extent = this;
+//                if (extent instanceof Closure) {
+//                    extent = Value.asValue(SequenceExtent.makeSequenceExtent(extent.iterate()));
+//                }
+//                int length = extent.getLength();
+//                Object array = Array.newInstance(component, length);
+//                SequenceIterator iter = extent.iterate();
+//                for (int i=0; i<length; i++) {
+//                    Item item = iter.next();
+//                    try {
+//                        Array.set(array, i, item);
+//                    } catch (IllegalArgumentException err) {
+//                        XPathException d = new XPathException("Item " + i + " in supplied sequence cannot be converted " +
+//                                "to the component type of the Java array (" + component + ')', err);
+//                        d.setErrorCode(SaxonErrorCode.SXJE0023);
+//                        d.setXPathContext(context);
+//                        throw d;
+//                    }
+//                }
+//                return array;
+//            } else /* if (!(this instanceof AtomicValue)) */ {
+//                // try atomizing the sequence, unless this is a single atomic value, in which case we've already
+//                // tried that.
+//                SequenceIterator it = Atomizer.getAtomizingIterator(iterate());
+//                int length;
+//                if ((it.getProperties() & SequenceIterator.LAST_POSITION_FINDER) == 0) {
+//                    SequenceExtent extent = new SequenceExtent(it);
+//                    length = extent.getLength();
+//                    it = extent.iterate();
+//                } else {
+//                    length = ((LastPositionFinder)it).getLastPosition();
+//                }
+//                Object array = Array.newInstance(component, length);
+//                for (int i=0; i<length; i++) {
+//                    try {
+//                        AtomicValue val = (AtomicValue)it.next();
+//                        Object jval = val.convertToJava(component, context);
+//                        Array.set(array, i, jval);
+//                    } catch (XPathException err) {
+//                        XPathException d = new XPathException("Cannot convert item in atomized sequence to the component type of the Java array", err);
+//                        d.setErrorCode(SaxonErrorCode.SXJE0023);
+//                        d.setXPathContext(context);
+//                        throw d;
+//                    }
+//                }
+//                return array;
+//            }
+//
+//        } else if (target.isAssignableFrom(Item.class) ||
+//                target.isAssignableFrom(NodeInfo.class) ||
+//                target.isAssignableFrom(DocumentInfo.class)) {
+//
+//            // try passing the first item in the sequence provided it is the only one
+//            SequenceIterator iter = iterate();
+//            Item first = null;
+//            while (true) {
+//                Item next = iter.next();
+//                if (next == null) {
+//                    break;
+//                }
+//                if (first != null) {
+//                    XPathException err = new XPathException("Sequence contains more than one value; Java method expects only one", SaxonErrorCode.SXJE0022);
+//                    err.setXPathContext(context);
+//                    throw err;
+//                }
+//                first = next;
+//            }
+//            if (first == null) {
+//                // sequence is empty; pass a Java null
+//                return null;
+//            }
+//            if (target.isAssignableFrom(first.getClass())) {
+//                // covers Item and NodeInfo
+//                return first;
+//            }
+//
+//            Object n = first;
+//            while (n instanceof VirtualNode) {
+//                // If we've got a wrapper around a DOM or JDOM node, and the user wants a DOM
+//                // or JDOM node, we unwrap it
+//                Object vn = ((VirtualNode) n).getUnderlyingNode();
+//                if (target.isAssignableFrom(vn.getClass())) {
+//                    return vn;
+//                } else {
+//                    n = vn;
+//                }
+//            }
+//
+//            throw new XPathException(
+//                    "Cannot convert supplied XPath value to the required type for the extension function",
+//                    SaxonErrorCode.SXJE0021);
+//        } else if (!(this instanceof AtomicValue)) {
+//            // try atomizing the value, unless this is an atomic value, in which case we've already tried that
+//            SequenceIterator it = Atomizer.getAtomizingIterator(iterate());
+//            Item first = null;
+//            while (true) {
+//                Item next = it.next();
+//                if (next == null) {
+//                    break;
+//                }
+//                if (first != null) {
+//                    XPathException err = new XPathException("Sequence contains more than one value; Java method expects only one", SaxonErrorCode.SXJE0022);
+//                    err.setXPathContext(context);
+//                    throw err;
+//                }
+//                first = next;
+//            }
+//            if (first == null) {
+//                // sequence is empty; pass a Java null
+//                return null;
+//            }
+//            if (target.isAssignableFrom(first.getClass())) {
+//                return first;
+//            } else {
+//                return ((AtomicValue)first).convertToJava(target, context);
+//            }
+//        } else {
+//            throw new XPathException("Cannot convert supplied XPath value to the required type for the extension function",
+//                    SaxonErrorCode.SXJE0021);
+//        }
+//    }
     
     /**
      * Convert this XPath value to a Java collection
@@ -673,306 +723,297 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
      * @throws XPathException
      */
 
-    private Collection convertToJavaList(Collection list, XPathContext context) throws XPathException {
-        // TODO: with JDK 1.5, check to see if the item type of the list is constrained
-        SequenceIterator iter = iterate(null);
-        while (true) {
-            Item it = iter.next();
-            if (it == null) {
-                return list;
-            }
-            if (it instanceof AtomicValue) {
-                list.add(((AtomicValue)it).convertToJava(Object.class, context));
-            } else if (it instanceof VirtualNode) {
-                list.add(((VirtualNode)it).getUnderlyingNode());
-            } else {
-                list.add(it);
-            }
-        }
-    }
-
-    /**
-     * Diagnostic display of the expression
-     */
-
-    public void display(int level, PrintStream out, Configuration config) {
-        final TypeHierarchy th = config.getTypeHierarchy();
-        try {
-            out.println(ExpressionTool.indent(level) + "sequence of " +
-                    getItemType(th).toString() + " (");
-            SequenceIterator iter = iterate(null);
-            while (true) {
-                Item it = iter.next();
-                if (it == null) {
-                    break;
-                }
-                if (it instanceof NodeInfo) {
-                    out.println(ExpressionTool.indent(level + 1) + "node " + Navigator.getPath(((NodeInfo)it)));
-                } else {
-                    out.println(ExpressionTool.indent(level + 1) + it.toString());
-                }
-            }
-            out.println(ExpressionTool.indent(level) + ')');
-        } catch (XPathException err) {
-            out.println(ExpressionTool.indent(level) + "(*error*)");
-        }
-    }
+//    public Collection convertToJavaList(Collection list, XPathContext context) throws XPathException {
+//        // TODO: with JDK 1.5, check to see if the item type of the list is constrained
+//        SequenceIterator iter = iterate();
+//        while (true) {
+//            Item it = iter.next();
+//            if (it == null) {
+//                return list;
+//            }
+//            if (it instanceof AtomicValue) {
+//                list.add(((AtomicValue)it).convertToJava(Object.class, context));
+//            } else if (it instanceof VirtualNode) {
+//                list.add(((VirtualNode)it).getUnderlyingNode());
+//            } else {
+//                list.add(it);
+//            }
+//        }
+//    }
 
     /**
     * Convert a Java object to an XPath value. This method is called to handle the result
-    * of an external function call (but only if the required type is not known),
-    * and also to process global parameters passed to the stylesheet or query.
+    * of an external function call, and also to process global parameters passed to the stylesheet or query.
     * @param object The Java object to be converted
     * @param requiredType The required type of the result (if known)
-    * @param config The Configuration: may be null, in which case certain kinds of object
-     * (eg. DOM nodes) cannot be handled
-    * @return the result of converting the value. If the value is null, returns null.
+    * @param context The XPath dynamic context
+     * @return the result of converting the value. If the value is null, returns null.
     */
 
-    public static Value convertJavaObjectToXPath(
-            Object object, SequenceType requiredType, Configuration config)
-                                          throws XPathException {
+//    public static Value convertJavaObjectToXPath(Object object, SequenceType requiredType, XPathContext context)
+//                                          throws XPathException {
+//
+//        Configuration config= context.getConfiguration();
+//        ItemType requiredItemType = requiredType.getPrimaryType();
+//
+//        // TODO: make more use of the requiredType, e.g. to decide what to convert a Date into.
+//
+//        if (object==null) {
+//            return EmptySequence.getInstance();
+//        }
+//
+//        if (object instanceof Value && requiredType.matches((Value)object, config)) {
+//            return (Value)object;
+//        }
+//
+//        // Offer the object to all the registered external object models
+//
+//        List externalObjectModels = config.getExternalObjectModels();
+//        for (int m=0; m<externalObjectModels.size(); m++) {
+//            ExternalObjectModel model = (ExternalObjectModel)externalObjectModels.get(m);
+//            Value val = model.convertObjectToXPathValue(object, config);
+//            if (val != null && TypeChecker.testConformance(val, requiredType, context) == null) {
+//                return val;
+//            }
+//        }
+//
+//        if (requiredItemType instanceof ExternalObjectType) {
+//            Class theClass = ((ExternalObjectType)requiredItemType).getJavaClass();
+//            if (theClass.isAssignableFrom(object.getClass())) {
+//                return new ObjectValue(object, (ExternalObjectType)requiredItemType);
+//            } else {
+//                throw new XPathException("Supplied parameter value is of class " + object.getClass().getName() +
+//                        " - it needs to be of class " + theClass.getName());
+//            }
+//        }
+//
+//        return convertToBestFit(object, config);
+//
+//    }
 
-        ItemType requiredItemType = requiredType.getPrimaryType();
-
-        if (object==null) {
-            return EmptySequence.getInstance();
-        }
-
-        // Offer the object to all the registered external object models
-
-        List externalObjectModels = config.getExternalObjectModels();
-        for (int m=0; m<externalObjectModels.size(); m++) {
-            ExternalObjectModel model = (ExternalObjectModel)externalObjectModels.get(m);
-            Value val = model.convertObjectToXPathValue(object, config);
-            if (val != null && TypeChecker.testConformance(val, requiredType, config) == null) {
-                return val;
-            }
-        }
-
-        if (requiredItemType instanceof ExternalObjectType) {
-            Class theClass = ((ExternalObjectType)requiredItemType).getJavaClass();
-            if (theClass.isAssignableFrom(object.getClass())) {
-                return new ObjectValue(object);
-            } else {
-                throw new DynamicError("Supplied parameter value is not of class " + theClass.getName());
-            }
-        }
-
-        Value value = convertToBestFit(object, config);
-        return value;
-
-    }
-
-    private static Value convertToBestFit(Object object, Configuration config) throws XPathException {
-        if (object instanceof String) {
-            return StringValue.makeStringValue((String)object);
-
-        } else if (object instanceof Character) {
-            return new StringValue(object.toString());
-
-        } else if (object instanceof Boolean) {
-            return BooleanValue.get(((Boolean)object).booleanValue());
-
-        } else if (object instanceof Double) {
-            return new DoubleValue(((Double)object).doubleValue());
-
-        } else if (object instanceof Float) {
-            return new FloatValue(((Float)object).floatValue());
-
-        } else if (object instanceof Short) {
-            return new IntegerValue(((Short)object).shortValue(),
-                                    (AtomicType)BuiltInSchemaFactory.getSchemaType(StandardNames.XS_SHORT));
-        } else if (object instanceof Integer) {
-            return new IntegerValue(((Integer)object).intValue(),
-                                    (AtomicType)BuiltInSchemaFactory.getSchemaType(StandardNames.XS_INT));
-        } else if (object instanceof Long) {
-            return new IntegerValue(((Long)object).longValue(),
-                                    (AtomicType)BuiltInSchemaFactory.getSchemaType(StandardNames.XS_LONG));
-        } else if (object instanceof Byte) {
-            return new IntegerValue(((Byte)object).byteValue(),
-                                    (AtomicType)BuiltInSchemaFactory.getSchemaType(StandardNames.XS_BYTE));
-
-        } else if (object instanceof BigInteger) {
-            return BigIntegerValue.makeValue(((BigInteger)object));
-
-        } else if (object instanceof BigDecimal) {
-            return new DecimalValue(((BigDecimal)object));
-
-//        } else if (object instanceof QName) {
-//            return new QNameValue((QName)object);
-            // TODO: reinstate above lines in JDK 1.5
-        } else if (object.getClass().getName().equals("javax.xml.namespace.QName")) {
-            return makeQNameValue(object, config);
-
-        } else if (object instanceof URI) {
-            return new AnyURIValue(object.toString());
-
-        } else if (object instanceof URL) {
-            return new AnyURIValue(object.toString());
-
-        } else if (object instanceof Closure) {
-            // Force eager evaluation, because of problems with side-effects.
-            // (The value might depend on data that is mutable.)
-            //return Value.asValue(ExpressionTool.evaluate((Closure)object, ExpressionTool.ITERATE_AND_MATERIALIZE, config.getConversionContext(), 10));
-            return Value.asValue(
-                    SequenceExtent.makeSequenceExtent(((Closure)object).iterate(config.getConversionContext())));
-        } else if (object instanceof Value) {
-            return (Value)object;
-
-        } else if (object instanceof NodeInfo) {
-            if (((NodeInfo)object).getConfiguration() != config) {
-                throw new DynamicError("Externally-supplied NodeInfo belongs to wrong Configuration");
-            }
-            return new SingletonNode((NodeInfo)object);
-
-        } else if (object instanceof SequenceIterator) {
-            return Closure.makeIteratorClosure((SequenceIterator)object);
-
-        } else if (object instanceof List) {
-            Item[] array = new Item[((List)object).size()];
-            int a = 0;
-            for (Iterator i=((List)object).iterator(); i.hasNext(); ) {
-                Object obj = i.next();
-                if (obj instanceof NodeInfo) {
-                    if (((NodeInfo)obj).getConfiguration() != config) {
-                        throw new DynamicError("Externally-supplied NodeInfo belongs to wrong Configuration");
-                    }
-                    array[a++] = (NodeInfo)obj;
-                } else {
-                    Value v = convertToBestFit(obj, config);
-                    if (v!=null) {
-                        if (v instanceof Item) {
-                            array[a++] = (Item)v;
-                        } else if (v instanceof EmptySequence) {
-                            // no action
-                        } else if (v instanceof SingletonNode) {
-                            NodeInfo node = ((SingletonNode)v).getNode();
-                            if (node != null) {
-                                array[a++] = node;
-                            }
-                        } else {
-                            throw new DynamicError(
-                                    "Returned List contains an object that cannot be converted to an Item (" + obj.getClass() + ')');
-                        }
-                    }
-                }
-            }
-
-            return new SequenceExtent(array);
-
-        } else if (object instanceof Object[]) {
-             Item[] array = new Item[((Object[])object).length];
-             int a = 0;
-             for (int i = 0; i < ((Object[])object).length; i++){
-                 Object obj = ((Object[])object)[i];
-                 if (obj instanceof NodeInfo) {
-                     if (((NodeInfo)object).getConfiguration() != config) {
-                         throw new DynamicError("Externally-supplied NodeInfo belongs to wrong Configuration");
-                     }
-                     array[a++] = (NodeInfo)obj;
-                 } else if (obj != null) {
-                     Value v = convertToBestFit(obj, config);
-                     if (v!=null) {
-                         if (v instanceof Item) {
-                             array[a++] = (Item)v;
-                         } else {
-                             throw new DynamicError(
-                                     "Returned array contains an object that cannot be converted to an Item (" + obj.getClass() + ')');
-                         }
-                     }
-                 }
-             }
-             return new SequenceExtent(array, 0, a);
-
-        } else if (object instanceof long[]) {
-             Item[] array = new Item[((long[])object).length];
-             for (int i = 0; i < array.length; i++){
-                 array[i] = new IntegerValue(((long[])object)[i]);
-             }
-             return new SequenceExtent(array);
-
-        } else if (object instanceof int[]) {
-             Item[] array = new Item[((int[])object).length];
-             for (int i = 0; i < array.length; i++){
-                 array[i] = new IntegerValue(((int[])object)[i]);
-             }
-             return new SequenceExtent(array);
-
-        } else if (object instanceof short[]) {
-             Item[] array = new Item[((short[])object).length];
-             for (int i = 0; i < array.length; i++){
-                 array[i] = new IntegerValue(((short[])object)[i]);
-             }
-             return new SequenceExtent(array);
-
-        } else if (object instanceof byte[]) {  // interpret this as unsigned bytes
-             Item[] array = new Item[((byte[])object).length];
-             for (int i = 0; i < array.length; i++){
-                 array[i] = new IntegerValue(255 & (int)((byte[])object)[i]);
-             }
-             return new SequenceExtent(array);
-
-        } else if (object instanceof char[]) {
-             return StringValue.makeStringValue(new String((char[])object));
-
-        } else if (object instanceof boolean[]) {
-             Item[] array = new Item[((boolean[])object).length];
-             for (int i = 0; i < array.length; i++){
-                 array[i] = BooleanValue.get(((boolean[])object)[i]);
-             }
-             return new SequenceExtent(array);
-
-        } else if (object instanceof double[]) {
-             Item[] array = new Item[((double[])object).length];
-             for (int i = 0; i < array.length; i++){
-                 array[i] = new DoubleValue(((double[])object)[i]);
-             }
-             return new SequenceExtent(array);
-
-        } else if (object instanceof float[]) {
-             Item[] array = new Item[((float[])object).length];
-             for (int i = 0; i < array.length; i++){
-                 array[i] = new FloatValue(((float[])object)[i]);
-             }
-             return new SequenceExtent(array);
-
-        } else if (object instanceof Source && config != null) {
-            if (object instanceof DOMSource) {
-                NodeInfo node = Controller.unravel((Source)object, config);
-                if (((NodeInfo)object).getConfiguration() != config) {
-                    throw new DynamicError("Externally-supplied DOM Node belongs to wrong Configuration");
-                }
-                return new SingletonNode(node);
-            }
-            try {
-                Builder b = new TinyBuilder();
-                PipelineConfiguration pipe = config.makePipelineConfiguration();
-                b.setPipelineConfiguration(pipe);
-                new Sender(pipe).send((Source)object, b);
-                if (object instanceof AugmentedSource && ((AugmentedSource)object).isPleaseCloseAfterUse()) {
-                     ((AugmentedSource)object).close();
-                }
-                return new SingletonNode(b.getCurrentRoot());
-            } catch (XPathException err) {
-                throw new DynamicError(err);
-            }
-        } else {
-            // See whether this is an object representing a Node in some recognized object model
-            ExternalObjectModel model = config.findExternalObjectModel(object);
-            if (model != null) {
-                DocumentInfo doc = model.wrapDocument(object, "", config);
-                NodeInfo node = model.wrapNode(doc, object);
-                return Value.asValue(node);
-            }
-        }
-        return new ObjectValue(object);
-    }
-
+//    public static Value convertToBestFit(Object object, Configuration config) throws XPathException {
+//        if (object instanceof String) {
+//            return StringValue.makeStringValue((String)object);
+//
+//        } else if (object instanceof Character) {
+//            return new StringValue(object.toString());
+//
+//        } else if (object instanceof Boolean) {
+//            return BooleanValue.get(((Boolean)object).booleanValue());
+//
+//        } else if (object instanceof Double) {
+//            return new DoubleValue(((Double)object).doubleValue());
+//
+//        } else if (object instanceof Float) {
+//            return new FloatValue(((Float)object).floatValue());
+//
+//        } else if (object instanceof Short) {
+//            return new Int64Value(((Short)object).shortValue(), BuiltInAtomicType.SHORT, false);
+//        } else if (object instanceof Integer) {
+//            return new Int64Value(((Integer)object).intValue(), BuiltInAtomicType.INT, false);
+//        } else if (object instanceof Long) {
+//            return new Int64Value(((Long)object).longValue(), BuiltInAtomicType.LONG, false);
+//        } else if (object instanceof Byte) {
+//            return new Int64Value(((Byte)object).byteValue(), BuiltInAtomicType.BYTE, false);
+//
+//        } else if (object instanceof BigInteger) {
+//            return BigIntegerValue.makeIntegerValue(((BigInteger)object));
+//
+//        } else if (object instanceof BigDecimal) {
+//            return new DecimalValue(((BigDecimal)object));
+//
+////        } else if (object instanceof QName) {
+////            return new QNameValue((QName)object);
+//            // TODO: reinstate above lines in JDK 1.5
+//        } else if (object.getClass().getName().equals("javax.xml.namespace.QName")) {
+//            return makeQNameValue(object, config);
+//
+//        } else if (object instanceof URI) {
+//            return new AnyURIValue(object.toString());
+//
+//        } else if (object instanceof URL) {
+//            return new AnyURIValue(object.toString());
+//
+//        } else if (object instanceof Date) {
+//            return DateTimeValue.fromJavaDate((Date)object);
+//
+//        // TODO: recognize GregorianCalendar...
+//
+//        } else if (object instanceof Closure) {
+//            // Force eager evaluation, because of problems with side-effects.
+//            // (The value might depend on data that is mutable.)
+//            //return Value.asValue(ExpressionTool.evaluate((Closure)object, ExpressionTool.ITERATE_AND_MATERIALIZE, config.getConversionContext(), 10));
+//            return Value.asValue(
+//                    SequenceExtent.makeSequenceExtent(((Closure)object).iterate()));
+//        } else if (object instanceof Value) {
+//            return (Value)object;
+//
+//        } else if (object instanceof NodeInfo) {
+//            if (!((NodeInfo)object).getConfiguration().isCompatible(config)) {
+//                throw new XPathException(
+//                        "Externally-supplied NodeInfo belongs to a different and incompatible Configuration",
+//                        SaxonErrorCode.SXXP0004);
+//            }
+//            return new SingletonNode((NodeInfo)object);
+//
+//        } else if (object instanceof SequenceIterator) {
+//            return Closure.makeIteratorClosure((SequenceIterator)object);
+//
+//        } else if (object instanceof List) {
+//            Item[] array = new Item[((List)object).size()];
+//            int a = 0;
+//            for (Iterator i=((List)object).iterator(); i.hasNext(); ) {
+//                Object obj = i.next();
+//                if (obj instanceof NodeInfo) {
+//                    if (!((NodeInfo)obj).getConfiguration().isCompatible(config)) {
+//                        throw new XPathException("Externally-supplied NodeInfo belongs to wrong Configuration",
+//                        SaxonErrorCode.SXXP0004);
+//                    }
+//                    array[a++] = (NodeInfo)obj;
+//                } else {
+//                    Value v = convertToBestFit(obj, config);
+//                    if (v!=null) {
+//                        if (v instanceof Item) {
+//                            array[a++] = (Item)v;
+//                        } else if (v instanceof EmptySequence) {
+//                            // no action
+//                        } else if (v instanceof SingletonNode) {
+//                            NodeInfo node = ((SingletonNode)v).getNode();
+//                            if (node != null) {
+//                                array[a++] = node;
+//                            }
+//                        } else {
+//                            throw new XPathException(
+//                                    "Returned List contains an object that cannot be converted to an Item (" + obj.getClass() + ')',
+//                                    SaxonErrorCode.SXJE0051);
+//                        }
+//                    }
+//                }
+//            }
+//
+//            return new SequenceExtent(array);
+//
+//        } else if (object instanceof Object[]) {
+//            Object[] arrayObject = (Object[])object;
+//            Item[] newArray = new Item[arrayObject.length];
+//             int a = 0;
+//             for (int i = 0; i < arrayObject.length; i++){
+//                 Object itemObject = arrayObject[i];
+//                 if (itemObject instanceof NodeInfo) {
+//                     if (!((NodeInfo)itemObject).getConfiguration().isCompatible(config)) {
+//                         throw new XPathException(
+//                                 "Externally-supplied NodeInfo belongs to a different and incompatible Configuration",
+//                                 SaxonErrorCode.SXXP0004);
+//                     }
+//                     newArray[a++] = (NodeInfo)itemObject;
+//                 } else if (itemObject != null) {
+//                     Value v = convertToBestFit(itemObject, config);
+//                     if (v!=null) {
+//                         if (v instanceof Item) {
+//                             newArray[a++] = (Item)v;
+//                         } else {
+//                             throw new XPathException(
+//                                     "Returned array contains an object that cannot be converted to an Item (" +
+//                                            itemObject.getClass() + ')',
+//                                     SaxonErrorCode.SXJE0051);
+//                         }
+//                     }
+//                 }
+//             }
+//             return new SequenceExtent(newArray, 0, a);
+//
+//        } else if (object instanceof long[]) {
+//             Item[] array = new Item[((long[])object).length];
+//             for (int i = 0; i < array.length; i++){
+//                 array[i] = Int64Value.makeIntegerValue(((long[])object)[i]);
+//             }
+//             return new SequenceExtent(array);
+//
+//        } else if (object instanceof int[]) {
+//             Item[] array = new Item[((int[])object).length];
+//             for (int i = 0; i < array.length; i++){
+//                 array[i] = Int64Value.makeIntegerValue(((int[])object)[i]);
+//             }
+//             return new SequenceExtent(array);
+//
+//        } else if (object instanceof short[]) {
+//             Item[] array = new Item[((short[])object).length];
+//             for (int i = 0; i < array.length; i++){
+//                 array[i] = Int64Value.makeIntegerValue(((short[])object)[i]);
+//             }
+//             return new SequenceExtent(array);
+//
+//        } else if (object instanceof byte[]) {  // interpret this as unsigned bytes
+//             Item[] array = new Item[((byte[])object).length];
+//             for (int i = 0; i < array.length; i++){
+//                 array[i] = Int64Value.makeIntegerValue(255 & (int)((byte[])object)[i]);
+//             }
+//             return new SequenceExtent(array);
+//
+//        } else if (object instanceof char[]) {
+//             return StringValue.makeStringValue(new String((char[])object));
+//
+//        } else if (object instanceof boolean[]) {
+//             Item[] array = new Item[((boolean[])object).length];
+//             for (int i = 0; i < array.length; i++){
+//                 array[i] = BooleanValue.get(((boolean[])object)[i]);
+//             }
+//             return new SequenceExtent(array);
+//
+//        } else if (object instanceof double[]) {
+//             Item[] array = new Item[((double[])object).length];
+//             for (int i = 0; i < array.length; i++){
+//                 array[i] = new DoubleValue(((double[])object)[i]);
+//             }
+//             return new SequenceExtent(array);
+//
+//        } else if (object instanceof float[]) {
+//             Item[] array = new Item[((float[])object).length];
+//             for (int i = 0; i < array.length; i++){
+//                 array[i] = new FloatValue(((float[])object)[i]);
+//             }
+//             return new SequenceExtent(array);
+//
+//        } else if (object instanceof Source && config != null) {
+//            if (object instanceof DOMSource) {
+//                NodeInfo node = config.unravel((Source)object);
+//                if (!node.getConfiguration().isCompatible(config)) {
+//                    throw new XPathException(
+//                            "Externally-supplied DOM Node belongs to a different and incompatible Configuration",
+//                            SaxonErrorCode.SXXP0004);
+//                }
+//                return new SingletonNode(node);
+//            }
+//            try {
+//                Builder b = (config.getTreeModel() == Builder.TINY_TREE ?
+//                        (Builder)new TinyBuilder() : (Builder)new TreeBuilder());
+//                PipelineConfiguration pipe = config.makePipelineConfiguration();
+//                b.setPipelineConfiguration(pipe);
+//                new Sender(pipe).send((Source)object, b);
+//                if (object instanceof AugmentedSource && ((AugmentedSource)object).isPleaseCloseAfterUse()) {
+//                     ((AugmentedSource)object).close();
+//                }
+//                return new SingletonNode(b.getCurrentRoot());
+//            } catch (XPathException err) {
+//                throw new XPathException(err);
+//            }
+//        } else {
+//            // See whether this is an object representing a Node in some recognized object model
+//            ExternalObjectModel model = config.findExternalObjectModel(object);
+//            if (model != null) {
+//                DocumentInfo doc = model.wrapDocument(object, "", config);
+//                NodeInfo node = model.wrapNode(doc, object);
+//                return Value.asValue(node);
+//            }
+//        }
+//        return new ObjectValue(object);
+//    }
+//
     /**
      * Temporary method to make a QNameValue from a JAXP 1.3 QName, without creating a compile-time link
      * to the JDK 1.5 QName class
      * @param object an instance of javax.xml.namespace.QName
+     * @param config the Saxon configuration (used for dynamic loading)
      * @return a corresponding Saxon QNameValue, or null if any error occurs performing the conversion
      */
 
@@ -986,7 +1027,7 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
             String prefix = (String)getPrefix.invoke(object, (Object[])args);
             String localPart = (String)getLocalPart.invoke(object, (Object[])args);
             String uri = (String)getNamespaceURI.invoke(object, (Object[])args);
-            return new QNameValue(prefix, uri, localPart, config.getNameChecker());
+            return new QNameValue(prefix, uri, localPart, BuiltInAtomicType.QNAME, config.getNameChecker());
         } catch (XPathException e) {
             return null;
         } catch (NoSuchMethodException e) {
@@ -1013,14 +1054,16 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
     }
 
     /**
-     * Internal method to convert an XPath value to a Java object.
+     * Convert an XPath value to a Java object.
      * An atomic value is returned as an instance
      * of the best available Java class. If the item is a node, the node is "unwrapped",
      * to return the underlying node in the original model (which might be, for example,
      * a DOM or JDOM node).
+     * @param item the item to be converted
+     * @return the value after conversion
     */
 
-    public static Object convert(Item item) throws XPathException {
+    public static Object convertToJava(Item item) throws XPathException {
         if (item instanceof NodeInfo) {
             Object node = item;
             while (node instanceof VirtualNode) {
@@ -1028,39 +1071,42 @@ public abstract class Value implements Expression, Serializable, ValueRepresenta
                 node = ((VirtualNode)node).getUnderlyingNode();
             }
             return node;
+        } else if (item instanceof ObjectValue) {
+            return ((ObjectValue)item).getObject();
         } else {
-            AtomicValue value = ((AtomicValue)item).getPrimitiveValue();
+            AtomicValue value = (AtomicValue)item;
             switch (value.getItemType(null).getPrimitiveType()) {
-                case Type.STRING:
-                case Type.UNTYPED_ATOMIC:
-                case Type.ANY_URI:
-                case Type.DURATION:
+                case StandardNames.XS_STRING:
+                case StandardNames.XS_UNTYPED_ATOMIC:
+                case StandardNames.XS_ANY_URI:
+                case StandardNames.XS_DURATION:
                     return value.getStringValue();
-                case Type.BOOLEAN:
+                case StandardNames.XS_BOOLEAN:
                     return (((BooleanValue)value).getBooleanValue() ? Boolean.TRUE : Boolean.FALSE );
-                case Type.DECIMAL:
-                    return ((DecimalValue)value).getValue();
-                case Type.INTEGER:
+                case StandardNames.XS_DECIMAL:
+                    return ((DecimalValue)value).getDecimalValue();
+                case StandardNames.XS_INTEGER:
                     return new Long(((NumericValue)value).longValue());
-                case Type.DOUBLE:
+                case StandardNames.XS_DOUBLE:
                     return new Double(((DoubleValue)value).getDoubleValue());
-                case Type.FLOAT:
+                case StandardNames.XS_FLOAT:
                     return new Float(((FloatValue)value).getFloatValue());
-                case Type.DATE_TIME:
+                case StandardNames.XS_DATE_TIME:
                     return ((DateTimeValue)value).getCalendar().getTime();
-                case Type.DATE:
+                case StandardNames.XS_DATE:
                     return ((DateValue)value).getCalendar().getTime();
-                case Type.TIME:
+                case StandardNames.XS_TIME:
                     return value.getStringValue();
-                case Type.BASE64_BINARY:
+                case StandardNames.XS_BASE64_BINARY:
                     return ((Base64BinaryValue)value).getBinaryValue();
-                case Type.HEX_BINARY:
+                case StandardNames.XS_HEX_BINARY:
                     return ((HexBinaryValue)value).getBinaryValue();
                 default:
                     return item;
             }
         }
     }
+
 }
 
 //

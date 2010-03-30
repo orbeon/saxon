@@ -1,5 +1,5 @@
 package org.orbeon.saxon.om;
-import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 
 /**
@@ -94,7 +94,7 @@ public final class Axis  {
         true,           // DESCENDANT_OR_SELF;
         true,           // FOLLOWING;
         true,           // FOLLOWING_SIBLING;
-        false,          // NAMESPACE;
+        true,           // NAMESPACE;
         true,           // PARENT;
         false,          // PRECEDING;
         false,          // PRECEDING_SIBLING;
@@ -106,23 +106,23 @@ public final class Axis  {
      * Table indicating for each axis whether it is in reverse document order
      */
 
-    public static final boolean[] isReverse =
-    {
-        true,           // ANCESTOR
-        true,           // ANCESTOR_OR_SELF;
-        false,          // ATTRIBUTE;
-        false,          // CHILD;
-        false,          // DESCENDANT;
-        false,          // DESCENDANT_OR_SELF;
-        false,          // FOLLOWING;
-        false,          // FOLLOWING_SIBLING;
-        false,          // NAMESPACE;
-        true,           // PARENT;
-        true,           // PRECEDING;
-        true,           // PRECEDING_SIBLING;
-        true,           // SELF;
-        true,           // PRECEDING_OR_ANCESTOR;
-    };
+//    public static final boolean[] isReverse =
+//    {
+//        true,           // ANCESTOR
+//        true,           // ANCESTOR_OR_SELF;
+//        false,          // ATTRIBUTE;
+//        false,          // CHILD;
+//        false,          // DESCENDANT;
+//        false,          // DESCENDANT_OR_SELF;
+//        false,          // FOLLOWING;
+//        false,          // FOLLOWING_SIBLING;
+//        false,          // NAMESPACE;
+//        true,           // PARENT;
+//        true,           // PRECEDING;
+//        true,           // PRECEDING_SIBLING;
+//        true,           // SELF;
+//        true,           // PRECEDING_OR_ANCESTOR;
+//    };
 
     /**
      * Table indicating for each axis whether it is a peer axis. An axis is a peer
@@ -193,6 +193,29 @@ public final class Axis  {
     };
 
     /**
+     * Table giving the name each axis
+     */
+
+    public static final String[] axisJavaName =
+    {
+        "ANCESTOR",             // ANCESTOR
+        "ANCESTOR_OR_SELF",     // ANCESTOR_OR_SELF;
+        "ATTRIBUTE",            // ATTRIBUTE;
+        "CHILD",                // CHILD;
+        "DESCENDANT",           // DESCENDANT;
+        "DESCENDANT_OR_SELF",   // DESCENDANT_OR_SELF;
+        "FOLLOWING",            // FOLLOWING;
+        "FOLLOWING_SIBLING",    // FOLLOWING_SIBLING;
+        "NAMESPACE",            // NAMESPACE;
+        "PARENT",               // PARENT;
+        "PRECEDING",            // PRECEDING;
+        "PRECEDING_SIBLING",    // PRECEDING_SIBLING;
+        "SELF",                 // SELF;
+        "PRECEDING_OR_ANCESTOR",// PRECEDING_OR_ANCESTOR;
+    };
+
+
+    /**
      * The class is never instantiated
      */
 
@@ -203,11 +226,11 @@ public final class Axis  {
      * Resolve an axis name into a symbolic constant representing the axis
      *
      * @param name
-     * @exception org.orbeon.saxon.trans.StaticError
+     * @throws XPathException
      * @return integer value representing the named axis
      */
 
-    public static byte getAxisNumber(String name) throws StaticError {
+    public static byte getAxisNumber(String name) throws XPathException {
         if (name.equals("ancestor"))                return ANCESTOR;
         if (name.equals("ancestor-or-self"))        return ANCESTOR_OR_SELF;
         if (name.equals("attribute"))               return ATTRIBUTE;
@@ -222,7 +245,7 @@ public final class Axis  {
         if (name.equals("preceding-sibling"))       return PRECEDING_SIBLING;
         if (name.equals("self"))                    return SELF;
         // preceding-or-ancestor cannot be used in an XPath expression
-        throw new StaticError("Unknown axis name: " + name);
+        throw new XPathException("Unknown axis name: " + name);
     }
 
     /**

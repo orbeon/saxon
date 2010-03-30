@@ -76,6 +76,20 @@ public interface SequenceIterator {
     public int position();
 
     /**
+     * Close the iterator. This indicates to the supplier of the data that the client
+     * does not require any more items to be delivered by the iterator. This may enable the
+     * supplier to release resources. After calling close(), no further calls on the
+     * iterator should be made; if further calls are made, the effect of such calls is undefined.
+     *
+     * <p>(Currently, closing an iterator is important only when the data is being "pushed" in
+     * another thread. Closing the iterator terminates that thread and means that it needs to do
+     * no additional work. Indeed, failing to close the iterator may cause the push thread to hang
+     * waiting for the buffer to be emptied.)</p>
+     */
+
+    public void close();
+
+    /**
      * Get another SequenceIterator that iterates over the same items as the original,
      * but which is repositioned at the start of the sequence.
      * <p>
@@ -112,7 +126,7 @@ public interface SequenceIterator {
      * it should not involve the creation of new objects)
      */
 
-    public static final int GROUNDED = 1<<0;
+    public static final int GROUNDED = 1;
 
     /**
      * Property value: the iterator knows the number of items that it will deliver.
@@ -131,14 +145,6 @@ public interface SequenceIterator {
      */
 
     public static final int LOOKAHEAD = 1<<2;
-
-    /**
-     * Property value: the iterator supports a setAtomizing() method, which requests (but does not require)
-     * the iterator to atomize any nodes and return their typed values
-     */
-
-    public static final int ATOMIZABLE = 1<<3;
-
 
 }
 

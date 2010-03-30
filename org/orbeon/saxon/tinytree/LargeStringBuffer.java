@@ -22,6 +22,10 @@ import java.util.Arrays;
 
 public final class LargeStringBuffer implements CharSequence, Serializable {
 
+    // TODO:PERF with large documents the Arrays.binarySearch() cost can be noticeable.
+    // It would be better if TinyTree addressed into this structure using segment+offset addressing.
+    // 16 bits for each would do fine.
+
     private int minAllocation;
     private int maxAllocation;
     private List segments;      // each segment is a FastStringBuffer
@@ -44,6 +48,8 @@ public final class LargeStringBuffer implements CharSequence, Serializable {
     * exceeds maxAllocation, it is rounded down to the value of maxAllocation
     * @param maxAllocation maximum allocation size for each segment. When a segment reaches this
     * size, a new segment is created rather than appending more characters to the existing segment.
+    * However, a segment may have size greater than maxAllocation if the data is appended in a single chunk
+    * of size maxAllocation.
     */
     public LargeStringBuffer(int minAllocation, int maxAllocation) {
         this.minAllocation = Math.min(minAllocation, maxAllocation);
@@ -58,22 +64,27 @@ public final class LargeStringBuffer implements CharSequence, Serializable {
 
     /**
      * Append a CharSequence to this LargeStringBuffer
+     * @param data the data to be appended
      */
 
     public void append(CharSequence data) {
+        final int increment = data.length();
+        if (increment == 0) {
+            return;
+        }
         FastStringBuffer last = ((FastStringBuffer)segments.get(segments.size()-1));
-        if (last.length() + data.length() <= maxAllocation) {
+        if (last.length() + increment <= maxAllocation) {
             last.append(data);
         } else {
             int[] s2 = new int[startOffsets.length+1];
             System.arraycopy(startOffsets, 0, s2, 0, startOffsets.length);
             s2[startOffsets.length] = length;
             startOffsets = s2;
-            last = new FastStringBuffer(Math.max(minAllocation, data.length()));
+            last = new FastStringBuffer(Math.max(minAllocation, increment));
             segments.add(last);
             last.append(data);
         }
-        length += data.length();
+        length += increment;
     }
 
     /**
@@ -159,6 +170,12 @@ public final class LargeStringBuffer implements CharSequence, Serializable {
             offset1 = end - startOffsets[seg1];
         }
         FastStringBuffer startSegment = (FastStringBuffer)segments.get(seg0);
+        // We've had reports (28 Feb 2007) of an NPE here, which we couldn't reproduce.
+        // The following code is designed to produce diagnostics if it ever happens again
+        if (startSegment == null) {
+            dumpDataStructure();
+            throw new NullPointerException("startSegment: subSequence(" + start + ", " + end + ")");
+        }
         if (seg0 == seg1) {
             // the required substring is all in one segment
             return startSegment.subSequence(offset0, offset1);
@@ -219,6 +236,9 @@ public final class LargeStringBuffer implements CharSequence, Serializable {
     /**
      * Returns a new character sequence that is a subsequence of this sequence.
      * Unlike subSequence, this is guaranteed to return a String.
+     * @param start index of the first character to be included
+     * @param end index of the character after the last one to be included
+     * @return the substring at the given position
      */
 
     public String substring(int start, int end) {
@@ -227,6 +247,7 @@ public final class LargeStringBuffer implements CharSequence, Serializable {
 
     /**
      * Write the value to a writer
+     * @param writer the writer to which the value is to be written
      */
 
     public void write(Writer writer) throws java.io.IOException {
@@ -235,6 +256,32 @@ public final class LargeStringBuffer implements CharSequence, Serializable {
             sb.write(writer);
         }
     }
+
+    /**
+     * Produce diagnostic dump
+     */
+
+    public void dumpDataStructure() {
+        System.err.println("** Segments:");
+        for (int s=0; s<segments.size(); s++) {
+            System.err.println("   SEG " + s + " start offset " + startOffsets[s] + " length "
+                    + ((FastStringBuffer)segments.get(s)).length());
+        }
+    }
+
+//    public static void main(String[] args) {
+//        LargeStringBuffer lsb = new LargeStringBuffer();
+//        for (int i=0; i<30; i++)  {
+//            char[] chars = new char[i*5000];
+//            Arrays.fill(chars, 'x');
+//            lsb.append(new String(chars));
+//            lsb.append("");
+//        }
+//        for (int i=0; i<lsb.length()-10000; i+=10000) {
+//            System.out.println(i + ":" + lsb.subSequence(i, i+9999).length());
+//        }
+//        lsb.dumpDataStructure();
+//    }
 
 }
 

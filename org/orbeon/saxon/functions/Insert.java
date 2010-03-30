@@ -20,7 +20,7 @@ public class Insert extends SystemFunction {
     public SequenceIterator iterate(XPathContext context) throws XPathException {
         SequenceIterator seq = argument[0].iterate(context);
         AtomicValue n0 = (AtomicValue)argument[1].evaluateItem(context);
-        NumericValue n = (NumericValue)n0.getPrimitiveValue();
+        NumericValue n = (NumericValue)n0;
         int pos = (int)n.longValue();
         SequenceIterator ins = argument[2].iterate(context);
         return new InsertIterator(seq, ins, pos);
@@ -84,6 +84,11 @@ public class Insert extends SystemFunction {
 
         public int position() {
             return position;
+        }
+
+        public void close() {
+            base.close();
+            insert.close();
         }
 
         public SequenceIterator getAnother() throws XPathException {

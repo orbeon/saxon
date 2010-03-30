@@ -4,7 +4,8 @@ import org.orbeon.saxon.event.LocationProvider;
 import org.orbeon.saxon.event.ReceiverOptions;
 import org.orbeon.saxon.event.SourceLocationProvider;
 import org.orbeon.saxon.om.FastStringBuffer;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 
@@ -29,16 +30,33 @@ public class TinyBuilder extends Builder {
     private boolean ended = false;
     private int[] sizeParameters;       // estimate of number of nodes, attributes, namespaces, characters
 
+    /**
+     * Create a TinyTree builder
+     */
+
     public TinyBuilder() {}
+
+    /**
+     * Set the size parameters for the tree
+     * @param params an array of four integers giving the expected number of non-attribute nodes, the expected
+     * number of attributes, the expected number of namespace declarations, and the expected total length of
+     * character data
+     */
 
     public void setSizeParameters(int[] params) {
         sizeParameters = params;
     }
 
+    /**
+     * Get the size parameters for the tree
+     * @return an array of four integers giving the actual number of non-attribute nodes, the actual
+     * number of attributes, the actual number of namespace declarations, and the actual total length of
+     * character data
+     */
+
     public int[] getSizeParameters() {
-        int[] params = {tree.numberOfNodes, tree.numberOfAttributes, tree.numberOfNamespaces,
+        return new int[] {tree.numberOfNodes, tree.numberOfAttributes, tree.numberOfNamespaces,
                         tree.getCharacterBuffer().length()};
-        return params;
     }
 
     private int[] prevAtDepth = new int[100];
@@ -51,9 +69,14 @@ public class TinyBuilder extends Builder {
             // number of siblings processed at that level. When this exceeds a threshold value,
             // a dummy node is inserted into the arrays to contain a parent pointer: this it to
             // prevent excessively long searches for a parent node, which is normally found by
-            // scanning the siblings.
+            // scanning the siblings. The value is then reset to zero.
 
     private boolean isIDElement = false;
+
+    /**
+     * Get the tree being built by this builder
+     * @return the TinyTree
+     */
 
     public TinyTree getTree() {
         return tree;
@@ -107,12 +130,13 @@ public class TinyBuilder extends Builder {
         doc.setConfiguration(config);
 
         currentDepth = 0;
-        tree.addDocumentNode((TinyDocumentImpl)currentRoot);
-        prevAtDepth[0] = 0;
+
+        int nodeNr = tree.addDocumentNode((TinyDocumentImpl)currentRoot);
+        prevAtDepth[0] = nodeNr;
         prevAtDepth[1] = -1;
         siblingsAtDepth[0] = 0;
         siblingsAtDepth[1] = 0;
-        tree.next[0] = -1;
+        tree.next[nodeNr] = -1;
 
         currentDepth++;
 
@@ -125,7 +149,7 @@ public class TinyBuilder extends Builder {
     */
 
     public void endDocument () throws XPathException {
-             // System.err.println("TinyBuilder: " + this + " End document");
+//             System.err.println("TinyBuilder: " + this + " End document");
 
         if (currentDepth > 1) return;
             // happens when copying a document node as the child of an element
@@ -136,6 +160,15 @@ public class TinyBuilder extends Builder {
         prevAtDepth[currentDepth] = -1;
         currentDepth--;
 
+    }
+
+    public void reset() {
+        super.reset();
+        tree = null;
+        currentDepth = 0;
+        nodeNr = 0;
+        ended = false;
+        sizeParameters = null;
     }
 
     public void close() throws XPathException {
@@ -172,8 +205,11 @@ public class TinyBuilder extends Builder {
 		nodeNr = tree.addNode(Type.ELEMENT, currentDepth, -1, -1, nameCode);
 
 		isIDElement = ((properties & ReceiverOptions.IS_ID) != 0);
-        if (typeCode != StandardNames.XDT_UNTYPED && typeCode != -1) {
-		    tree.setElementAnnotation(nodeNr, typeCode);
+        if (typeCode != StandardNames.XS_UNTYPED && typeCode != -1) {
+            if ((properties & ReceiverOptions.NILLED_ELEMENT) != 0) {
+                typeCode |= NodeInfo.IS_NILLED;
+            }
+            tree.setElementAnnotation(nodeNr, typeCode);
             if (!isIDElement && config.getTypeHierarchy().isIdCode(typeCode)) {
                 isIDElement = true;
             }
@@ -209,11 +245,14 @@ public class TinyBuilder extends Builder {
         LocationProvider locator = pipe.getLocationProvider();
         if (locator instanceof SourceLocationProvider) {
             tree.setSystemId(nodeNr, locator.getSystemId(locationId));
-            if (lineNumbering) {
-                tree.setLineNumber(nodeNr, locator.getLineNumber(locationId));
-            }
+//            if (lineNumbering) {
+//                tree.setLineAndColumn(nodeNr, locator.getLineNumber(locationId), locator.getColumnNumber(locationId));
+//            }
         } else if (currentDepth == 1) {
             tree.setSystemId(nodeNr, systemId);
+        }
+        if (lineNumbering) {
+            tree.setLineNumber(nodeNr, locator.getLineNumber(locationId), locator.getColumnNumber(locationId));
         }
     }
 
@@ -237,6 +276,7 @@ public class TinyBuilder extends Builder {
     */
 
     public void endElement() throws XPathException {
+//        System.err.println("End element");
         prevAtDepth[currentDepth] = -1;
         siblingsAtDepth[currentDepth] = 0;
         currentDepth--;
@@ -248,17 +288,31 @@ public class TinyBuilder extends Builder {
     }
 
     /**
+     * Get the last completed element node. This is used during checking of schema assertions,
+     * which happens while the tree is still under construction. This method is called immediately after
+     * a call on endElement(), and it returns the element that has just ended.
+     * @return the last completed element node, that is, the element whose endElement event is the most recent
+     * endElement event to be reported
+     */
+
+    public NodeInfo getLastCompletedElement() {
+        return tree.getNode(prevAtDepth[currentDepth]);
+        // Note: reading an incomplete tree needs care if it constructs a prior index, etc.
+    }
+
+
+    /**
     * Callback interface for SAX: not for application use
     */
 
     public void characters(CharSequence chars, int locationId, int properties) throws XPathException
     {
-        // TODO: when appropriate, point to an existing text node containing the same characters
+        // TODO:PERF when appropriate, point to an existing text node containing the same characters
 
         if (chars instanceof CompressedWhitespace &&
                 (properties & ReceiverOptions.WHOLE_TEXT_NODE) != 0) {
             long lvalue = ((CompressedWhitespace)chars).getCompressedValue();
-            nodeNr = tree.addNode(Type.WHITESPACE_TEXT, currentDepth, (int)(lvalue>>32), (int)(lvalue&0xffffffff), -1);
+            nodeNr = tree.addNode(Type.WHITESPACE_TEXT, currentDepth, (int)(lvalue>>32), (int)(lvalue), -1);
 
             int prev = prevAtDepth[currentDepth];
             if (prev > 0) {
@@ -320,7 +374,7 @@ public class TinyBuilder extends Builder {
         if (locator instanceof SourceLocationProvider) {
             tree.setSystemId(nodeNr, locator.getSystemId(locationId));
             if (lineNumbering) {
-                tree.setLineNumber(nodeNr, locator.getLineNumber(locationId));
+                tree.setLineNumber(nodeNr, locator.getLineNumber(locationId), locator.getColumnNumber(locationId));
             }
         }
     }

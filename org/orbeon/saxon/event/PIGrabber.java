@@ -2,7 +2,6 @@ package org.orbeon.saxon.event;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.StandardURIResolver;
 import org.orbeon.saxon.om.ProcInstParser;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.transform.Source;
@@ -65,7 +64,7 @@ public class PIGrabber extends ProxyReceiver {
     throws XPathException {
         terminated = true;
 	    // abort the parse when the first start element tag is found
-        throw new DynamicError("#start#");
+        throw new XPathException("#start#");
     }
 
     /**
@@ -95,7 +94,7 @@ public class PIGrabber extends ProxyReceiver {
 			// System.err.println("Found xml-stylesheet media=" + piMedia + " title=" + piTitle);
 
             if ( (piType.equals("text/xml") || piType.equals("application/xml") ||
-                    piType.equals("text/xsl") || piType.equals("applicaton/xsl") || piType.equals("application.xml+xslt")) &&
+                    piType.equals("text/xsl") || piType.equals("applicaton/xsl") || piType.equals("application/xml+xslt")) &&
 
                     (reqMedia==null || piMedia==null || reqMedia.equals(piMedia)) &&
 
@@ -105,7 +104,7 @@ public class PIGrabber extends ProxyReceiver {
             {
                 String href = ProcInstParser.getPseudoAttribute(value, "href");
                 if (href==null) {
-                    throw new DynamicError("xml-stylesheet PI has no href attribute");
+                    throw new XPathException("xml-stylesheet PI has no href attribute");
                 }
 
 				// System.err.println("Adding " + href);

@@ -1,22 +1,31 @@
 package org.orbeon.saxon.event;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 
 
 /**
-  * MessageEmitter is the default Emitter for xsl:message output.
+  * MessageEmitter is the default Receiver for xsl:message output.
   * It is the same as XMLEmitter except for an extra newline at the end of the message
   */
   
 public class MessageEmitter extends XMLEmitter
 {
-    public void close() throws XPathException {
+    public void endDocument() throws XPathException {
         try {
             writer.write('\n');
         } catch (java.io.IOException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
         super.close();
+    }
+
+    public void close() throws XPathException {
+        try {
+            if (writer != null) {
+                writer.flush();
+            }
+        } catch (java.io.IOException err) {
+            throw new XPathException(err);
+        }
     }
 
 }

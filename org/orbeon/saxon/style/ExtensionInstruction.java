@@ -1,8 +1,5 @@
 package org.orbeon.saxon.style;
-import org.orbeon.saxon.style.StyleElement;
 import org.orbeon.saxon.trans.XPathException;
-
-import javax.xml.transform.TransformerConfigurationException;
 
 /**
 * Abstract class representing an extension instruction
@@ -29,7 +26,7 @@ public abstract class ExtensionInstruction extends StyleElement {
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
+        //
     }
 
 }

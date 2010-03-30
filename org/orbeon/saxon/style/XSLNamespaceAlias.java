@@ -4,7 +4,9 @@ import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NamespaceException;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.value.Whitespace;
 
 
 /**
@@ -27,9 +29,9 @@ public class XSLNamespaceAlias extends StyleElement {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
 			if (f==StandardNames.STYLESHEET_PREFIX) {
-        		stylesheetPrefix = atts.getValue(a).trim();
+        		stylesheetPrefix = Whitespace.trim(atts.getValue(a));
         	} else if (f==StandardNames.RESULT_PREFIX) {
-        		resultPrefix = atts.getValue(a).trim();
+        		resultPrefix = Whitespace.trim(atts.getValue(a));
         	} else {
         		checkUnknownAttribute(nc);
         	}

@@ -24,6 +24,30 @@ public class NameTest extends NodeTest {
     private String uri = null;
     private String localName = null;
 
+    /**
+     * Create a NameTest to match nodes by name
+     * @param nodeKind the kind of node, for example {@link Type#ELEMENT}
+     * @param uri the namespace URI of the required nodes. Supply "" to match nodes that are in
+     * no namespace
+     * @param localName the local name of the required nodes. Supply "" to match unnamed nodes
+     * @param namePool the namePool holding the name codes
+     * @since 9.0
+     */
+
+	public NameTest(int nodeKind, String uri, String localName, NamePool namePool) {
+		this.nodeKind = nodeKind;
+		this.fingerprint = namePool.allocate("", uri, localName) & NamePool.FP_MASK;
+        this.namePool = namePool;
+	}
+
+    /**
+     * Create a NameTest to match nodes by their nameCode allocated from the NamePool
+     * @param nodeKind the kind of node, for example {@link Type#ELEMENT}
+     * @param nameCode the nameCode representing the name of the node
+     * @param namePool the namePool holding the name codes
+     * @since 8.4
+     */
+
 	public NameTest(int nodeKind, int nameCode, NamePool namePool) {
 		this.nodeKind = nodeKind;
 		this.fingerprint = nameCode & 0xfffff;
@@ -31,7 +55,8 @@ public class NameTest extends NodeTest {
 	}
 
 	/**
-	* Create a NameTest for nodes of the same type and name as a given node
+	 * Create a NameTest for nodes of the same type and name as a given node
+     * @param node the node whose node kind and node name will form the basis of the NameTest
 	*/
 
 	public NameTest(NodeInfo node) {
@@ -41,8 +66,8 @@ public class NameTest extends NodeTest {
 	}
 
     /**
-    * Test whether this node test is satisfied by a given node
-    * @param nodeKind The type of node to be matched
+     * Test whether this node test is satisfied by a given node
+     * @param nodeKind The type of node to be matched
      * @param nameCode identifies the expanded name of the node to be matched
      */
 
@@ -50,7 +75,7 @@ public class NameTest extends NodeTest {
         // System.err.println("Matching node " + nameCode + " against " + this.fingerprint);
         // System.err.println("  " + ((nameCode&0xfffff) == this.fingerprint && nodeType == this.nodeType));
         return ((nameCode&0xfffff) == this.fingerprint && nodeKind == this.nodeKind);
-        // deliberately in this order for speed (first test usually fails)
+        // deliberately in this order for speed (first test is more likely to fail)
     }
 
     /**
@@ -127,7 +152,7 @@ public class NameTest extends NodeTest {
     /**
      * Get the type from which this item type is derived by restriction. This
      * is the supertype in the XPath type heirarchy, as distinct from the Schema
-     * base type: this means that the supertype of xs:boolean is xdt:anyAtomicType,
+     * base type: this means that the supertype of xs:boolean is xs:anyAtomicType,
      * whose supertype is item() (rather than xs:anySimpleType).
      * <p>
      * In fact the concept of "supertype" is not really well-defined, because the types
@@ -135,7 +160,7 @@ public class NameTest extends NodeTest {
      * is that it returns a type that strictly subsumes this type, ideally as narrowly
      * as possible.
      * @return the supertype, or null if this type is item()
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getSuperType(TypeHierarchy th) {
@@ -170,9 +195,9 @@ public class NameTest extends NodeTest {
     public String toString(NamePool pool) {
         switch (nodeKind) {
             case Type.ELEMENT:
-                return "element(" + pool.getClarkName(fingerprint) + ')';
+                return "element(" + pool.getClarkName(fingerprint) + ", xs:anyType)";
             case Type.ATTRIBUTE:
-                return "attribute(" + pool.getClarkName(fingerprint) + ')';
+                return "attribute(" + pool.getClarkName(fingerprint) + ", xs:anyAtomicType)";
             case Type.PROCESSING_INSTRUCTION:
                 return "processing-instruction(" + pool.getDisplayName(fingerprint) + ')';
             case Type.NAMESPACE:

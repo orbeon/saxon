@@ -1,19 +1,12 @@
 package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.event.SequenceReceiver;
-import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.expr.StaticProperty;
-import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.pattern.NodeKindTest;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.TypeHierarchy;
-import org.orbeon.saxon.Configuration;
-
-import java.io.PrintStream;
 
 
 /**
@@ -45,7 +38,34 @@ public final class Comment extends SimpleNodeConstructor {
         return StaticProperty.EXACTLY_ONE;
     }
 
-    public void localTypeCheck(StaticContext env, ItemType contextItemType) {}
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        Comment exp = new Comment();
+        try {
+            exp.setSelect(select.copy(), getExecutable().getConfiguration());
+        } catch (XPathException err) {
+            throw new UnsupportedOperationException(err.getMessage());
+        }
+        return exp;
+    }
+
+    public void localTypeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        // Do early checking of content if known statically
+
+        if (select instanceof Literal) {
+            String s = ((Literal)select).getValue().getStringValue();
+            String s2 = checkContent(s, visitor.getStaticContext().makeEarlyEvaluationContext());
+            if (!s2.equals(s)) {
+                setSelect(new StringLiteral(s2), visitor.getConfiguration());
+            }
+        }
+    }
 
 
     /**
@@ -69,39 +89,44 @@ public final class Comment extends SimpleNodeConstructor {
      * @param comment    the supplied content
      * @param context the dynamic context
      * @return the original content, unless adjustments are needed
-     * @throws org.orbeon.saxon.trans.DynamicError
-     *          if the content is invalid
+     * @throws XPathException if the content is invalid
      */
 
-    protected String checkContent(String comment, XPathContext context) throws DynamicError {
+    protected String checkContent(String comment, XPathContext context) throws XPathException {
         while(true) {
             int hh = comment.indexOf("--");
             if (hh < 0) break;
             if (isXSLT()) {
                 comment = comment.substring(0, hh+1) + ' ' + comment.substring(hh+1);
             } else {
-                DynamicError err = new DynamicError("Invalid characters (--) in comment", this);
+                XPathException err = new XPathException("Invalid characters (--) in comment", this);
                 err.setErrorCode("XQDY0072");
                 err.setXPathContext(context);
-                throw DynamicError.makeDynamicError(dynamicError(this, err, context));
+                throw dynamicError(this, err, context);
             }
         }
         if (comment.length()>0 && comment.charAt(comment.length()-1)=='-') {
             if (isXSLT()) {
                 comment = comment + ' ';
             } else {
-                DynamicError err = new DynamicError("Comment cannot end in '-'", this);
+                XPathException err = new XPathException("Comment cannot end in '-'", this);
                 err.setErrorCode("XQDY0072");
                 err.setXPathContext(context);
-                throw DynamicError.makeDynamicError(dynamicError(this, err, context));
+                throw dynamicError(this, err, context);
             }
         }
         return comment;
     }
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "comment");
-        super.display(level+1, out, config);
+    /**
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     */
+
+    public void explain(ExpressionPresenter out) {
+        out.startElement("comment");
+        getSelect().explain(out);
+        out.endElement();
     }
 
 }

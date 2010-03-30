@@ -1,5 +1,9 @@
 package org.orbeon.saxon.om;
 
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.trans.XPathException;
+
 /**
  * A SequenceIterator is used to iterate over a sequence. An AxisIterator
  * is a SequenceIterator that always iterates over a set of nodes, and that
@@ -10,18 +14,28 @@ package org.orbeon.saxon.om;
  * that it provides is maintaining the current position.
  */
 
-public abstract class AxisIteratorImpl implements AxisIterator, AtomizableIterator {
+public abstract class AxisIteratorImpl implements AxisIterator {
 
     protected int position = 0;
-    protected Item current;
-    private boolean isAtomizing;
+    protected NodeInfo current;
+
+    /**
+     * Move to the next node, without returning it. Returns true if there is
+     * a next node, false if the end of the sequence has been reached. After
+     * calling this method, the current node may be retrieved using the
+     * current() function.
+     */
+
+    public boolean moveNext() {
+        return (next() != null);
+    }
 
     /**
      * Get the current node in the sequence.
      * @return the node returned by the most recent call on next()
      */
 
-    public final Item current() {
+    public Item current() {
         return current;
     }
 
@@ -34,27 +48,41 @@ public abstract class AxisIteratorImpl implements AxisIterator, AtomizableIterat
         return position;
     }
 
-    /**
-     * Indicate that any nodes returned in the sequence will be atomized. This
-     * means that if it wishes to do so, the implementation can return the typed
-     * values of the nodes rather than the nodes themselves. The implementation
-     * is free to ignore this hint.
-     * @param atomizing true if the caller of this iterator will atomize any
-     * nodes that are returned, and is therefore willing to accept the typed
-     * value of the nodes instead of the nodes themselves.
-     */
-
-    public void setIsAtomizing(boolean atomizing) {
-        isAtomizing = atomizing;
+    public void close() {
     }
 
     /**
-     * Determine whether any nodes returned by this iterator will be atomized,
-     * in which case the supplier has the option of atomizing them eagerly.
+     * Return an iterator over an axis, starting at the current node.
+     *
+     * @param axis the axis to iterate over, using a constant such as
+     *             {@link Axis#CHILD}
+     * @param test a predicate to apply to the nodes before returning them.
      */
 
-    protected final boolean isAtomizing() {
-        return isAtomizing;
+    public AxisIterator iterateAxis(byte axis, NodeTest test) {
+        return current.iterateAxis(axis, test);
+    }
+
+    /**
+     * Return the atomized value of the current node.
+     *
+     * @return the atomized value.
+     * @throws NullPointerException if there is no current node
+     */
+
+    public Value atomize() throws XPathException {
+        return current.atomize();
+    }
+
+    /**
+     * Return the string value of the current node.
+     *
+     * @return the string value, as an instance of CharSequence.
+     * @throws NullPointerException if there is no current node
+     */
+
+    public CharSequence getStringValue() {
+        return current.getStringValueCS();
     }
 
     /**
@@ -68,7 +96,7 @@ public abstract class AxisIteratorImpl implements AxisIterator, AtomizableIterat
      */
 
     public int getProperties() {
-        return ATOMIZABLE;
+        return 0;
     }
 
 }

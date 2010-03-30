@@ -23,16 +23,21 @@ public class Whitespace {
 
     /**
      * The values NONE, IGNORABLE, and ALL identify which kinds of whitespace text node
-     * should be stripped when building a source tree
+     * should be stripped when building a source tree. UNSPECIFIED indicates that no
+     * particular request has been made. XSLT indicates that whitespace should be stripped
+     * as defined by the xsl:strip-space and xsl:preserve-space declarations in the stylesheet
      */
 
-    public static final int NONE = 10;
-    public static final int IGNORABLE = 11;
-    public static final int ALL = 12;
-    public static final int UNSPECIFIED = 13;
+    public static final int NONE = 0;
+    public static final int IGNORABLE = 1;
+    public static final int ALL = 2;
+    public static final int UNSPECIFIED = 3;
+    public static final int XSLT = 4;
 
     /**
      * Test whether a character is whitespace
+     * @param ch the character (Unicode codepoint) to be tested
+     * @return true if the character is one of tab, newline, carriage return, or space
      */
 
     public static boolean isWhitespace(int ch) {
@@ -67,6 +72,7 @@ public class Whitespace {
                         case '\r':
                         case '\t':
                             sb.append(' ');
+                            break;
                         default:
                             sb.append(c);
                     }
@@ -81,6 +87,9 @@ public class Whitespace {
 
     /**
      * Remove all whitespace characters from a string
+     * @param value the string from which whitespace is to be removed
+     * @return the string without its whitespace. This may be the original value
+     * if it contained no whitespace
      */
 
     public static CharSequence removeAllWhitespace(CharSequence value) {
@@ -100,10 +109,13 @@ public class Whitespace {
 
     /**
      * Remove leading whitespace characters from a string
+     * @param value the string whose leading whitespace is to be removed
+     * @return the string with leading whitespace removed. This may be the
+     * original string if there was no leading whitespace
      */
 
     public static CharSequence removeLeadingWhitespace(CharSequence value) {
-        int start = 0;
+        int start = -1;
         final int len = value.length();
         for (int i=0; i<len; i++) {
             char c = value.charAt(i);
@@ -114,7 +126,7 @@ public class Whitespace {
         }
         if (start == 0) {
             return value;
-        } else if (start == len - 1) {
+        } else if (start < 0 || start == len - 1) {
             return "";
         } else {
             return value.subSequence(start, len);
@@ -123,6 +135,9 @@ public class Whitespace {
 
     /**
      * Determine if a string contains any whitespace
+     * @param value the string to be tested
+     * @return true if the string contains a character that is XML whitespace, that is
+     * tab, newline, carriage return, or space
      */
 
     public static boolean containsWhitespace(CharSequence value) {
@@ -144,7 +159,7 @@ public class Whitespace {
      *     characters
      */
 
-    public static final boolean isWhite(CharSequence content) {
+    public static boolean isWhite(CharSequence content) {
         if (content instanceof CompressedWhitespace) {
             return true;
         }
@@ -169,7 +184,12 @@ public class Whitespace {
     };
 
     /**
-    * Normalize whitespace as defined in XML Schema
+     * Normalize whitespace as defined in XML Schema. Note that this is not the same
+     * as the XPath normalize-space() function, which is supported by the
+     * {@link #collapseWhitespace} method
+     * @param in the string to be normalized
+     * @return a copy of the string in which any whitespace character is replaced by
+     * a single space character
     */
 
     public static CharSequence normalizeWhitespace(CharSequence in) {
@@ -191,11 +211,14 @@ public class Whitespace {
     }
 
     /**
-    * Collapse whitespace as defined in XML Schema
+     * Collapse whitespace as defined in XML Schema. This is equivalent to the
+     * XPath normalize-space() function
+     * @param in the string whose whitespace is to be collapsed
+     * @return the string with any leading or trailing whitespace removed, and any
+     * internal sequence of whitespace characters replaced with a single space character.
     */
 
     public static CharSequence collapseWhitespace(CharSequence in) {
-        // TODO: is this method identical to NormalizeSpace.normalizeSpace()?
         int len = in.length();
         if (len==0 || !containsWhitespace(in)) {
             return in;
@@ -264,6 +287,22 @@ public class Whitespace {
         } else {
             return in.subSequence(first, last+1);
         }
+    }
+
+    /**
+     * Trim leading and trailing whitespace from a string, returning a string.
+     * This differs from the Java trim() method in that the only characters treated as
+     * whitespace are space, \n, \r, and \t. The String#trim() method removes all C0
+     * control characters (which is not the same thing under XML 1.1).
+     * @param s the string to be trimmed. If null is supplied, null is returned.
+     * @return the string with leading and trailing whitespace removed.
+     */
+
+    public static String trim(CharSequence s) {
+        if (s == null) {
+            return null;
+        }
+        return trimWhitespace(s).toString();
     }
 }
 //

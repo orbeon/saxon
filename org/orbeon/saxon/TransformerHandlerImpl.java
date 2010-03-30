@@ -32,28 +32,28 @@ public class TransformerHandlerImpl extends ReceivingContentHandler implements T
     boolean started = false;
 
     /**
-    * Create a TransformerHandlerImpl and initialise variables. The constructor is protected, because
-    * the Filter should be created using newTransformerHandler() in the SAXTransformerFactory
-    * class
+     * Create a TransformerHandlerImpl and initialise variables. The constructor is protected, because
+     * the Filter should be created using newTransformerHandler() in the SAXTransformerFactory
+     * class
+     * @param controller the Controller to be used
     */
 
     protected TransformerHandlerImpl(Controller controller) {
         this.controller = controller;
-        setPipelineConfiguration(controller.makePipelineConfiguration());
         Configuration config = controller.getConfiguration();
         int validation = config.getSchemaValidationMode();
         builder = controller.makeBuilder();
-        builder.setPipelineConfiguration(getPipelineConfiguration());
+        setPipelineConfiguration(builder.getPipelineConfiguration());
         receiver = controller.makeStripper(builder);
         if (controller.getExecutable().stripsInputTypeAnnotations()) {
             receiver = controller.getConfiguration().getAnnotationStripper(receiver);
         }
         int val = validation & Validation.VALIDATION_MODE_MASK;
-            if (val != Validation.PRESERVE) {
-                receiver = config.getDocumentValidator(
-                        receiver, getSystemId(), val, Whitespace.NONE, null);
-            }
-        this.setReceiver(receiver);
+        if (val != Validation.PRESERVE) {
+            receiver = config.getDocumentValidator(
+                    receiver, getSystemId(), val, Whitespace.NONE, null, -1);
+        }
+        setReceiver(receiver);
     }
 
     /**
@@ -82,7 +82,11 @@ public class TransformerHandlerImpl extends ReceivingContentHandler implements T
     }
 
     /**
-    * Set the SystemId of the document
+     * Set the SystemId of the document. Note that in reporting location information, Saxon gives
+     * priority to the system Id reported by the SAX Parser in the Locator passed to the
+     * {@link #setDocumentLocator(org.xml.sax.Locator)} method. The SystemId passed to this method
+     * is used as the base URI for resolving relative references.
+     * @param url the systemId of the source document
     */
 
     public void setSystemId(String url) {
@@ -91,14 +95,17 @@ public class TransformerHandlerImpl extends ReceivingContentHandler implements T
     }
 
     /**
-    * Get the systemId of the document
+     * Get the systemId of the document. This will be the systemId obtained from the Locator passed to the
+     * {@link #setDocumentLocator(org.xml.sax.Locator)} method if available, otherwise the SystemId passed
+     * to the {@link #setSystemId(String)} method.
     */
 
     public String getSystemId() {
-        // ORBEON: This is our patch. MK probably has a better plan to fix this.
-        String s = super.getSystemId();
-        return (s == null ? systemId : s);
+        return systemId;
+//        String s = super.getSystemId();
+//        return (s == null ? systemId : s);
     }
+
 
     /**
     * Set the output destination of the transformation
@@ -112,7 +119,8 @@ public class TransformerHandlerImpl extends ReceivingContentHandler implements T
     }
 
     /**
-    * Get the output destination of the transformation
+     * Get the output destination of the transformation
+     * @return the output destination
     */
 
     public Result getResult() {
@@ -127,6 +135,7 @@ public class TransformerHandlerImpl extends ReceivingContentHandler implements T
     public void endDocument() throws SAXException {
         super.endDocument();
         DocumentInfo doc = (DocumentInfo)builder.getCurrentRoot();
+        builder.reset();
         if (doc==null) {
             throw new SAXException("No source document has been built");
         }
@@ -141,6 +150,7 @@ public class TransformerHandlerImpl extends ReceivingContentHandler implements T
         }
     }
 
+ 
 
 //    public static void main(String[] args) throws Exception {
     // test case for a TransformerHandler that validates the source document

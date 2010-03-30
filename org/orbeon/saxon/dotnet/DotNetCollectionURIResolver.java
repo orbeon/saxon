@@ -3,37 +3,36 @@ package org.orbeon.saxon.dotnet;
 import cli.System.Collections.IEnumerable;
 import cli.System.Collections.IEnumerator;
 import cli.System.Uri;
-import org.orbeon.saxon.CollectionURIResolver;
-import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.value.AnyURIValue;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.functions.StandardCollectionURIResolver;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.value.AnyURIValue;
+import org.orbeon.saxon.value.StringValue;
 
-import java.util.HashMap;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.HashMap;
 
 /**
  * This class implements the CollectionURIResolver interface by wrapping an IEnumerable which
  * returns Uri values (the URIs of the documents in the collection)
  */
 
-public class DotNetCollectionURIResolver implements CollectionURIResolver {
+public class DotNetCollectionURIResolver extends StandardCollectionURIResolver {
 
     private HashMap registeredCollections = new HashMap(20);
 
-    public DotNetCollectionURIResolver() {};
+    public DotNetCollectionURIResolver() {}
 
     public void registerCollection(String uri, IEnumerable enumerable) {
         if (enumerable == null) {
             registeredCollections.remove(uri);
         } else if (uri == null) {
-            registeredCollections.put("", new UriIterator(enumerable.GetEnumerator()));
+            registeredCollections.put("", enumerable);
         } else {
-            registeredCollections.put(uri, new UriIterator(enumerable.GetEnumerator()));
+            registeredCollections.put(uri, enumerable);
         }
     }
 
@@ -66,32 +65,35 @@ public class DotNetCollectionURIResolver implements CollectionURIResolver {
 
     public SequenceIterator resolve(String href, String base, XPathContext context) throws XPathException {
         if (href == null) {
-            SequenceIterator it = (SequenceIterator)registeredCollections.get("");
-            if (it == null) {
-                DynamicError de = new DynamicError("Default collection is undefined");
-                de.setErrorCode("FODC0002");
-                de.setXPathContext(context);
-                throw de;
+            IEnumerable ie = (IEnumerable)registeredCollections.get("");
+            if (ie == null) {
+                return super.resolve(href, base, context);
+//                XPathException de = new XPathException("Default collection is undefined");
+//                de.setErrorCode("FODC0002");
+//                de.setXPathContext(context);
+//                throw de;
             }
-            return it;
+            return new UriIterator(ie.GetEnumerator());
         }
         URI abs;
         try {
             abs = new URI(base).resolve(href);
         } catch (URISyntaxException err) {
-            DynamicError de = new DynamicError("Invalid collection URI " + base + ", " + href);
+            XPathException de = new XPathException("Invalid collection URI " + base + ", " + href);
             de.setErrorCode("FODC0002");
             de.setXPathContext(context);
             throw de;
         }
-        SequenceIterator iter = (SequenceIterator)registeredCollections.get(abs.toString());
-        if (iter == null) {
-            DynamicError err = new DynamicError("Unknown collection " + abs);
-            err.setErrorCode("FODC0004");
-            err.setXPathContext(context);
-            throw err;
+
+        IEnumerable ie = (IEnumerable)registeredCollections.get(abs.toString());
+        if (ie == null) {
+            return super.resolve(href, base, context);
+//            XPathException err = new XPathException("Unknown collection " + abs);
+//            err.setErrorCode("FODC0004");
+//            err.setXPathContext(context);
+//            throw err;
         }
-        return iter;
+        return new UriIterator(ie.GetEnumerator());
     }
 
     private static class UriIterator implements SequenceIterator {
@@ -108,8 +110,8 @@ public class DotNetCollectionURIResolver implements CollectionURIResolver {
          * Get properties of this iterator, as a bit-significant integer.
          *
          * @return the properties of this iterator. This will be some combination of
-         *         properties such as {@link GROUNDED}, {@link LAST_POSITION_FINDER},
-         *         and {@link LOOKAHEAD}. It is always
+         *         properties such as {@link #GROUNDED}, {@link #LAST_POSITION_FINDER},
+         *         and {@link #LOOKAHEAD}. It is always
          *         acceptable to return the value zero, indicating that there are no known special properties.
          *         It is acceptable for the properties of the iterator to change depending on its state.
          * @since 8.6
@@ -182,6 +184,9 @@ public class DotNetCollectionURIResolver implements CollectionURIResolver {
 
         public int position() {
             return position;
+        }
+
+        public void close() {
         }
 
         /**

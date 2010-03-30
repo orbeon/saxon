@@ -3,7 +3,7 @@ package org.orbeon.saxon.type;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.value.UntypedAtomicValue;
 import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.value.Whitespace;
@@ -23,6 +23,28 @@ public final class AnySimpleType implements SimpleType {
     }
 
     /**
+     * Get the local name of this type
+     *
+     * @return the local name of this type definition, if it has one. Return null in the case of an
+     *         anonymous type.
+     */
+
+    public String getName() {
+        return "anySimpleType";
+    }
+
+    /**
+     * Get the target namespace of this type
+     *
+     * @return the target namespace of this type definition, if it has one. Return null in the case
+     *         of an anonymous type, and in the case of a global type defined in a no-namespace schema.
+     */
+
+    public String getTargetNamespace() {
+        return NamespaceConstant.SCHEMA;
+    }
+
+    /**
      * Return true if this is an external object type, that is, a Saxon-defined type for external
      * Java or .NET objects
      */
@@ -31,6 +53,22 @@ public final class AnySimpleType implements SimpleType {
         return false;
     }
 
+    /**
+     * Determine whether this is a built-in type or a user-defined type
+     */
+
+    public boolean isBuiltInType() {
+        return true;
+    }
+
+    /**
+     * Get the URI of the schema document containing the definition of this type
+     * @return null for a built-in type
+     */
+
+    public String getSystemId() {
+        return null;
+    }
 
     /**
      * Get the most specific possible atomic type that all items in this SimpleType belong to
@@ -38,7 +76,7 @@ public final class AnySimpleType implements SimpleType {
      */
 
     public AtomicType getCommonAtomicType() {
-        return Type.ANY_ATOMIC_TYPE;
+        return BuiltInAtomicType.ANY_ATOMIC;
     }
 
     /**
@@ -251,7 +289,7 @@ public final class AnySimpleType implements SimpleType {
      * @throws UnsupportedOperationException if the type is namespace-sensitive and no namespace
      * resolver is supplied
      */
-    public ValidationException validateContent(CharSequence value, NamespaceResolver nsResolver, NameChecker nameChecker) {
+    public ValidationFailure validateContent(CharSequence value, NamespaceResolver nsResolver, NameChecker nameChecker) {
         return null;
     }
 
@@ -302,7 +340,7 @@ public final class AnySimpleType implements SimpleType {
      *
      * @return one of {@link org.orbeon.saxon.value.Whitespace#PRESERVE}, {@link org.orbeon.saxon.value.Whitespace#COLLAPSE},
      *         {@link org.orbeon.saxon.value.Whitespace#REPLACE}.
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public int getWhitespaceAction(TypeHierarchy th) {
@@ -320,7 +358,7 @@ public final class AnySimpleType implements SimpleType {
      */
 
     public void analyzeContentExpression(Expression expression, int kind, StaticContext env) {
-        return;
+        //return;
     }
 }
 

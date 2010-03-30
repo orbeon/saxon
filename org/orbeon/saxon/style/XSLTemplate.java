@@ -2,7 +2,7 @@ package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.instruct.*;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.pattern.NoNodeTest;
+import org.orbeon.saxon.pattern.EmptySequenceTest;
 import org.orbeon.saxon.pattern.Pattern;
 import org.orbeon.saxon.trans.Mode;
 import org.orbeon.saxon.trans.RuleManager;
@@ -10,8 +10,8 @@ import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.DecimalValue;
-import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.Whitespace;
 
 import javax.xml.transform.TransformerException;
 import java.util.StringTokenizer;
@@ -28,7 +28,7 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
     private String priorityAtt = null;
     private String asAtt = null;
 
-    private int[] modeNameCodes;
+    private StructuredQName[] modeNames;
     private String diagnosticId;
     private Pattern match;
     private boolean prioritySpecified;
@@ -47,6 +47,10 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
         return true;
     }
 
+    protected boolean mayContainParam() {
+        return true;
+    }
+
     /**
      * Specify that xsl:param is a permitted child
      */
@@ -56,27 +60,28 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
     }
 
     /**
-    * Return the fingerprint for the name of this template. Note that this may
+     * Return the name of this template. Note that this may
      * be called before prepareAttributes has been called.
+     * @return the name of the template as a Structured QName.
     */
 
-    public int getTemplateFingerprint() {
+    public StructuredQName getTemplateName() {
 
-    	//We use -1 to mean "not yet evaluated"
+    	//We use null to mean "not yet evaluated"
 
         try {
-        	if (getObjectFingerprint()==-1) {
+        	if (getObjectName()==null) {
         		// allow for forwards references
         		String nameAtt = getAttributeValue(StandardNames.NAME);
-        		if (nameAtt!=null) {
-        			setObjectNameCode(makeNameCode(nameAtt.trim()));
+        		if (nameAtt != null) {
+        			setObjectName(makeQName(nameAtt));
                 }
             }
-            return getObjectFingerprint();
+            return getObjectName();
         } catch (NamespaceException err) {
-            return -1;          // the errors will be picked up later
+            return null;          // the errors will be picked up later
         } catch (XPathException err) {
-            return -1;
+            return null;
         }
     }
 
@@ -104,15 +109,15 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-			if (f==StandardNames.MODE) {
-        		modeAtt = atts.getValue(a).trim();
-			} else if (f==StandardNames.NAME) {
-        		nameAtt = atts.getValue(a).trim();
-			} else if (f==StandardNames.MATCH) {
+			if (f.equals(StandardNames.MODE)) {
+        		modeAtt = Whitespace.trim(atts.getValue(a));
+			} else if (f.equals(StandardNames.NAME)) {
+        		nameAtt = Whitespace.trim(atts.getValue(a));
+			} else if (f.equals(StandardNames.MATCH)) {
         		matchAtt = atts.getValue(a);
-			} else if (f==StandardNames.PRIORITY) {
-        		priorityAtt = atts.getValue(a).trim();
-        	} else if (f==StandardNames.AS) {
+			} else if (f.equals(StandardNames.PRIORITY)) {
+        		priorityAtt = Whitespace.trim(atts.getValue(a));
+        	} else if (f.equals(StandardNames.AS)) {
         		asAtt = atts.getValue(a);
         	} else {
         		checkUnknownAttribute(nc);
@@ -120,8 +125,8 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
         }
         try {
             if (modeAtt==null) {
-                modeNameCodes = new int[1];
-                modeNameCodes[0] = -1;
+                modeNames = new StructuredQName[1];
+                modeNames[0] = Mode.DEFAULT_MODE_NAME;
             } else {
                 if (matchAtt==null) {
                     compileError("The mode attribute must be absent if the match attribute is absent", "XTSE0500");
@@ -130,7 +135,7 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
 
                 int count = 0;
                 boolean allModes = false;
-                StringTokenizer st = new StringTokenizer(modeAtt);
+                StringTokenizer st = new StringTokenizer(modeAtt, " \t\n\r", false);
                 while (st.hasMoreTokens()) {
                     st.nextToken();
                     count++;
@@ -140,36 +145,30 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
                     compileError("The mode attribute must not be empty", "XTSE0550");
                 }
 
-                modeNameCodes = new int[count];
+                modeNames = new StructuredQName[count];
                 count = 0;
-                st = new StringTokenizer(modeAtt);
+                st = new StringTokenizer(modeAtt, " \t\n\r", false);
                 while (st.hasMoreTokens()) {
                     String s = st.nextToken();
-                    int code;
+                    StructuredQName mname;
                     if ("#default".equals(s)) {
-                        code = Mode.DEFAULT_MODE;
+                        mname = Mode.DEFAULT_MODE_NAME;
                     } else if ("#all".equals(s)) {
                         allModes = true;
-                        code = Mode.ALL_MODES;
+                        mname = Mode.ALL_MODES;
                     } else {
-                        code = makeNameCode(s);
+                        mname = makeQName(s);
                     }
                     for (int e=0; e < count; e++) {
-                        if (modeNameCodes[e] == code) {
+                        if (modeNames[e].equals(mname)) {
                             compileError("In the list of modes, the value " + s + " is duplicated", "XTSE0550");
                         }
                     }
-                    modeNameCodes[count++] = code;
+                    modeNames[count++] = mname;
                 }
                 if (allModes && (count>1)) {
                     compileError("mode='#all' cannot be combined with other modes", "XTSE0550");
                 }
-            }
-
-            if (nameAtt!=null) {
-                int nameCode = makeNameCode(nameAtt.trim());
-                setObjectNameCode(nameCode);
-                diagnosticId = nameAtt;
             }
         } catch (NamespaceException err) {
             compileError(err.getMessage(), "XTSE0280");
@@ -179,6 +178,23 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
             } else if (err.getErrorCodeLocalPart().equals("XTSE0020")) {
                 err.setErrorCode("XTSE0550");
             }
+            err.setIsStaticError(true);
+            compileError(err);
+        }
+
+        try{
+            if (nameAtt!=null) {
+                StructuredQName qName = makeQName(nameAtt);
+                setObjectName(qName);
+                diagnosticId = nameAtt;
+            }
+        } catch (NamespaceException err) {
+            compileError(err.getMessage(), "XTSE0280");
+        } catch (XPathException err) {
+            if (err.getErrorCodeLocalPart() == null) {
+                err.setErrorCode("XTSE0280");
+            } 
+            err.setIsStaticError(true);
             compileError(err);
         }
 
@@ -192,7 +208,7 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
                 if (!DecimalValue.castableAsDecimal(priorityAtt)) {
                     compileError("Invalid numeric value for priority (" + priority + ')', "XTSE0530");
                 }
-                priority = Double.parseDouble(priorityAtt.trim());
+                priority = Double.parseDouble(priorityAtt);
             } catch (NumberFormatException err) {
                 // shouldn't happen
                 compileError("Invalid numeric value for priority (" + priority + ')', "XTSE0530");
@@ -223,22 +239,21 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
 
         // the check for duplicates is now done in the buildIndexes() method of XSLStylesheet
         if (match != null) {
-            typeCheck("match", match);
-            if (match.getNodeTest() instanceof NoNodeTest) {
+            match = typeCheck("match", match);
+            if (match.getNodeTest() instanceof EmptySequenceTest) {
                 try {
                     getConfiguration().getErrorListener().warning(
                             new TransformerException("Match pattern cannot match any nodes", this));
                 } catch (TransformerException e) {
-                    compileError(e);
+                    compileError(XPathException.makeXPathException(e));
                 }
             }
         }
-        markTailCalls();
 
-        // See if there are any required parameters
-        AxisIterator declaredParams = iterateAxis(Axis.CHILD);
+        // See if there are any required parameters.
+        AxisIterator kids = iterateAxis(Axis.CHILD);
         while(true) {
-            NodeInfo param = (NodeInfo)declaredParams.next();
+            NodeInfo param = (NodeInfo)kids.next();
             if (param == null) {
                 break;
             }
@@ -250,18 +265,18 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
 
     }
 
+
+    public void postValidate() throws XPathException {
+        markTailCalls();
+    }
+
     /**
     * Mark tail-recursive calls on templates and functions.
     */
 
-    public void markTailCalls() {
-        if (requiredType == null) {
-            // don't attempt tail call optimization if the return type needs checking
-            StyleElement last = getLastChildInstruction();
-            if (last != null) {
-                last.markTailCalls();
-            }
-        }
+    public boolean markTailCalls() {
+        StyleElement last = getLastChildInstruction();
+        return last != null && last.markTailCalls();
     }
 
     /**
@@ -273,18 +288,20 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
 
         Expression block = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
         if (block == null) {
-            block = EmptySequence.getInstance();
+            block = Literal.makeEmptySequence();
         }
+        compiledTemplate.setMatchPattern(match);
         compiledTemplate.setBody(block);
         compiledTemplate.setStackFrameMap(stackFrameMap);
         compiledTemplate.setExecutable(getExecutable());
         compiledTemplate.setSystemId(getSystemId());
         compiledTemplate.setLineNumber(getLineNumber());
         compiledTemplate.setHasRequiredParams(hasRequiredParams);
+        compiledTemplate.setRequiredType(requiredType);
 
         Expression exp = null;
         try {
-            exp = block.simplify(getStaticContext());
+            exp = makeExpressionVisitor().simplify(block);
         } catch (XPathException e) {
             compileError(e);
         }
@@ -292,45 +309,40 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
         try {
             if (requiredType != null) {
                 RoleLocator role =
-                        new RoleLocator(RoleLocator.TEMPLATE_RESULT, diagnosticId, 0, null);
-                role.setSourceLocator(new ExpressionLocation(this));
+                        new RoleLocator(RoleLocator.TEMPLATE_RESULT, diagnosticId, 0);
+                //role.setSourceLocator(new ExpressionLocation(this));
                 role.setErrorCode("XTTE0505");
-                exp = TypeChecker.staticTypeCheck(exp, requiredType, false, role, getStaticContext());
+                exp = TypeChecker.staticTypeCheck(exp, requiredType, false, role, makeExpressionVisitor());
             }
         } catch (XPathException err) {
             compileError(err);
         }
 
         compiledTemplate.setBody(exp);
-        compiledTemplate.init ( getObjectFingerprint(),
+        compiledTemplate.init ( getObjectName(),
                                 getPrecedence(),
                                 getMinImportPrecedence());
 
         if (getConfiguration().isCompileWithTracing()) {
             TraceWrapper trace = new TraceInstruction(exp, this);
             trace.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
-            trace.setParentExpression(compiledTemplate);
+            trace.setContainer(compiledTemplate);
             exp = trace;
             compiledTemplate.setBody(exp);
         }
 
-//        if (compiledTemplate.hasBadParentPointer()) {
-//            System.err.println("Incorrect code generated for template at line " + getLineNumber() + " of " + getSystemId());
-//        }
-
-
         ItemType contextItemType = Type.ITEM_TYPE;
-        if (getObjectFingerprint() == -1) {
+        if (getObjectName() == null) {
             // the template can't be called by name, so the context item must match the match pattern
             contextItemType = match.getNodeTest();
         }
 
-
+        ExpressionVisitor visitor = makeExpressionVisitor();
         try {
             // We've already done the typecheck of each XPath expression, but it's worth doing again at this
             // level because we have more information now.
-            Expression exp2 = exp.typeCheck(staticContext, contextItemType);
-            exp2 = exp2.optimize(getConfiguration().getOptimizer(), staticContext, contextItemType);
+            Expression exp2 = visitor.typeCheck(exp, contextItemType);
+            exp2 = visitor.optimize(exp2, contextItemType);
             if (exp != exp2) {
                 compiledTemplate.setBody(exp2);
                 exp = exp2;
@@ -338,24 +350,39 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
         } catch (XPathException e) {
             compileError(e);
         }
-        super.allocateSlots(exp);
-        if (match!=null) {
+
+        // Try to extract new global variables from the body of the function
+//        ExpressionPresenter presenter = ExpressionPresenter.make(getConfiguration());
+//        exp.explain(presenter);
+//        presenter.close();
+        if (!getConfiguration().isCompileWithTracing()) {
+            Expression exp2 = getConfiguration().getOptimizer().promoteExpressionsToGlobal(exp, visitor);
+            if (exp != exp2) {
+                compiledTemplate.setBody(exp2);
+                exp = exp2;
+            }
+        }
+
+        allocateSlots(exp);
+        if (match != null) {
             RuleManager mgr = getPrincipalStylesheet().getRuleManager();
-            for (int i=0; i<modeNameCodes.length; i++) {
-                int nc = modeNameCodes[i];
-                Mode mode = mgr.getMode(nc);
+            for (int i=0; i<modeNames.length; i++) {
+                StructuredQName nc = modeNames[i];
+                Mode mode = mgr.getMode(nc, true);
                 if (prioritySpecified) {
                     mgr.setHandler(match, compiledTemplate, mode, getPrecedence(), priority);
                 } else {
                     mgr.setHandler(match, compiledTemplate, mode, getPrecedence());
                 }
             }
+
+            allocatePatternSlots(match, getSlotManager());
         }
 
         if (isExplaining()) {
             System.err.println("Optimized expression tree for template at line " +
                     getLineNumber() + " in " + getSystemId() + ':');
-            exp.display(10, System.err, getConfiguration());
+            exp.explain(System.err);
         }
 
         return null;
@@ -370,27 +397,11 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
         return stackFrameMap;
     }
 
-    /**
-     * Allocate space for range variables within predicates in the match pattern. The xsl:template
-     * element has no XPath expressions among its attributes, so if this method is called on this
-     * object it can only be because there are variables used in the match pattern. We work out
-     * how many slots are needed for the match pattern in each template rule, and then apply-templates
-     * can allocate a stack frame that is large enough for the most demanding match pattern in the
-     * entire stylesheet.
-     *
-     * @param exp The expression containing range variables. This will be a predicate within a match pattern,
-     * or possibly an argument to id() or key() used in a match pattern.
-     */
 
-    public void allocateSlots(Expression exp) {
-        // TODO: we can also call this method when encountering patterns deeper within a template, see
-        // for example test group036. In this case we are causing all template matches to use a stackframe
-        // unnecessarily.
-        int highWater = ExpressionTool.allocateSlots(exp, 0, null);
-        getContainingStylesheet().allocatePatternSlots(highWater);
-    }
+
     /**
-    * Get the compiled template
+     * Get the compiled template
+     * @return the compiled template
     */
 
     public Template getCompiledTemplate() {
@@ -425,5 +436,4 @@ public final class XSLTemplate extends StyleElement implements StylesheetProcedu
 // Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
 //
 // Contributor(s):
-// Portions marked "e.g." are from Edwin Glaser (edwin@pannenleiter.de)
 //

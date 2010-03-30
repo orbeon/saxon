@@ -77,6 +77,7 @@ final class TinyProcInstImpl extends TinyNodeImpl {
      * The target of this processing instruction. XML defines this as being
      * the first token following the markup that begins the processing
      * instruction.
+     * @return the "target", or in XDM terms, the name of the processing instruction
      */
 
     public String getTarget() {
@@ -84,9 +85,11 @@ final class TinyProcInstImpl extends TinyNodeImpl {
     }
 
     /**
-     *  The content of this processing instruction. This is from the first non
+     * The content of this processing instruction. This is from the first non
      * white space character after the target to the character immediately
      * preceding the <code>?&gt;</code> .
+     * @return the content of the processing instruction (in XDM this is the
+     * same as its string value)
      */
 
     public String getData() {

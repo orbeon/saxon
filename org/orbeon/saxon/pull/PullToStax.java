@@ -1,12 +1,11 @@
 package org.orbeon.saxon.pull;
 
+import org.orbeon.saxon.expr.ExpressionLocation;
 import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.FastStringBuffer;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.Whitespace;
-import org.orbeon.saxon.xpath.NamespaceContextImpl;
-import org.orbeon.saxon.expr.ExpressionLocation;
 
 import javax.xml.namespace.NamespaceContext;
 import javax.xml.namespace.QName;
@@ -31,8 +30,13 @@ public class PullToStax implements XMLStreamReader {
     private NamePool namePool;
     private boolean previousAtomic;
     private FastStringBuffer currentTextNode = new FastStringBuffer(100);
-    private int currentStaxEvent;
+    private int currentStaxEvent = XMLStreamReader.START_DOCUMENT;
     private XPathException pendingException = null;
+
+    /**
+     * Create a PullToStax instance, which wraps a Saxon PullProvider as a Stax XMLStreamReader
+     * @param provider the Saxon PullProvider from which the events will be read
+     */
 
     public PullToStax(PullProvider provider) {
         if (provider instanceof PullNamespaceReducer) {
@@ -40,7 +44,7 @@ public class PullToStax implements XMLStreamReader {
         } else {
             this.provider = new PullNamespaceReducer(provider);
         }
-        this.namePool = provider.getPipelineConfiguration().getConfiguration().getNamePool();
+        namePool = provider.getPipelineConfiguration().getConfiguration().getNamePool();
     }
 
     public int getAttributeCount() {
@@ -132,7 +136,6 @@ public class PullToStax implements XMLStreamReader {
     }
 
     public int getNamespaceCount() {
-        // TODO: this only works on startElement. To return the value on endElement, we need to hold a stack.
         try {
             return provider.getNamespaceDeclarations().getNumberOfNamespaces();
         } catch (XPathException e) {
@@ -234,7 +237,7 @@ public class PullToStax implements XMLStreamReader {
                 break;
             case PullProvider.START_DOCUMENT:
                 currentStaxEvent = XMLStreamConstants.START_DOCUMENT;
-                break;
+                return next();
             case PullProvider.END_DOCUMENT:
                 currentStaxEvent = XMLStreamConstants.END_DOCUMENT;
                 break;
@@ -452,7 +455,7 @@ public class PullToStax implements XMLStreamReader {
     }
 
     public Object getProperty(String s) throws IllegalArgumentException {
-        return null;  //TODO
+        return null;  //TODO: implement this method
     }
 
     public void require(int event, String uri, String local) throws XMLStreamException {
@@ -462,10 +465,10 @@ public class PullToStax implements XMLStreamReader {
         if (currentStaxEvent != event) {
             throw new XMLStreamException("Required event type is " + event + ", actual event is " + currentStaxEvent);
         }
-        if (uri != null && uri != getNamespaceURI()) {
+        if (uri != null && !uri.equals(getNamespaceURI())) {
             throw new XMLStreamException("Required namespace is " + uri + ", actual is " + getNamespaceURI());
         }
-        if (local != null && local != getLocalName()) {
+        if (local != null && !local.equals(getLocalName())) {
             throw new XMLStreamException("Required local name is " + local + ", actual is " + getLocalName());
         }
     }
@@ -481,6 +484,11 @@ public class PullToStax implements XMLStreamReader {
     public class SourceStreamLocation implements javax.xml.stream.Location {
 
         private SourceLocator locator;
+
+        /**
+         * Create a StAX SourceStreamLocation object based on a given SAX SourceLocator
+         * @param locator the SAX SourceLocator
+         */
         public SourceStreamLocation(SourceLocator locator) {
             this.locator = locator;
         }

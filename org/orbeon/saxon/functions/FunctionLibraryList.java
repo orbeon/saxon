@@ -1,9 +1,11 @@
 package org.orbeon.saxon.functions;
 
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.query.XQueryFunctionBinder;
 import org.orbeon.saxon.query.XQueryFunction;
+import org.orbeon.saxon.om.StructuredQName;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -41,17 +43,15 @@ public class FunctionLibraryList implements FunctionLibrary, XQueryFunctionBinde
      * Test whether an extension function with a given name and arity is available. This supports
      * the function-available() function in XSLT. This method may be called either at compile time
      * or at run time.
-     * @param uri  The URI of the function name
-     * @param local  The local part of the function name
+     * @param functionName
      * @param arity The number of arguments. This is set to -1 in the case of the single-argument
      * function-available() function; in this case the method should return true if there is some
-     * matching extension function, regardless of its arity.
      */
 
-    public boolean isAvailable(int fingerprint, String uri, String local, int arity) {
+    public boolean isAvailable(StructuredQName functionName, int arity) {
         for (Iterator it=libraryList.iterator(); it.hasNext();) {
             FunctionLibrary lib = (FunctionLibrary)it.next();
-            if (lib.isAvailable(fingerprint, uri, local, arity)) {
+            if (lib.isAvailable(functionName, arity)) {
                 return true;
             }
         }
@@ -62,13 +62,13 @@ public class FunctionLibraryList implements FunctionLibrary, XQueryFunctionBinde
      * Bind an extension function, given the URI and local parts of the function name,
      * and the list of expressions supplied as arguments. This method is called at compile
      * time.
-     * @param uri  The URI of the function name
-     * @param local  The local part of the function name
+     * @param functionName
      * @param staticArgs  The expressions supplied statically in arguments to the function call.
      * The length of this array represents the arity of the function. The intention is
      * that the static type of the arguments (obtainable via getItemType() and getCardinality() may
      * be used as part of the binding algorithm. In some cases it may be possible for the function
      * to be pre-evaluated at compile time, for example if these expressions are all constant values.
+     * @param env
      * @return An object representing the extension function to be called, if one is found;
      * null if no extension function was found matching the required name and arity.
      * @throws org.orbeon.saxon.trans.XPathException if a function is found with the required name and arity, but
@@ -76,11 +76,11 @@ public class FunctionLibraryList implements FunctionLibrary, XQueryFunctionBinde
      * while searching for the function.
      */
 
-    public Expression bind(int nameCode, String uri, String local, Expression[] staticArgs)
+    public Expression bind(StructuredQName functionName, Expression[] staticArgs, StaticContext env)
             throws XPathException {
         for (Iterator it=libraryList.iterator(); it.hasNext();) {
             FunctionLibrary lib = (FunctionLibrary)it.next();
-            Expression func = lib.bind(nameCode, uri, local, staticArgs);
+            Expression func = lib.bind(functionName, staticArgs, env);
             if (func != null) {
                 return func;
             }
@@ -94,12 +94,11 @@ public class FunctionLibraryList implements FunctionLibrary, XQueryFunctionBinde
      * @return the XQueryFunction if there is one, or null if not.
      */
 
-    public XQueryFunction getDeclaration(int nameCode, String uri, String local, Expression[] staticArgs) {
+    public XQueryFunction getDeclaration(StructuredQName functionName, Expression[] staticArgs) {
         for (Iterator it=libraryList.iterator(); it.hasNext();) {
             FunctionLibrary lib = (FunctionLibrary)it.next();
             if (lib instanceof XQueryFunctionBinder) {
-                XQueryFunction func = ((XQueryFunctionBinder)lib).getDeclaration(
-                        nameCode, uri, local, staticArgs);
+                XQueryFunction func = ((XQueryFunctionBinder)lib).getDeclaration(functionName, staticArgs);
                 if (func != null) {
                     return func;
                 }

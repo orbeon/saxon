@@ -1,7 +1,6 @@
 package org.orbeon.saxon.jdom;
 
 import org.orbeon.saxon.Query;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 import org.jdom.JDOMException;
 import org.jdom.input.SAXBuilder;
@@ -31,9 +30,9 @@ public class JDOMQuery extends Query {
             }
             return jdomSources;
         } catch (JDOMException e) {
-            throw new DynamicError(e);
+            throw new XPathException(e);
         } catch (IOException e) {
-            throw new DynamicError(e);
+            throw new XPathException(e);
         }
     }
 

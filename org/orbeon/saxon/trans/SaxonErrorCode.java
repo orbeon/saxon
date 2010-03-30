@@ -27,6 +27,12 @@ public class SaxonErrorCode {
     public static final String SXCH0003 = "SXCH0003";
 
     /**
+     * SXCH0004: cannot load user-supplied ContentHandler
+     */
+
+    public static final String SXCH0004 = "SXCH0004";    
+
+    /**
      * SXSE0001: cannot use character maps in an environment with no Controller
      */
 
@@ -44,6 +50,12 @@ public class SaxonErrorCode {
      */
 
     public static final String SXXP0003 = "SXXP0003";
+
+    /**
+     * SXXP0004: externally supplied node belongs to the wrong Configuration
+     */
+
+    public static final String SXXP0004 = "SXXP0004";
 
     /**
      * SXXF0001: first argument to saxon:eval must be an expression prepared using saxon:expression
@@ -117,6 +129,49 @@ public class SaxonErrorCode {
 
     public static final String SXJE0006 = "SXJE0006";
 
+    /**
+     * SXJE0007: cannot convert xs:dayTimeDuration to the required Java type
+     */
+
+    public static final String SXJE0007 = "SXJE0007";
+
+    /**
+     * SXJE0008: cannot convert xs:yearMonthDuration to the required Java type
+     */
+
+    public static final String SXJE0008 = "SXJE0008";
+
+    /**
+     * SXJE0021: cannot convert XPath value to the type required by the signature of an extension function
+     */
+
+    public static final String SXJE0021 = "SXJE0021";
+
+    /**
+     * SXJE0022: cannot convert XPath value to the type required by the signature of an extension function,
+     * the XPath value is a sequence of more than one item but the Java type is a singleton
+     */
+
+    public static final String SXJE0022 = "SXJE0022";
+
+    /**
+     * SXJE0023: cannot convert XPath item to the member type of a Java array
+     */
+
+    public static final String SXJE0023 = "SXJE0023";
+
+    /**
+     * SXJE0051: supplied Java List/Array contains a member that cannot be converted to an Item
+     */
+
+    public static final String SXJE0051 = "SXJE0051";
+
+    /**
+     * SXUP0081: attempt to update a non-updateable node
+     */
+
+    public static final String SXUP0081 = "SXUP0081";
+
 
     /**
      * SXWN9001: a variable declaration with no following siblings has no effect
@@ -167,6 +222,12 @@ public class SaxonErrorCode {
      */
 
     public static final String SXWN9008 = "SXWN9008";
+
+    /**
+     * SXWN9009: an empty xsl:for-each or xsl:for-each-group has no effect
+     */
+
+    public static final String SXWN9009 = "SXWN9009";    
 }
 
 //

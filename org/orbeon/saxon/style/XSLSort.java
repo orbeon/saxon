@@ -4,17 +4,19 @@ import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.om.NamespaceConstant;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.sort.CodepointCollator;
 import org.orbeon.saxon.sort.SortKeyDefinition;
+import org.orbeon.saxon.sort.StringCollator;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.SequenceType;
 import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.Whitespace;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.text.Collator;
-import java.util.Comparator;
 
 /**
 * An xsl:sort element in the stylesheet. <br>
@@ -59,17 +61,17 @@ public class XSLSort extends StyleElement {
 			if (f==StandardNames.SELECT) {
         		selectAtt = atts.getValue(a);
         	} else if (f==StandardNames.ORDER) {
-        		orderAtt = atts.getValue(a).trim();
+        		orderAtt = Whitespace.trim(atts.getValue(a));
         	} else if (f==StandardNames.DATA_TYPE) {
-        		dataTypeAtt = atts.getValue(a).trim();
+        		dataTypeAtt = Whitespace.trim(atts.getValue(a));
         	} else if (f==StandardNames.CASE_ORDER) {
-        		caseOrderAtt = atts.getValue(a).trim();
+        		caseOrderAtt = Whitespace.trim(atts.getValue(a));
         	} else if (f==StandardNames.LANG) {
-        		langAtt = atts.getValue(a).trim();
+        		langAtt = Whitespace.trim(atts.getValue(a));
         	} else if (f==StandardNames.COLLATION) {
-        		collationAtt = atts.getValue(a).trim();
+        		collationAtt = Whitespace.trim(atts.getValue(a));
             } else if (f==StandardNames.STABLE) {
-        		stableAtt = atts.getValue(a).trim();
+        		stableAtt = Whitespace.trim(atts.getValue(a));
         	} else {
         		checkUnknownAttribute(nc);
         	}
@@ -82,7 +84,7 @@ public class XSLSort extends StyleElement {
         }
 
         if (orderAtt == null) {
-            order = new StringValue("ascending");
+            order = new StringLiteral("ascending");
         } else {
             order = makeAttributeValueTemplate(orderAtt);
         }
@@ -94,14 +96,14 @@ public class XSLSort extends StyleElement {
         }
 
         if (caseOrderAtt == null) {
-            caseOrder = new StringValue("#default");
+            caseOrder = new StringLiteral("#default");
         } else {
             caseOrder = makeAttributeValueTemplate(caseOrderAtt);
             useDefaultCollation = false;
         }
 
         if (langAtt == null) {
-            lang = StringValue.EMPTY_STRING;
+            lang = new StringLiteral(StringValue.EMPTY_STRING);
         } else if (langAtt.equals("")) {
             compileError("The lang attribute must be a valid language code", "XTDE0030");
         } else {
@@ -133,12 +135,12 @@ public class XSLSort extends StyleElement {
         // Get the named or default collation
 
         if (useDefaultCollation) {
-            collationName = new StringValue(getDefaultCollationName());
+            collationName = new StringLiteral(getDefaultCollationName());
         }
 
-        Comparator collator = null;
-        if (collationName instanceof StringValue) {
-            String collationString = ((StringValue)collationName).getStringValue();
+        StringCollator stringCollator = null;
+        if (collationName instanceof StringLiteral) {
+            String collationString = ((StringLiteral)collationName).getStringValue();
             try {
                 URI collationURI = new URI(collationString);
                 if (!collationURI.isAbsolute()) {
@@ -150,10 +152,10 @@ public class XSLSort extends StyleElement {
                 compileError("Collation name '" + collationString + "' is not a valid URI");
                 collationString = NamespaceConstant.CODEPOINT_COLLATION_URI;
             }
-            collator = getPrincipalStylesheet().findCollation(collationString);
-            if (collator==null) {
+            stringCollator = getPrincipalStylesheet().findCollation(collationString);
+            if (stringCollator==null) {
                 compileError("Collation " + collationString + " has not been defined", "XTDE1035");
-                collator = Collator.getInstance();     // for recovery paths
+                stringCollator = CodepointCollator.getInstance();     // for recovery paths
             }
         }
 
@@ -168,11 +170,11 @@ public class XSLSort extends StyleElement {
         if (select != null) {
             try {
                 RoleLocator role =
-                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:sort/select", 0, null);
-                role.setSourceLocator(new ExpressionLocation(this));
+                    new RoleLocator(RoleLocator.INSTRUCTION, "xsl:sort/select", 0);
+                //role.setSourceLocator(new ExpressionLocation(this));
                 select = TypeChecker.staticTypeCheck(select,
                                 SequenceType.ATOMIC_SEQUENCE,
-                                false, role, getStaticContext());
+                                false, role, makeExpressionVisitor());
             } catch (XPathException err) {
                 compileError(err);
             }
@@ -184,8 +186,8 @@ public class XSLSort extends StyleElement {
         sortKeyDefinition.setLanguage(lang);
         sortKeyDefinition.setSortKey(select);
         sortKeyDefinition.setDataTypeExpression(dataType);
-        sortKeyDefinition.setCollationName(collationName);
-        sortKeyDefinition.setCollation(collator);
+        sortKeyDefinition.setCollationNameExpression(collationName);
+        sortKeyDefinition.setCollation(stringCollator);
         sortKeyDefinition.setBaseURI(getBaseURI());
         sortKeyDefinition.setStable(stable);
         sortKeyDefinition.setBackwardsCompatible(backwardsCompatibleModeIsEnabled());
@@ -207,14 +209,14 @@ public class XSLSort extends StyleElement {
     public Expression compile(Executable exec) throws XPathException {
         if (select == null) {
             Expression b = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
-            ComputedExpression.setParentExpression(b, this);
+            b.setContainer(this);
             if (b == null) {
-                b = EmptySequence.getInstance();
+                b = new Literal(EmptySequence.getInstance());
             }
             try {
                 StaticContext env = getStaticContext();
-                Atomizer atomizedSortKey = new Atomizer(b.simplify(env), env.getConfiguration());
-                atomizedSortKey.setParentExpression(sortKeyDefinition.getParentExpression());
+                Atomizer atomizedSortKey = new Atomizer(makeExpressionVisitor().simplify(b), env.getConfiguration());
+                ExpressionTool.copyLocationInfo(b, atomizedSortKey);
                 sortKeyDefinition.setSortKey(atomizedSortKey);
             } catch (XPathException e) {
                 compileError(e);
@@ -222,7 +224,7 @@ public class XSLSort extends StyleElement {
         }
         // Simplify the sort key definition - this is especially important in the case where
         // all aspects of the sort key are known statically.
-        sortKeyDefinition = sortKeyDefinition.simplify(getStaticContext(), exec);
+        sortKeyDefinition = sortKeyDefinition.simplify(makeExpressionVisitor());
         // not an executable instruction
         return null;
     }

@@ -17,6 +17,10 @@ public class NamespaceException extends Exception {
         return "Namespace prefix " + prefix + " has not been declared";
     }
 
+    public String getPrefix() {
+        return prefix;
+    }
+
 }
 
 

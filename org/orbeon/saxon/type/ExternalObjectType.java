@@ -3,9 +3,9 @@ package org.orbeon.saxon.type;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.Literal;
 import org.orbeon.saxon.instruct.ValueOf;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.ObjectValue;
@@ -26,13 +26,39 @@ public class ExternalObjectType implements AtomicType, Serializable {
     int fingerprint;
     int baseFingerprint = -1;
 
-    //public static final ExternalObjectType GENERAL_EXTERNAL_OBJECT_TYPE = new ExternalObjectType(Object.class, config);
+    /**
+     * Create an external object type
+     * @param javaClass the Java class to which this type corresponds
+     * @param config the Saxon configuration
+     */
 
     public ExternalObjectType(Class javaClass, Configuration config) {
         this.javaClass = javaClass;
         this.config = config;
         final String localName = javaClass.getName().replace('$', '_');
-        this.fingerprint = config.getNamePool().allocate("", NamespaceConstant.JAVA_TYPE, localName);
+        fingerprint = config.getNamePool().allocate("", NamespaceConstant.JAVA_TYPE, localName);
+    }
+
+    /**
+     * Get the local name of this type
+     *
+     * @return the local name of this type definition, if it has one. Return null in the case of an
+     *         anonymous type.
+     */
+
+    public String getName() {
+        return config.getNamePool().getLocalName(fingerprint);
+    }
+
+    /**
+     * Get the target namespace of this type
+     *
+     * @return the target namespace of this type definition, if it has one. Return null in the case
+     *         of an anonymous type, and in the case of a global type defined in a no-namespace schema.
+     */
+
+    public String getTargetNamespace() {
+        return config.getNamePool().getURI(fingerprint);
     }
 
     /**
@@ -45,12 +71,67 @@ public class ExternalObjectType implements AtomicType, Serializable {
     }
 
     /**
+     * Determine whether this is a built-in type or a user-defined type
+     * @return false - external types are not built in
+     */
+
+    public boolean isBuiltInType() {
+        return false;
+    }
+
+
+    /**
+     * Determine whether the type is abstract, that is, whether it cannot have instances that are not also
+     * instances of some concrete subtype
+     * @return false - external types are not abstract
+     */
+
+    public boolean isAbstract() {
+        return false;
+    }
+
+    /**
+     * Determine whether the atomic type is a primitive type.  The primitive types are
+     * the 19 primitive types of XML Schema, plus xs:integer, xs:dayTimeDuration and xs:yearMonthDuration;
+     * xs:untypedAtomic; and all supertypes of these (xs:anyAtomicType, xs:numeric, ...)
+     *
+     * @return true if the type is considered primitive under the above rules
+     */
+
+    public boolean isPrimitiveType() {
+        return false;
+    }
+
+    /**
      * Get the most specific possible atomic type that all items in this SimpleType belong to
      * @return the lowest common supertype of all member types
      */
 
     public AtomicType getCommonAtomicType() {
         return this;
+    }
+
+    /**
+     * Determine whether the atomic type is ordered, that is, whether less-than and greater-than comparisons
+     * are permitted
+     *
+     * @return true if ordering operations are permitted
+     */
+
+    public boolean isOrdered() {
+        return false;  
+    }
+
+
+    /**
+     * Get the URI of the schema document where the type was originally defined.
+     *
+     * @return the URI of the schema document. Returns null if the information is unknown or if this
+     *         is a built-in type
+     */
+
+    public String getSystemId() {
+        return null;  //AUTO
     }
 
     /**
@@ -124,7 +205,7 @@ public class ExternalObjectType implements AtomicType, Serializable {
      */
 
     public final SchemaType getBaseType() {
-        return BuiltInSchemaFactory.getSchemaType(StandardNames.XDT_ANY_ATOMIC_TYPE);
+        return BuiltInAtomicType.ANY_ATOMIC;
     }
 
     /**
@@ -150,7 +231,7 @@ public class ExternalObjectType implements AtomicType, Serializable {
      */
 
     public int getPrimitiveType() {
-        return Type.ANY_ATOMIC;
+        return StandardNames.XS_ANY_ATOMIC_TYPE;
     }
 
     /**
@@ -191,11 +272,12 @@ public class ExternalObjectType implements AtomicType, Serializable {
      */
 
     public boolean isSameType(SchemaType other) {
-        return (other.getFingerprint() == this.getFingerprint());
+        return (other.getFingerprint() == getFingerprint());
     }
 
     /**
      * Get the relationship of this external object type to another external object type
+     * @param other the other external object type
      * @return the relationship of this external object type to another external object type,
      * as one of the constants in class {@link TypeHierarchy}, for example {@link TypeHierarchy#SUBSUMES}
      */
@@ -227,8 +309,8 @@ public class ExternalObjectType implements AtomicType, Serializable {
      * @throws SchemaException if the derivation is not allowed
      */
 
-    public void checkTypeDerivationIsOK(SchemaType type, int block) throws SchemaException, ValidationException {
-        return;
+    public void checkTypeDerivationIsOK(SchemaType type, int block) throws SchemaException {
+        //return;
     }
 
     /**
@@ -276,7 +358,7 @@ public class ExternalObjectType implements AtomicType, Serializable {
      * Determine the whitespace normalization required for values of this type
      *
      * @return one of PRESERVE, REPLACE, COLLAPSE
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public int getWhitespaceAction(TypeHierarchy th) {
@@ -357,7 +439,7 @@ public class ExternalObjectType implements AtomicType, Serializable {
      * @param resolver a namespace resolver used to resolve any namespace prefixes appearing
      *                 in the content of values. Can supply null, in which case any namespace-sensitive content
      *                 will be rejected.
-     * @param nameChecker
+     * @param nameChecker checks names against XML 1.0 or XML 1.1 syntax rules
      * @return an iterator over the atomic sequence comprising the typed value. The objects
      *         returned by this SequenceIterator will all be of type {@link org.orbeon.saxon.value.AtomicValue}
      */
@@ -369,18 +451,20 @@ public class ExternalObjectType implements AtomicType, Serializable {
 
 
     /**
-     * Factory method to create values of a derived atomic type. This method
-     * is not used to create values of a built-in type, even one that is not
-     * primitive.
+     * Validate that a primitive atomic value is a valid instance of a type derived from the
+     * same primitive type.
      *
-     * @param primValue    the value in the value space of the primitive type
+     * @param primValue    the value in the value space of the primitive type.
      * @param lexicalValue the value in the lexical space. If null, the string value of primValue
-      * @param validate     true if the value is to be validated against the facets of the derived
-     *                     type; false if the caller knows that the value is already valid.
+     *                     is used. This value is checked against the pattern facet (if any)
+     * @param checker
+     * @return null if the value is valid; otherwise, a ValidationFailure object indicating
+     *         the nature of the error.
+     * @throws UnsupportedOperationException in the case of an external object type
      */
 
-    public AtomicValue makeDerivedValue(AtomicValue primValue, CharSequence lexicalValue, boolean validate) {
-        throw new UnsupportedOperationException("makeDerivedValue is not supported for external object types");
+    public ValidationFailure validate(AtomicValue primValue, CharSequence lexicalValue, NameChecker checker) {
+        throw new UnsupportedOperationException("validate");
     }
 
     /**
@@ -390,7 +474,7 @@ public class ExternalObjectType implements AtomicType, Serializable {
      * @param expression the expression that delivers the content
      * @param kind       the node kind whose content is being delivered: {@link Type#ELEMENT},
      *                   {@link Type#ATTRIBUTE}, or {@link Type#DOCUMENT}
-     * @param env
+     * @param env        the static evaluation context
      * @throws org.orbeon.saxon.trans.XPathException
      *          if the expression will never deliver a value of the correct type
      */
@@ -404,6 +488,7 @@ public class ExternalObjectType implements AtomicType, Serializable {
      * type.
      * @param simpleType the simple type against which the expression is to be checked
      * @param expression the expression that delivers the content
+     * @param env the static evaluation context
      * @param kind       the node kind whose content is being delivered: {@link Type#ELEMENT},
      *                   {@link Type#ATTRIBUTE}, or {@link Type#DOCUMENT}
      * @throws org.orbeon.saxon.trans.XPathException
@@ -416,20 +501,21 @@ public class ExternalObjectType implements AtomicType, Serializable {
             expression.checkPermittedContents(simpleType, env, true);
         } else if (kind == Type.ATTRIBUTE) {
             // for attributes, do a check only for text nodes and atomic values: anything else gets atomized
-            if (expression instanceof ValueOf || expression instanceof Value) {
+            if (expression instanceof ValueOf || expression instanceof Literal) {
                 expression.checkPermittedContents(simpleType, env, true);
             }
         }
     }
 
+    /**
+     * Get the Java class to which this external object type corresponds
+     * @return the corresponding Java class
+     */
 
     public Class getJavaClass() {
         return javaClass;
     }
 
-    public boolean isBuiltIn() {
-        return true;
-    }
 
     public boolean matchesItem(Item item, boolean allowURIPromotion, Configuration config) {
         if (item instanceof ObjectValue) {
@@ -445,7 +531,7 @@ public class ExternalObjectType implements AtomicType, Serializable {
      * @param nsResolver a namespace resolver used to resolve namespace prefixes if the type
      * is namespace sensitive. The value supplied may be null; in this case any namespace-sensitive
      * content will throw an UnsupportedOperationException.
-     * @param nameChecker
+     * @param nameChecker used to check names against XML 1.0 or XML 1.1 syntax rules
      * @return null if validation succeeds; return a ValidationException describing the validation failure
      * if validation fails, unless throwException is true, in which case the exception is thrown rather than
      * being returned.
@@ -453,18 +539,18 @@ public class ExternalObjectType implements AtomicType, Serializable {
      * resolver is supplied
      */
 
-    public ValidationException validateContent(CharSequence value, NamespaceResolver nsResolver, NameChecker nameChecker) {
+    public ValidationFailure validateContent(CharSequence value, NamespaceResolver nsResolver, NameChecker nameChecker) {
         throw new UnsupportedOperationException("Cannot use an external object type for validation");
     }
 
     public ItemType getSuperType(TypeHierarchy th) {
         if (javaClass == Object.class) {
-            return Type.ANY_ATOMIC_TYPE;
+            return BuiltInAtomicType.ANY_ATOMIC;
         }
         Class javaSuper = javaClass.getSuperclass();
         if (javaSuper == null) {
             // this happens for an interface
-            return Type.ANY_ATOMIC_TYPE;
+            return BuiltInAtomicType.ANY_ATOMIC;
         }
         return new ExternalObjectType(javaSuper, config);
     }
@@ -483,6 +569,23 @@ public class ExternalObjectType implements AtomicType, Serializable {
         return toString();
     }
 
+    /**
+     * Returns a hash code value for the object.
+     */
+
+    public int hashCode() {
+        return fingerprint;
+    }
+
+    /**
+     * Test whether two ExternalObjectType objects represent the same type
+     * @param obj the other ExternalObjectType
+     * @return
+     */
+
+    public boolean equals(Object obj) {
+        return obj instanceof ExternalObjectType && fingerprint == ((ExternalObjectType)obj).fingerprint;
+    }    
 }
 
 //

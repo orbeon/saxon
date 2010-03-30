@@ -1,24 +1,19 @@
 package org.orbeon.saxon.value;
-import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.expr.StaticProperty;
-import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.expr.Token;
+import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.*;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.Configuration;
-
-import java.io.PrintStream;
 
 /**
 * A value that is a sequence containing zero or one nodes
 */
 
-public class SingletonNode extends Value {
+public class SingletonNode extends Value implements GroundedValue{
 
     protected NodeInfo node = null;
 
@@ -34,12 +29,12 @@ public class SingletonNode extends Value {
     }
 
     /**
-     * An implementation of Expression must provide at least one of the methods evaluateItem(), iterate(), or process().
-     * This method indicates which of these methods is prefered.
+     * Return the value in the form of an Item
+     * @return the value in the form of an Item
      */
 
-    public int getImplementationMethod() {
-        return EVALUATE_METHOD;
+    public Item asItem() {
+        return node;
     }
 
     /**
@@ -60,7 +55,7 @@ public class SingletonNode extends Value {
      * precise type that it can, because it is called when testing that the node conforms to a required
      * type.
      * @return the most precise possible type of the node.
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
@@ -94,7 +89,7 @@ public class SingletonNode extends Value {
 
             case Type.ELEMENT:
                 int eltype = node.getTypeAnnotation();
-                if (eltype == -1 || eltype == StandardNames.XDT_UNTYPED || eltype == StandardNames.XS_ANY_TYPE) {
+                if (eltype == -1 || eltype == StandardNames.XS_UNTYPED || eltype == StandardNames.XS_ANY_TYPE) {
                     return new NameTest(Type.ELEMENT, node.getFingerprint(), node.getNamePool());
                 } else {
                     return new CombinedNodeTest(
@@ -106,7 +101,7 @@ public class SingletonNode extends Value {
 
             case Type.ATTRIBUTE:
                 int attype = node.getTypeAnnotation();
-                if (attype == -1 || attype == StandardNames.XDT_UNTYPED_ATOMIC) {
+                if (attype == -1 || attype == StandardNames.XS_UNTYPED_ATOMIC) {
                     return new NameTest(Type.ATTRIBUTE, node.getFingerprint(), node.getNamePool());
                 } else {
                     return new CombinedNodeTest(
@@ -159,13 +154,34 @@ public class SingletonNode extends Value {
      * (or for a MemoClosure, once all the values have been read)
      */
 
-    public Item itemAt(int n) throws XPathException {
+    public Item itemAt(int n) {
         if (n==0 && node!=null) {
             return node;
         } else {
             return null;
         }
+    }
 
+
+    /**
+     * Get a subsequence of the value
+     *
+     * @param start  the index of the first item to be included in the result, counting from zero.
+     *               A negative value is taken as zero. If the value is beyond the end of the sequence, an empty
+     *               sequence is returned
+     * @param length the number of items to be included in the result. Specify Integer.MAX_VALUE to
+     *               get the subsequence up to the end of the base sequence. If the value is negative, an empty sequence
+     *               is returned. If the value goes off the end of the sequence, the result returns items up to the end
+     *               of the sequence
+     * @return the required subsequence. If min is
+     */
+
+    public GroundedValue subsequence(int start, int length) {
+        if (node != null && start <= 0 && start+length > 0) {
+            return this;
+        } else {
+            return EmptySequence.getInstance();
+        }
     }
 
     /**
@@ -177,37 +193,18 @@ public class SingletonNode extends Value {
     }
 
     /**
-    * Get the static properties of this expression (other than its type). The result is
-    * bit-signficant. These properties are used for optimizations. In general, if
-    * property bit is set, it is true, but if it is unset, the value is unknown.
-    */
-
-    public int getSpecialProperties() {
-        return StaticProperty.ORDERED_NODESET |
-                StaticProperty.NON_CREATIVE;
-    }
-
-    /**
     * Return an enumeration of this nodeset value.
     */
 
-    public SequenceIterator iterate(XPathContext context) {
+    public SequenceIterator iterate() {
         return SingletonIterator.makeIterator(node);
-    }
-
-    /**
-    * Evaluate as an item
-    */
-
-    public Item evaluateItem(XPathContext context) {
-        return node;
     }
 
     /**
      * Get the effective boolean value
      */
 
-    public boolean effectiveBooleanValue(XPathContext context) {
+    public boolean effectiveBooleanValue() {
         return (node != null);
     }
 
@@ -222,55 +219,23 @@ public class SingletonNode extends Value {
         return (node==null ? "" : node.getStringValue());
     }
 
-    /**
-      * Evaluate an expression as a String. This function must only be called in contexts
-      * where it is known that the expression will return a single string (or where an empty sequence
-      * is to be treated as a zero-length string). Implementations should not attempt to convert
-      * the result to a string, other than converting () to "". This method is used mainly to
-      * evaluate expressions produced by compiling an attribute value template.
-      *
-      * @exception XPathException if any dynamic error occurs evaluating the
-      *     expression
-      * @param context The context in which the expression is to be evaluated
-      * @return the value of the expression, evaluated in the current context.
-      *     The expression must return a string or (); if the value of the
-      *     expression is (), this method returns "".
-      */
-
-     public String evaluateAsString(XPathContext context) throws XPathException {
-         if (node==null) return "";
-         return node.getStringValue();
-     }
-
-
-    /**
-    * Diagnostic display
-    */
-
-    public void display(int depth, PrintStream out, Configuration config) {
-        if (node==null) {
-            out.println(ExpressionTool.indent(depth) + "Empty node-set");
-        } else {
-            out.println(ExpressionTool.indent(depth) + "Node " + Navigator.getPath(node));
-        }
-    }
 
     /**
     * Convert to Java object (for passing to external functions)
     */
 
-    public Object convertToJava(Class target, XPathContext context) throws XPathException {
-        if (node == null) {
-            return null;
-        }
-        if (target.isAssignableFrom(node.getClass())) {
-            return node;
-        }
-        if (target == String.class) {
-            return node.getStringValue();
-        }
-        return super.convertToJava(target, context);
-    }
+//    public Object convertToJava(Class target, XPathContext context) throws XPathException {
+//        if (node == null) {
+//            return null;
+//        }
+//        if (target.isAssignableFrom(node.getClass())) {
+//            return node;
+//        }
+//        if (target == String.class) {
+//            return node.getStringValue();
+//        }
+//        return super.convertToJava(target, context);
+//    }
 
 }
 

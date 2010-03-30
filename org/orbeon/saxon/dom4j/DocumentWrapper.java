@@ -6,6 +6,9 @@ import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.type.Type;
 import org.dom4j.Document;
 
+import java.util.Iterator;
+import java.util.Collections;
+
 /**
   * The root node of an XPath tree. (Or equivalently, the tree itself).<P>
   * This class should have been named Root; it is used not only for the root of a document,
@@ -24,6 +27,7 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
      * Create a Saxon wrapper for a dom4j document
      * @param doc     The dom4j document
      * @param baseURI The base URI for all the nodes in the document
+     * @param config  The Saxon configuration
      */
 
     public DocumentWrapper(Document doc, String baseURI, Configuration config) {
@@ -31,17 +35,7 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
         node = doc;
         nodeKind = Type.DOCUMENT;
 
-        // Extract the location info is available
-        if(baseURI == null && doc.getRootElement() != null) {
-            Object data = doc.getRootElement().getData();
-//            if(data instanceof LocationData)   {
-//                this.baseURI = ((LocationData)data).getSystemID();
-//            } else if(data instanceof InstanceData) {
-//                this.baseURI = ((InstanceData)data).getSystemId();
-//            }
-        }
-        else
-            this.baseURI = baseURI;
+        this.baseURI = baseURI;
 
         docWrapper = this;
         setConfiguration(config);
@@ -80,6 +74,17 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
     }
 
     /**
+     * Get the list of unparsed entities defined in this document
+     * @return an Iterator, whose items are of type String, containing the names of all
+     *         unparsed entities defined in this document. If there are no unparsed entities or if the
+     *         information is not available then an empty iterator is returned
+     */
+
+    public Iterator getUnparsedEntityNames() {
+        return Collections.EMPTY_LIST.iterator();
+    }
+
+    /**
     * Get the unparsed entity with a given name
     * @param name the name of the entity
     * @return null: dom4j does not provide access to unparsed entities
@@ -108,7 +113,10 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
 	}
 
 	/**
-	* Set the configuration (containing the name pool used for all names in this document)
+	 * Set the configuration (containing the name pool used for all names in this document). Calling
+     * this method allocates a unique number to the document (unique within the Configuration); this
+     * will form the basis for testing node identity
+     * @param config the configuration
 	*/
 
 	public void setConfiguration(Configuration config) {

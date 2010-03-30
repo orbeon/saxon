@@ -6,8 +6,8 @@ import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.value.IntegerValue;
 import org.orbeon.saxon.value.NumericValue;
+import org.orbeon.saxon.value.IntegerValue;
 
 /**
 * The XPath 2.0 remove() function
@@ -18,10 +18,11 @@ public class Remove extends SystemFunction {
 
     /**
      * Simplify. Recognize remove(seq, 1) as a TailExpression.
+     * @param visitor an expression visitor
      */
 
-     public Expression simplify(StaticContext env) throws XPathException {
-        Expression exp = super.simplify(env);
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        Expression exp = super.simplify(visitor);
         if (exp instanceof Remove) {
             return ((Remove)exp).simplifyAsTailExpression();
         } else {
@@ -36,21 +37,53 @@ public class Remove extends SystemFunction {
      */
 
     private Expression simplifyAsTailExpression() {
-        if (argument[1] instanceof IntegerValue &&
-                ((IntegerValue)argument[1]).longValue() == 1) {
-            TailExpression t = new TailExpression(argument[0], 2);
-            t.setLocationId(getLocationId());
-            t.setParentExpression(getParentExpression());
-            return t;
-        } else {
-            return this;
+        if (Literal.isAtomic(argument[1])) {
+            try {
+                long value = ((IntegerValue)((Literal)argument[1]).getValue()).longValue();
+                if (value <= 0) {
+                    return argument[0];
+                } else if (value == 1) {
+                    TailExpression t = new TailExpression(argument[0], 2);
+                    ExpressionTool.copyLocationInfo(this, t);
+                    return t;
+                }
+            } catch (XPathException err) {
+                return this;
+            }
+        }    
+        return this;
+    }
+
+
+    /**
+     * Perform optimisation of an expression and its subexpressions.
+     * <p/>
+     * <p>This method is called after all references to functions and variables have been resolved
+     * to the declaration of the function or variable, and after all type checking has been done.</p>
+     *
+     * @param visitor         an expression visitor
+     * @param contextItemType the static type of "." at the point where this expression is invoked.
+     *                        The parameter is set to null if it is known statically that the context item will be undefined.
+     *                        If the type of the context item is not known statically, the argument is set to
+     *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
+     * @return the original expression, rewritten if appropriate to optimize execution
+     * @throws org.orbeon.saxon.trans.XPathException
+     *          if an error is discovered during this phase
+     *          (typically a type error)
+     */
+
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression e = super.optimize(visitor, contextItemType);
+        if (e == this) {
+            return simplifyAsTailExpression();
         }
+        return e;
     }
 
     /**
     * Determine the data type of the items in the sequence
     * @return the type of the input sequence
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
@@ -64,7 +97,7 @@ public class Remove extends SystemFunction {
     public SequenceIterator iterate(XPathContext context) throws XPathException {
         SequenceIterator seq = argument[0].iterate(context);
         AtomicValue n0 = (AtomicValue)argument[1].evaluateItem(context);
-        NumericValue n = (NumericValue)n0.getPrimitiveValue();
+        NumericValue n = (NumericValue)n0;
         int pos = (int)n.longValue();
         if (pos < 1) {
             return seq;
@@ -77,7 +110,7 @@ public class Remove extends SystemFunction {
      * at a specified position.
      */
 
-    private class RemoveIterator implements SequenceIterator, LastPositionFinder {
+    public static class RemoveIterator implements SequenceIterator, LastPositionFinder {
 
         SequenceIterator base;
         int removePosition;
@@ -110,6 +143,10 @@ public class Remove extends SystemFunction {
             return position;
         }
 
+        public void close() {
+            base.close();
+        }
+
         /**
          * Get the last position (that is, the number of items in the sequence). This method is
          * non-destructive: it does not change the state of the iterator.
@@ -140,8 +177,8 @@ public class Remove extends SystemFunction {
          * Get properties of this iterator, as a bit-significant integer.
          *
          * @return the properties of this iterator. This will be some combination of
-         *         properties such as {@link GROUNDED}, {@link LAST_POSITION_FINDER},
-         *         and {@link LOOKAHEAD}. It is always
+         *         properties such as {@link SequenceIterator#GROUNDED}, {@link SequenceIterator#LAST_POSITION_FINDER},
+         *         and {@link SequenceIterator#LOOKAHEAD}. It is always
          *         acceptable to return the value zero, indicating that there are no known special properties.
          *         It is acceptable for the properties of the iterator to change depending on its state.
          */

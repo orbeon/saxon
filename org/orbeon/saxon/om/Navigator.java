@@ -1,17 +1,13 @@
 package org.orbeon.saxon.om;
 
 import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.tinytree.TinyNodeImpl;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ReversibleIterator;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.functions.EscapeURI;
 import org.orbeon.saxon.pattern.*;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.tinytree.TinyNodeImpl;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.value.SequenceExtent;
 import org.orbeon.saxon.value.Whitespace;
 
 import java.net.URI;
@@ -37,9 +33,11 @@ public final class Navigator {
     /**
      * Get the string value of an attribute of a given element, given the URI and
      * local part of the attribute name.
-     * @param uri The namespace URI. The null URI is represented as an empty string.
-     * @param localName The local part of the name.
+     * @param element the element on which the required attribute appears
+     * @param uri The namespace URI of the attribute name. The null URI is represented as an empty string.
+     * @param localName The local part of the attribute name.
      * @return the attribute value, or null if the attribute is not present
+     * @since 9.0
      */
 
     public static String getAttributeValue(NodeInfo element, String uri, String localName) {
@@ -48,44 +46,65 @@ public final class Navigator {
     }
 
     /**
+     * Helper method to construct a NodeTest for use with the {@link NodeInfo#iterateAxis} method
+     * @param pool the NamePool. The relevant NamePool can be obtained by calling the method
+     * {@link NodeInfo#getNamePool}.
+     * @param nodeKind The kind of node required, for example {@link Type#ELEMENT} or {@link Type#ATTRIBUTE}.
+     * To select nodes of any kind, use {@link Type#NODE}.
+     * @param uri The namespace URI of the nodes to be selected. Supply null to selects nodes from any
+     * namespace or none. Supply "" to select nodes that are not in a namespace.
+     * @param localName The local name of the nodes to be selected. Supply null to select nodes irrespective
+     * of their local name.
+     * @return a NodeTest that matches the requested nodes
+     * @since 9.0
+     */
+
+    public static NodeTest makeNodeTest(NamePool pool, int nodeKind, String uri, String localName) {
+        if (uri == null && localName == null) {
+            return NodeKindTest.makeNodeKindTest(nodeKind);
+        } else if (uri == null) {
+            return new LocalNameTest(pool, nodeKind, localName);
+        } else if (localName == null) {
+            return new NamespaceTest(pool, nodeKind, uri);
+        } else {
+            int fp = pool.allocate("", uri, localName);
+            return new NameTest(nodeKind, fp, pool);
+        }
+    }
+
+    /**
      * Helper method to get the base URI of an element or processing instruction node
+     * @param node the node whose base URI is required
+     * @return the base URI of the node
+     * @since 8.7
      */
 
     public static String getBaseURI(NodeInfo node) {
         String xmlBase = node.getAttributeValue(StandardNames.XML_BASE);
         if (xmlBase != null) {
-            String escaped = EscapeURI.escape(xmlBase,"!#$%&'()*+,-./:;=?_[]~").toString();
-            URI escapedURI;
+            URI baseURI;
             try {
-                escapedURI = new URI(escaped);
-                if (!escapedURI.isAbsolute()) {
+                baseURI = new URI(xmlBase);
+                if (!baseURI.isAbsolute()) {
                     NodeInfo parent = node.getParent();
                     if (parent == null) {
-                        // We have a parentless element with a relative xml:base attribute. We need to ensure that
-                        // in such cases, the systemID of the element is always set to reflect the base URI
-                        // TODO: ignoring the above comment, in order to pass fn-base-uri-10 in XQTS...
-                        //return element.getSystemId();
-                        return escapedURI.toString();
+                        // We have a parentless element with a relative xml:base attribute.
+                        // See for example test XQTS fn-base-uri-10 and base-uri-27
+                        URI base = new URI(node.getSystemId());
+                        URI resolved = (xmlBase.length()==0 ? base : base.resolve(baseURI));
+                        return resolved.toString();
                     }
                     String startSystemId = node.getSystemId();
                     String parentSystemId = parent.getSystemId();
-                    if (startSystemId.equals(parentSystemId)) {
-                        // TODO: we are resolving a relative base URI against the base URI of the parent element.
-                        // This isn't what the RFC says we should do: we should resolve it against the base URI
-                        // of the containing entity. So xml:base on an ancestor element should have no effect (check this)
-                        URI base = new URI(node.getParent().getBaseURI());
-                        escapedURI = base.resolve(escapedURI);
-                    } else {
-                        URI base = new URI(startSystemId);
-                        escapedURI = base.resolve(escapedURI);
-                    }
+                    URI base = new URI(startSystemId.equals(parentSystemId) ? parent.getBaseURI() : startSystemId);
+                    baseURI = (xmlBase.length()==0 ? base : base.resolve(baseURI));
                 }
             } catch (URISyntaxException e) {
                 // xml:base is an invalid URI. Just return it as is: the operation that needs the base URI
-                // will probably fail as a result.
+                // will probably fail as a result.     \
                 return xmlBase;
             }
-            return escapedURI.toString();
+            return baseURI.toString();
         }
         String startSystemId = node.getSystemId();
         NodeInfo parent = node.getParent();
@@ -97,34 +116,6 @@ public final class Navigator {
             return parent.getBaseURI();
         } else {
             return startSystemId;
-        }
-    }
-
-    /**
-     * Output all namespace nodes associated with this element. Does nothing if
-     * the node is not an element. This is a helper method to allow the method
-     * {@link NodeInfo#sendNamespaceDeclarations(org.orbeon.saxon.event.Receiver, boolean)} to be
-     * implemented if {@link NodeInfo#getDeclaredNamespaces(int[])} is available.
-     *
-     * @param out              The relevant outputter
-     * @param includeAncestors True if namespaces declared on ancestor elements must be output
-     */
-
-    public static void sendNamespaceDeclarations(NodeInfo node, Receiver out, boolean includeAncestors)
-            throws XPathException {
-        if (node.getNodeKind() == Type.ELEMENT) {
-            int[] codes;
-            if (includeAncestors) {
-                codes = new NamespaceIterator(node, null).getInScopeNamespaceCodes();
-            } else {
-                codes = node.getDeclaredNamespaces(NodeInfo.EMPTY_NAMESPACE_LIST);
-            }
-            for (int i = 0; i < codes.length; i++) {
-                if (codes[i] == -1) {
-                    break;
-                }
-                out.namespace(codes[i], 0);
-            }
         }
     }
 
@@ -175,7 +166,7 @@ public final class Navigator {
                         "/processing-instruction()[" + getNumberSimple(node) + ']';
             case Type.NAMESPACE:
                 String test = node.getLocalPart();
-                if (test.equals("")) {
+                if (test.length() == 0) {
                     // default namespace: need a node-test that selects unnamed nodes only
                     test = "*[not(local-name()]";
                 }
@@ -364,7 +355,7 @@ public final class Navigator {
         NodeInfo memoNode = null;
         int memoNumber = 0;
         Controller controller = context.getController();
-        boolean memoise = (!hasVariablesInPatterns);// && count != null);
+        boolean memoise = (!hasVariablesInPatterns) && from==null;
         if (memoise) {
             Object[] memo = (Object[])controller.getUserData(inst, "xsl:number");
             if (memo != null) {
@@ -498,8 +489,10 @@ public final class Navigator {
      * @param namePool        Namepool holding the name codes (used only to resolve namespace
      *                        codes)
      * @param whichNamespaces Indicates which namespace nodes for an element should
-     *                        be copied
+     *                        be copied. Values are {@link NodeInfo#NO_NAMESPACES},
+     *                        {@link NodeInfo#LOCAL_NAMESPACES}, {@link NodeInfo#ALL_NAMESPACES}
      * @param copyAnnotations Indicates whether type annotations should be copied
+     * @param locationId      The location of the instruction invoking the copy
      * @throws XPathException on any failure reported by the Receiver
      */
 
@@ -507,7 +500,8 @@ public final class Navigator {
                             Receiver out,
                             NamePool namePool,
                             int whichNamespaces,
-                            boolean copyAnnotations, int locationId) throws XPathException {
+                            boolean copyAnnotations,
+                            int locationId) throws XPathException {
 
         switch (node.getNodeKind()) {
             case Type.DOCUMENT:
@@ -527,13 +521,27 @@ public final class Navigator {
             case Type.ELEMENT:
                 {
                     out.startElement(node.getNameCode(),
-                            copyAnnotations ? node.getTypeAnnotation() : StandardNames.XDT_UNTYPED,
+                            copyAnnotations ? node.getTypeAnnotation() : StandardNames.XS_UNTYPED,
                             0, 0);
 
                     // output the namespaces
 
-                    if (whichNamespaces != NodeInfo.NO_NAMESPACES) {
-                        node.sendNamespaceDeclarations(out, true);
+                    switch (whichNamespaces) {
+                        case NodeInfo.NO_NAMESPACES:
+                            break;
+                        case NodeInfo.LOCAL_NAMESPACES:
+                            int[] localNamespaces = node.getDeclaredNamespaces(null);
+                            for (int i=0; i<localNamespaces.length; i++) {
+                                int ns = localNamespaces[i];
+                                if (ns == -1) {
+                                    break;
+                                }
+                                out.namespace(ns, 0);
+                            }
+                            break;
+                        case NodeInfo.ALL_NAMESPACES:
+                            NamespaceCodeIterator.sendNamespaces(node, out);
+                            break;
                     }
 
                     // output the attributes
@@ -570,13 +578,16 @@ public final class Navigator {
             case Type.ATTRIBUTE:
                 {
                     out.attribute(node.getNameCode(),
-                            copyAnnotations ? node.getTypeAnnotation() : StandardNames.XDT_UNTYPED_ATOMIC,
+                            copyAnnotations ? node.getTypeAnnotation() : StandardNames.XS_UNTYPED_ATOMIC,
                             node.getStringValueCS(), 0, 0);
                     return;
                 }
             case Type.TEXT:
                 {
-                    out.characters(node.getStringValueCS(), 0, 0);
+                    CharSequence val = node.getStringValueCS();
+                    if (val.length() != 0) {
+                        out.characters(val, 0, 0);
+                    }
                     return;
                 }
             case Type.COMMENT:
@@ -611,7 +622,6 @@ public final class Navigator {
      */
 
     public static int compareOrder(SiblingCountingNode first, SiblingCountingNode second) {
-        NodeInfo ow = second;
 
         // are they the same node?
         if (first.isSameNodeInfo(second)) {
@@ -679,7 +689,7 @@ public final class Navigator {
             NodeInfo par1 = p1.getParent();
             NodeInfo par2 = p2.getParent();
             if (par1 == null || par2 == null) {
-                throw new NullPointerException("DOM/JDOM tree compare - internal error");
+                throw new NullPointerException("Node order comparison - internal error");
             }
             if (par1.isSameNodeInfo(par2)) {
                 if (p1.getNodeKind() == Type.ATTRIBUTE && p2.getNodeKind() != Type.ATTRIBUTE) {
@@ -717,26 +727,9 @@ public final class Navigator {
     /**
      * Get a character string that uniquely identifies this node and that collates nodes
      * into document order
-     *
-     * @return a string. The string is always interned so keys can be compared using "==".
-     */
-
-//    public static String getSequentialKey(SiblingCountingNode node) {
-//        // This was designed so it could be used for sorting nodes into document
-//        // order, but is not currently used that way.
-//        StringBuffer key = new StringBuffer(12);
-//        int num = node.getDocumentNumber();
-//        while (node != null && node.getNodeKind() != Type.DOCUMENT) {
-//            key.insert(0, alphaKey(node.getSiblingPosition()));
-//            node = (SiblingCountingNode)node.getParent();
-//        }
-//        key.insert(0, "w" + num);
-//        return key.toString().intern();
-//    }
-
-    /**
-     * Get a character string that uniquely identifies this node and that collates nodes
-     * into document order
+     * @param node the node whose unique identifier is reuqired
+     * @param sb a buffer to which the unique identifier will be appended
+     * @param addDocNr true if a unique document number is to be included in the information
      */
 
     public static void appendSequentialKey(SiblingCountingNode node, FastStringBuffer sb, boolean addDocNr) {
@@ -759,6 +752,7 @@ public final class Navigator {
      * as the integer
      *
      * @param value The positive integer key value (negative values are treated as zero).
+     * @return the alphabetic key value
      */
 
     public static String alphaKey(int value) {
@@ -804,7 +798,7 @@ public final class Navigator {
      * @deprecated since Saxon 8.5: use {@link Whitespace#isWhite}
      */
 
-    public static final boolean isWhite(CharSequence content) {
+    public static boolean isWhite(CharSequence content) {
         return Whitespace.isWhite(content);
     }
 
@@ -853,7 +847,7 @@ public final class Navigator {
 
     public static AxisIterator filteredSingleton(NodeInfo node, NodeTest nodeTest) {
         if (node != null && nodeTest.matches(node)) {
-            return SingletonIterator.makeIterator(node);
+            return SingleNodeIterator.makeIterator(node);
         } else {
             return EmptyIterator.getInstance();
         }
@@ -882,18 +876,18 @@ public final class Navigator {
 
         public AxisFilter(AxisIterator base, NodeTest test) {
             this.base = base;
-            this.nodeTest = test;
+            nodeTest = test;
             position = 0;
         }
 
         public Item next() {
             while (true) {
-                current = base.next();
+                current = (NodeInfo)base.next();
                 if (current == null) {
                     position = -1;
                     return null;
                 }
-                if (nodeTest.matches((NodeInfo)current)) {
+                if (nodeTest.matches(current)) {
                     position++;
                     return current;
                 }
@@ -944,10 +938,16 @@ public final class Navigator {
         private boolean atStart;
         private NodeInfo start;
 
+        /**
+         * Create an iterator over the ancestor or ancestor-or-self axis
+         * @param start the initial context node
+         * @param includeSelf true if the "self" node is to be included
+         */
+
         public AncestorEnumeration(NodeInfo start, boolean includeSelf) {
             this.start = start;
             this.includeSelf = includeSelf;
-            this.current = start;
+            current = start;
             atStart = true;
         }
 
@@ -958,7 +958,7 @@ public final class Navigator {
                     return;
                 }
             }
-            current = ((NodeInfo)current).getParent();
+            current = (current == null ? null : current.getParent());
         }
 
         public SequenceIterator getAnother() {
@@ -985,6 +985,13 @@ public final class Navigator {
         private boolean forwards;
         private boolean atEnd = false;
 
+        /**
+         * Create an iterator over the descendant or descendant-or-self axis
+         * @param start the initial context node
+         * @param includeSelf true if the "self" node is to be included
+         * @param forwards true for a forwards iteration, false for reverse order
+         */
+
         public DescendantEnumeration(NodeInfo start,
                                      boolean includeSelf, boolean forwards) {
             this.start = start;
@@ -994,7 +1001,7 @@ public final class Navigator {
 
         public void advance() {
             if (descendants != null) {
-                Item nextd = descendants.next();
+                NodeInfo nextd = (NodeInfo)descendants.next();
                 if (nextd != null) {
                     current = nextd;
                     return;
@@ -1034,11 +1041,22 @@ public final class Navigator {
                     //children = new NodeWrapper.ChildEnumeration(start, true, forwards);
                     children = start.iterateAxis(Axis.CHILD);
                     if (!forwards) {
-                        if (children instanceof ReversibleIterator) {
-                            children = (AxisIterator)((ReversibleIterator)children).getReverseIterator();
+                        if (children instanceof org.orbeon.saxon.expr.ReversibleIterator) {
+                            children = (AxisIterator)((org.orbeon.saxon.expr.ReversibleIterator)children).getReverseIterator();
                         } else {
                             try {
-                                children = new SequenceExtent(start.iterateAxis(Axis.CHILD)).reverseIterate();
+                                List list = new ArrayList(20);
+                                SequenceIterator forwards = start.iterateAxis(Axis.CHILD);
+                                while (true) {
+                                    Item n = forwards.next();
+                                    if (n == null) {
+                                        break;
+                                    }
+                                    list.add(n);
+                                }
+                                NodeInfo[] nodes = new NodeInfo[list.size()];
+                                nodes = (NodeInfo[])list.toArray(nodes);
+                                children = new ReverseNodeArrayIterator(nodes, 0, nodes.length);
                             } catch (XPathException e) {
                                 throw new AssertionError("Internal error in Navigator#descendantEnumeration: " + e.getMessage());
                                 // shouldn't happen.
@@ -1073,6 +1091,11 @@ public final class Navigator {
         private AxisIterator siblingEnum = null;
         private AxisIterator descendEnum = null;
 
+        /**
+         * Create an iterator over the "following" axis
+         * @param start the initial context node
+         */
+
         public FollowingEnumeration(NodeInfo start) {
             this.start = start;
             ancestorEnum = new AncestorEnumeration(start, false);
@@ -1104,7 +1127,7 @@ public final class Navigator {
 
         public void advance() {
             if (descendEnum != null) {
-                Item nextd = descendEnum.next();
+                NodeInfo nextd = (NodeInfo)descendEnum.next();
                 if (nextd != null) {
                     current = nextd;
                     return;
@@ -1113,10 +1136,10 @@ public final class Navigator {
                 }
             }
             if (siblingEnum != null) {
-                Item nexts = siblingEnum.next();
+                NodeInfo nexts = (NodeInfo)siblingEnum.next();
                 if (nexts != null) {
                     current = nexts;
-                    NodeInfo n = (NodeInfo)current;
+                    NodeInfo n = current;
                     if (n.hasChildNodes()) {
                         descendEnum = new DescendantEnumeration(n, false, true);
                     } else {
@@ -1128,10 +1151,10 @@ public final class Navigator {
                     siblingEnum = null;
                 }
             }
-            Item nexta = ancestorEnum.next();
+            NodeInfo nexta = (NodeInfo)ancestorEnum.next();
             if (nexta != null) {
                 current = nexta;
-                NodeInfo n = (NodeInfo)current;
+                NodeInfo n = current;
                 if (n.getNodeKind() == Type.DOCUMENT) {
                     siblingEnum = EmptyIterator.getInstance();
                 } else {
@@ -1164,6 +1187,14 @@ public final class Navigator {
         private AxisIterator descendEnum = null;
         private boolean includeAncestors;
 
+        /**
+         * Create an iterator for the preceding or "preceding-or-ancestor" axis (the latter being
+         * used internall to support xsl:number)
+         * @param start the initial context node
+         * @param includeAncestors true if ancestors of the initial context node are to be included
+         * in the result
+         */
+
         public PrecedingEnumeration(NodeInfo start, boolean includeAncestors) {
             this.start = start;
             this.includeAncestors = includeAncestors;
@@ -1183,7 +1214,7 @@ public final class Navigator {
 
         public void advance() {
             if (descendEnum != null) {
-                Item nextd = descendEnum.next();
+                NodeInfo nextd = (NodeInfo)descendEnum.next();
                 if (nextd != null) {
                     current = nextd;
                     return;
@@ -1192,15 +1223,14 @@ public final class Navigator {
                 }
             }
             if (siblingEnum != null) {
-                Item nexts = siblingEnum.next();
+                NodeInfo nexts = (NodeInfo)siblingEnum.next();
                 if (nexts != null) {
-                    NodeInfo sib = (NodeInfo)nexts;
-                    if (sib.hasChildNodes()) {
-                        descendEnum = new DescendantEnumeration(sib, true, false);
+                    if (nexts.hasChildNodes()) {
+                        descendEnum = new DescendantEnumeration(nexts, true, false);
                         advance();
                     } else {
                         descendEnum = null;
-                        current = sib;
+                        current = nexts;
                     }
                     return;
                 } else {
@@ -1208,10 +1238,10 @@ public final class Navigator {
                     siblingEnum = null;
                 }
             }
-            Item nexta = ancestorEnum.next();
+            NodeInfo nexta = (NodeInfo)ancestorEnum.next();
             if (nexta != null) {
                 current = nexta;
-                NodeInfo n = (NodeInfo)current;
+                NodeInfo n = current;
                 if (n.getNodeKind() == Type.DOCUMENT) {
                     siblingEnum = EmptyIterator.getInstance();
                 } else {

@@ -5,15 +5,14 @@ import org.orbeon.saxon.event.ReceiverOptions;
 import org.orbeon.saxon.om.AttributeCollectionImpl;
 import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 
 import java.util.ArrayList;
 
 
 /**
-  * The Builder class is responsible for taking a stream of SAX events and constructing
-  * a Document tree.
+  * The TreeBuilder class is responsible for taking a stream of Receiver events and constructing
+  * a Document tree using the linked tree implementation.
   * @author Michael H. Kay
   */
 
@@ -29,12 +28,13 @@ public class TreeBuilder extends Builder
     private int[] size = new int[100];          // stack of number of children for each open node
     private int depth = 0;
     private ArrayList arrays = new ArrayList(20);       // reusable arrays for creating nodes
-    private int pendingElement;
+    private int elementNameCode;
+    private int elementTypeCode;
     private int pendingLocationId;
     private AttributeCollectionImpl attributes;
     private int[] namespaces;
     private int namespacesUsed;
-
+    private boolean allocateSequenceNumbers = true;
     private int nextNodeNumber = 1;
     private static final int[] EMPTY_ARRAY_OF_INT = new int[0];
 
@@ -48,45 +48,71 @@ public class TreeBuilder extends Builder
     }
 
     /**
-    * Set the Node Factory to use. If none is specified, the Builder uses its own.
-    */
+     * Get the current root node. This will normally be a document node, but if the root of the tree
+     * is an element node, it can be an element.
+     * @return the root of the tree that is currently being built, or that has been most recently built
+     *         using this builder
+     */
+
+    public NodeInfo getCurrentRoot() {
+        NodeInfo physicalRoot = currentRoot;
+        if (physicalRoot instanceof DocumentImpl && ((DocumentImpl)physicalRoot).isImaginary()) {
+            return ((DocumentImpl)physicalRoot).getDocumentElement();
+        } else {
+            return physicalRoot;
+        }
+    }
+
+    public void reset() {
+        super.reset();
+        currentNode = null;
+        nodeFactory = null;
+        depth = 0;
+        allocateSequenceNumbers = true;
+        nextNodeNumber = 1;
+    }
+
+    /**
+     * Set whether the builder should allocate sequence numbers to elements as they are added to the
+     * tree. This is normally done, because it provides a quick way of comparing document order. But
+     * nodes added using XQuery update are not sequence-numbered.
+     * @param allocate true if sequence numbers are to be allocated
+     */
+
+    public void setAllocateSequenceNumbers(boolean allocate) {
+        allocateSequenceNumbers = allocate;
+    }
+
+    /**
+     * Set the Node Factory to use. If none is specified, the Builder uses its own.
+     * @param factory the node factory to be used. This allows custom objects to be used to represent
+     * the elements in the tree.
+     */
 
     public void setNodeFactory(NodeFactory factory) {
         nodeFactory = factory;
     }
 
-  ////////////////////////////////////////////////////////////////////////////////////////
-  // Implement the org.xml.sax.ContentHandler interface.
-  ////////////////////////////////////////////////////////////////////////////////////////
-
     /**
-    * Callback interface for SAX: not for application use
+    * Open the stream of Receiver events
     */
 
-    public void open () throws XPathException
-    {
-        // System.err.println("TreeBuilder: " + this + " Start document depth=" + depth);
-        //failed = false;
+    public void open () throws XPathException {
         started = true;
+        depth = 0;
+        size[depth] = 0;
+        super.open();
+    }
 
-        DocumentImpl doc;
-        if (currentRoot==null) {
-            // normal case
-            doc = new DocumentImpl();
-            currentRoot = doc;
-        } else {
-            // document node supplied by user
-            if (!(currentRoot instanceof DocumentImpl)) {
-                throw new DynamicError("Document node supplied is of wrong kind (" +
-                        currentRoot.getClass().getName() + ')');
-            }
-            doc = (DocumentImpl)currentRoot;
-            if (doc.getFirstChild()!=null) {
-                throw new DynamicError("Supplied document is not empty");
-            }
 
-        }
+    /**
+     * Start of a document node.
+     * This event is ignored: we simply add the contained elements to the current document
+     */
 
+    public void startDocument(int properties) throws XPathException {
+        DocumentImpl doc = new DocumentImpl();
+        currentRoot = doc;
         doc.setSystemId(getSystemId());
         doc.setBaseURI(getBaseURI());
         doc.setConfiguration(config);
@@ -94,23 +120,31 @@ public class TreeBuilder extends Builder
         depth = 0;
         size[depth] = 0;
         doc.sequence = 0;
-        //charBuffer = new StringBuffer(4096);
-        //doc.setCharacterBuffer(charBuffer);
         if (lineNumbering) {
             doc.setLineNumbering();
         }
-
-        super.open();
     }
 
     /**
-    * Callback interface for SAX: not for application use
+     * Notify the end of the document
+     */
+
+     public void endDocument() throws XPathException {
+         // System.err.println("End document depth=" + depth);
+         currentNode.compact(size[depth]);
+     }
+
+
+
+    /**
+    * Close the stream of Receiver events
     */
 
-    public void close () throws XPathException
-    {
+    public void close () throws XPathException {
         // System.err.println("TreeBuilder: " + this + " End document");
-        if (currentNode==null) return;	// can be called twice on an error path
+        if (currentNode==null) {
+            return;	// can be called twice on an error path
+        }
         currentNode.compact(size[depth]);
         currentNode = null;
 
@@ -120,7 +154,6 @@ public class TreeBuilder extends Builder
 
         super.close();
         nodeFactory = null;
-
     }
 
     /**
@@ -129,10 +162,13 @@ public class TreeBuilder extends Builder
 
     public void startElement (int nameCode, int typeCode, int locationId, int properties) throws XPathException {
         // System.err.println("TreeBuilder: " + this + " Start element depth=" + depth);
-
-        pendingElement = nameCode;
+        if (currentNode == null) {
+            startDocument(0);
+            ((DocumentImpl)currentRoot).setImaginary(true);
+        }
+        elementNameCode = nameCode;
+        elementTypeCode = typeCode;
         pendingLocationId = locationId;
-        //namespaces = null;
         namespacesUsed = 0;
         attributes = null;
     }
@@ -151,14 +187,10 @@ public class TreeBuilder extends Builder
 
     public void attribute(int nameCode, int typeCode, CharSequence value, int locationId, int properties)
     throws XPathException {
-
-//        if ((properties & ReceiverOptions.DISABLE_ESCAPING) != 0) {
-//            throw new DynamicError("Cannot disable output escaping when writing a tree");
-//        }
         properties &= ~ReceiverOptions.DISABLE_ESCAPING;
 
         if (attributes==null) {
-            attributes = new AttributeCollectionImpl(namePool);
+            attributes = new AttributeCollectionImpl(config);
         }
         attributes.addAttribute(nameCode, typeCode, value.toString(), locationId, properties);
     }
@@ -176,16 +208,12 @@ public class TreeBuilder extends Builder
             nslist = EMPTY_ARRAY_OF_INT;
         }
 
-        ElementImpl elem = nodeFactory.makeElementNode( currentNode,
-                                                        pendingElement,
-                                                        attributes,
-                                                        nslist,
-                                                        namespacesUsed,
-                                                        pipe.getLocationProvider(),
-                                                        pendingLocationId,
-                                                        nextNodeNumber++);
+        ElementImpl elem = nodeFactory.makeElementNode( 
+                currentNode, elementNameCode, elementTypeCode,
+                attributes, nslist, namespacesUsed,
+                pipe.getLocationProvider(),
+                pendingLocationId, (allocateSequenceNumbers ? nextNodeNumber++ : -1));
 
-        //namespaces = null;
         namespacesUsed = 0;
         attributes = null;
 
@@ -218,8 +246,7 @@ public class TreeBuilder extends Builder
     * Notify the end of an element
     */
 
-    public void endElement () throws XPathException
-    {
+    public void endElement () throws XPathException {
         // System.err.println("End element depth=" + depth);
         currentNode.compact(size[depth]);
         depth--;
@@ -230,8 +257,7 @@ public class TreeBuilder extends Builder
     * Notify a text node. Adjacent text nodes must have already been merged
     */
 
-    public void characters (CharSequence chars, int locationId, int properties) throws XPathException
-    {
+    public void characters (CharSequence chars, int locationId, int properties) throws XPathException {
         // System.err.println("Characters: " + chars.toString() + " depth=" + depth);
         if (chars.length()>0) {
 			// we rely on adjacent chunks of text having already been merged
@@ -268,10 +294,11 @@ public class TreeBuilder extends Builder
 
 
     /**
-    * graftElement() allows an element node to be transferred from one tree to another.
-    * This is a dangerous internal interface which is used only to contruct a stylesheet
-    * tree from a stylesheet using the "literal result element as stylesheet" syntax.
-    * The supplied element is grafted onto the current element as its only child.
+     * graftElement() allows an element node to be transferred from one tree to another.
+     * This is a dangerous internal interface which is used only to contruct a stylesheet
+     * tree from a stylesheet using the "literal result element as stylesheet" syntax.
+     * The supplied element is grafted onto the current element as its only child.
+     * @param element the element to be grafted in as a new child.
     */
 
     public void graftElement(ElementImpl element) throws XPathException {
@@ -297,7 +324,7 @@ public class TreeBuilder extends Builder
         public ElementImpl makeElementNode(
                 NodeInfo parent,
                 int nameCode,
-                AttributeCollectionImpl attlist,
+                int typeCode, AttributeCollectionImpl attlist,
                 int[] namespaces,
                 int namespacesUsed,
                 LocationProvider locator,
@@ -305,25 +332,25 @@ public class TreeBuilder extends Builder
                 int sequenceNumber)
 
         {
-            ElementImpl e;
-            if (attlist.getLength()==0 && namespacesUsed==0) {
-                // for economy, use a simple ElementImpl node
-                e = new ElementImpl();
-            } else {
-                e = new ElementWithAttributes();
-                if (namespacesUsed > 0) {
-                    ((ElementWithAttributes)e).setNamespaceDeclarations(namespaces, namespacesUsed);
-                }
+            ElementImpl e = new ElementImpl();
+            if (namespacesUsed > 0) {
+                e.setNamespaceDeclarations(namespaces, namespacesUsed);
             }
-            String baseURI = null;
-            int lineNumber = -1;
+//            String baseURI = null;
+//            int lineNumber = -1;
+//
+//            if (locator!=null) {
+//                baseURI = locator.getSystemId(locationId);
+//                lineNumber = locator.getLineNumber(locationId);
+//            }
 
+            e.initialise(nameCode, typeCode, attlist, parent, sequenceNumber);
             if (locator!=null) {
-                baseURI = locator.getSystemId(locationId);
-                lineNumber = locator.getLineNumber(locationId);
+                String baseURI = locator.getSystemId(locationId);
+                int lineNumber = locator.getLineNumber(locationId);
+                int columnNumber = locator.getColumnNumber(locationId);
+                e.setLocation(baseURI, lineNumber, columnNumber);
             }
-
-            e.initialise(nameCode, attlist, parent, baseURI, lineNumber, sequenceNumber);
             return e;
         }
     }

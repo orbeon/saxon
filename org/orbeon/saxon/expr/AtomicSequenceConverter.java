@@ -1,9 +1,11 @@
 package org.orbeon.saxon.expr;
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.ValueRepresentation;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.AtomicType;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.AtomicValue;
@@ -18,8 +20,9 @@ import org.orbeon.saxon.value.Value;
 
 public final class AtomicSequenceConverter extends UnaryExpression {
 
-    private AtomicType reqItemType;
-    private int requiredPrimitiveType;
+    private AtomicType requiredItemType;
+
+    private BuiltInAtomicType requiredPrimitiveType;
 
     /**
     * Constructor
@@ -31,19 +34,31 @@ public final class AtomicSequenceConverter extends UnaryExpression {
 
     public AtomicSequenceConverter(Expression sequence, AtomicType requiredItemType) {
         super(sequence);
-        this.reqItemType = requiredItemType;
-        this.requiredPrimitiveType = requiredItemType.getPrimitiveType();
+        this.requiredItemType = requiredItemType;
+        requiredPrimitiveType = (BuiltInAtomicType)requiredItemType.getPrimitiveItemType();
         ExpressionTool.copyLocationInfo(sequence, this);
     }
 
     /**
-    * Simplify an expression
-    */
+     * Get the required (target) primitive type
+     * @return the required primitive type
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
-        operand = operand.simplify(env);
-        if (operand instanceof Value) {
-            return new SequenceExtent(iterate(env.makeEarlyEvaluationContext()));
+    public AtomicType getRequiredPrimitiveType() {
+        return requiredPrimitiveType;
+    }
+
+    /**
+    * Simplify an expression
+     * @param visitor an expression visitor
+     */
+
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        operand = visitor.simplify(operand);
+        if (operand instanceof Literal) {
+            ValueRepresentation val = SequenceExtent.makeSequenceExtent(
+                    iterate(visitor.getStaticContext().makeEarlyEvaluationContext()));
+            return Literal.makeLiteral(Value.asValue(val));
         }
         return this;
     }
@@ -52,17 +67,15 @@ public final class AtomicSequenceConverter extends UnaryExpression {
     * Type-check the expression
     */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        operand = operand.typeCheck(env, contextItemType);
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
-        if (th.isSubType(operand.getItemType(th), reqItemType)) {
-            ComputedExpression.setParentExpression(operand, getParentExpression());
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.typeCheck(operand, contextItemType);
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
+        if (th.isSubType(operand.getItemType(th), requiredItemType)) {
             return operand;
         } else if (!Cardinality.allowsMany(operand.getCardinality())) {
-            CastExpression cast = new CastExpression(operand, reqItemType,
+            CastExpression cast = new CastExpression(operand, requiredItemType,
                                         (operand.getCardinality() & StaticProperty.ALLOWS_ZERO) != 0);
             ExpressionTool.copyLocationInfo(this, cast);
-            cast.setParentExpression(getParentExpression());
             return cast;
         } else {
             return this;
@@ -80,6 +93,16 @@ public final class AtomicSequenceConverter extends UnaryExpression {
     }
 
     /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new AtomicSequenceConverter(getBaseExpression().copy(), requiredItemType);
+    }
+
+    /**
     * Iterate over the sequence of values
     */
 
@@ -87,7 +110,7 @@ public final class AtomicSequenceConverter extends UnaryExpression {
         SequenceIterator base = operand.iterate(context);
         ItemMappingFunction converter = new ItemMappingFunction() {
             public Item map(Item item) throws XPathException {
-                return ((AtomicValue)item).convert(requiredPrimitiveType, context);
+                return ((AtomicValue)item).convert(requiredPrimitiveType, true, context).asAtomic();
             }
         };
         return new ItemMappingIterator(base, converter);
@@ -100,18 +123,18 @@ public final class AtomicSequenceConverter extends UnaryExpression {
     public Item evaluateItem(XPathContext context) throws XPathException {
         Item item = operand.evaluateItem(context);
         if (item==null) return null;
-        return ((AtomicValue)item).convert(requiredPrimitiveType, context);
+        return ((AtomicValue)item).convert(requiredPrimitiveType, true, context).asAtomic();
     }
 
     /**
     * Determine the data type of the items returned by the expression, if possible
     * @return a value such as Type.STRING, Type.BOOLEAN, Type.NUMBER, Type.NODE,
     * or Type.ITEM (meaning not known in advance)
-     * @param th
+     * @param th the type hierarchy cache
      */
 
 	public ItemType getItemType(TypeHierarchy th) {
-	    return reqItemType;
+	    return requiredItemType;
 	}
 
 	/**
@@ -132,13 +155,15 @@ public final class AtomicSequenceConverter extends UnaryExpression {
     }
 
     /**
-     * Give a string representation of the operator for use in diagnostics
-     * @return the operator, as a string
-     * @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    protected String displayOperator(Configuration config) {
-        return "convert items to " + reqItemType.toString(config.getNamePool());
+    public void explain(ExpressionPresenter destination) {
+        destination.startElement("convertItems");
+        destination.emitAttribute("to", requiredItemType.toString(destination.getNamePool()));
+        operand.explain(destination);
+        destination.endElement();
     }
 
 }

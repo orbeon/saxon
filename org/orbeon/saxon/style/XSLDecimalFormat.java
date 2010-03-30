@@ -3,12 +3,13 @@ import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.NamespaceException;
-import org.orbeon.saxon.om.QNameException;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.om.StructuredQName;
 import org.orbeon.saxon.trans.DecimalFormatManager;
 import org.orbeon.saxon.trans.DecimalSymbols;
-import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.Whitespace;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -46,7 +47,7 @@ public class XSLDecimalFormat extends StyleElement {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
 			if (f==StandardNames.NAME) {
-        		name = atts.getValue(a).trim();
+        		name = Whitespace.trim(atts.getValue(a));
         	} else if (f==StandardNames.DECIMAL_SEPARATOR) {
         		decimalSeparator = atts.getValue(a);
         	} else if (f==StandardNames.GROUPING_SEPARATOR) {
@@ -199,22 +200,18 @@ public class XSLDecimalFormat extends StyleElement {
         if (name==null) {
             try {
                 dfm.setDefaultDecimalFormat(d, getPrecedence());
-            } catch (StaticError err) {
+            } catch (XPathException err) {
                 compileError(err.getMessage(), err.getErrorCodeLocalPart());
             }
         } else {
             try {
-                makeNameCode(name);   // checks for reserved namespaces
-                String[] parts = getConfiguration().getNameChecker().getQNameParts(name);
-	            String uri = getURIForPrefix(parts[0], false);
+                StructuredQName formatName = makeQName(name);
                 try {
-                    dfm.setNamedDecimalFormat(uri, parts[1], d, getPrecedence());
-                } catch (StaticError err) {
+                    dfm.setNamedDecimalFormat(formatName, d, getPrecedence());
+                } catch (XPathException err) {
                     compileError(err.getMessage(), err.getErrorCodeLocalPart());
                 }
             } catch (XPathException err) {
-                compileError("Invalid decimal format name. " + err.getMessage(), "XTSE0020");
-            } catch (QNameException err) {
                 compileError("Invalid decimal format name. " + err.getMessage(), "XTSE0020");
             } catch (NamespaceException err) {
                 compileError("Invalid decimal format name. " + err.getMessage(), "XTSE0280");

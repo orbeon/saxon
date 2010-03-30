@@ -1,14 +1,10 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.sort.IntIterator;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.value.RestrictedStringValue;
-import org.orbeon.saxon.style.StandardNames;
-
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
 
 /**
 * This class supports fuctions get-in-scope-prefixes()
@@ -20,21 +16,56 @@ public class InScopePrefixes extends SystemFunction {
     * Iterator over the results of the expression
     */
 
-    public SequenceIterator iterate(XPathContext context) throws XPathException {
-        NodeInfo element = (NodeInfo)argument[0].evaluateItem(context);
-        NamespaceResolver resolver = new InscopeNamespaceResolver(element);
-        Iterator iter = resolver.iteratePrefixes();
-        List list = new ArrayList(10);
-        while (iter.hasNext()) {
-            String prefix = (String)iter.next();
-            if (prefix.equals("")) {
-                list.add(StringValue.EMPTY_STRING);
-            } else {
-                list.add(RestrictedStringValue.makeRestrictedString(
-                        prefix, StandardNames.XS_NCNAME, null));
+    public SequenceIterator iterate(final XPathContext context) throws XPathException {
+        final NodeInfo element = (NodeInfo)argument[0].evaluateItem(context);
+        final IntIterator iter = NamespaceCodeIterator.iterateNamespaces(element);
+        final NamePool pool = context.getNamePool();
+
+        return new SequenceIterator() {
+            private Item current = null;
+            private int position = 0;
+
+            public Item current() {
+                return current;
             }
-        }
-        return new ListIterator(list);
+
+            public SequenceIterator getAnother() throws XPathException {
+                return iterate(context);
+            }
+
+            public int getProperties() {
+                return 0;
+            }
+
+            public Item next() throws XPathException {
+                if (position == 0) {
+                    current = new StringValue("xml");
+                    position++;
+                    return current;
+                } else if (iter.hasNext()) {
+                    String prefix = pool.getPrefixFromNamespaceCode(iter.next());
+                    if (prefix.length() == 0) {
+                        current = StringValue.EMPTY_STRING;
+                    } else {
+                        current = StringValue.makeRestrictedString(
+                                prefix, BuiltInAtomicType.NCNAME, null).asAtomic();
+                    }
+                    position++;
+                    return current;
+                } else {
+                    current = null;
+                    position = -1;
+                    return null;
+                }
+            }
+
+            public int position() {
+                return position;
+            }
+
+            public void close() {
+            }
+        };
 
     }
 

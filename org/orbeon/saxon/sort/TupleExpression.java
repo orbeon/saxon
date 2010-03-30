@@ -1,6 +1,6 @@
 package org.orbeon.saxon.sort;
 
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.trans.XPathException;
@@ -10,7 +10,6 @@ import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.ObjectValue;
 import org.orbeon.saxon.value.Value;
 
-import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.Iterator;
 
@@ -22,7 +21,7 @@ import java.util.Iterator;
  * an external object, specifically as a Java array wrapped inside an ObjectValue.
  *
  */
-public class TupleExpression extends ComputedExpression {
+public class TupleExpression extends Expression {
 
     Expression[] components;
     int[] evaluationModes;
@@ -32,15 +31,30 @@ public class TupleExpression extends ComputedExpression {
         evaluationModes = new int[width];
     }
 
+    /**
+     * Set the i'th component expression of the tuple
+     * @param i identifies the component to set
+     * @param exp the component expression
+     */
+
     public void setExpression(int i, Expression exp) {
         components[i] = exp;
         adoptChildExpression(components[i]);
         evaluationModes[i] = ExpressionTool.UNDECIDED;
     }
 
-     public Expression simplify(StaticContext env) throws XPathException {
+    /**
+     * Get the component expressions
+     * @return the component expressions, as an array
+     */
+
+    public Expression[] getComponents() {
+        return components;
+    }
+
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
         for (int i=0; i<components.length; i++) {
-            components[i] = components[i].simplify(env);
+            components[i] = visitor.simplify(components[i]);
             adoptChildExpression(components[i]);
         }
         return this;
@@ -58,9 +72,9 @@ public class TupleExpression extends ComputedExpression {
         return new ExternalObjectType(Object.class, th.getConfiguration());
     }
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
         for (int i=0; i<components.length; i++) {
-            components[i] = components[i].typeCheck(env, contextItemType);
+            components[i] = visitor.typeCheck(components[i], contextItemType);
             adoptChildExpression(components[i]);
         }
         return this;
@@ -72,21 +86,19 @@ public class TupleExpression extends ComputedExpression {
      * <p>This method is called after all references to functions and variables have been resolved
      * to the declaration of the function or variable, and after all type checking has been done.</p>
      *
-     * @param opt             the optimizer in use. This provides access to supporting functions; it also allows
-     *                        different optimization strategies to be used in different circumstances.
-     * @param env             the static context of the expression
+     * @param visitor an expression visitor
      * @param contextItemType the static type of "." at the point where this expression is invoked.
      *                        The parameter is set to null if it is known statically that the context item will be undefined.
      *                        If the type of the context item is not known statically, the argument is set to
      *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
      * @return the original expression, rewritten if appropriate to optimize execution
-     * @throws org.orbeon.saxon.trans.StaticError if an error is discovered during this phase
+     * @throws XPathException if an error is discovered during this phase
      *                                        (typically a type error)
      */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
         for (int i=0; i<components.length; i++) {
-            components[i] = components[i].optimize(opt, env, contextItemType);
+            components[i] = visitor.optimize(components[i], contextItemType);
             adoptChildExpression(components[i]);
             if (i < 2) {
                 // Although TupleExpressions could be used for many purposes, in practice they are used
@@ -102,11 +114,36 @@ public class TupleExpression extends ComputedExpression {
         return this;
     }
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "Tuple");
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        TupleExpression te = new TupleExpression(components.length);
+        Expression[] c2 = new Expression[components.length];
+        int[] e2 = new int[components.length];
         for (int i=0; i<components.length; i++) {
-            components[i].display(level+1, out, config);
+            c2[i] = components[i].copy();
+            e2[i] = evaluationModes[i];
         }
+        te.components = c2;
+        te.evaluationModes = e2;
+        return te;
+    }
+
+    /**
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     */
+
+    public void explain(ExpressionPresenter out) {
+        out.startElement("tuple");
+        for (int i=0; i<components.length; i++) {
+            components[i].explain(out);
+        }
+        out.endElement();
     }
 
 
@@ -151,7 +188,7 @@ public class TupleExpression extends ComputedExpression {
                  found = true;
              }
          }
-                 return found;
+         return found;
      }
 
 }

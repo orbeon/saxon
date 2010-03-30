@@ -2,6 +2,7 @@ package org.orbeon.saxon.codenorm;
 
 import org.orbeon.saxon.sort.IntHashMap;
 import org.orbeon.saxon.sort.IntToIntHashMap;
+import org.orbeon.saxon.sort.IntToIntMap;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -23,10 +24,10 @@ class UnicodeDataParser {
      */
 
     static NormalizerData build() {
-        IntToIntHashMap canonicalClass = new IntToIntHashMap(400);
+        IntToIntMap canonicalClass = new IntToIntHashMap(400);
         canonicalClass.setDefaultValue(0);
         IntHashMap decompose = new IntHashMap(18000);
-        IntToIntHashMap compose = new IntToIntHashMap(15000);
+        IntToIntMap compose = new IntToIntHashMap(15000);
         compose.setDefaultValue(NormalizerData.NOT_COMPOSITE);
         BitSet isCompatibility = new BitSet(128000);
         BitSet isExcluded = new BitSet(128000);
@@ -76,7 +77,7 @@ class UnicodeDataParser {
      * Read canonical class table (mapping from character codes to their canonical class)
      */
 
-    private static void readCanonicalClassTable(IntToIntHashMap canonicalClasses) {
+    private static void readCanonicalClassTable(IntToIntMap canonicalClasses) {
         ArrayList keys = new ArrayList(5000);
         for (int i=0; i<UnicodeData.canonicalClassKeys.length; i++) {
             String s = UnicodeData.canonicalClassKeys[i];
@@ -103,7 +104,7 @@ class UnicodeDataParser {
      * Read canonical class table (mapping from character codes to their canonical class)
      */
 
-    private static void readDecompositionTable(IntHashMap decompose, IntToIntHashMap compose,
+    private static void readDecompositionTable(IntHashMap decompose, IntToIntMap compose,
                                                BitSet isExcluded, BitSet isCompatibility) {
         int k = 0;
         for (int i=0; i<UnicodeData.decompositionKeys.length; i++) {

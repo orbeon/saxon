@@ -2,21 +2,16 @@ package org.orbeon.saxon.functions;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.pattern.AnyNodeTest;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.pattern.NodeTest;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.type.*;
-import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.type.AnyItemType;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.type.TypeHierarchy;
+import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.value.Value;
 
-import javax.xml.transform.Source;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
+import java.io.*;
 import java.lang.reflect.*;
-import java.util.List;
-import java.math.BigDecimal;
 
 
 
@@ -25,7 +20,7 @@ import java.math.BigDecimal;
 * in a user-defined class.
  *
  * <p>Note that the binding of an XPath function call to a Java method is done in
- * class {@link JavaExtensionLibrary}</p>
+ * class {@link org.orbeon.saxon.functions.JavaExtensionLibrary}</p>
 */
 
 public class ExtensionFunctionCall extends FunctionCall {
@@ -35,8 +30,10 @@ public class ExtensionFunctionCall extends FunctionCall {
     private MethodRepresentation persistentMethod;
              // a serializable representation of the method, constructor, or field to be called
     private transient Class[] theParameterTypes;
+    private PJConverter[] argumentConverters;
+    private JPConverter resultConverter;
+    private boolean checkForNodes;
     private Class theClass;
-    private Configuration config;
 
     /**
      * Default constructor
@@ -46,36 +43,124 @@ public class ExtensionFunctionCall extends FunctionCall {
 
     /**
      * Initialization: creates an ExtensionFunctionCall
-     * @param nameCode the name code of the function, for display purposes
+     * @param functionName the name of the function, for display purposes
      * @param theClass the Java class containing the method to be called
      * @param object the method, field, or constructor of the Java class to be called
+     * @param config the Saxon configuration
     */
 
-    public void init(int nameCode, Class theClass, AccessibleObject object, Configuration config) {
-        setFunctionNameCode(nameCode);
+    public void init(StructuredQName functionName, Class theClass, AccessibleObject object, Configuration config) {
+        setFunctionName(functionName);
         this.theClass = theClass;
-        this.theMethod = object;
-        this.theParameterTypes = null;
-        this.config = config;
+        theMethod = object;
+        theParameterTypes = null;
     }
 
-    /**
-    * preEvaluate: this method suppresses compile-time evaluation by doing nothing
-    * (because the external function might have side-effects and might use the context)
-    */
+     /**
+     * preEvaluate: this method suppresses compile-time evaluation by doing nothing
+     * (because the external function might have side-effects and might use the context)
+     * @param visitor an expression visitor
+     */
 
-    public Expression preEvaluate(StaticContext env) {
+    public Expression preEvaluate(ExpressionVisitor visitor) {
         return this;
     }
+
+
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression tc = super.typeCheck(visitor, contextItemType);
+        if (tc != this) {
+            return tc;
+        }
+
+        Configuration config = visitor.getConfiguration();
+        TypeHierarchy th = config.getTypeHierarchy();
+        int firstParam = 0;
+        int firstArg = 0;
+        if (theMethod instanceof Constructor) {
+            if (theParameterTypes == null) {
+                theParameterTypes = ((Constructor)theMethod).getParameterTypes();
+            }
+        }
+        if (theMethod instanceof Method) {
+            if (theParameterTypes == null) {
+                theParameterTypes = ((Method)theMethod).getParameterTypes();
+            }
+            boolean isStatic = Modifier.isStatic(((Method)theMethod).getModifiers());
+            firstArg = (isStatic ? 0 : 1);
+            boolean usesContext = theParameterTypes.length > 0 &&
+                (theParameterTypes[0] == XPathContext.class);
+            firstParam = (usesContext ? 1 : 0);
+        }
+        argumentConverters = new PJConverter[argument.length];
+        if (firstArg != 0) {
+            SequenceType st = PJConverter.getEquivalentItemType(theClass);
+            if (st != null) {
+                RoleLocator role = new RoleLocator(
+                    RoleLocator.FUNCTION, getFunctionName(), 0);
+                argument[0] = TypeChecker.staticTypeCheck(
+                                argument[0], st, false, role, visitor);
+            }
+            argumentConverters[0] = PJConverter.allocate(
+                    config, argument[0].getItemType(th), argument[0].getCardinality(), theClass);
+        }
+        int j = firstParam;
+        for (int i = firstArg; i < argument.length; i++) {
+            SequenceType st = PJConverter.getEquivalentItemType(theParameterTypes[j]);
+            if (st != null) {
+                RoleLocator role = new RoleLocator(
+                    RoleLocator.FUNCTION, getFunctionName(), i);
+                argument[i] = TypeChecker.staticTypeCheck(
+                                argument[i], st, false, role, visitor);
+            }
+            argumentConverters[i] = PJConverter.allocate(
+                    config, argument[i].getItemType(th), argument[i].getCardinality(), theParameterTypes[j]);
+            j++;
+        }
+
+        if (theMethod instanceof Constructor) {
+            // Constructors always return wrapped external objects, even if the Java class
+            // is one known to Saxon such as java.util.Date
+            //ItemType resultType = new ExternalObjectType(theClass, config);
+            //resultConverter = new JPConverter.WrapExternalObject(resultType);
+            resultConverter = JPConverter.allocate(theClass, config);
+        } else if (theMethod instanceof Method) {
+            Class resultClass = ((Method)theMethod).getReturnType();
+            resultConverter = JPConverter.allocate(resultClass, config);
+        } else if (theMethod instanceof Field) {
+            Class resultClass = ((Field)theMethod).getType();
+            resultConverter = JPConverter.allocate(resultClass, config);
+        } else {
+            throw new AssertionError("Unknown component type");
+        }
+
+        ItemType resultType = resultConverter.getItemType();
+        checkForNodes = resultType == AnyItemType.getInstance() || resultType instanceof NodeTest;
+        resetLocalStaticProperties();
+        
+        return this;
+    }
+
 
 
     /**
     * Method called by the expression parser when all arguments have been supplied
     */
 
-    public void checkArguments(StaticContext env) throws XPathException {
+    public void checkArguments(ExpressionVisitor visitor) throws XPathException {
+
     }
 
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        throw new UnsupportedOperationException();
+    }
 
     /**
     * Determine which aspects of the context the expression depends on. The result is
@@ -99,6 +184,31 @@ public class ExtensionFunctionCall extends FunctionCall {
 
 
     /**
+     * Add a representation of this expression to a PathMap. The PathMap captures a map of the nodes visited
+     * by an expression in a source tree.
+     * <p/>
+     * <p>The default implementation of this method assumes that an expression does no navigation other than
+     * the navigation done by evaluating its subexpressions, and that the subexpressions are evaluated in the
+     * same context as the containing expression. The method must be overridden for any expression
+     * where these assumptions do not hold. For example, implementations exist for AxisExpression, ParentExpression,
+     * and RootExpression (because they perform navigation), and for the doc(), document(), and collection()
+     * functions because they create a new navigation root. Implementations also exist for PathExpression and
+     * FilterExpression because they have subexpressions that are evaluated in a different context from the
+     * calling expression.</p>
+     *
+     * @param pathMap     the PathMap to which the expression should be added
+     * @param pathMapNodeSet the PathMapNodeSet to which the paths embodied in this expression should be added
+     * @return the pathMapNode representing the focus established by this expression, in the case where this
+     *         expression is the first operand of a path expression or filter expression. For an expression that does
+     *         navigation, it represents the end of the arc in the path map that describes the navigation route. For other
+     *         expressions, it is the same as the input pathMapNode.
+     */
+
+    public PathMap.PathMapNodeSet addToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodeSet) {
+        return addExternalFunctionCallToPathMap(pathMap, pathMapNodeSet);
+    }
+
+    /**
     * Evaluate the function. <br>
     * @param context The context in which the function is to be evaluated
     * @return a Value representing the result of the function.
@@ -110,21 +220,23 @@ public class ExtensionFunctionCall extends FunctionCall {
         for (int i=0; i<argValues.length; i++) {
             argValues[i] = ExpressionTool.lazyEvaluate(argument[i], context, 1);
         }
-        try {
+//        try {
             return call(argValues, context);
-        } catch (XPathException err) {
-            String msg = err.getMessage();
-            msg = "Error in call to extension function {" + theMethod.toString() + "}: " + msg;
-            DynamicError err2 = new DynamicError(msg, err.getException());
-            err2.setXPathContext(context);
-            err2.setLocator(this);
-            err2.setErrorCode(err.getErrorCodeLocalPart());
-            throw err2;
-        }
+//        } catch (XPathException err) {
+//            err.printStackTrace();
+//            String msg = err.getMessage();
+//            msg = "Error in call to extension function {" + theMethod.toString() + "}: " + msg;
+//            XPathException err2 = new XPathException(msg, err.getException());
+//            err2.setXPathContext(context);
+//            err2.setLocator(this);
+//            err2.setErrorCode(err.getErrorCodeNamespace(), err.getErrorCodeLocalPart());
+//            throw err2;
+//        }
     }
 
     /**
      * Get the class containing the method being called
+     * @return the class containing the target method
      */
 
     public Class getTargetClass() {
@@ -133,10 +245,21 @@ public class ExtensionFunctionCall extends FunctionCall {
 
     /**
      * Get the target method (or field, or constructor) being called
+     * @return the target method, field, or constructor
      */
 
     public AccessibleObject getTargetMethod() {
         return theMethod;
+    }
+
+    /**
+     * Get the types of the arguments
+     * @return an array of classes representing the declared types of the arguments to the method
+     * or constructor
+     */
+
+    public Class[] getParameterTypes() {
+        return theParameterTypes;
     }
 
 
@@ -144,10 +267,11 @@ public class ExtensionFunctionCall extends FunctionCall {
      * Call an extension function previously identified using the bind() method. A subclass
      * can override this method.
      * @param argValues  The values of the arguments
+     * @param context The XPath dynamic evaluation context
      * @return  The value returned by the extension function
      */
 
-    private SequenceIterator call(ValueRepresentation[] argValues, XPathContext context) throws XPathException {
+    protected SequenceIterator call(ValueRepresentation[] argValues, XPathContext context) throws XPathException {
 
 //        Class[] theParameterTypes;
 
@@ -164,17 +288,13 @@ public class ExtensionFunctionCall extends FunctionCall {
                 Object result = invokeConstructor(constructor, params);
                 return asIterator(result, context);
             } catch (InstantiationException err0) {
-                DynamicError e = new DynamicError("Cannot instantiate class", err0);
-                throw e;
+                throw new XPathException("Cannot instantiate class", err0);
             } catch (IllegalAccessException err1) {
-                DynamicError e =  new DynamicError("Constructor access is illegal", err1);
-                throw e;
+                throw new XPathException("Constructor access is illegal", err1);
             } catch (IllegalArgumentException err2) {
-                DynamicError e =  new DynamicError("Argument is of wrong type", err2);
-                throw e;
+                throw new XPathException("Argument is of wrong type", err2);
             } catch (NullPointerException err2) {
-                DynamicError e =  new DynamicError("Object is null");
-                throw e;
+                throw new XPathException("Object is null");
             } catch (InvocationTargetException err3) {
                 Throwable ex = err3.getTargetException();
                 if (ex instanceof XPathException) {
@@ -184,9 +304,8 @@ public class ExtensionFunctionCall extends FunctionCall {
                             context.getConfiguration().isTraceExternalFunctions()) {
                         err3.getTargetException().printStackTrace();
                     }
-                    DynamicError e = new DynamicError("Exception in extension function: " +
+                    throw new XPathException("Exception in extension function: " +
                             err3.getTargetException().toString(), ex);
-                    throw e;
                 }
             }
         } else if (theMethod instanceof Method) {
@@ -202,11 +321,9 @@ public class ExtensionFunctionCall extends FunctionCall {
                 theInstance = null;
             } else {
                 if (argValues.length == 0) {
-                    DynamicError e = new DynamicError("Must supply an argument for an instance-level extension function");
-                    throw e;
+                    throw new XPathException("Must supply an argument for a non-static extension function");
                 }
-                Value arg0 = Value.asValue(argValues[0]);
-                theInstance = arg0.convertToJava(theClass, context);
+                theInstance = getTargetInstance(argValues[0], context);
                 // this fails if the first argument is not of a suitable class
             }
 
@@ -234,11 +351,11 @@ public class ExtensionFunctionCall extends FunctionCall {
                 return asIterator(result, context);
 
             } catch (IllegalAccessException err1) {
-                throw new DynamicError("Method access is illegal", err1);
+                throw new XPathException("Method access is illegal", err1);
             } catch (IllegalArgumentException err2) {
-                throw new DynamicError("Argument is of wrong type", err2);
+                throw new XPathException("Argument is of wrong type", err2);
             } catch (NullPointerException err2) {
-                throw new DynamicError("Object is null", err2);
+                throw new XPathException("Object is null", err2);
             } catch (InvocationTargetException err3) {
                 Throwable ex = err3.getTargetException();
                 if (ex instanceof XPathException) {
@@ -248,7 +365,7 @@ public class ExtensionFunctionCall extends FunctionCall {
                             context.getConfiguration().isTraceExternalFunctions()) {
                         err3.getTargetException().printStackTrace();
                     }
-                    throw new DynamicError("Exception in extension function " +
+                    throw new XPathException("Exception in extension function " +
                             err3.getTargetException().toString(), ex);
                 }
             }
@@ -263,11 +380,11 @@ public class ExtensionFunctionCall extends FunctionCall {
                 theInstance = null;
             } else {
                 if (argValues.length == 0) {
-                    DynamicError e = new DynamicError("Must supply an argument for an instance-level extension function");
-                    throw e;
+                    throw new XPathException("Must supply an argument for a non-static extension function");
                 }
-                Value arg0 = Value.asValue(argValues[0]);
-                theInstance = arg0.convertToJava(theClass, context);
+                theInstance = getTargetInstance(argValues[0], context);
+                //Value arg0 = Value.asValue(argValues[0]);
+                //theInstance = arg0.convertToJava(theClass, context);
                 // this fails if the first argument is not of a suitable class
             }
 
@@ -276,16 +393,24 @@ public class ExtensionFunctionCall extends FunctionCall {
                 return asIterator(result, context);
 
             } catch (IllegalAccessException err1) {
-                DynamicError e = new DynamicError("Field access is illegal", err1);
-                throw e;
+                throw new XPathException("Field access is illegal", err1);
             } catch (IllegalArgumentException err2) {
-                DynamicError e = new DynamicError("Argument is of wrong type", err2);
-                throw e;
+                throw new XPathException("Argument is of wrong type", err2);
             }
         } else {
             throw new AssertionError("property " + theMethod + " is neither constructor, method, nor field");
         }
 
+    }
+
+    private Object getTargetInstance(ValueRepresentation arg0, XPathContext context) throws XPathException {
+        Value val = Value.asValue(arg0).reduce();
+//        Configuration config = context.getConfiguration();
+//        PJConverter converter = PJConverter.allocate(
+//                config, val.getItemType(config.getTypeHierarchy()), val.getCardinality(), theClass);
+        PJConverter converter = argumentConverters[0];
+        return converter.convert(val, theClass, context);
+        //return arg0.convertToJava(theClass, context);
     }
 
     /**
@@ -301,18 +426,35 @@ public class ExtensionFunctionCall extends FunctionCall {
         if (result == null) {
             return EmptyIterator.getInstance();
         }
+        SequenceIterator resultIterator;
         if (result instanceof SequenceIterator) {
-            return (SequenceIterator) result;
+            resultIterator = (SequenceIterator)result;
+        } else {
+            resultIterator = Value.asIterator(resultConverter.convert(result, context));
         }
-        if (result instanceof Value) {
-            return ((Value) result).iterate(null);
+        if (checkForNodes) {
+            return new ItemMappingIterator(resultIterator,
+                    new ConfigurationCheckingFunction(context.getConfiguration()));
+        } else {
+            return resultIterator;
         }
-        if (result instanceof NodeInfo) {
-            return SingletonIterator.makeIterator(((NodeInfo) result));
-        }
-        Value actual = Value.convertJavaObjectToXPath(
-                result, SequenceType.ANY_SEQUENCE, context.getConfiguration());
-        return actual.iterate(context);
+//        if (result instanceof Value) {
+//            return new ItemMappingIterator(((Value) result).iterate(),
+//                    new ConfigurationCheckingFunction(context.getConfiguration()));
+//        }
+//        if (result instanceof NodeInfo) {
+//            if (!((NodeInfo)result).getConfiguration().isCompatible(context.getConfiguration())) {
+//                XPathException err = new XPathException(
+//                        "NodeInfo returned by extension function was created with an incompatible Configuration");
+//                err.setLocator(this);
+//                err.setXPathContext(context);
+//                throw err;
+//            }
+//            return SingletonIterator.makeIterator(((NodeInfo) result));
+//        }
+//        Value actual = Value.convertJavaObjectToXPath(
+//                result, SequenceType.ANY_SEQUENCE, context);
+//        return actual.iterate();
     }
 
     /**
@@ -335,8 +477,11 @@ public class ExtensionFunctionCall extends FunctionCall {
                              XPathContext context) throws XPathException {
         int j = firstParam;
         for (int i = firstArg; i < argValues.length; i++) {
-            argValues[i] = Value.asValue(argValues[i]);
-            params[j] = ((Value)argValues[i]).convertToJava(paramTypes[j], context);
+            ValueRepresentation val = argValues[i];
+            if (val instanceof Value) {
+                val = ((Value)val).reduce();
+            }
+            params[j] = argumentConverters[i].convert(val, paramTypes[j], context);
             j++;
         }
     }
@@ -351,98 +496,124 @@ public class ExtensionFunctionCall extends FunctionCall {
      * that is available at the time.</p>
      *
      * @return the item type
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
-        return convertClassToType(getReturnClass());
-    }
-
-    private ItemType convertClassToType(Class resultClass) {
-        if (resultClass==null || resultClass==Value.class) {
+        //return convertClassToType(getReturnClass());
+        if (resultConverter == null) {
             return AnyItemType.getInstance();
-        } else if (resultClass.toString().equals("void")) {
-            return AnyItemType.getInstance();
-        } else if (resultClass==String.class || resultClass==StringValue.class) {
-            return Type.STRING_TYPE;
-        } else if (resultClass==Boolean.class || resultClass==boolean.class || resultClass == BooleanValue.class) {
-            return Type.BOOLEAN_TYPE;
-        } else if (resultClass==Double.class || resultClass==double.class || resultClass==DoubleValue.class) {
-            return Type.DOUBLE_TYPE;
-        } else if (resultClass==Float.class || resultClass==float.class || resultClass==FloatValue.class) {
-            return Type.FLOAT_TYPE;
-        } else if (resultClass==Long.class || resultClass==long.class ||
-                    resultClass==IntegerValue.class || resultClass==BigIntegerValue.class ||
-                    resultClass==Integer.class || resultClass==int.class ||
-                    resultClass==Short.class || resultClass==short.class ||
-                    resultClass==Byte.class || resultClass==byte.class ) {
-            return Type.INTEGER_TYPE;
-        } else if (resultClass == BigDecimal.class) {
-            return Type.DECIMAL_TYPE;
-        } else if (Value.class.isAssignableFrom(resultClass) ||
-                    SequenceIterator.class.isAssignableFrom(resultClass)) {
-            return AnyItemType.getInstance();
-
         } else {
-            // Offer the object to all the registered external object models
-            List externalObjectModels = config.getExternalObjectModels();
-            for (int m=0; m<externalObjectModels.size(); m++) {
-                ExternalObjectModel model = (ExternalObjectModel)externalObjectModels.get(m);
-                if (model.isRecognizedNodeClass(resultClass) || model.isRecognizedNodeListClass(resultClass)) {
-                    return AnyNodeTest.getInstance();
-                }
-            }
-        }
-
-        if ( NodeInfo.class.isAssignableFrom(resultClass) ||
-                    Source.class.isAssignableFrom(resultClass)) {
-            return AnyNodeTest.getInstance();
-            // we could be more specific regarding the kind of node
-        } else if (List.class.isAssignableFrom(resultClass)) {
-            return AnyItemType.getInstance();
-        } else if (resultClass.isArray()) {
-            Class component = resultClass.getComponentType();
-            return convertClassToType(component);
-        } else {
-            return new ExternalObjectType(resultClass, config);
+            return resultConverter.getItemType();
         }
     }
 
+//    /**
+//     * Given the return class of the Java method, determine the return type of the XPath function
+//     * @param resultClass the Java return class of the method
+//     * @return the XPath return type of the extension function
+//     */
+
+//    private ItemType convertClassToType(Class resultClass) {
+//        if (resultClass==null || resultClass==Value.class) {
+//            return AnyItemType.getInstance();
+//        } else if (resultClass.toString().equals("void")) {
+//            return AnyItemType.getInstance();
+//        } else if (resultClass==String.class || resultClass==StringValue.class) {
+//            return BuiltInAtomicType.STRING;
+//        } else if (resultClass==Boolean.class || resultClass==boolean.class || resultClass == BooleanValue.class) {
+//            return BuiltInAtomicType.BOOLEAN;
+//        } else if (resultClass==Double.class || resultClass==double.class || resultClass==DoubleValue.class) {
+//            return BuiltInAtomicType.DOUBLE;
+//        } else if (resultClass==Float.class || resultClass==float.class || resultClass==FloatValue.class) {
+//            return BuiltInAtomicType.FLOAT;
+//        } else if (resultClass==Long.class || resultClass==long.class ||
+//                    resultClass==Int64Value.class || resultClass==BigIntegerValue.class ||
+//                    resultClass==Integer.class || resultClass==int.class ||
+//                    resultClass==Short.class || resultClass==short.class ||
+//                    resultClass==Byte.class || resultClass==byte.class ) {
+//            return BuiltInAtomicType.INTEGER;
+//        } else if (resultClass == BigDecimal.class) {
+//            return BuiltInAtomicType.DECIMAL;
+//        } else if (resultClass == Date.class) {
+//            return BuiltInAtomicType.DATE_TIME;
+//        } else if (Value.class.isAssignableFrom(resultClass) ||
+//                    SequenceIterator.class.isAssignableFrom(resultClass)) {
+//            return AnyItemType.getInstance();
+//
+//        } else {
+//            // Offer the object to all the registered external object models
+//            List externalObjectModels = config.getExternalObjectModels();
+//            for (int m=0; m<externalObjectModels.size(); m++) {
+//                ExternalObjectModel model = (ExternalObjectModel)externalObjectModels.get(m);
+//                if (model.isRecognizedNodeClass(resultClass) || model.isRecognizedNodeListClass(resultClass)) {
+//                    return AnyNodeTest.getInstance();
+//                }
+//            }
+//        }
+//
+//        if ( NodeInfo.class.isAssignableFrom(resultClass) ||
+//                    Source.class.isAssignableFrom(resultClass)) {
+//            return AnyNodeTest.getInstance();
+//            // we could be more specific regarding the kind of node
+//        } else if (List.class.isAssignableFrom(resultClass)) {
+//            return AnyItemType.getInstance();
+//        } else if (resultClass.isArray()) {
+//            Class component = resultClass.getComponentType();
+//            return convertClassToType(component);
+//        } else if (resultClass == Object.class) {
+//            // in this case everything is decided at run time
+//            return BuiltInAtomicType.ANY_ATOMIC;
+//        } else {
+//            return new ExternalObjectType(resultClass, config);
+//        }
+//    }
+//
     public int computeCardinality() {
         Class resultClass = getReturnClass();
-        if (resultClass==null) {
-            // we don't know yet
-            return StaticProperty.ALLOWS_ZERO_OR_MORE;
-        }
-        if (Value.class.isAssignableFrom(resultClass) ||
-                    SequenceIterator.class.isAssignableFrom(resultClass) ||
-                    List.class.isAssignableFrom(resultClass) ||
-                    Closure.class.isAssignableFrom(resultClass)||
-                    Source.class.isAssignableFrom(resultClass) ||
-                    resultClass.isArray()) {
-            return StaticProperty.ALLOWS_ZERO_OR_MORE;
-        }
-        List models = config.getExternalObjectModels();
-        for (int m=0; m<models.size(); m++) {
-            ExternalObjectModel model = (ExternalObjectModel)models.get(m);
-            if (model.isRecognizedNodeClass(resultClass)) {
-                return StaticProperty.ALLOWS_ZERO_OR_ONE;
-            } else if (model.isRecognizedNodeListClass(resultClass)) {
-                return StaticProperty.ALLOWS_ZERO_OR_MORE;
-            }
-        }
-        if (resultClass.isPrimitive()) {
-            if (resultClass.equals(Void.TYPE)) {
+        if (resultClass.equals(Void.TYPE)) {
                 // this always returns an empty sequence, but we'll model it as
                 // zero or one
                 return StaticProperty.ALLOWS_ZERO_OR_ONE;
-            } else {
-                // return type = int, boolean, char etc
-                return StaticProperty.EXACTLY_ONE;
-            }
-        } else {
-            return StaticProperty.ALLOWS_ZERO_OR_ONE;
         }
+        if (resultConverter == null) {
+            return StaticProperty.ALLOWS_ZERO_OR_MORE;
+        } else {
+            return resultConverter.getCardinality();
+        }
+//        if (resultClass==null) {
+//            // we don't know yet
+//            return StaticProperty.ALLOWS_ZERO_OR_MORE;
+//        }
+//        if (Value.class.isAssignableFrom(resultClass) ||
+//                    SequenceIterator.class.isAssignableFrom(resultClass) ||
+//                    List.class.isAssignableFrom(resultClass) ||
+//                    Closure.class.isAssignableFrom(resultClass)||
+//                    Source.class.isAssignableFrom(resultClass) ||
+//                    resultClass.isArray()) {
+//            return StaticProperty.ALLOWS_ZERO_OR_MORE;
+//        }
+//        List models = config.getExternalObjectModels();
+//        for (int m=0; m<models.size(); m++) {
+//            ExternalObjectModel model = (ExternalObjectModel)models.get(m);
+//            if (model.isRecognizedNodeClass(resultClass)) {
+//                return StaticProperty.ALLOWS_ZERO_OR_ONE;
+//            } else if (model.isRecognizedNodeListClass(resultClass)) {
+//                return StaticProperty.ALLOWS_ZERO_OR_MORE;
+//            }
+//        }
+//        if (resultClass.isPrimitive()) {
+//            if (resultClass.equals(Void.TYPE)) {
+//                // this always returns an empty sequence, but we'll model it as
+//                // zero or one
+//                return StaticProperty.ALLOWS_ZERO_OR_ONE;
+//            } else {
+//                // return type = int, boolean, char etc
+//                return StaticProperty.EXACTLY_ONE;
+//            }
+//        } else {
+//            return StaticProperty.ALLOWS_ZERO_OR_ONE;
+//        }
     }
 
     /**
@@ -450,7 +621,7 @@ public class ExtensionFunctionCall extends FunctionCall {
      * @return the Java class of the value returned by the method
      */
 
-    private Class getReturnClass() {
+    public Class getReturnClass() {
         if (theMethod instanceof Method) {
             return ((Method)theMethod).getReturnType();
         } else if (theMethod instanceof Field) {
@@ -464,16 +635,21 @@ public class ExtensionFunctionCall extends FunctionCall {
     }
 
     /**
-     * Determine whether this method uses the focus. True if the first argument is of type XPathContext.
+     * Get the converters used to convert the arguments from XPath values to Java values
+     * @return an array of converters, one per argument
      */
 
-    public boolean usesFocus() {            // NOT CURRENTLY USED
-        if (theMethod instanceof Method) {
-            Class[] theParameterTypes = ((Method)theMethod).getParameterTypes();
-            return theParameterTypes.length > 0 && (theParameterTypes[0] == XPathContext.class);
-        } else {
-            return false;
-        }
+    public PJConverter[] getArgumentConverters() {
+        return argumentConverters;
+    }
+
+    /**
+     * Get the converter used to convert the result from a Java object to an XPath value
+     * @return the converter that is used
+     */
+
+    public JPConverter getResultConverter() {
+        return resultConverter;
     }
 
     /**
@@ -531,6 +707,7 @@ public class ExtensionFunctionCall extends FunctionCall {
 
     /**
      * Code to handle serialization, used when compiling a stylesheet containing calls to extension functions
+     * @param s the serialization output stream
      */
 
     private void writeObject(ObjectOutputStream s) throws IOException {
@@ -540,6 +717,7 @@ public class ExtensionFunctionCall extends FunctionCall {
 
     /**
      * Code to handle deserialization, used when reading in a compiled stylesheet
+     * @param s the serialization input stream
      */
 
     private void readObject(ObjectInputStream s) throws IOException  {
@@ -547,9 +725,49 @@ public class ExtensionFunctionCall extends FunctionCall {
             s.defaultReadObject();
             theMethod = persistentMethod.recoverAccessibleObject();
             theParameterTypes = null;
+        } catch (ClassNotFoundException cnfe) {
+             throw new IOException(
+                     "Cannot load a class containing extension functions used by the stylesheet: " + cnfe.getMessage());
         } catch (Exception e) {
-            throw new IOException("Failed to read compiled representation of extension function call to " + theClass.getClass());
+            throw new IOException("Failed to read compiled representation of extension function call to " +
+                    (theClass == null ? "*unknown class*" : theClass.getClass().getName()) +
+                    ": " + e.getMessage());
+
         }
+    }
+
+    /**
+     * Convert a name to camelCase (by removing hyphens and changing the following
+     * letter to capitals)
+     * @param name the name to be converted to camelCase
+     * @param debug true if tracing is required
+     * @param diag the output stream for diagnostic trace output
+     * @return the camelCased name
+     */
+
+    public static String toCamelCase(String name, boolean debug, PrintStream diag) {
+        if (name.indexOf('-') >= 0) {
+            FastStringBuffer buff = new FastStringBuffer(name.length());
+            boolean afterHyphen = false;
+            for (int n = 0; n < name.length(); n++) {
+                char c = name.charAt(n);
+                if (c == '-') {
+                    afterHyphen = true;
+                } else {
+                    if (afterHyphen) {
+                        buff.append(Character.toUpperCase(c));
+                    } else {
+                        buff.append(c);
+                    }
+                    afterHyphen = false;
+                }
+            }
+            name = buff.toString();
+            if (debug) {
+                diag.println("Seeking a method with adjusted name " + name);
+            }
+        }
+        return name;
     }
 
 
@@ -591,6 +809,35 @@ public class ExtensionFunctionCall extends FunctionCall {
                 default:
                     return null;
             }
+        }
+    }
+
+    /**
+     * This class checks that NodeInfo objects returned by an extension function were created
+     * under the right Configuration
+     */
+
+    private static class ConfigurationCheckingFunction implements ItemMappingFunction {
+
+        private Configuration config;
+
+        public ConfigurationCheckingFunction(Configuration config) {
+            this.config = config;
+        }
+
+        /**
+         * Map one item to another item.
+         *
+         * @param item The input item to be mapped.
+         * @return either the output item, or null.
+         */
+
+        public Item map(Item item) throws XPathException {
+            if (item instanceof NodeInfo && !config.isCompatible(((NodeInfo)item).getConfiguration())) {
+                throw new XPathException(
+                        "NodeInfo returned by extension function was created with an incompatible Configuration");
+            }
+            return item;
         }
     }
 

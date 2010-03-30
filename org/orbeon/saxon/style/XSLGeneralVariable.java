@@ -7,9 +7,9 @@ import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.Cardinality;
-import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.SequenceType;
 import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.Whitespace;
 
 /**
 * This class defines common behaviour across xsl:variable, xsl:param, and xsl:with-param
@@ -66,22 +66,38 @@ public abstract class XSLGeneralVariable extends StyleElement {
     }
 
     /**
-    * Test whether it is permitted to assign to the variable using the saxon:assign
-    * extension element. This will only be true if the extra attribute saxon:assignable="yes"
-    * is present.
-    */
+     * Test whether it is permitted to assign to the variable using the saxon:assign
+     * extension element.
+     * @return true if the extra attribute saxon:assignable="yes"
+     * is present.
+     */
 
     public boolean isAssignable() {
         return assignable;
     }
 
+    /**
+     * Test whether this is a tunnel parameter (tunnel="yes")
+     * @return true if this is a tunnel parameter
+     */
+
     public boolean isTunnelParam() {
         return tunnel;
     }
 
+    /**
+     * Test whether this is a required parameter (required="yes")
+     * @return true if this is a required parameter
+     */
+
     public boolean isRequiredParam() {
         return requiredParam;
     }
+
+    /**
+     * Test whether this is a global variable or parameter
+     * @return true if this is global
+     */
 
     public boolean isGlobal() {
         return isTopLevel();
@@ -89,10 +105,11 @@ public abstract class XSLGeneralVariable extends StyleElement {
     }
 
     /**
-    * Get the display name of the variable.
+     * Get the display name of the variable.
+     * @return the lexical QName
     */
 
-    public String getVariableName() {
+    public String getVariableDisplayName() {
     	return getAttributeValue(StandardNames.NAME);
     }
 
@@ -105,35 +122,37 @@ public abstract class XSLGeneralVariable extends StyleElement {
     }
 
     /**
-    * Get the fingerprint of the variable name
-    */
+     * Get the QName of the variable
+     * @return the name as a structured QName, or a dummy name if the variable has no name attribute
+     * or has an invalid name attribute
+     */
 
-    public int getVariableFingerprint() {
-
-        // if an expression has a forwards reference to this variable, getVariableFingerprint() can be
+    public StructuredQName getVariableQName() {
+        // if an expression has a forwards reference to this variable, getVariableQName() can be
         // called before prepareAttributes() is called. We need to allow for this. But we'll
         // deal with any errors when we come round to processing this attribute, to avoid
         // duplicate error messages
 
-        if (getObjectNameCode()==-1) {
+        if (getObjectName() == null) {
             String nameAttribute = getAttributeValue(StandardNames.NAME);
-            if (nameAttribute==null) {
-                return -1;              // we'll report the error later
+            if (nameAttribute == null) {
+                return new StructuredQName("saxon", NamespaceConstant.SAXON, "error-variable-name");
             }
             try {
-                setObjectNameCode(makeNameCode(nameAttribute.trim()));
+                setObjectName(makeQName(nameAttribute));
+
             } catch (NamespaceException err) {
-                setObjectNameCode(-1);
+                setObjectName(new StructuredQName("saxon", NamespaceConstant.SAXON, "error-variable-name"));
             } catch (XPathException err) {
-                setObjectNameCode(-1);
+                setObjectName(new StructuredQName("saxon", NamespaceConstant.SAXON, "error-variable-name"));
             }
         }
-        return getObjectFingerprint();
+        return getObjectName();
     }
 
     public void prepareAttributes() throws XPathException {
 
-        getVariableFingerprint();
+        getVariableQName();
 
 		AttributeCollection atts = getAttributeList();
 
@@ -147,18 +166,18 @@ public abstract class XSLGeneralVariable extends StyleElement {
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-			if (f==StandardNames.NAME) {
-        		nameAtt = atts.getValue(a).trim();
-        	} else if (f==StandardNames.SELECT) {
+			if (f.equals(StandardNames.NAME)) {
+        		nameAtt = Whitespace.trim(atts.getValue(a)) ;
+        	} else if (f.equals(StandardNames.SELECT)) {
         		selectAtt = atts.getValue(a);
-        	} else if (f==StandardNames.AS && allowsAsAttribute()) {
+        	} else if (f.equals(StandardNames.AS) && allowsAsAttribute()) {
         		asAtt = atts.getValue(a);
-        	} else if (f==StandardNames.REQUIRED && allowsRequired()) {
-        		requiredAtt = atts.getValue(a).trim();
-            } else if (f==StandardNames.TUNNEL && allowsTunnelAttribute()) {
-        		tunnelAtt = atts.getValue(a).trim();
-        	} else if (f==StandardNames.SAXON_ASSIGNABLE && this instanceof XSLVariableDeclaration) {
-        		assignAtt = atts.getValue(a).trim();
+        	} else if (f.equals(StandardNames.REQUIRED) && allowsRequired()) {
+        		requiredAtt = Whitespace.trim(atts.getValue(a)) ;
+            } else if (f.equals(StandardNames.TUNNEL) && allowsTunnelAttribute()) {
+        		tunnelAtt = Whitespace.trim(atts.getValue(a)) ;
+        	} else if (f.equals(StandardNames.SAXON_ASSIGNABLE) && this instanceof XSLVariableDeclaration) {
+        		assignAtt = Whitespace.trim(atts.getValue(a)) ;
         	} else {
         		checkUnknownAttribute(nc);
         	}
@@ -167,12 +186,14 @@ public abstract class XSLGeneralVariable extends StyleElement {
         if (nameAtt==null) {
             reportAbsence("name");
         } else {
+            // the name might have already been read, but errors weren't reported
             try {
-                setObjectNameCode(makeNameCode(nameAtt.trim()));
-            } catch (NamespaceException err) {
-                compileError(err.getMessage());
-            } catch (XPathException err) {
-                compileError(err);
+                setObjectName(makeQName(nameAtt));
+            } catch (NamespaceException e) {
+                compileError("Prefix in variable name has not been declared: " + nameAtt, "XTSE0280");
+            } catch (XPathException e) {
+                String expl = (nameAtt.startsWith("$") ? " (must not start with '$')" : "");
+                compileError("Variable name is not a valid QName: " + nameAtt + expl, "XTSE0020");
             }
         }
 
@@ -200,6 +221,10 @@ public abstract class XSLGeneralVariable extends StyleElement {
         if (tunnelAtt!=null) {
             if (tunnelAtt.equals("yes")) {
                 tunnel = true;
+                if (this instanceof XSLParam && !(getParent() instanceof XSLTemplate)) {
+                    compileError("For attribute 'tunnel' within an " + getParent().getDisplayName() +
+                            " parameter, the only permitted value is 'no'", "XTSE0020");
+                }
             } else if (tunnelAtt.equals("no")) {
                 tunnel = false;
             } else {
@@ -237,12 +262,12 @@ public abstract class XSLGeneralVariable extends StyleElement {
             NodeInfo first = (NodeInfo)kids.next();
             if (first == null) {
                 if (requiredType == null) {
-                    select = StringValue.EMPTY_STRING;
+                    select = new StringLiteral(StringValue.EMPTY_STRING);
                 } else {
                     if (this instanceof XSLParam) {
                         if (!requiredParam) {
                             if (Cardinality.allowsZero(requiredType.getCardinality())) {
-                                select = EmptySequence.getInstance();
+                                select = Literal.makeEmptySequence();
                             } else {
                                 // The implicit default value () is not valid for the required type, so
                                 // it is treated as if there is no default
@@ -251,7 +276,7 @@ public abstract class XSLGeneralVariable extends StyleElement {
                         }
                     } else {
                         if (Cardinality.allowsZero(requiredType.getCardinality())) {
-                            select = EmptySequence.getInstance();
+                            select = Literal.makeEmptySequence();
                         } else {
                             compileError("The implicit value () is not valid for the declared type", "XTTE0570");
                         }
@@ -294,10 +319,10 @@ public abstract class XSLGeneralVariable extends StyleElement {
                     } else if (this instanceof XSLWithParam) {
                         category = RoleLocator.PARAM;
                     }
-                    RoleLocator role = new RoleLocator(category, getVariableName(), 0, null);
-                    role.setSourceLocator(new ExpressionLocation(this));
+                    RoleLocator role = new RoleLocator(category, getVariableDisplayName(), 0);
+                    //role.setSourceLocator(new ExpressionLocation(this));
                     role.setErrorCode(errorCode);
-                    select = TypeChecker.staticTypeCheck(select, required, false, role, getStaticContext());
+                    select = TypeChecker.staticTypeCheck(select, required, false, role, makeExpressionVisitor());
                 } else {
                     // do the check later
                 }
@@ -310,13 +335,15 @@ public abstract class XSLGeneralVariable extends StyleElement {
     }
 
     /**
-    * Initialize - common code called from the compile() method of all subclasses
+     * Initialize - common code called from the compile() method of all subclasses
+     * @param exec the executable
+     * @param var the representation of the variable declaration in the compiled executable
     */
 
     protected void initializeInstruction(Executable exec, GeneralVariable var)
     throws XPathException {
 
-        var.init(select, getObjectNameCode());
+        var.init(select, getVariableQName());
         var.setAssignable(assignable);
         var.setRequiredParam(requiredParam);
         var.setImplicitlyRequiredParam(implicitlyRequiredParam);
@@ -328,10 +355,10 @@ public abstract class XSLGeneralVariable extends StyleElement {
         if (hasChildNodes()) {
             if (requiredType==null) {
                 DocumentInstr doc = new DocumentInstr(textonly, constantText, getBaseURI());
-                doc.setParentExpression(var);
+                var.adoptChildExpression(doc);
                 Expression b = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
                 if (b == null) {
-                    b = EmptySequence.getInstance();
+                    b = Literal.makeEmptySequence();
                 }
                 doc.setContentExpression(b);
                 select = doc;
@@ -340,17 +367,18 @@ public abstract class XSLGeneralVariable extends StyleElement {
                 select = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
                 var.adoptChildExpression(select);
                 if (select == null) {
-                    select = EmptySequence.getInstance();
+                    select = Literal.makeEmptySequence();
                 }
                 try {
                     if (requiredType != null) {
-                        var.setParentExpression(this);  //temporarily
+                        var.setContainer(this);  //temporarily
+                        select.setContainer(this);
                         RoleLocator role =
-                                new RoleLocator(RoleLocator.VARIABLE, getVariableName(), 0, null);
+                                new RoleLocator(RoleLocator.VARIABLE, getVariableDisplayName(), 0);
                         role.setErrorCode("XTTE0570");
-                        role.setSourceLocator(new ExpressionLocation(this));
-                        select = select.simplify(getStaticContext());
-                        select = TypeChecker.staticTypeCheck(select, requiredType, false, role, getStaticContext());
+                        //role.setSourceLocator(new ExpressionLocation(this));
+                        select = makeExpressionVisitor().simplify(select);
+                        select = TypeChecker.staticTypeCheck(select, requiredType, false, role, makeExpressionVisitor());
                     }
                 } catch (XPathException err) {
                     err.setLocator(this);
@@ -362,11 +390,14 @@ public abstract class XSLGeneralVariable extends StyleElement {
         }
         if (global) {
             final GlobalVariable gvar = (GlobalVariable)var;
+            var.setContainer(gvar);
             Expression exp2 = select;
             if (exp2 != null) {
                 try {
-                    exp2 = select.simplify(staticContext).typeCheck(staticContext, Type.NODE_TYPE);
-                    exp2 = exp2.optimize(getConfiguration().getOptimizer(), staticContext, Type.NODE_TYPE);
+                    ExpressionVisitor visitor = makeExpressionVisitor();
+                    exp2.setContainer(gvar);
+                    exp2 = visitor.typeCheck(visitor.simplify(select), Type.NODE_TYPE);
+                    exp2 = exp2.optimize(visitor, Type.NODE_TYPE);
                 } catch (XPathException err) {
                     compileError(err);
                 }
@@ -374,6 +405,7 @@ public abstract class XSLGeneralVariable extends StyleElement {
                 if (getConfiguration().isCompileWithTracing()) {
                     TraceWrapper trace = new TraceInstruction(exp2, this);
                     trace.setLocationId(allocateLocationId(getSystemId(), getLineNumber()));
+                    trace.setContainer(gvar);
                     exp2 = trace;
                 }
 

@@ -3,7 +3,7 @@ import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.functions.Nilled;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.tinytree.TinyTree;
 import org.orbeon.saxon.type.*;
 
@@ -36,7 +36,7 @@ public class ContentTypeTest extends NodeTest {
         this.schemaType = schemaType;
         this.requiredType = schemaType.getFingerprint();
         if (requiredType == -1) {
-            requiredType = StandardNames.XDT_UNTYPED;   // probably doesn't happen
+            requiredType = StandardNames.XS_UNTYPED;   // probably doesn't happen
         }
         this.config = config;
 	}
@@ -80,6 +80,10 @@ public class ContentTypeTest extends NodeTest {
 
     public SchemaType getSchemaType() {
         return schemaType;
+    }
+
+    public int getNodeKind() {
+        return kind;
     }
 
     public ItemType getSuperType(TypeHierarchy th) {
@@ -139,13 +143,13 @@ public class ContentTypeTest extends NodeTest {
         }
 
         if (annotation == -1) {
-            annotation = (kind==Type.ATTRIBUTE ? StandardNames.XDT_UNTYPED_ATOMIC : StandardNames.XDT_UNTYPED);
+            annotation = (kind==Type.ATTRIBUTE ? StandardNames.XS_UNTYPED_ATOMIC : StandardNames.XS_UNTYPED);
         }
 
         if (matchDTDTypes) {
             annotation = annotation & NamePool.FP_MASK;
         } else if (((annotation & NodeInfo.IS_DTD_TYPE) != 0)) {
-            return (requiredType == StandardNames.XDT_UNTYPED_ATOMIC);
+            return (requiredType == StandardNames.XS_UNTYPED_ATOMIC);
         }
 
         if (annotation == requiredType) {
@@ -229,7 +233,7 @@ public class ContentTypeTest extends NodeTest {
                 }
             }
         }
-        return Type.ANY_ATOMIC_TYPE;
+        return BuiltInAtomicType.ANY_ATOMIC;
     }
 
     public String toString() {

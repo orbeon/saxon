@@ -43,13 +43,20 @@ final class TextImpl extends NodeImpl {
         out.characters(content, locationId, 0);
     }
 
-    /**
-    * Copy the string-value of this node to a given outputter
-    */
 
-    //public void copyStringValue(Receiver out) throws XPathException {
-    //    out.characters(content, 0);
-    //}
+    /**
+     * Replace the string-value of this node
+     *
+     * @param stringValue the new string value
+     */
+
+    public void replaceStringValue(CharSequence stringValue) {
+        if (stringValue.length() == 0) {
+            delete();
+        } else {
+            content = stringValue.toString();
+        }
+    }
 
 }
 

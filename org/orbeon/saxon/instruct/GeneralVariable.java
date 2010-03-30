@@ -1,15 +1,14 @@
 package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.pattern.NoNodeTest;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.pattern.EmptySequenceTest;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 
-import java.io.PrintStream;
 import java.util.Collections;
 import java.util.Iterator;
 
@@ -29,47 +28,72 @@ public abstract class GeneralVariable extends Instruction implements Binding {
 
     private byte properties = 0;
     Expression select = null;
-    protected int nameCode = -1;
+    protected StructuredQName variableQName;
     SequenceType requiredType;
     protected int slotNumber;
-    private String variableName;
     protected int referenceCount = 10;
     protected int evaluationMode = ExpressionTool.UNDECIDED;
 
+    /**
+     * Create a general variable
+     */
 
-    public GeneralVariable() {};
+    public GeneralVariable() {}
 
-    public void init(   Expression select,
-                        int nameCode) {
+    /**
+     * Initialize the properties of the variable
+     * @param select the expression to which the variable is bound
+     * @param qName the name of the variable
+     */
+
+    public void init(Expression select, StructuredQName qName) {
         this.select = select;
-        this.nameCode = nameCode;
+        variableQName = qName;
         adoptChildExpression(select);
     }
+
+    /**
+     * Set the expression to which this variable is bound
+     * @param select the initializing expression
+     */
 
     public void setSelectExpression(Expression select) {
         this.select = select;
+        evaluationMode = ExpressionTool.UNDECIDED;
         adoptChildExpression(select);
     }
+
+    /**
+     * Get the expression to which this variable is bound
+     * @return the initializing expression
+     */
 
     public Expression getSelectExpression() {
         return select;
     }
 
+    /**
+     * Set the required type of this variable
+     * @param required the required type
+     */
+
     public void setRequiredType(SequenceType required) {
         requiredType = required;
     }
+
+    /**
+     * Get the required type of this variable
+     * @return the required type
+     */
 
     public SequenceType getRequiredType() {
         return requiredType;
     }
 
-    public void setNameCode(int nameCode) {
-        this.nameCode = nameCode;
-    }
-
-    public int getNameCode() {
-        return nameCode;
-    }
+    /**
+     * Indicate whether this variable is assignable using saxon:assign
+     * @param assignable true if this variable is assignable
+     */
 
     public void setAssignable(boolean assignable) {
         if (assignable) {
@@ -79,6 +103,11 @@ public abstract class GeneralVariable extends Instruction implements Binding {
         }
     }
 
+    /**
+     * Indicate that this variable represents a required parameter
+     * @param requiredParam true if this is a required parameter
+     */
+
     public void setRequiredParam(boolean requiredParam) {
         if (requiredParam) {
             properties |= REQUIRED;
@@ -86,6 +115,12 @@ public abstract class GeneralVariable extends Instruction implements Binding {
             properties &= ~REQUIRED;
         }
     }
+
+    /**
+     * Indicate that this variable represents a parameter that is implicitly required (because there is no
+     * usable default value)
+     * @param requiredParam true if this is an implicitly required parameter
+     */
 
     public void setImplicitlyRequiredParam(boolean requiredParam) {
         if (requiredParam) {
@@ -95,6 +130,11 @@ public abstract class GeneralVariable extends Instruction implements Binding {
         }
     }
 
+    /**
+     * Indicate whether this variable represents a tunnel parameter
+     * @param tunnel true if this is a tunnel parameter
+     */
+
     public void setTunnel(boolean tunnel) {
         if (tunnel) {
             properties |= TUNNEL;
@@ -103,8 +143,25 @@ public abstract class GeneralVariable extends Instruction implements Binding {
         }
     }
 
+    /**
+     * Set the nominal number of references to this variable
+     * @param refCount the nominal number of references
+     */
+
     public void setReferenceCount(int refCount) {
         referenceCount = refCount;
+    }
+
+    /**
+     * Get the evaluation mode of the variable
+     * @return the evaluation mode (a constant in {@link ExpressionTool}
+     */
+
+    public int getEvaluationMode() {
+        if (evaluationMode == ExpressionTool.UNDECIDED && referenceCount == FilterExpression.FILTERED) {
+            evaluationMode = ExpressionTool.MAKE_INDEXED_VARIABLE;
+        }
+        return evaluationMode;
     }
 
     /**
@@ -118,23 +175,14 @@ public abstract class GeneralVariable extends Instruction implements Binding {
     }
 
     /**
-     * Get the name of the variable (as a NamePool fingerprint)
-     * @return the NamePool fingerprint of the variable's expanded name.
-     */
-
-    public int getVariableFingerprint() {
-        return nameCode & 0xfffff;
-    }
-
-    /**
      * Get the type of the result of this instruction. An xsl:variable instruction returns nothing, so the
      * type is empty.
      * @return the empty type.
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
-        return NoNodeTest.getInstance();
+        return EmptySequenceTest.getInstance();
     }
 
     /**
@@ -160,44 +208,74 @@ public abstract class GeneralVariable extends Instruction implements Binding {
         return slotNumber;
     }
 
+    /**
+     * Ask whether this variable represents a required parameter
+     * @return true if this is a required parameter
+     */
+
     public final boolean isRequiredParam() {
         return (properties & REQUIRED) != 0;
     }
+
+    /**
+     * Ask whether this variable represents a parameter that is implicitly required, because there is no usable
+     * default value
+     * @return true if this variable is an implicitly required parameter
+     */
 
     public final boolean isImplicitlyRequiredParam() {
         return (properties & IMPLICITLY_REQUIRED) != 0;
     }
 
+    /**
+     * Ask whether this variable represents a tunnel parameter
+     * @return true if this is a tunnel parameter
+     */
+
     public final boolean isTunnelParam() {
         return (properties & TUNNEL) != 0;
     }
+
+    /**
+     * Get the name of this instruction (that is xsl:variable, xsl:param etc) for diagnostics
+     * @return the name of this instruction, as a name pool name code
+     */
 
     public int getInstructionNameCode() {
         return StandardNames.XSL_VARIABLE;
     }
 
-    public Expression simplify(StaticContext env) throws XPathException {
+    /**
+     * Simplify this expression
+     * @param visitor an expression
+     * @return the simplified expression
+     * @throws XPathException
+     */
+
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
         if (select != null) {
-            select = select.simplify(env);
+            select = visitor.simplify(select);
         }
         return this;
     }
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
         if (select != null) {
-            select = select.typeCheck(env, contextItemType);
+            select = visitor.typeCheck(select, contextItemType);
             adoptChildExpression(select);
         }
-        checkAgainstRequiredType(env);
+        checkAgainstRequiredType(visitor);
         return this;
     }
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
         if (select != null) {
-            select = select.optimize(opt, env, contextItemType);
+            select = visitor.optimize(select, contextItemType);
             adoptChildExpression(select);
             if (isAssignable()) {
                 evaluationMode = ExpressionTool.eagerEvaluationMode(select);
+            } else if (referenceCount == FilterExpression.FILTERED) {
+                evaluationMode = ExpressionTool.MAKE_INDEXED_VARIABLE;
             } else {
                 evaluationMode = ExpressionTool.lazyEvaluationMode(select);
             }
@@ -207,20 +285,30 @@ public abstract class GeneralVariable extends Instruction implements Binding {
 
 
     /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        throw new UnsupportedOperationException("copy");
+    }
+
+    /**
      * Check the select expression against the required type.
-     * @param env
+     * @param visitor an expression visitor
      * @throws XPathException
      */
 
-    private void checkAgainstRequiredType(StaticContext env)
+    private void checkAgainstRequiredType(ExpressionVisitor visitor)
     throws XPathException {
         // Note, in some cases we are doing this twice.
-        RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, variableName, 0, null);
-        role.setSourceLocator(this);
+        RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, variableQName, 0);
+        //role.setSourceLocator(this);
         SequenceType r = requiredType;
         if (r != null && select != null) {
             // check that the expression is consistent with the required type
-            select = TypeChecker.staticTypeCheck(select, requiredType, false, role, env);
+            select = TypeChecker.staticTypeCheck(select, requiredType, false, role, visitor);
         }
     }
 
@@ -270,6 +358,8 @@ public abstract class GeneralVariable extends Instruction implements Binding {
      * Evaluate the variable. That is,
      * get the value of the select expression if present or the content
      * of the element otherwise, either as a tree or as a sequence
+     * @param context the XPath dynamic context
+     * @return the result of evaluating the variable
     */
 
     public ValueRepresentation getSelectValue(XPathContext context) throws XPathException {
@@ -326,40 +416,57 @@ public abstract class GeneralVariable extends Instruction implements Binding {
             select = replacement;
             found = true;
         }
-                return found;
+        return found;
     }
 
     /**
-     * Diagnostic print of expression structure. The expression is written to the System.err
-     * output stream
-     *
-     * @param level indentation level for this expression
-     @param out
-     @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "variable " +
-                config.getNamePool().getDisplayName(nameCode));
+    public void explain(ExpressionPresenter out) {
+        out.startElement("variable");
+        out.emitAttribute("name", variableQName.getDisplayName());
         if (select != null) {
-            select.display(level+1, out, config);
+            select.explain(out);
         }
+        out.endElement();
     }
+
+    /**
+     * Get the slot number allocated to this variable
+     * @return the slot number, that is the position allocated to the variable on its stack frame
+     */
 
     public int getSlotNumber() {
         return slotNumber;
     }
 
+    /**
+     * Set the slot number of this variable
+     * @param s the slot number, that is, the position allocated to this variable on its stack frame
+     */
+
     public void setSlotNumber(int s) {
         slotNumber = s;
     }
 
-    public void setVariableName(String s) {
-        variableName = s;
+    /**
+     * Set the name of the variable
+     * @param s the name of the variable (a QName)
+     */
+
+    public void setVariableQName(StructuredQName s) {
+        variableQName = s;
     }
 
-    public String getVariableName() {
-        return variableName;
+    /**
+     * Get the name of this variable
+     * @return the name of this variable (a QName)
+     */
+
+    public StructuredQName getVariableQName() {
+        return variableQName;
     }
 }
 

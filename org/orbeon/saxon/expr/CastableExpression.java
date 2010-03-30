@@ -1,12 +1,13 @@
 package org.orbeon.saxon.expr;
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.BooleanValue;
-import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.value.ValidationErrorValue;
+import org.orbeon.saxon.value.Value;
 
 /**
 * Castable Expression: implements "Expr castable as atomic-type?".
@@ -18,21 +19,56 @@ public final class CastableExpression extends UnaryExpression {
     AtomicType targetType;
     boolean allowEmpty;
 
+    /**
+     * Create a "castable" expression of the form "source castable as target"
+     * @param source The source expression
+     * @param target The type being tested against
+     * @param allowEmpty true if an empty sequence is acceptable, that is if the expression
+     * was written as "source castable as target?"
+     */
+
     public CastableExpression(Expression source, AtomicType target, boolean allowEmpty) {
         super(source);
-        this.targetType = target;
+        targetType = target;
         this.allowEmpty = allowEmpty;
     }
 
     /**
-    * Simplify the expression
-    * @return the simplified expression
-    */
+     * Get the target type
+     * @return the target type
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
-        operand = operand.simplify(env);
-        if (operand instanceof AtomicValue) {
-            return BooleanValue.get(effectiveBooleanValue(env.makeEarlyEvaluationContext()));
+    public AtomicType getTargetType() {
+        return targetType;
+    }
+
+    /**
+     * Determine whether the empty sequence is allowed
+     * @return true if an empty sequence is allowed
+     */
+
+    public boolean allowsEmpty() {
+        return allowEmpty;
+    }
+
+    /**
+     * Simplify the expression
+     * @return the simplified expression
+     * @param visitor an expression visitor
+     */
+
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        operand = visitor.simplify(operand);
+        return preEvaluate(visitor);
+    }
+
+    private Expression preEvaluate(ExpressionVisitor visitor) throws XPathException {
+        if (Literal.isAtomic(operand)) {
+            return Literal.makeLiteral(
+                    BooleanValue.get(effectiveBooleanValue(visitor.getStaticContext().makeEarlyEvaluationContext())));
+        }
+        if (Literal.isEmptySequence(operand)) {
+            return new Literal(BooleanValue.get(allowEmpty));
         }
         return this;
     }
@@ -41,42 +77,43 @@ public final class CastableExpression extends UnaryExpression {
     * Type-check the expression
     */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        operand = operand.typeCheck(env, contextItemType);
-        SequenceType atomicType = SequenceType.makeSequenceType(
-                                 Type.ANY_ATOMIC_TYPE,
-                                 (allowEmpty ? StaticProperty.ALLOWS_ZERO_OR_ONE
-                                             : StaticProperty.EXACTLY_ONE));
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.typeCheck(operand, contextItemType);
 
-        RoleLocator role = new RoleLocator(RoleLocator.TYPE_OP, "castable as", 0, null);
-        role.setSourceLocator(this);
-        try {
-            operand = TypeChecker.staticTypeCheck(operand, atomicType, false, role, env);
-        } catch (XPathException err) {
-            return BooleanValue.FALSE;
+        // We need to take care here. The usual strategy of wrapping the operand in an expression that
+        // does type-checking doesn't work here, because an error in the type checking should be caught,
+        // while an error in evaluating the expression as written should not.
+
+//        SequenceType atomicType = SequenceType.makeSequenceType(
+//                                 BuiltInAtomicType.ANY_ATOMIC,
+//                                 (allowEmpty ? StaticProperty.ALLOWS_ZERO_OR_ONE
+//                                             : StaticProperty.EXACTLY_ONE));
+//
+//        RoleLocator role = new RoleLocator(RoleLocator.TYPE_OP, "castable as", 0, null);
+//        role.setSourceLocator(this);
+//        try {
+//            operand = TypeChecker.staticTypeCheck(operand, atomicType, false, role, env);
+//        } catch (XPathException err) {
+//            return Literal.makeLiteral(BooleanValue.FALSE);
+//        }
+
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
+        if (!CastExpression.isPossibleCast(
+                operand.getItemType(th).getAtomizedItemType().getPrimitiveType(),
+                targetType.getPrimitiveType())) {
+            return Literal.makeLiteral(BooleanValue.FALSE);
         }
 
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
-        if (!CastExpression.isPossibleCast(operand.getItemType(th).getPrimitiveType(), targetType.getPrimitiveType())) {
-            return BooleanValue.FALSE;
-        }
-
-        if (operand instanceof AtomicValue) {
-            return BooleanValue.get(effectiveBooleanValue(env.makeEarlyEvaluationContext()));
-        }
-        return this;
+        return preEvaluate(visitor);
     }
 
     /**
     * Optimize the expression
     */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        operand = operand.optimize(opt, env, contextItemType);
-        if (operand instanceof AtomicValue) {
-            return BooleanValue.get(effectiveBooleanValue(env.makeEarlyEvaluationContext()));
-        }
-        return this;
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.optimize(operand, contextItemType);
+        return preEvaluate(visitor);
     }
 
     /**
@@ -90,12 +127,12 @@ public final class CastableExpression extends UnaryExpression {
     }
 
     /**
-    * Determine the data type of the result of the Castable expression
-     * @param th
+     * Determine the data type of the result of the Castable expression
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
-        return Type.BOOLEAN_TYPE;
+        return BuiltInAtomicType.BOOLEAN;
     }
 
     public int computeCardinality() {
@@ -113,44 +150,91 @@ public final class CastableExpression extends UnaryExpression {
     }
 
     /**
-    * Evaluate the expression
-    */
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
 
-    public Item evaluateItem(XPathContext context) {
-        return BooleanValue.get(effectiveBooleanValue(context));
-    }
-
-    public boolean effectiveBooleanValue(XPathContext context) {
-        try {
-            AtomicValue value = (AtomicValue)operand.evaluateItem(context);
-            if (value == null) {
-                return allowEmpty;
-            }
-            if (targetType instanceof BuiltInAtomicType) {
-                return !(value.convert(targetType, context, true) instanceof ValidationErrorValue);
-            } else {
-                AtomicValue prim =
-                    value.convert((AtomicType)targetType.getBuiltInBaseType(), context, true);
-                if (prim instanceof ValidationErrorValue) {
-                    return false;
-                }
-                AtomicValue val =
-                    targetType.makeDerivedValue(prim, prim.getStringValueCS(), true);
-                return !(val instanceof ValidationErrorValue);
-            }
-        } catch (XPathException err) {
-            return false;
-        }
+    public Expression copy() {
+        return new CastableExpression(getBaseExpression().copy(), targetType, allowEmpty);
     }
 
     /**
-     * Give a string representation of the operator for use in diagnostics
-     * @return the operator, as a string
-     * @param config
+    * Evaluate the expression
+    */
+
+    public Item evaluateItem(XPathContext context) throws XPathException {
+        return BooleanValue.get(effectiveBooleanValue(context));
+    }
+
+    public boolean effectiveBooleanValue(XPathContext context) throws XPathException {
+        int count = 0;
+        SequenceIterator iter = operand.iterate(context);
+        while (true) {
+            Item item = iter.next();
+            if (item == null) {
+                break;
+            }
+            if (item instanceof NodeInfo) {
+                Value atomizedValue = ((NodeInfo)item).atomize();
+                int length = atomizedValue.getLength();
+                count += length;
+                if (count > 1) {
+                    return false;
+                }
+                if (length != 0) {
+                    AtomicValue av = (AtomicValue)atomizedValue.itemAt(0);
+                    if (!isCastable(av, targetType, context)) {
+                        return false;
+                    }
+                }
+            } else {
+                AtomicValue av = (AtomicValue)item;
+                count++;
+                if (count > 1) {
+                    return false;
+                }
+                if (!isCastable(av, targetType, context)) {
+                    return false;
+                }
+            }
+        }
+        return count != 0 || allowEmpty;
+    }
+
+    /**
+     * Determine whether a value is castable to a given type
+     * @param value the value to be tested
+     * @param targetType the type to be tested against
+     * @param context XPath dynamic context
+     * @return true if the value is castable to the required type
      */
 
-    protected String displayOperator(Configuration config) {
-        return "castable as " + targetType.toString(config.getNamePool());
+    public static boolean isCastable(AtomicValue value, AtomicType targetType, XPathContext context) {
+        //if (targetType instanceof BuiltInAtomicType) {
+            return !(value.convert(targetType, true, context) instanceof ValidationFailure);
+//        } else {
+//            ConversionResult result =
+//                value.convert((AtomicType)targetType.getBuiltInBaseType(), context, true);
+//            if (result instanceof ValidationFailure) {
+//                return false;
+//            }
+//            AtomicValue val = (AtomicValue)result;
+//            result = targetType.setDerivedTypeLabel(val.copy(null), val.getStringValueCS(), true);
+//            return !(result instanceof ValidationFailure);
+//        }
+    }
+
+    /**
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     */
+
+    public void explain(ExpressionPresenter out) {
+        out.startElement("castable");
+        out.emitAttribute("as", targetType.toString(out.getConfiguration().getNamePool()));
+        operand.explain(out);
+        out.endElement();
     }
 
 }

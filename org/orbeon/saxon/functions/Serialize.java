@@ -1,17 +1,17 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.event.SequenceReceiver;
+import org.orbeon.saxon.expr.ExpressionVisitor;
 import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.StringLiteral;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.instruct.ResultDocument;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.style.ExpressionContext;
-import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.trace.Location;
-import org.orbeon.saxon.trans.DynamicError;
-import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.Whitespace;
 
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.stream.StreamResult;
@@ -36,28 +36,29 @@ public class Serialize extends SystemFunction implements XSLTFunction {
     * the argument expressions have been read
     */
 
-    public void checkArguments(StaticContext env) throws XPathException {
+    public void checkArguments(ExpressionVisitor visitor) throws XPathException {
         if (checked) return;
         checked = true;
-        super.checkArguments(env);
-        if (argument[1] instanceof StringValue) {
+        super.checkArguments(visitor);
+        if (argument[1] instanceof StringLiteral) {
+            StaticContext env = visitor.getStaticContext();
             if (env instanceof ExpressionContext) {
                 // We're in XSLT
 
-                String format = ((StringValue)argument[1]).getStringValue();
-                int fingerprint = -1;
-                if (!format.equals("")) {
-                    fingerprint = ((ExpressionContext)env).getFingerprint(format, false);
-                    if (fingerprint==-1) {
-                        throw new StaticError("Output format '" + format + "' has not been defined");
-                    }
+                String formatString = ((StringLiteral)argument[1]).getStringValue();
+                StructuredQName formatQName = null;
+                if (formatString.length() != 0) {
+                    formatQName = ((ExpressionContext)env).getStructuredQName(formatString, false);
+//                    if (fingerprint==-1) {
+//                        throw new XPathException("Output format '" + format + "' has not been defined");
+//                    }
                 }
-                outputProperties = ((ExpressionContext)env).getXSLStylesheet().gatherOutputProperties(fingerprint);
+                outputProperties = ((ExpressionContext)env).getXSLStylesheet().gatherOutputProperties(formatQName);
             } else {
                 // we're not in XSLT: treat the second argument as the method property, default the rest
                 // See https://sourceforge.net/forum/message.php?msg_id=3780729
                 outputProperties = new Properties();
-                outputProperties.setProperty(OutputKeys.METHOD, ((StringValue)argument[1]).getStringValue());
+                outputProperties.setProperty(OutputKeys.METHOD, ((StringLiteral)argument[1]).getStringValue());
             }
         }
     }
@@ -78,12 +79,13 @@ public class Serialize extends SystemFunction implements XSLTFunction {
             if (!(secondArg instanceof NodeInfo &&
                     ((NodeInfo)secondArg).getNodeKind() == Type.ELEMENT &&
                     ((NodeInfo)secondArg).getFingerprint() == StandardNames.XSL_OUTPUT)) {
-                DynamicError err = new DynamicError("The second argument of saxon:serialize must either be " +
+                XPathException err = new XPathException("The second argument of saxon:serialize must either be " +
                         "a string literal, or an xsl:output element");
                 err.setXPathContext(c);
                 throw err;
             }
-            props = processXslOutputElement((NodeInfo)secondArg, c);
+            props = new Properties();
+            processXslOutputElement((NodeInfo)secondArg, props, c);
         }
 
         try {
@@ -103,17 +105,19 @@ public class Serialize extends SystemFunction implements XSLTFunction {
             out.close();
             return new StringValue(result.toString());
         } catch (XPathException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
     /**
      * Construct a set of output properties from an xsl:output element supplied at run-time
      * @param element an xsl:output element
+     * @param props Properties object to which will be added the values of those serialization properties
+     * that were specified
+     * @param c the XPath dynamic context
      */
 
-    private Properties processXslOutputElement(NodeInfo element, XPathContext c) throws XPathException {
-        Properties props = new Properties();
+    public static void processXslOutputElement(NodeInfo element, Properties props, XPathContext c) throws XPathException {
 		SequenceIterator iter = element.iterateAxis(Axis.ATTRIBUTE);
         NameChecker nc = c.getConfiguration().getNameChecker();
         NamespaceResolver resolver = new InscopeNamespaceResolver(element);
@@ -124,11 +128,9 @@ public class Serialize extends SystemFunction implements XSLTFunction {
             }
             String uri = att.getURI();
             String local = att.getLocalPart();
-            String val = att.getStringValue().trim();
+            String val = Whitespace.trim(att.getStringValueCS());
             ResultDocument.setSerializationProperty(props, uri, local, val, resolver, false, nc);
-            // TODO: unrecognized attributes are currently ignored
         }
-        return props;
     }
 }
 

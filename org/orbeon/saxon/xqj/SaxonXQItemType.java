@@ -1,21 +1,26 @@
 package org.orbeon.saxon.xqj;
 
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.javax.xml.xquery.XQException;
-import org.orbeon.saxon.javax.xml.xquery.XQItemType;
-import org.orbeon.saxon.javax.xml.xquery.XQSequenceType;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.pattern.DocumentNodeTest;
+import org.orbeon.saxon.pattern.NameTest;
+import org.orbeon.saxon.pattern.NodeKindTest;
 import org.orbeon.saxon.pattern.NodeTest;
 import org.orbeon.saxon.sort.IntHashSet;
 import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.SingletonNode;
 
 import javax.xml.namespace.QName;
+import javax.xml.xquery.XQException;
+import javax.xml.xquery.XQItemType;
+import javax.xml.xquery.XQSequenceType;
 import java.net.URI;
+import java.net.URISyntaxException;
 
 /**
+ * Saxon implementation of the XQJ XQItemType interface
  */
 public class SaxonXQItemType implements XQItemType {
 
@@ -28,23 +33,53 @@ public class SaxonXQItemType implements XQItemType {
     }
 
     protected SaxonXQItemType(NodeInfo node) {
-        this.config = node.getConfiguration();
-        this.itemType = new SingletonNode(node).getItemType(config.getTypeHierarchy());
+        config = node.getConfiguration();
+        itemType = new SingletonNode(node).getItemType(config.getTypeHierarchy());
     }
 
-    public int getBaseType() {
-        int fp;
+    public int getBaseType() throws XQException {
         if (itemType instanceof AtomicType) {
-            if (itemType instanceof BuiltInAtomicType) {
-                fp = ((AtomicType)itemType).getFingerprint();
-            } else {
-                fp = itemType.getPrimitiveType();
-                // ideally, we would get the lowest built-in base type
+            AtomicType at = (AtomicType)itemType;
+            while (!at.isBuiltInType()) {
+                at = (AtomicType)at.getBaseType();
             }
-            return SaxonXQDataFactory.mapSaxonTypeToXQJ(fp);
+            return SaxonXQDataFactory.mapSaxonTypeToXQJ(at.getFingerprint());
+        } else if (itemType instanceof NodeTest) {
+            NodeTest it = (NodeTest)itemType;
+            if (it instanceof DocumentNodeTest) {
+                it = ((DocumentNodeTest)it).getElementTest();
+            }
+            if ((it.getNodeKindMask() &
+                    (1<<Type.DOCUMENT | 1<<Type.TEXT | 1<<Type.COMMENT | 1<<Type.PROCESSING_INSTRUCTION | 1<<Type.NAMESPACE)) != 0) {
+                throw new XQException("Wrong node kind for getBaseType()");
+            }
+            SchemaType contentType = it.getContentType();
+            if (contentType.isAtomicType()) {
+                AtomicType at = (AtomicType)contentType;
+                while (!at.isBuiltInType()) {
+                    at = (AtomicType)at.getBaseType();
+                }
+                return SaxonXQDataFactory.mapSaxonTypeToXQJ(at.getFingerprint());
+            } else if (contentType.isSimpleType()) {
+                if (((SimpleType)contentType).isListType()) {
+                    int fp = contentType.getFingerprint();
+                    if (fp == StandardNames.XS_NMTOKENS) {
+                        return XQBASETYPE_NMTOKENS;
+                    } else if (fp == StandardNames.XS_ENTITIES) {
+                        return XQBASETYPE_ENTITIES;
+                    } else if (fp == StandardNames.XS_IDREFS) {
+                        return XQBASETYPE_IDREFS;
+                    }
+                }
+                return XQBASETYPE_ANYSIMPLETYPE;
+            } else if (contentType == Untyped.getInstance()) {
+                return XQBASETYPE_UNTYPED;
+            } else {
+                return XQBASETYPE_ANYTYPE;
+            }
+
         } else {
-            // TODO: it's not clear what we're supposed to return here
-            return -1;
+            throw new XQException("Wrong item type for getBaseType()");
         }
     }
 
@@ -55,7 +90,7 @@ public class SaxonXQItemType implements XQItemType {
             if (itemType instanceof DocumentNodeTest) {
                 return XQITEMKIND_DOCUMENT_ELEMENT;
             }
-            int x = ((NodeTest)itemType).getPrimitiveType();
+            int x = itemType.getPrimitiveType();
             switch (x) {
                 case Type.DOCUMENT:
                     return XQITEMKIND_DOCUMENT;
@@ -86,37 +121,79 @@ public class SaxonXQItemType implements XQItemType {
             type = ((DocumentNodeTest)type).getElementTest();
         }
         if (type instanceof NodeTest) {
-            IntHashSet set = ((NodeTest)itemType).getRequiredNodeNames();
-            if (set.size() == 1) {
+            if ((((NodeTest)type).getNodeKindMask() &
+                    (1<<Type.DOCUMENT | 1<<Type.TEXT | 1<<Type.COMMENT | 1<<Type.PROCESSING_INSTRUCTION | 1<<Type.NAMESPACE)) != 0) {
+                throw new XQException("Wrong node kind for getNodeName()");
+            }
+            IntHashSet set = ((NodeTest)type).getRequiredNodeNames();
+            if (set != null && set.size() == 1) {
                 int fp = set.getFirst(-1);
                 NamePool pool = config.getNamePool();
                 String uri = pool.getURI(fp);
                 String local = pool.getLocalName(fp);
                 return new QName(uri, local);
+            } else {
+                return null;
             }
         }
-        return null;
-        // TODO: distinguish cases where an exception should be thrown rather than null being returned
+        throw new XQException("getNodeName() is not defined for this kind of item type");
+    }
+
+    public String getPIName() throws XQException {
+        if (itemType instanceof NameTest && itemType.getPrimitiveType() == Type.PROCESSING_INSTRUCTION) {
+            NamePool pool = config.getNamePool();
+            return pool.getLocalName(((NameTest)itemType).getFingerprint());
+        } else if (itemType instanceof NodeKindTest && itemType.getPrimitiveType() == Type.PROCESSING_INSTRUCTION) {
+            return null;
+        } else {
+            throw new XQException("Item kind is not a processing instruction");
+        }
     }
 
     public URI getSchemaURI() {
-        return null;  // No idea what this method is supposed to return, but null is apparently OK
-    }
-
-    public String getString() {
-        return ((AtomicType)itemType).toString(config.getNamePool());
+        try {
+            if (itemType instanceof NodeTest) {
+                SchemaType content = ((NodeTest)itemType).getContentType();
+                if (content == null) {
+                    return null;
+                }
+                String systemId = content.getSystemId();
+                if (systemId == null) {
+                    return null;
+                }
+                return new URI(systemId);
+            } else if (itemType instanceof AtomicType) {
+                String systemId = ((AtomicType)itemType).getSystemId();
+                return (systemId == null ? null : new URI(systemId));
+            } else {
+                return null;
+            }
+        } catch (URISyntaxException e) {
+            return null;
+        }
     }
 
     public String toString() {
-        return getString();
+        return itemType.toString(config.getNamePool());
     }
 
     public QName getTypeName() throws XQException {
         ItemType type = itemType;
+        if (type instanceof AtomicType) {
+            int fp = ((AtomicType)type).getFingerprint();
+            NamePool pool = config.getNamePool();
+            String uri = pool.getURI(fp);
+            String local = pool.getLocalName(fp);
+            return new QName(uri, local);
+        }
         if (type instanceof DocumentNodeTest) {
             type = ((DocumentNodeTest)type).getElementTest();
         }
         if (type instanceof NodeTest) {
+            if ((((NodeTest)type).getNodeKindMask() &
+                    (1<<Type.DOCUMENT | 1<<Type.TEXT | 1<<Type.COMMENT | 1<<Type.PROCESSING_INSTRUCTION | 1<<Type.NAMESPACE)) != 0) {
+                throw new XQException("getTypeName() failed: itemType is not a document, element, or attribute test");
+            }
             SchemaType t = ((NodeTest)type).getContentType();
             if (t != null) {
                 int fp = ((NodeTest)type).getContentType().getFingerprint();
@@ -126,7 +203,7 @@ public class SaxonXQItemType implements XQItemType {
                 return new QName(uri, local);
             }
         }
-        throw new XQException("getTypeName() failed: itemType is not a documet, element, or attribute test");
+        throw new XQException("getTypeName() failed: itemType is not a document, element, or attribute test");
     }
 
     public boolean isAnonymousType() {
@@ -147,9 +224,6 @@ public class SaxonXQItemType implements XQItemType {
         return (itemType instanceof NodeTest) && ((NodeTest)itemType).isNillable();
     }
 
-    public boolean isSchemaElement() {
-        return false;  // TODO: implement this (if we can find out what it means)
-    }
 
     public XQItemType getItemType() {
         return this;
@@ -165,6 +239,15 @@ public class SaxonXQItemType implements XQItemType {
 
     ItemType getSaxonItemType() {
         return itemType;
+    }
+
+    public boolean equals(Object obj) {
+        return obj instanceof SaxonXQItemType &&
+                itemType.equals(((SaxonXQItemType)obj).itemType);
+    }
+
+    public int hashCode()  {
+        return itemType.hashCode();
     }
 }
 //

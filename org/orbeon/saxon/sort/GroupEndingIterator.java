@@ -27,8 +27,8 @@ public class GroupEndingIterator implements GroupIterator, LookaheadIterator {
     private int position = 0;
 
     public GroupEndingIterator(SequenceIterator population, Pattern endPattern,
-                                 XPathContext context)
-    throws XPathException {
+                               XPathContext context)
+            throws XPathException {
         this.population = population;
         this.endPattern = endPattern;
         baseContext = context;
@@ -36,60 +36,64 @@ public class GroupEndingIterator implements GroupIterator, LookaheadIterator {
         runningContext.setCurrentIterator(population);
         // the first item in the population always starts a new group
         next = population.next();
-     }
+    }
 
-     private void advance() throws XPathException {
-         currentMembers = new ArrayList(20);
-         currentMembers.add(current);
+    private void advance() throws XPathException {
+        currentMembers = new ArrayList(20);
+        currentMembers.add(current);
 
-         next = current;
-         while (next != null) {
-             if (endPattern.matches((NodeInfo)next, runningContext)) {
-                 next = population.next();
-                 if (next != null) {
-                     break;
-                 }
-             } else {
-                 next = population.next();
-                 if (next != null) {
-                     currentMembers.add(next);
-                 }
-             }
-         }
-     }
+        next = current;
+        while (next != null) {
+            if (endPattern.matches((NodeInfo)next, runningContext)) {
+                next = population.next();
+                if (next != null) {
+                    break;
+                }
+            } else {
+                next = population.next();
+                if (next != null) {
+                    currentMembers.add(next);
+                }
+            }
+        }
+    }
 
-     public AtomicValue getCurrentGroupingKey() {
-         return null;
-     }
+    public AtomicValue getCurrentGroupingKey() {
+        return null;
+    }
 
-     public SequenceIterator iterateCurrentGroup() {
-         return new ListIterator(currentMembers);
-     }
+    public SequenceIterator iterateCurrentGroup() {
+        return new ListIterator(currentMembers);
+    }
 
-     public boolean hasNext() {
+    public boolean hasNext() {
         return next != null;
-     }
+    }
 
-     public Item next() throws XPathException {
-         if (next != null) {
-             current = next;
-             position++;
-             advance();
-             return current;
-         } else {
-             current = null;
-             position = -1;
-             return null;
-         }
-     }
+    public Item next() throws XPathException {
+        if (next != null) {
+            current = next;
+            position++;
+            advance();
+            return current;
+        } else {
+            current = null;
+            position = -1;
+            return null;
+        }
+    }
 
-     public Item current() {
-         return current;
-     }
+    public Item current() {
+        return current;
+    }
 
-     public int position() {
-         return position;
-     }
+    public int position() {
+        return position;
+    }
+
+    public void close() {
+        population.close();
+    }
 
     public SequenceIterator getAnother() throws XPathException {
         return new GroupEndingIterator(population.getAnother(), endPattern, baseContext);
@@ -97,7 +101,6 @@ public class GroupEndingIterator implements GroupIterator, LookaheadIterator {
 
     /**
      * Get properties of this iterator, as a bit-significant integer.
-     *
      * @return the properties of this iterator. This will be some combination of
      *         properties such as {@link #GROUNDED}, {@link #LAST_POSITION_FINDER},
      *         and {@link #LOOKAHEAD}. It is always
@@ -111,7 +114,6 @@ public class GroupEndingIterator implements GroupIterator, LookaheadIterator {
 
 
 }
-
 
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");

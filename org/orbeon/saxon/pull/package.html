@@ -1,0 +1,47 @@
+<html>
+
+<head>
+<title>Package overview for org.orbeon.saxon.pull</title>
+</head>
+
+<body>
+
+<p>This package provides an experimental pull API for Saxon: that is, it allows an application
+to read serially through a document, reading "events" such as the start and end of elements,
+text nodes, comments, and processing instructions, in the order in which they appear. In fact,
+the API allows access not just to a single document, but to any sequence consisting of nodes
+and atomic values: when a node is encountered, the pull API does a traversal of the subtree rooted
+at that node, before moving on to the next item in the sequence.</p>
+
+<p>The API, defined in class <code>PullProvider</code>, is loosely modelled on the StAX <code>XMLReader</code>
+API. It is not identical, because it is designed as an intimate and efficient interface that integrates with
+Saxon concepts such as the <code>SequenceIterator</code> and the <code>NamePool</code>. A class
+<code>StaxBridge</code> is available that provides the <code>PullProvider</code> interface on top of a
+StAX pull parser; however, because pull parsing is not yet a standard feature of the Java
+platform, and because at the time of writing the available StAX parsers appear to be buggy,
+<code>StaxBridge</code> is not included in the <code>saxon.jar</code> distribution, but is instead
+supplied as a sample application in the <code>samples</code> directory.</p>
+
+<p>The three main kinds of <code>PullProvider</code> are:</p>
+
+<ul>
+<li><p>StaxBridge, which is an interface to a pull-mode XML parser</p></li>
+
+<li><p>TreeWalker, which delivers events based on an in-memory tree. There is one
+general-purpose TreeWalker that can handle any Saxon tree (any tree that implements the NodeInfo interface)
+and aother that is optimized to the TinyTree implementation.</p></li>
+
+<li><p>VirtualTreeWalker, which delivers events representing the nodes constructed by a
+stylesheet or query, without actually constructing the nodes in memory.
+(Note that this doesn't currently work if the constructed nodes need to be schema-validated).</p></li>
+</ul>
+
+<p>Some examples of application code using the pull interface with Saxon are provided in the
+<code>PullExamples.java</code> file in the samples directory.</p>
+
+
+<p align="center"><i>Michael H. Kay<br/>
+Saxonica Limited<br/>
+30 March 2005</i></p>
+</body>
+</html>

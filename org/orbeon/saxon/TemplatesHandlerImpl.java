@@ -5,13 +5,14 @@ import org.orbeon.saxon.event.StartTagBuffer;
 import org.orbeon.saxon.style.StyleNodeFactory;
 import org.orbeon.saxon.style.StylesheetStripper;
 import org.orbeon.saxon.style.UseWhenFilter;
-import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.trans.CompilerInfo;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.tree.DocumentImpl;
 import org.orbeon.saxon.tree.TreeBuilder;
 import org.xml.sax.Locator;
 
 import javax.xml.transform.Templates;
+import javax.xml.transform.TransformerException;
 import javax.xml.transform.sax.TemplatesHandler;
 
 
@@ -31,9 +32,10 @@ public class TemplatesHandlerImpl extends ReceivingContentHandler implements Tem
     private String systemId;
 
     /**
-    * Create a TemplatesHandlerImpl and initialise variables. The constructor is protected, because
-    * the Filter should be created using newTemplatesHandler() in the SAXTransformerFactory
-    * class
+     * Create a TemplatesHandlerImpl and initialise variables. The constructor is protected, because
+     * the Filter should be created using newTemplatesHandler() in the SAXTransformerFactory
+     * class
+     * @param config the Saxon configuration
     */
 
     protected TemplatesHandlerImpl(Configuration config) {
@@ -57,7 +59,6 @@ public class TemplatesHandlerImpl extends ReceivingContentHandler implements Tem
         startTagBuffer.setPipelineConfiguration(getPipelineConfiguration());
 
         StylesheetStripper styleStripper = new StylesheetStripper();
-        styleStripper.setStylesheetRules(config.getNamePool());
         styleStripper.setUnderlyingReceiver(startTagBuffer);
         styleStripper.setPipelineConfiguration(getPipelineConfiguration());
 
@@ -65,17 +66,18 @@ public class TemplatesHandlerImpl extends ReceivingContentHandler implements Tem
         commentStripper.setUnderlyingReceiver(styleStripper);
         commentStripper.setPipelineConfiguration(getPipelineConfiguration());
 
-        this.setReceiver(commentStripper);
+        setReceiver(commentStripper);
 
     }
 
     /**
-    * Get the Templates object to used for a transformation
+    * Get the Templates object to be used for a transformation
     */
 
     public Templates getTemplates() {
         if (templates==null) {
             DocumentImpl doc = (DocumentImpl)builder.getCurrentRoot();
+            builder.reset();
             if (doc==null) {
                 return null;
             }
@@ -84,15 +86,22 @@ public class TemplatesHandlerImpl extends ReceivingContentHandler implements Tem
             CompilerInfo info = new CompilerInfo();
             info.setURIResolver(config.getURIResolver());
             info.setErrorListener(config.getErrorListener());
-
+            info.setCompileWithTracing(config.isCompileWithTracing());
             PreparedStylesheet sheet = new PreparedStylesheet(config, info);
 
             try {
                 sheet.setStylesheetDocument(doc, nodeFactory);
                 templates = sheet;
             } catch (XPathException tce) {
+                if (!tce.hasBeenReported()) {
+                    try {
+                        info.getErrorListener().fatalError(tce);
+                    } catch (TransformerException e2) {
+                        //
+                    }
+                }
                 // don't know why we aren't allowed to just throw it!
-                throw new UnsupportedOperationException(tce.getMessage());
+                throw new IllegalStateException(tce.getMessage());
             }
         }
 
@@ -100,21 +109,46 @@ public class TemplatesHandlerImpl extends ReceivingContentHandler implements Tem
     }
 
     /**
-    * Set the SystemId of the document
+     * Set the SystemId of the document. Note that if this method is called, any locator supplied
+     * to the setDocumentLocator() method is ignored. This also means that no line number information
+     * will be available.
+     * @param url the system ID (base URI) of the stylesheet document, which will be used in any error
+     * reporting and also for resolving relative URIs in xsl:include and xsl:import. It will also form
+     * the static base URI in the static context of XPath expressions.
     */
 
     public void setSystemId(String url) {
         systemId = url;
         builder.setSystemId(url);
+        super.setDocumentLocator(new Locator() {
+            public int getColumnNumber() {
+                return -1;
+            }
+
+            public int getLineNumber() {
+                return -1;
+            }
+
+            public String getPublicId() {
+                return null;
+            }
+
+            public String getSystemId() {
+                return systemId;
+            }
+        });
     }
 
     /**
     * Callback interface for SAX: not for application use
     */
 
-    public void setDocumentLocator (Locator locator) {
-    	super.setDocumentLocator(locator);
-        setSystemId(locator.getSystemId());
+    public void setDocumentLocator (final Locator locator) {
+        // If the user has called setSystemId(), we use that system ID in preference to this one,
+        // which probably comes from the XML parser possibly via some chain of SAX filters
+        if (systemId == null) {
+            super.setDocumentLocator(locator);
+        }
     }
 
     /**
@@ -124,6 +158,7 @@ public class TemplatesHandlerImpl extends ReceivingContentHandler implements Tem
     public String getSystemId() {
         return systemId;
     }
+
 
 }
 

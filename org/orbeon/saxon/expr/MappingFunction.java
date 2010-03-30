@@ -1,5 +1,6 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.trans.XPathException;
 
 /**
@@ -14,11 +15,10 @@ public interface MappingFunction {
     * Map one item to a sequence.
     * @param item The item to be mapped.
     * @return one of the following: (a) a SequenceIterator over the sequence of items that the supplied input
-    * item maps to, or (b) an Item if it maps to a single item, or (c) null if it maps to an empty
-    * sequence.
+    * item maps to, or (b) null if it maps to an empty sequence.
     */
 
-    public Object map(Item item) throws XPathException;
+    public SequenceIterator map(Item item) throws XPathException;
 
 }
 

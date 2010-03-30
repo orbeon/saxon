@@ -1,5 +1,6 @@
 package org.orbeon.saxon.type;
 
+import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.trans.XPathException;
 import org.xml.sax.Locator;
 
@@ -17,18 +18,18 @@ public class ValidationException extends XPathException
     private String publicId;
     private int lineNumber = -1;
     private int columnNumber = -1;
+    private NodeInfo node;
     private int schemaPart = -1;
     private String constraintName;
     private String constraintClauseNumber;
 
     // TODO: during output validation, it would sometimes be useful to know what the position in the input file was.
 
-    // TODO: the references to constraints in the schema are largely unpopulated at present
-
     /**
      * Creates a new ValidationException with the given message.
      * @param message the message for this Exception
-    **/
+     */
+
     public ValidationException(String message) {
         super(message);
         setIsTypeError(true);
@@ -38,7 +39,7 @@ public class ValidationException extends XPathException
      * Creates a new ValidationException with the given nested
      * exception.
      * @param exception the nested exception
-    **/
+     */
     public ValidationException(Exception exception) {
         super(exception);
         setIsTypeError(true);
@@ -49,7 +50,7 @@ public class ValidationException extends XPathException
      * and nested exception.
      * @param message the detail message for this exception
      * @param exception the nested exception
-    **/
+     */
     public ValidationException(String message, Exception exception) {
         super(message, exception);
         setIsTypeError(true);
@@ -82,6 +83,17 @@ public class ValidationException extends XPathException
         this.schemaPart = schemaPart;
         this.constraintName = constraintName;
         this.constraintClauseNumber = clause;
+    }
+
+    /**
+     * Copy the constraint reference from another exception object
+     * @param e the other exception object from which to copy the information
+     */
+
+    public void setConstraintReference(ValidationException e) {
+        schemaPart = e.schemaPart;
+        constraintName = e.constraintName;
+        constraintClauseNumber = e.constraintClauseNumber;
     }
 
     /**
@@ -190,6 +202,10 @@ public class ValidationException extends XPathException
         }
     }
 
+    public NodeInfo getNode() {
+        return node;
+    }
+
     public void setPublicId(String id) {
         publicId = id;
     }
@@ -212,6 +228,9 @@ public class ValidationException extends XPathException
             setSystemId(locator.getSystemId());
             setLineNumber(locator.getLineNumber());
             setColumnNumber(locator.getColumnNumber());
+            if (locator instanceof NodeInfo) {
+                node = ((NodeInfo)locator);
+            }
         }
         super.setLocator(null);
     }
@@ -222,6 +241,9 @@ public class ValidationException extends XPathException
             setSystemId(locator.getSystemId());
             setLineNumber(locator.getLineNumber());
             setColumnNumber(locator.getColumnNumber());
+            if (locator instanceof NodeInfo) {
+                node = ((NodeInfo)locator);
+            }
         }
         super.setLocator(null);
     }

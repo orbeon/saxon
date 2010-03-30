@@ -1,9 +1,11 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.NextMatch;
-import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.om.AttributeCollection;
+import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.om.AxisIterator;
+import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.Whitespace;
@@ -14,6 +16,7 @@ import org.orbeon.saxon.value.Whitespace;
 
 public class XSLNextMatch extends StyleElement {
 
+    private boolean useTailRecursion = false;
 
     /**
     * Determine whether this node is an instruction.
@@ -44,7 +47,6 @@ public class XSLNextMatch extends StyleElement {
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
         AxisIterator kids = iterateAxis(Axis.CHILD);
         while (true) {
             NodeInfo child = (NodeInfo)kids.next();
@@ -66,11 +68,21 @@ public class XSLNextMatch extends StyleElement {
 
     }
 
+
+    /**
+     * Mark tail-recursive calls on templates and functions.
+     * For most instructions, this does nothing.
+     */
+
+    protected boolean markTailCalls() {
+        useTailRecursion = true;
+        return true;
+    }
+
     public Expression compile(Executable exec) throws XPathException {
-        NextMatch inst = new NextMatch(backwardsCompatibleModeIsEnabled());
+        NextMatch inst = new NextMatch(backwardsCompatibleModeIsEnabled(), useTailRecursion);
         inst.setActualParameters(getWithParamInstructions(exec, false, inst),
                                  getWithParamInstructions(exec, true, inst));
-        ExpressionTool.makeParentReferences(inst);
         return inst;
     }
 

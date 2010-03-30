@@ -30,8 +30,8 @@ public class ComparisonKey {
     public boolean equals(Object other) {
         if (other instanceof ComparisonKey) {
             ComparisonKey otherKey = (ComparisonKey)other;
-            return this.category == otherKey.category &&
-                    this.value.equals(otherKey.value);
+            return category == otherKey.category &&
+                    value.equals(otherKey.value);
         } else {
             throw new ClassCastException("Cannot compare a ComparisonKey to an object of a different class");
         }

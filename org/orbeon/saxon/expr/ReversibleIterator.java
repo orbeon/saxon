@@ -14,6 +14,7 @@ public interface ReversibleIterator extends SequenceIterator {
     * Get a new SequenceIterator that returns the same items in reverse order.
      * If this SequenceIterator is an AxisIterator, then the returned SequenceIterator
      * must also be an AxisIterator.
+     * @return an iterator over the items in reverse order
     */
 
     public SequenceIterator getReverseIterator();

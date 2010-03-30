@@ -1,17 +1,16 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.pattern.NoNodeTest;
+import org.orbeon.saxon.pattern.EmptySequenceTest;
 import org.orbeon.saxon.pattern.NodeTest;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.Value;
 
 /**
@@ -29,6 +28,7 @@ public final class SingletonAtomizer extends UnaryExpression {
     /**
     * Constructor
      * @param sequence the sequence to be atomized
+     * @param role contains information about where the expression appears, for use in any error message
      * @param allowEmpty true if the result sequence is allowed to be empty.
     */
 
@@ -40,11 +40,12 @@ public final class SingletonAtomizer extends UnaryExpression {
 
     /**
     * Simplify an expression
-    */
+     * @param visitor an expression visitor
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
-        operand = operand.simplify(env);
-        if (operand instanceof AtomicValue) {
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        operand = visitor.simplify(operand);
+        if (operand instanceof Literal && ((Literal)(operand)).getValue() instanceof AtomicValue) {
             return operand;
         }
         return this;
@@ -54,25 +55,36 @@ public final class SingletonAtomizer extends UnaryExpression {
     * Type-check the expression
     */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        operand = operand.typeCheck(env, contextItemType);
-        resetStaticProperties();
-        if (operand instanceof EmptySequence) {
-            if(!allowEmpty) {
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.typeCheck(operand, contextItemType);
+        visitor.resetStaticProperties();
+        if (Literal.isEmptySequence(operand)) {
+            if (!allowEmpty) {
                 typeError("An empty sequence is not allowed as the " +
-                             role.getMessage(), role.getErrorCode(), null);
+                        role.getMessage(), role.getErrorCode(), null);
             }
-            ComputedExpression.setParentExpression(operand, getParentExpression());
             return operand;
         }
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
         if (operand.getItemType(th).isAtomicType()) {
-            ComputedExpression.setParentExpression(operand, getParentExpression());
             return operand;
         }
         return this;
     }
 
+
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression exp = super.optimize(visitor, contextItemType);
+        if (exp == this) {
+            final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
+            if (operand.getItemType(th).isAtomicType()) {
+                return operand;
+            }
+            return this;
+        } else {
+            return exp;
+        }
+    }
 
     /**
      * Determine the special properties of this expression
@@ -85,16 +97,36 @@ public final class SingletonAtomizer extends UnaryExpression {
     }
 
     /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new SingletonAtomizer(getBaseExpression().copy(), role, allowEmpty);
+    }
+
+    /**
      * Get the RoleLocator (used to construct error messages)
+     * @return the role locator
      */
 
     public RoleLocator getRole() {
         return role;
     }
 
+
+    public PathMap.PathMapNodeSet addToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodeSet) {
+        PathMap.PathMapNodeSet result = operand.addToPathMap(pathMap, pathMapNodeSet);
+        if (result != null) {
+            result.setAtomized();
+        }
+        return null;
+    }
+
     /**
-    * Evaluate as an Item. This should only be called if the Atomizer has cardinality zero-or-one,
-    * which will only be the case if the underlying expression has cardinality zero-or-one.
+    * Evaluate as an Item. This should only be called if a singleton or empty sequence is required;
+     * it throws a type error if the underlying sequence is multi-valued.
     */
 
     public Item evaluateItem(XPathContext context) throws XPathException {
@@ -135,13 +167,13 @@ public final class SingletonAtomizer extends UnaryExpression {
     * Determine the data type of the items returned by the expression, if possible
     * @return a value such as Type.STRING, Type.BOOLEAN, Type.NUMBER. For this class, the
      * result is always an atomic type, but it might be more specific.
-     * @param th
+     * @param th the type hierarchy cache
      */
 
 	public ItemType getItemType(TypeHierarchy th) {
         boolean isSchemaAware = true;
-        Executable exec = getExecutable();
-        if (exec != null && !exec.getConfiguration().isSchemaAware(Configuration.XML_SCHEMA)) {
+        //Executable exec = getExecutable();
+        if (!th.getConfiguration().isSchemaAware(Configuration.XML_SCHEMA)) {
             isSchemaAware = false;
         }
         ItemType in = operand.getItemType(th);
@@ -150,7 +182,7 @@ public final class SingletonAtomizer extends UnaryExpression {
         }
         if (in instanceof NodeTest) {
 
-            if (in instanceof NoNodeTest) {
+            if (in instanceof EmptySequenceTest) {
                 return in;
             }
 
@@ -159,17 +191,17 @@ public final class SingletonAtomizer extends UnaryExpression {
                 // Some node-kinds always have a typed value that's a string
 
                 if ((kinds | STRING_KINDS) == STRING_KINDS) {
-                    return Type.STRING_TYPE;
+                    return BuiltInAtomicType.STRING;
                 }
                 // Some node-kinds are always untyped atomic; some are untypedAtomic provided that the configuration
                 // is untyped
 
                 if ((kinds | UNTYPED_IF_UNTYPED_KINDS) == UNTYPED_IF_UNTYPED_KINDS) {
-                    return Type.UNTYPED_ATOMIC_TYPE;
+                    return BuiltInAtomicType.UNTYPED_ATOMIC;
                 }
             } else {
                 if ((kinds | UNTYPED_KINDS) == UNTYPED_KINDS) {
-                    return Type.UNTYPED_ATOMIC_TYPE;
+                    return BuiltInAtomicType.UNTYPED_ATOMIC;
                 }
             }
 
@@ -183,14 +215,14 @@ public final class SingletonAtomizer extends UnaryExpression {
 //            } else if (schemaType instanceof AnyType) {
 //                // AnyType includes AnySimpleType as a subtype, so the atomized value can be any atomic type
 //                // including untypedAtomic
-//                return Type.ANY_ATOMIC_TYPE;
+//                return BuiltInAtomicType.ANY_ATOMIC;
 //            } else {
 //                // if a complex type with complex content (other than AnyType) can be atomized at all,
 //                // then it will return untypedAtomic values
-//                return Type.UNTYPED_ATOMIC_TYPE;
+//                return BuiltInAtomicType.UNTYPED_ATOMIC;
 //            }
         }
-	    return Type.ANY_ATOMIC_TYPE;
+	    return BuiltInAtomicType.ANY_ATOMIC;
 	}
 
     /**
@@ -226,13 +258,12 @@ public final class SingletonAtomizer extends UnaryExpression {
 	}
 
     /**
-     * Give a string representation of the operator for use in diagnostics
-     * @return the operator, as a string
-     * @param config
+     * Give a string representation of the expression name for use in diagnostics
+     * @return the expression name, as a string
      */
 
-    protected String displayOperator(Configuration config) {
-        return "atomize singleton";
+    protected String displayExpressionName() {
+        return "atomizeSingleton";
     }
 
 }

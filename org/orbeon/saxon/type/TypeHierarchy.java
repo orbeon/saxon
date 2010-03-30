@@ -2,12 +2,12 @@ package org.orbeon.saxon.type;
 
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.pattern.AnyNodeTest;
 import org.orbeon.saxon.pattern.DocumentNodeTest;
-import org.orbeon.saxon.pattern.NoNodeTest;
+import org.orbeon.saxon.pattern.EmptySequenceTest;
 import org.orbeon.saxon.pattern.NodeTest;
 import org.orbeon.saxon.sort.IntHashSet;
-import org.orbeon.saxon.style.StandardNames;
 
 import java.io.Serializable;
 import java.util.Collections;
@@ -16,7 +16,8 @@ import java.util.Map;
 
 /**
  * This class exists to provide answers to questions about the type hierarchy. Because
- * such questions are potentially expensive, it caches the answers.
+ * such questions are potentially expensive, it caches the answers. There is one instance of
+ * this class for a Configuration.
  */
 
 public class TypeHierarchy implements Serializable {
@@ -47,6 +48,11 @@ public class TypeHierarchy implements Serializable {
 
     //private String[] relnames = {"SAME", "SUBSUMES", "SUBSUMED_BY", "OVERLAPS", "DISJOINT"};
 
+    /**
+     * Create the type hierarchy cache for a configuration
+     * @param config the configuration
+     */
+
     public TypeHierarchy(Configuration config){
         this.config = config;
         try {
@@ -58,6 +64,11 @@ public class TypeHierarchy implements Serializable {
             map =  Collections.synchronizedMap(new HashMap(100));
         }
     }
+
+    /**
+     * Get the Saxon configuration to which this type hierarchy belongs
+     * @return the configuration
+     */
 
     public Configuration getConfiguration() {
         return config;
@@ -135,13 +146,13 @@ public class TypeHierarchy implements Serializable {
             } else if (t1 instanceof ExternalObjectType) {
                 if (t2 instanceof ExternalObjectType) {
                     return ((ExternalObjectType)t1).getRelationship((ExternalObjectType)t2);
-                } else if (((AtomicType)t2).getFingerprint() == StandardNames.XDT_ANY_ATOMIC_TYPE) {
+                } else if (((AtomicType)t2).getFingerprint() == StandardNames.XS_ANY_ATOMIC_TYPE) {
                     return SUBSUMED_BY;
                 } else {
                     return DISJOINT;
                 }
             } else if (t2 instanceof ExternalObjectType) {
-                if (((AtomicType)t1).getFingerprint() == StandardNames.XDT_ANY_ATOMIC_TYPE) {
+                if (((AtomicType)t1).getFingerprint() == StandardNames.XS_ANY_ATOMIC_TYPE) {
                     return SUBSUMES;
                 } else {
                     return DISJOINT;
@@ -180,9 +191,9 @@ public class TypeHierarchy implements Serializable {
                     }
                 } else if (t2 instanceof AnyNodeTest) {
                     return SUBSUMED_BY;
-                } else if (t1 instanceof NoNodeTest) {
+                } else if (t1 instanceof EmptySequenceTest) {
                     return DISJOINT;
-                } else if (t2 instanceof NoNodeTest) {
+                } else if (t2 instanceof EmptySequenceTest) {
                     return DISJOINT;
                 } else {
                     // first find the relationship between the node kinds allowed
@@ -245,7 +256,7 @@ public class TypeHierarchy implements Serializable {
                     } else {
                         SchemaType s1 = ((NodeTest)t1).getContentType();
                         SchemaType s2 = ((NodeTest)t2).getContentType();
-                        contentRelationship = Type.schemaTypeRelationship(s1, s2);
+                        contentRelationship = schemaTypeRelationship(s1, s2);
                     }
 
                     // now analyse the three different relationsships
@@ -276,8 +287,10 @@ public class TypeHierarchy implements Serializable {
     }
 
     /**
-      * Test whether a type annotation code represents the type xs:ID or one of its subtypes
-      */
+     * Test whether a type annotation code represents the type xs:ID or one of its subtypes
+     * @param typeCode the type annotation to be tested
+     * @return true if the type annotation represents an xs:ID
+     */
 
      public boolean isIdCode(int typeCode) {
          typeCode &= NamePool.FP_MASK;
@@ -292,12 +305,12 @@ public class TypeHierarchy implements Serializable {
                  return false;      // this shouldn't happen, but there's no need to crash right here
              }
              if (type.isAtomicType()) {
-                 return isSubType((AtomicType)type, Type.ID_TYPE);
+                 return isSubType((AtomicType)type, BuiltInAtomicType.ID);
              }
              if (type instanceof ComplexType && ((ComplexType)type).isSimpleContent()) {
                  SimpleType contentType = ((ComplexType)type).getSimpleContentType();
                  if (contentType.isAtomicType()) {
-                    return isSubType((AtomicType)contentType, Type.ID_TYPE);
+                     return isSubType((AtomicType)contentType, BuiltInAtomicType.ID);
                  }
              }
              return false;
@@ -305,8 +318,10 @@ public class TypeHierarchy implements Serializable {
      }
 
     /**
-      * Test whether a type annotation code represents the type xs:IDREF, xs:IDREFS or one of their subtypes
-      */
+     * Test whether a type annotation code represents the type xs:IDREF, xs:IDREFS or one of their subtypes
+     * @param typeCode the type annotation to be tested
+     * @return true if the type annotation represents an xs:IDREF or xs:IDREFS or a subtype thereof
+     */
 
      public boolean isIdrefsCode(int typeCode) {
          typeCode &= NamePool.FP_MASK;
@@ -322,7 +337,7 @@ public class TypeHierarchy implements Serializable {
                  return false;
              }
              if (type.isAtomicType()) {
-                 return isSubType((AtomicType)type, Type.IDREF_TYPE);
+                 return isSubType((AtomicType)type, BuiltInAtomicType.IDREF);
              }
              if (type instanceof ListType) {
                  return ((ListType)type).getBuiltInBaseType().getFingerprint() == StandardNames.XS_IDREFS;
@@ -330,7 +345,7 @@ public class TypeHierarchy implements Serializable {
              if (type.isComplexType() && ((ComplexType)type).isSimpleContent()) {
                  SimpleType contentType = ((ComplexType)type).getSimpleContentType();
                  if (contentType.isAtomicType()) {
-                     return isSubType((AtomicType)contentType, Type.IDREF_TYPE);
+                     return isSubType((AtomicType)contentType, BuiltInAtomicType.IDREF);
                  } else if (contentType instanceof ListType) {
                      return contentType.getBuiltInBaseType().getFingerprint() == StandardNames.XS_IDREFS;
                  }
@@ -338,6 +353,48 @@ public class TypeHierarchy implements Serializable {
              return false;
          }
      }
+
+    /**
+     * Get the relationship of two schema types to each other
+     * @param s1 the first type
+     * @param s2 the second type
+     * @return the relationship of the two types, as one of the constants
+     * {@link org.orbeon.saxon.type.TypeHierarchy#SAME_TYPE}, {@link org.orbeon.saxon.type.TypeHierarchy#SUBSUMES},
+     * {@link org.orbeon.saxon.type.TypeHierarchy#SUBSUMED_BY}, {@link org.orbeon.saxon.type.TypeHierarchy#DISJOINT}
+     */
+
+    public static int schemaTypeRelationship(SchemaType s1, SchemaType s2) {
+        if (s1.isSameType(s2)) {
+            return SAME_TYPE;
+        }
+        if (s1 instanceof AnyType) {
+            return SUBSUMES;
+        }
+        if (s2 instanceof AnyType) {
+            return SUBSUMED_BY;
+        }
+        SchemaType t1 = s1;
+        while (true) {
+            t1 = t1.getBaseType();
+            if (t1 == null) {
+                break;
+            }
+            if (t1.isSameType(s2)) {
+                return SUBSUMED_BY;
+            }
+        }
+        SchemaType t2 = s2;
+        while (true) {
+            t2 = t2.getBaseType();
+            if (t2 == null) {
+                break;
+            }
+            if (t2.isSameType(s1)) {
+                return SUBSUMES;
+            }
+        }
+        return DISJOINT;
+    }
 
 
     private class ItemTypePair implements Serializable {
@@ -368,35 +425,6 @@ public class TypeHierarchy implements Serializable {
             return s.equals(pair.s) && t.equals(pair.t);
         }
     }
-
-
-
-
-
-//    public static void main(String[] args) throws Exception {
-//        int runs = 10000000;
-//        final Configuration config = new Configuration();
-//        final NamePool pool = config.getNamePool();
-//        final StaticQueryContext sqc = new StaticQueryContext(config);
-//        final NodeInfo doc = sqc.buildDocument(new StreamSource(new File("c:/MyJava/samples/data/books.xml")));
-//        final XQueryExpression exp = sqc.compileQuery(
-//                "declare variable $x external; count($x//*)");
-//        for (int i=1; i < runs; i++) {
-//            Configuration config2 = new Configuration();
-//            config2.setNamePool(pool);
-//            final DynamicQueryContext dynamicContext = new DynamicQueryContext(config2);
-//            dynamicContext.setParameter("x", doc);
-//            final Properties props = new Properties();
-//            exp.run(dynamicContext, new Sink(), props);
-//            if (i % 1000 == 0) {
-//                System.out.print(".");
-//            }
-//            if (i % 10000 == 0) {
-//                Runtime.getRuntime().gc();
-//                System.out.println("i=" + i + " free memory = " + Runtime.getRuntime().freeMemory());
-//            }
-//        }
-//    }
 
 }
 

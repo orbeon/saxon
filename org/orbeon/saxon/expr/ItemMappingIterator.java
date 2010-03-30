@@ -60,6 +60,9 @@ public final class ItemMappingIterator implements SequenceIterator {
         return position;
     }
 
+    public void close() {
+        base.close();
+    }
 
     public SequenceIterator getAnother() throws XPathException {
         return new ItemMappingIterator(base.getAnother(), action);

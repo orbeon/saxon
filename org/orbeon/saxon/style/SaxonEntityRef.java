@@ -1,13 +1,12 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.StringLiteral;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.ValueOf;
 import org.orbeon.saxon.om.AttributeCollection;
-import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
-
-import javax.xml.transform.TransformerConfigurationException;
+import org.orbeon.saxon.value.Whitespace;
 
 
 
@@ -38,7 +37,7 @@ public class SaxonEntityRef extends StyleElement {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
 			if (f==StandardNames.NAME) {
-        		nameAttribute = atts.getValue(a).trim();
+        		nameAttribute = Whitespace.trim(atts.getValue(a));
         	} else {
         		checkUnknownAttribute(nc);
         	}
@@ -50,18 +49,17 @@ public class SaxonEntityRef extends StyleElement {
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
+        //checkWithinTemplate();
         checkEmpty();
     }
 
     public Expression compile(Executable exec) throws XPathException {
-        ValueOf text = new ValueOf(new StringValue('&' + nameAttribute + ';'), true, false);
+        ValueOf text = new ValueOf(new StringLiteral('&' + nameAttribute + ';'), true, false);
 //        try {
 //            text.setSelect(new StringValue('&' + nameAttribute + ';'));
 //        } catch (StaticError err) {
 //            compileError(err);
 //        }
-        ExpressionTool.makeParentReferences(text);
         return text;
     }
 

@@ -1,28 +1,40 @@
 package org.orbeon.saxon.expr;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.BooleanValue;
-import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.SequenceType;
-
-import java.io.PrintStream;
+import org.orbeon.saxon.functions.BooleanFn;
 
 /**
 * A QuantifiedExpression tests whether some/all items in a sequence satisfy
 * some condition.
 */
 
-class QuantifiedExpression extends Assignation {
+public class QuantifiedExpression extends Assignation {
 
     private int operator;       // Token.SOME or Token.EVERY
 
+    /**
+     * Set the operator, either {@link Token#SOME} or {@link Token#EVERY}
+     * @param operator the operator
+     */
+
     public void setOperator(int operator) {
         this.operator = operator;
+    }
+
+    /**
+     * Get the operator, either {@link Token#SOME} or {@link Token#EVERY}
+     * @return the operator
+     */
+
+    public int getOperator() {
+        return operator;
     }
 
     /**
@@ -37,44 +49,45 @@ class QuantifiedExpression extends Assignation {
     * Type-check the expression
     */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
 
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
-        if (declaration==null) {
-            // we've already done the type checking, no need to do it again
-            return this;
-        }
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
 
         // The order of events is critical here. First we ensure that the type of the
         // sequence expression is established. This is used to establish the type of the variable,
         // which in turn is required when type-checking the action part.
 
-        sequence = sequence.typeCheck(env, contextItemType);
-        if (sequence instanceof EmptySequence) {
-            return BooleanValue.get(operator != Token.SOME);
+        sequence = visitor.typeCheck(sequence, contextItemType);
+        if (Literal.isEmptySequence(sequence)) {
+            return Literal.makeLiteral(BooleanValue.get(operator != Token.SOME));
         }
 
         // "some" and "every" have no ordering constraints
 
-        Optimizer opt = env.getConfiguration().getOptimizer();
+        Optimizer opt = visitor.getConfiguration().getOptimizer();
         sequence = ExpressionTool.unsorted(opt, sequence, false);
 
-        SequenceType decl = declaration.getRequiredType();
+        SequenceType decl = getRequiredType();
         SequenceType sequenceType = SequenceType.makeSequenceType(decl.getPrimaryType(),
                                              StaticProperty.ALLOWS_ZERO_OR_MORE);
-        RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, new Integer(nameCode), 0, env.getNamePool());
-        role.setSourceLocator(this);
+        RoleLocator role = new RoleLocator(RoleLocator.VARIABLE, getVariableQName(), 0);
+        //role.setSourceLocator(this);
         sequence = TypeChecker.strictTypeCheck(
-                                sequence, sequenceType, role, env);
+                                sequence, sequenceType, role, visitor.getStaticContext());
         ItemType actualItemType = sequence.getItemType(th);
-        declaration.refineTypeInformation(actualItemType,
+        refineTypeInformation(actualItemType,
                 StaticProperty.EXACTLY_ONE,
                 null,
-                sequence.getSpecialProperties(), env);
+                sequence.getSpecialProperties(), visitor, this);
 
-        declaration = null;     // let the garbage collector take it
+        //declaration = null;     // let the garbage collector take it
 
-        action = action.typeCheck(env, contextItemType);
+        action = visitor.typeCheck(action, contextItemType);
+        XPathException err = TypeChecker.ebvError(action, visitor.getConfiguration().getTypeHierarchy());
+        if (err != null) {
+            err.setLocator(this);
+            throw err;
+        }
         return this;
     }
 
@@ -84,35 +97,92 @@ class QuantifiedExpression extends Assignation {
      * <p>This method is called after all references to functions and variables have been resolved
      * to the declaration of the function or variable, and after all type checking has been done.</p>
      *
-     * @param opt             the optimizer in use. This provides access to supporting functions; it also allows
-     *                        different optimization strategies to be used in different circumstances.
-     * @param env             the static context of the expression
+     * @param visitor an expression visitor
      * @param contextItemType the static type of "." at the point where this expression is invoked.
      *                        The parameter is set to null if it is known statically that the context item will be undefined.
      *                        If the type of the context item is not known statically, the argument is set to
      *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
      * @return the original expression, rewritten if appropriate to optimize execution
-     * @throws org.orbeon.saxon.trans.StaticError if an error is discovered during this phase
+     * @throws XPathException if an error is discovered during this phase
      *                                        (typically a type error)
      */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        sequence = sequence.optimize(opt, env, contextItemType);
-        action = action.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+
+        Optimizer opt = visitor.getConfiguration().getOptimizer();
+
+        sequence = visitor.optimize(sequence, contextItemType);
+        action = visitor.optimize(action, contextItemType);
+        Expression ebv = BooleanFn.rewriteEffectiveBooleanValue(action, visitor, contextItemType);
+        if (ebv != null) {
+            action = ebv;
+            adoptChildExpression(ebv);
+        }
         PromotionOffer offer = new PromotionOffer(opt);
         offer.containingExpression = this;
         offer.action = PromotionOffer.RANGE_INDEPENDENT;
-        Binding[] bindingList = {this};
-        offer.bindingList = bindingList;
+        offer.bindingList = new Binding[] {this};
         action = doPromotion(action, offer);
         if (offer.containingExpression instanceof LetExpression) {
             offer.containingExpression =
-                    offer.containingExpression.typeCheck(env, contextItemType).optimize(opt, env, contextItemType);
+                    visitor.optimize(visitor.typeCheck(offer.containingExpression, contextItemType), contextItemType);
         }
         return offer.containingExpression;
 
     }
 
+    /**
+     * Check to ensure that this expression does not contain any updating subexpressions.
+     * This check is overridden for those expressions that permit updating subexpressions.
+     *
+     * @throws org.orbeon.saxon.trans.XPathException
+     *          if the expression has a non-permitted updateing subexpression
+     */
+
+    public void checkForUpdatingSubexpressions() throws XPathException {
+        sequence.checkForUpdatingSubexpressions();
+        action.checkForUpdatingSubexpressions();
+    }
+
+    /**
+     * Determine whether this is an updating expression as defined in the XQuery update specification
+     * @return true if this is an updating expression
+     */
+
+    public boolean isUpdatingExpression() {
+        return false;
+    }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        QuantifiedExpression qe = new QuantifiedExpression();
+        qe.setOperator(operator);
+        qe.setVariableQName(variableName);
+        qe.setRequiredType(requiredType);
+        qe.setSequence(sequence.copy());
+        Expression newAction = action.copy();
+        qe.setAction(newAction);
+        qe.variableName = variableName;
+        ExpressionTool.rebindVariableReferences(newAction, this, qe);
+        return qe;
+    }
+
+
+    /**
+     * Given an expression that is an immediate child of this expression, test whether
+     * the evaluation of the parent expression causes the child expression to be
+     * evaluated repeatedly
+     * @param child the immediate subexpression
+     * @return true if the child expression is evaluated repeatedly
+     */
+
+    public boolean hasLoopingSubexpression(Expression child) {
+        return child == action;
+    }
 
     /**
      * Determine the special properties of this expression
@@ -146,13 +216,15 @@ class QuantifiedExpression extends Assignation {
         // logic is used for the SOME and EVERY operators
 
         final boolean some = (operator==Token.SOME);
+        int slot = getLocalSlotNumber();
         while (true) {
             final Item it = base.next();
             if (it == null) {
                 break;
             }
-            context.setLocalVariable(slotNumber, it);
+            context.setLocalVariable(slot, it);
             if (some == action.effectiveBooleanValue(context)) {
+                base.close();
                 return some;
             }
         }
@@ -163,23 +235,28 @@ class QuantifiedExpression extends Assignation {
     /**
     * Determine the data type of the items returned by the expression
     * @return Type.BOOLEAN
-     * @param th
+     * @param th the type hierarchy cache
      */
 
 	public ItemType getItemType(TypeHierarchy th) {
-	    return Type.BOOLEAN_TYPE;
+	    return BuiltInAtomicType.BOOLEAN;
 	}
 
     /**
-    * Diagnostic print of expression structure
-    */
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + Token.tokens[operator] +
-                " $" + getVariableName(config.getNamePool()) + " in");
-        sequence.display(level+1, out, config);
-        out.println(ExpressionTool.indent(level) + "satisfies");
-        action.display(level+1, out, config);
+    public void explain(ExpressionPresenter out) {
+        out.startElement(Token.tokens[operator]);
+        out.emitAttribute("variable", getVariableName());
+        out.startSubsidiaryElement("in");
+        sequence.explain(out);
+        out.endSubsidiaryElement();
+        out.startSubsidiaryElement("satisfies");
+        action.explain(out);
+        out.endSubsidiaryElement();
+        out.endElement();
     }
 
 }

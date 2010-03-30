@@ -1,19 +1,17 @@
 package org.orbeon.saxon.instruct;
 
 import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.event.PipelineConfiguration;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.event.ReceiverOptions;
 import org.orbeon.saxon.event.SequenceReceiver;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.tinytree.TinyBuilder;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 
-import java.io.PrintStream;
 import java.util.Iterator;
 
 /**
@@ -27,27 +25,30 @@ public class Doctype extends Instruction {
     public Doctype(Expression content) {
         this.content = content;
     }
+
     /**
      * Simplify an expression. This performs any static optimization (by rewriting the expression
      * as a different expression). The default implementation does nothing.
+     *
+     * @param visitor an expression visitor
      * @return the simplified expression
      * @throws org.orbeon.saxon.trans.XPathException
      *          if an error is discovered during expression rewriting
      */
 
-    public Expression simplify(StaticContext env) throws XPathException {
-        content = content.simplify(env);
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        content = visitor.simplify(content);
         return this;
     }
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        content = content.typeCheck(env, contextItemType);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        content = visitor.typeCheck(content, contextItemType);
         adoptChildExpression(content);
         return this;
     }
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        content = content.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        content = visitor.optimize(content, contextItemType);
         adoptChildExpression(content);
         return this;
     }
@@ -65,8 +66,20 @@ public class Doctype extends Instruction {
     }
 
     /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        throw new UnsupportedOperationException("copy");
+    }
+
+
+    /**
      * Replace one subexpression by a replacement subexpression
-     * @param original the original subexpression
+     *
+     * @param original    the original subexpression
      * @param replacement the replacement subexpression
      * @return true if the original subexpression is found
      */
@@ -77,13 +90,13 @@ public class Doctype extends Instruction {
             content = replacement;
             found = true;
         }
-                return found;
+        return found;
     }
-
 
 
     /**
      * Handle promotion offers, that is, non-local tree rewrites.
+     *
      * @param offer The type of rewrite being offered
      * @throws XPathException
      */
@@ -91,6 +104,7 @@ public class Doctype extends Instruction {
     protected void promoteInst(PromotionOffer offer) throws XPathException {
         content = doPromotion(content, offer);
     }
+
     /**
      * Determine whether this instruction creates new nodes.
      * This implementation returns true.
@@ -108,14 +122,16 @@ public class Doctype extends Instruction {
         return StandardNames.SAXON_DOCTYPE;
     }
 
-     public TailCall processLeavingTail(XPathContext context) throws XPathException {
+    public TailCall processLeavingTail(XPathContext context) throws XPathException {
         Controller controller = context.getController();
         XPathContext c2 = context.newMinorContext();
         c2.setOrigin(this);
         SequenceReceiver out = c2.getReceiver();
         TinyBuilder builder = new TinyBuilder();
         Receiver receiver = builder;
-        receiver.setPipelineConfiguration(controller.makePipelineConfiguration());
+        PipelineConfiguration pipe = controller.makePipelineConfiguration();
+        pipe.setHostLanguage(getContainer().getHostLanguage());
+        receiver.setPipelineConfiguration(pipe);
         receiver.open();
         receiver.startDocument(0);
         c2.changeOutputDestination(null, receiver, false, getHostLanguage(), Validation.PRESERVE, null);
@@ -125,9 +141,9 @@ public class Doctype extends Instruction {
         DocumentInfo dtdRoot = (DocumentInfo)builder.getCurrentRoot();
 
         SequenceIterator children = dtdRoot.iterateAxis(Axis.CHILD);
-        NodeInfo docType = (NodeInfo) children.next();
+        NodeInfo docType = (NodeInfo)children.next();
         if (docType == null || !("doctype".equals(docType.getLocalPart()))) {
-            DynamicError e = new DynamicError("saxon:doctype instruction must contain dtd:doctype");
+            XPathException e = new XPathException("saxon:doctype instruction must contain dtd:doctype");
             e.setXPathContext(context);
             throw e;
         }
@@ -136,7 +152,7 @@ public class Doctype extends Instruction {
         String publicid = Navigator.getAttributeValue(docType, "", "public");
 
         if (name == null) {
-            DynamicError e = new DynamicError("dtd:doctype must have a name attribute");
+            XPathException e = new XPathException("dtd:doctype must have a name attribute");
             e.setXPathContext(context);
             throw e;
         }
@@ -153,7 +169,7 @@ public class Doctype extends Instruction {
         boolean openSquare = false;
         children = docType.iterateAxis(Axis.CHILD);
 
-        NodeInfo child = (NodeInfo) children.next();
+        NodeInfo child = (NodeInfo)children.next();
         if (child != null) {
             write(out, " [");
             openSquare = true;
@@ -166,12 +182,12 @@ public class Doctype extends Instruction {
                 String elname = Navigator.getAttributeValue(child, "", "name");
                 String content = Navigator.getAttributeValue(child, "", "content");
                 if (elname == null) {
-                    DynamicError e = new DynamicError("dtd:element must have a name attribute");
+                    XPathException e = new XPathException("dtd:element must have a name attribute");
                     e.setXPathContext(context);
                     throw e;
                 }
                 if (content == null) {
-                    DynamicError e = new DynamicError("dtd:element must have a content attribute");
+                    XPathException e = new XPathException("dtd:element must have a content attribute");
                     e.setXPathContext(context);
                     throw e;
                 }
@@ -180,7 +196,7 @@ public class Doctype extends Instruction {
             } else if (localname.equals("attlist")) {
                 String elname = Navigator.getAttributeValue(child, "", "element");
                 if (elname == null) {
-                    DynamicError e = new DynamicError("dtd:attlist must have an attribute named 'element'");
+                    XPathException e = new XPathException("dtd:attlist must have an attribute named 'element'");
                     e.setXPathContext(context);
                     throw e;
                 }
@@ -188,7 +204,7 @@ public class Doctype extends Instruction {
 
                 SequenceIterator attributes = child.iterateAxis(Axis.CHILD);
                 while (true) {
-                    NodeInfo attDef = (NodeInfo) attributes.next();
+                    NodeInfo attDef = (NodeInfo)attributes.next();
                     if (attDef == null) {
                         break;
                     }
@@ -199,23 +215,23 @@ public class Doctype extends Instruction {
                         String type = Navigator.getAttributeValue(attDef, "", "type");
                         String value = Navigator.getAttributeValue(attDef, "", "value");
                         if (atname == null) {
-                            DynamicError e = new DynamicError("dtd:attribute must have a name attribute");
+                            XPathException e = new XPathException("dtd:attribute must have a name attribute");
                             e.setXPathContext(context);
                             throw e;
                         }
                         if (type == null) {
-                            DynamicError e = new DynamicError("dtd:attribute must have a type attribute");
+                            XPathException e = new XPathException("dtd:attribute must have a type attribute");
                             e.setXPathContext(context);
                             throw e;
                         }
                         if (value == null) {
-                            DynamicError e = new DynamicError("dtd:attribute must have a value attribute");
+                            XPathException e = new XPathException("dtd:attribute must have a value attribute");
                             e.setXPathContext(context);
                             throw e;
                         }
                         write(out, "\n    " + atname + ' ' + type + ' ' + value);
                     } else {
-                        DynamicError e = new DynamicError("Unrecognized element within dtd:attlist");
+                        XPathException e = new XPathException("Unrecognized element within dtd:attlist");
                         e.setXPathContext(context);
                         throw e;
                     }
@@ -231,7 +247,7 @@ public class Doctype extends Instruction {
                 String notation = Navigator.getAttributeValue(child, "", "notation");
 
                 if (entname == null) {
-                    DynamicError e = new DynamicError("dtd:entity must have a name attribute");
+                    XPathException e = new XPathException("dtd:entity must have a name attribute");
                     e.setXPathContext(context);
                     throw e;
                 }
@@ -256,7 +272,7 @@ public class Doctype extends Instruction {
 
                 SequenceIterator contents = child.iterateAxis(Axis.CHILD);
                 while (true) {
-                    NodeInfo content = (NodeInfo) contents.next();
+                    NodeInfo content = (NodeInfo)contents.next();
                     if (content == null) {
                         break;
                     }
@@ -269,12 +285,12 @@ public class Doctype extends Instruction {
                 String nsystem = Navigator.getAttributeValue(child, "", "system");
                 String npublicid = Navigator.getAttributeValue(child, "", "public");
                 if (notname == null) {
-                    DynamicError e = new DynamicError("dtd:notation must have a name attribute");
+                    XPathException e = new XPathException("dtd:notation must have a name attribute");
                     e.setXPathContext(context);
                     throw e;
                 }
                 if ((nsystem == null) && (npublicid == null)) {
-                    DynamicError e = new DynamicError("dtd:notation must have a system attribute or a public attribute");
+                    XPathException e = new XPathException("dtd:notation must have a system attribute or a public attribute");
                     e.setXPathContext(context);
                     throw e;
                 }
@@ -289,11 +305,11 @@ public class Doctype extends Instruction {
                 }
                 write(out, ">");
             } else {
-                DynamicError e = new DynamicError("Unrecognized element " + localname + " in DTD output");
+                XPathException e = new XPathException("Unrecognized element " + localname + " in DTD output");
                 e.setXPathContext(context);
                 throw e;
             }
-            child = (NodeInfo) children.next();
+            child = (NodeInfo)children.next();
         }
 
         if (openSquare) {
@@ -310,16 +326,13 @@ public class Doctype extends Instruction {
     }
 
     /**
-     * Diagnostic print of expression structure. The expression is written to the System.err
-     * output stream
-     *
-     * @param level indentation level for this expression
-     @param out
-     @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "saxon:doctype");
+    public void explain(ExpressionPresenter out) {
+        out.startElement("saxonDoctype");
+        out.endElement();
     }
 }
 

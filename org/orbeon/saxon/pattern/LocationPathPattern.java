@@ -2,15 +2,14 @@ package org.orbeon.saxon.pattern;
 
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.style.ExpressionContext;
 import org.orbeon.saxon.trace.Location;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
-import org.orbeon.saxon.value.BooleanValue;
-import org.orbeon.saxon.value.IntegerValue;
+import org.orbeon.saxon.functions.Position;
+import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.instruct.SlotManager;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -23,6 +22,12 @@ import java.util.Iterator;
 
 public final class LocationPathPattern extends Pattern {
 
+    /**
+     * Create a LocationPathPattern
+     */
+
+    public LocationPathPattern() {}
+
     // the following public variables are exposed to the ExpressionParser
 
     public Pattern parentPattern = null;
@@ -34,7 +39,7 @@ public final class LocationPathPattern extends Pattern {
     protected boolean firstElementPattern = false;
     protected boolean lastElementPattern = false;
     protected boolean specialFilter = false;
-    private Expression variableBinding = null;
+    private Expression variableBinding = null;      // local variable to which the current() node is bound
     private NodeTest refinedNodeTest = null;
 
     /**
@@ -52,15 +57,61 @@ public final class LocationPathPattern extends Pattern {
             filters = f2;
         }
         filters[numberOfFilters++] = filter;
-        ExpressionTool.makeParentReferences(filter);
-        ComputedExpression.setParentExpression(filter, this);
+        filter.setContainer(this);
+    }
+
+
+    /**
+     * Set the executable containing this pattern
+     *
+     * @param executable the executable
+     */
+
+    public void setExecutable(Executable executable) {
+        super.setExecutable(executable);
+        if (parentPattern != null) {
+            parentPattern.setExecutable(executable);
+        }
+        if (ancestorPattern != null) {
+            ancestorPattern.setExecutable(executable);
+        }
+    }
+
+    /**
+     * Get the filters assocated with the last step in the pattern
+     * @return an array of expression holding the filter predicates in order
+     */
+
+    public Expression[] getFilters() {
+        return filters;
+    }
+
+    /**
+     * Get the pattern applying to the parent node, if there is one
+     * @return the parent pattern, for example if the pattern is a/b[1]/c then the parent
+     * pattern is a/b[1]
+     */
+
+    public Pattern getParentPattern() {
+        return parentPattern;
+    }
+
+    /**
+     * Get the pattern applying to an ancestor node, if there is one
+     * @return the ancestor pattern, for example if the pattern is a/b[1]//c then the ancestor
+     * pattern is a/b[1]
+     */
+
+    public Pattern getAncestorPattern() {
+        return ancestorPattern;
     }
 
     /**
      * Simplify the pattern: perform any context-independent optimisations
+     * @param visitor an expression visitor
      */
 
-    public Pattern simplify(StaticContext env) throws XPathException {
+    public Pattern simplify(ExpressionVisitor visitor) throws XPathException {
 
         // detect the simple cases: no parent or ancestor pattern, no predicates
 
@@ -78,15 +129,15 @@ public final class LocationPathPattern extends Pattern {
         // simplify each component of the pattern
 
         if (parentPattern != null) {
-            parentPattern = parentPattern.simplify(env);
+            parentPattern = parentPattern.simplify(visitor);
         } else if (ancestorPattern != null) {
-            ancestorPattern = ancestorPattern.simplify(env);
+            ancestorPattern = ancestorPattern.simplify(visitor);
         }
 
         if (filters != null) {
             for (int i = numberOfFilters - 1; i >= 0; i--) {
                 Expression filter = filters[i];
-                filter = filter.simplify(env);
+                filter = visitor.simplify(filter);
                 filters[i] = filter;
             }
         }
@@ -96,16 +147,18 @@ public final class LocationPathPattern extends Pattern {
 
     /**
      * Type-check the pattern, performing any type-dependent optimizations.
-     *
+     * @param visitor an expression visitor
+     * @param contextItemType the type of the context item at the point where the pattern appears
      * @return the optimised Pattern
      */
 
-    public Pattern analyze(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Pattern analyze(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
 
         // analyze each component of the pattern
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
+        StaticContext env = visitor.getStaticContext();
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
         if (parentPattern != null) {
-            parentPattern = parentPattern.analyze(env, contextItemType);
+            parentPattern = parentPattern.analyze(visitor, contextItemType);
             // Check that this step in the pattern makes sense in the context of the parent step
             AxisExpression step;
             if (nodeTest.getPrimitiveType() == Type.ATTRIBUTE) {
@@ -114,31 +167,34 @@ public final class LocationPathPattern extends Pattern {
                 step = new AxisExpression(Axis.CHILD, nodeTest);
             }
             step.setLocationId(env.getLocationMap().allocateLocationId(env.getSystemId(), getLineNumber()));
-            step.setParentExpression(this);
-            Expression exp = step.typeCheck(env, parentPattern.getNodeTest());
+            step.setContainer(this);
+            Expression exp = visitor.typeCheck(step, parentPattern.getNodeTest());
             refinedNodeTest = (NodeTest) exp.getItemType(th);
         } else if (ancestorPattern != null) {
-            ancestorPattern = ancestorPattern.analyze(env, contextItemType);
+            ancestorPattern = ancestorPattern.analyze(visitor, contextItemType);
         }
 
         if (filters != null) {
+            Optimizer opt = visitor.getConfiguration().getOptimizer();
             for (int i = numberOfFilters - 1; i >= 0; i--) {
-                Expression filter = filters[i].typeCheck(env, getNodeTest());
+                Expression filter = visitor.typeCheck(filters[i], getNodeTest());
+                filter = ExpressionTool.unsortedIfHomogeneous(opt, filter);
+                filter = visitor.optimize(filter, getNodeTest());
                 // System.err.println("Filter after analyze:");filter.display(10);
                 filters[i] = filter;
-                // if the last filter is constant true, remove it
-                if ((filter instanceof BooleanValue) && ((BooleanValue) filter).getBooleanValue()) {
+                if (Literal.isConstantBoolean(filter, true)) {
+                    // if a filter is constant true, remove it
                     if (i == numberOfFilters - 1) {
                         numberOfFilters--;
-                    } // otherwise don't bother doing anything with it.
-                }
-
-                // patterns are used outside XSLT, for internally-generated key definitions;
-                // but in this case they never contain variable references or calls on current().
-                // So we only need to allocate slots in the XSLT case
-                if (env instanceof ExpressionContext) {
-                    ((ExpressionContext) env).getStyleElement().allocateSlots(filter);
-                    filters[i] = filter;
+                    } else {
+                        System.arraycopy(filters, i+1, filters, i, numberOfFilters - i - 1);
+                        numberOfFilters--;
+                    }
+                    // let the garbage collecter take the unwanted filter
+                    filters[numberOfFilters] = null;
+                } else if (Literal.isConstantBoolean(filter, false)) {
+                    // if a filter is constant false, the pattern doesn't match anything
+                    return new NodeTestPattern(EmptySequenceTest.getInstance());
                 }
             }
         }
@@ -146,14 +202,21 @@ public final class LocationPathPattern extends Pattern {
         // see if it's an element pattern with a single positional predicate of [1]
 
         if (nodeTest.getPrimitiveType() == Type.ELEMENT && numberOfFilters == 1) {
-            if (((filters[0] instanceof IntegerValue) &&
-                    ((IntegerValue) filters[0]).longValue() == 1) ||
-                    ((filters[0] instanceof PositionRange) &&
-                    ((PositionRange) filters[0]).isFirstPositionOnly())) {
+            if (Literal.isConstantOne(filters[0])) {
                 firstElementPattern = true;
                 specialFilter = true;
                 numberOfFilters = 0;
                 filters = null;
+            } else if (filters[0] instanceof ComparisonExpression) {
+                ComparisonExpression comp = (ComparisonExpression)filters[0];
+                if (comp.getSingletonOperator() == Token.FEQ &&
+                        (comp.getOperands()[0] instanceof Position && Literal.isConstantOne(comp.getOperands()[1])) ||
+                        (comp.getOperands()[1] instanceof Position && Literal.isConstantOne(comp.getOperands()[0]))) {
+                    firstElementPattern = true;
+                    specialFilter = true;
+                    numberOfFilters = 0;
+                    filters = null;
+                }
             }
         }
 
@@ -171,11 +234,8 @@ public final class LocationPathPattern extends Pattern {
         }
 
         if (isPositional(th)) {
-            equivalentExpr = makeEquivalentExpression(env);
-            equivalentExpr = equivalentExpr.typeCheck(env, contextItemType);
-            // the rewritten expression may use additional variables; must ensure there are enough slots for these
-            // (see test match55)
-            ((ExpressionContext) env).getStyleElement().allocateSlots(equivalentExpr);
+            equivalentExpr = makePositionalExpression();
+            equivalentExpr = visitor.typeCheck(equivalentExpr, contextItemType);
             specialFilter = true;
         }
 
@@ -218,7 +278,9 @@ public final class LocationPathPattern extends Pattern {
             iter = Arrays.asList(filters).subList(0, numberOfFilters).iterator();
         }
         if (variableBinding != null) {
-            Iterator[] pair = {iter, new MonoIterator(variableBinding)};
+            // Note that the variable binding must come first to ensure slots are allocated to the "current"
+            // variable before the variable reference is encountered
+            Iterator[] pair = {new MonoIterator(variableBinding), iter};
             iter = new MultiIterator(pair);
         }
         if (parentPattern != null) {
@@ -248,10 +310,10 @@ public final class LocationPathPattern extends Pattern {
                 found = true;
             }
         }
-        if (parentPattern instanceof LocationPathPattern) {
+        if (parentPattern != null) {
             found |= parentPattern.replaceSubExpression(original, replacement);
         }
-        if (ancestorPattern instanceof LocationPathPattern) {
+        if (ancestorPattern != null) {
             found |= ancestorPattern.replaceSubExpression(original, replacement);
         }
         if (variableBinding == original) {
@@ -261,6 +323,31 @@ public final class LocationPathPattern extends Pattern {
         return found;
     }
 
+    /**
+     * Allocate slots to any variables used within the pattern
+     * @param env the static context in the XSLT stylesheet
+     * @param slotManager
+     *@param nextFree the next slot that is free to be allocated @return the next slot that is free to be allocated
+     */
+
+    public int allocateSlots(StaticContext env, SlotManager slotManager, int nextFree) {
+        // See tests cnfr23, idky239, match54, group018
+        // SlotManager slotManager = env.getStyleElement().getContainingSlotManager();
+        if (variableBinding != null) {
+            nextFree = ExpressionTool.allocateSlots(variableBinding, nextFree, slotManager);
+        }
+        for (int i = 0; i < numberOfFilters; i++) {
+            nextFree = ExpressionTool.allocateSlots(filters[i], nextFree, slotManager);
+        }
+        if (parentPattern != null) {
+            nextFree = parentPattern.allocateSlots(env, slotManager, nextFree);
+        }
+        if (ancestorPattern != null) {
+            nextFree = ancestorPattern.allocateSlots(env, slotManager, nextFree);
+        }
+        //env.getStyleElement().getPrincipalStylesheet().allocatePatternSlots(nextFree);
+        return nextFree;
+    }
 
     /**
      * Offer promotion for subexpressions within this pattern. The offer will be accepted if the subexpression
@@ -295,19 +382,25 @@ public final class LocationPathPattern extends Pattern {
     }
 
     /**
-     * For a positional pattern, make an equivalent nodeset expression to evaluate the filters
+     * For a positional pattern, make an equivalent path expression to evaluate the filters.
+     * This expression takes the node being tested as the context node, and returns a set of nodes
+     * which will include the context node if and only if it matches the pattern. The expression only
+     * tests nodes against the filters, not against any parent or ancestor patterns.
+     * @return the equivalent path expression
      */
 
-    private ComputedExpression makeEquivalentExpression(StaticContext env) throws XPathException {
+    private Expression makePositionalExpression() {
         byte axis = (nodeTest.getPrimitiveType() == Type.ATTRIBUTE ?
                 Axis.ATTRIBUTE :
                 Axis.CHILD);
-        ComputedExpression step = new AxisExpression(axis, nodeTest);
+        Expression step = new AxisExpression(axis, nodeTest);
         for (int n = 0; n < numberOfFilters; n++) {
             step = new FilterExpression(step, filters[n]);
         }
-        PathExpression path = new PathExpression(new ParentNodeExpression(), step);
-        path.setParentExpression(this);
+        ParentNodeExpression start = new ParentNodeExpression();
+        start.setContainer(this);
+        PathExpression path = new PathExpression(start, step);
+        path.setContainer(this);
         return path;
         // Note, the resulting expression is not required to deliver results in document order
     }
@@ -320,11 +413,20 @@ public final class LocationPathPattern extends Pattern {
      */
 
     public boolean matches(NodeInfo node, XPathContext context) throws XPathException {
+        // if there is a variable to hold the value of current(), bind it now
         if (variableBinding != null) {
-            variableBinding.evaluateItem(context);
+            XPathContext c2 = context;
+            Item ci = context.getContextItem();
+            if (!(ci instanceof NodeInfo && ((NodeInfo)ci).isSameNodeInfo(node))) {
+                c2 = context.newContext();
+                UnfailingIterator si = SingletonIterator.makeIterator(node);
+                si.next();
+                c2.setCurrentIterator(si);
+            }
+            variableBinding.evaluateItem(c2);
         }
         return internalMatches(node, context);
-        // matches() and internalMatches() differ in the way they handled the current() function.
+        // matches() and internalMatches() differ in the way they handle the current() function.
         // The variable holding the value of current() is initialized on entry to the top-level
         // LocationPathPattern, but not on entry to its subordinate patterns.
     }
@@ -376,7 +478,7 @@ public final class LocationPathPattern extends Pattern {
                 // System.err.println("Testing positional pattern against node " + node.generateId());
                 XPathContext c2 = context.newMinorContext();
                 c2.setOriginatingConstructType(Location.PATTERN);
-                AxisIterator single = SingletonIterator.makeIterator(node);
+                UnfailingIterator single = SingletonIterator.makeIterator(node);
                 single.next();
                 c2.setCurrentIterator(single);
                 try {
@@ -390,8 +492,8 @@ public final class LocationPathPattern extends Pattern {
                             return true;
                         }
                     }
-                } catch (DynamicError e) {
-                    DynamicError err = new DynamicError("An error occurred matching pattern {" + toString() + "}: ", e);
+                } catch (XPathException e) {
+                    XPathException err = new XPathException("An error occurred matching pattern {" + toString() + "}: ", e);
                     err.setXPathContext(c2);
                     err.setErrorCode(e.getErrorCodeLocalPart());
                     err.setLocator(this);
@@ -404,7 +506,7 @@ public final class LocationPathPattern extends Pattern {
         if (filters != null) {
             XPathContext c2 = context.newMinorContext();
             c2.setOriginatingConstructType(Location.PATTERN);
-            AxisIterator iter = SingletonIterator.makeIterator(node);
+            UnfailingIterator iter = SingletonIterator.makeIterator(node);
             iter.next();
             c2.setCurrentIterator(iter);
             // it's a non-positional filter, so we can handle each node separately
@@ -414,8 +516,12 @@ public final class LocationPathPattern extends Pattern {
                     if (!filters[i].effectiveBooleanValue(c2)) {
                         return false;
                     }
-                } catch (DynamicError e) {
-                    DynamicError err = new DynamicError("An error occurred matching pattern {" + toString() + "}: ", e);
+                } catch (XPathException e) {
+                    if ("XTDE0640".equals(e.getErrorCodeLocalPart())) {
+                        // Treat circularity error as fatal (test error213)
+                        throw e;
+                    }
+                    XPathException err = new XPathException("An error occurred matching pattern {" + toString() + "}: ", e);
                     err.setXPathContext(c2);
                     err.setErrorCode(e.getErrorCodeLocalPart());
                     err.setLocator(this);
@@ -464,7 +570,7 @@ public final class LocationPathPattern extends Pattern {
 
     /**
      * Determine if the pattern uses positional filters
-     *
+     * @param th the type hierarchy cache
      * @return true if there is a numeric filter in the pattern, or one that uses the position()
      *         or last() functions
      */
@@ -473,8 +579,8 @@ public final class LocationPathPattern extends Pattern {
         if (filters == null) return false;
         for (int i = 0; i < numberOfFilters; i++) {
             int type = filters[i].getItemType(th).getPrimitiveType();
-            if (type == Type.DOUBLE || type == Type.DECIMAL ||
-                    type == Type.INTEGER || type == Type.FLOAT || type == Type.ANY_ATOMIC)
+            if (type == StandardNames.XS_DOUBLE || type == StandardNames.XS_DECIMAL ||
+                    type == StandardNames.XS_INTEGER || type == StandardNames.XS_FLOAT || type == StandardNames.XS_ANY_ATOMIC_TYPE)
                 return true;
             if ((filters[i].getDependencies() &
                     (StaticProperty.DEPENDS_ON_POSITION | StaticProperty.DEPENDS_ON_LAST)) != 0)
@@ -491,21 +597,88 @@ public final class LocationPathPattern extends Pattern {
      *              just before evaluating the pattern, to get the value of the context item into the variable.
      * @param offer A PromotionOffer used to process the expressions and change the call on current() into
      *              a variable reference
+     * @param topLevel
      * @throws XPathException
      */
 
-    public void resolveCurrent(LetExpression let, PromotionOffer offer) throws XPathException {
+    public void resolveCurrent(LetExpression let, PromotionOffer offer, boolean topLevel) throws XPathException {
         for (int i = 0; i < numberOfFilters; i++) {
             filters[i] = filters[i].promote(offer);
         }
         if (parentPattern instanceof LocationPathPattern) {
-            ((LocationPathPattern) parentPattern).resolveCurrent(let, offer);
+            ((LocationPathPattern) parentPattern).resolveCurrent(let, offer, false);
         }
         if (ancestorPattern instanceof LocationPathPattern) {
-            ((LocationPathPattern) ancestorPattern).resolveCurrent(let, offer);
+            ((LocationPathPattern) ancestorPattern).resolveCurrent(let, offer, false);
         }
-        variableBinding = let;
+        if (topLevel) {
+            variableBinding = let;
+        }
     }
+
+    /**
+     * Determine whether this pattern is the same as another pattern
+     * @param other the other object
+     */
+
+    public boolean equals(Object other) {
+        if (other instanceof LocationPathPattern) {
+            LocationPathPattern lpp = (LocationPathPattern)other;
+            if (numberOfFilters != lpp.numberOfFilters) {
+                return false;
+            }
+            for (int i=0; i<numberOfFilters; i++) {
+                if (!filters[i].equals(lpp.filters[i])) {
+                    return false;
+                }
+            }
+            if (!nodeTest.equals(lpp.nodeTest)) {
+                return false;
+            }
+            if (parentPattern == null) {
+                if (lpp.parentPattern != null) {
+                    return false;
+                }
+            } else {
+                if (!parentPattern.equals(lpp.parentPattern)) {
+                    return false;
+                }
+            }
+            if (ancestorPattern == null) {
+                if (lpp.ancestorPattern != null) {
+                    return false;
+                }
+            } else {
+                if (!ancestorPattern.equals(lpp.ancestorPattern)) {
+                    return false;
+                }
+            }
+        } else {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Hashcode supporting equals()
+     */
+
+    public int hashCode() {
+        int h = 88267;
+        for (int i=0; i<numberOfFilters; i++) {
+            h ^= filters[i].hashCode();
+        }
+        h ^= nodeTest.hashCode();
+        if (parentPattern != null) {
+            h ^= parentPattern.hashCode();
+        }
+        if (ancestorPattern != null) {
+            h ^= ancestorPattern.hashCode();
+        }
+        return h;
+    }
+
+
 }
 
 //

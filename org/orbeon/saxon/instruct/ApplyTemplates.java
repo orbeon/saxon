@@ -1,19 +1,18 @@
 package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.Controller;
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.trace.InstructionInfo;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trace.Location;
 import org.orbeon.saxon.trace.TraceListener;
-import org.orbeon.saxon.trans.*;
+import org.orbeon.saxon.trans.Mode;
+import org.orbeon.saxon.trans.Rule;
+import org.orbeon.saxon.trans.SaxonErrorCode;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
-import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.Value;
 
-import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 
@@ -32,6 +31,16 @@ public class ApplyTemplates extends Instruction {
     private boolean backwardsCompatible;
     private boolean implicitSelect;
 
+    /**
+     * Construct an apply-templates instructino
+     * @param select the select expression
+     * @param useCurrentMode true if mode="#current" was specified
+     * @param useTailRecursion true if this instruction is the last in its template
+     * @param mode the mode specified on apply-templates
+     * @param backwardsCompatible true if XSLT backwards compatibility is enabled
+     * @param implicitSelect true if the select attribute was defaulted
+     */
+
     public ApplyTemplates(  Expression select,
                             boolean useCurrentMode,
                             boolean useTailRecursion,
@@ -48,8 +57,10 @@ public class ApplyTemplates extends Instruction {
     }
 
    /**
-     * Set the actual parameters on the call
-     */
+    * Set the actual parameters on the call
+    * @param actualParams represents the contained xsl:with-param elements having tunnel="no" (the default)
+    * @param tunnelParams represents the contained xsl:with-param elements having tunnel="yes"
+    */
 
     public void setActualParameters(
                         WithParam[] actualParams,
@@ -71,11 +82,11 @@ public class ApplyTemplates extends Instruction {
      * implementation adds the mode attribute
      */
 
-    public InstructionInfo getInstructionInfo() {
-        InstructionDetails details = (InstructionDetails)super.getInstructionInfo();
-        details.setProperty("mode", mode);
-        return details;
-    }
+//    public InstructionInfo getInstructionInfo() {
+//        InstructionDetails details = (InstructionDetails)super.getInstructionInfo();
+//        details.setProperty("mode", mode);
+//        return details;
+//    }
 
     /**
      * Simplify an expression. This performs any static optimization (by rewriting the expression
@@ -84,31 +95,30 @@ public class ApplyTemplates extends Instruction {
      * @exception XPathException if an error is discovered during expression
      *     rewriting
      * @return the simplified expression
+     * @param visitor the expression visitor
      */
 
-    public Expression simplify(StaticContext env) throws XPathException {
-        WithParam.simplify(actualParams, env);
-        WithParam.simplify(tunnelParams, env);
-        select = select.simplify(env);
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        WithParam.simplify(actualParams, visitor);
+        WithParam.simplify(tunnelParams, visitor);
+        select = visitor.simplify(select);
         return this;
     }
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        WithParam.typeCheck(actualParams, env, contextItemType);
-        WithParam.typeCheck(tunnelParams, env, contextItemType);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        WithParam.typeCheck(actualParams, visitor, contextItemType);
+        WithParam.typeCheck(tunnelParams, visitor, contextItemType);
         try {
-            select = select.typeCheck(env, contextItemType);
+            select = visitor.typeCheck(select, contextItemType);
         } catch (XPathException e) {
             if (implicitSelect) {
                 if ("XPTY0020".equals(e.getErrorCodeLocalPart())) {
-                    DynamicError err = new DynamicError(
-                            "Cannot apply-templates to child nodes when the context item is an atomic value");
+                    XPathException err = new XPathException("Cannot apply-templates to child nodes when the context item is an atomic value");
                     err.setErrorCode("XTTE0510");
                     err.setIsTypeError(true);
                     throw err;
                 } else if ("XPDY0002".equals(e.getErrorCodeLocalPart())) {
-                    DynamicError err = new DynamicError(
-                            "Cannot apply-templates to child nodes when the context item is undefined");
+                    XPathException err = new XPathException("Cannot apply-templates to child nodes when the context item is undefined");
                     err.setErrorCode("XTTE0510");
                     err.setIsTypeError(true);
                     throw err;
@@ -117,22 +127,33 @@ public class ApplyTemplates extends Instruction {
             throw e;
         }
         adoptChildExpression(select);
-        if (select instanceof EmptySequence) {
-            return EmptySequence.getInstance();
+        if (Literal.isEmptySequence(select)) {
+            return select;
         }
         return this;
     }
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        WithParam.optimize(opt, actualParams, env, contextItemType);
-        WithParam.optimize(opt, tunnelParams, env, contextItemType);
-        select = select.typeCheck(env, contextItemType);  // More info available second time around
-        select = select.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        WithParam.optimize(visitor, actualParams, contextItemType);
+        WithParam.optimize(visitor, tunnelParams, contextItemType);
+        select = visitor.typeCheck(select, contextItemType);  // More info available second time around
+        select = visitor.optimize(select, contextItemType);
         adoptChildExpression(select);
-        if (select instanceof EmptySequence) {
-            return EmptySequence.getInstance();
+        if (Literal.isEmptySequence(select)) {
+            return select;
         }
         return this;
+    }
+
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        throw new UnsupportedOperationException("copy");
     }
 
     /**
@@ -191,8 +212,7 @@ public class ApplyTemplates extends Instruction {
                 tc = tc.processLeavingTail();
             }
         } catch (StackOverflowError e) {
-            DynamicError err = new DynamicError(
-                    "Too many nested apply-templates calls. The stylesheet may be looping.");
+            XPathException err = new XPathException("Too many nested apply-templates calls. The stylesheet may be looping.");
             err.setErrorCode(SaxonErrorCode.SXLM0001);
             err.setLocator(this);
             err.setXPathContext(context);
@@ -219,8 +239,10 @@ public class ApplyTemplates extends Instruction {
      * @param tunnelParameters A ParameterSet containing the parameters to
      *     the handler/template being invoked. Specify null if there are no
      *     parameters.
-     * @param context A newly-created context object
-     * @param locationId
+     * @param context A newly-created context object (this must be freshly created by the caller,
+     * as it will be modified by this method)
+     * @param backwardsCompatible true if running in backwards compatibility mode
+     * @param locationId location of this apply-templates instruction in the stylesheet
      * @return a TailCall returned by the last template to be invoked, or null,
      *     indicating that there are no outstanding tail calls.
      */
@@ -236,14 +258,12 @@ public class ApplyTemplates extends Instruction {
         Controller controller = context.getController();
         TailCall tc = null;
 
-        XPathContextMajor c2 = context;
-
         // Iterate over this sequence
 
         if (controller.isTracing()) {
 
-            c2.setCurrentIterator(iterator);
-            c2.setCurrentMode(mode);
+            context.setCurrentIterator(iterator);
+            context.setCurrentMode(mode);     
             while(true) {
 
                 NodeInfo node = (NodeInfo)iterator.next();
@@ -257,29 +277,30 @@ public class ApplyTemplates extends Instruction {
                 }
 
                 // find the template rule for this node
-                Rule rule = controller.getRuleManager().getTemplateRule(node, mode, c2);
+                Rule rule = controller.getRuleManager().getTemplateRule(node, mode, context);
 
                 if (rule==null) {             // Use the default action for the node
-                                            // No need to open a new stack frame!
-                    defaultAction(node, parameters, tunnelParameters, c2, backwardsCompatible, locationId);
+                                              // No need to open a new stack frame!
+                    defaultAction(node, parameters, tunnelParameters, context, backwardsCompatible, locationId);
 
                 } else {
                     Template template = (Template)rule.getAction();
                     TraceListener traceListener = controller.getTraceListener();
-                    c2.setLocalParameters(parameters);
-                    c2.setTunnelParameters(tunnelParameters);
-                    c2.openStackFrame(template.getStackFrameMap());
+                    context.setLocalParameters(parameters);
+                    context.setTunnelParameters(tunnelParameters);
+                    context.openStackFrame(template.getStackFrameMap());
                     traceListener.startCurrentItem(node);
-                    tc = template.applyLeavingTail(c2, rule);
+                    tc = template.applyLeavingTail(context, rule);
                     traceListener.endCurrentItem(node);
                 }
             }
 
         } else {    // not tracing
 
-            c2.setCurrentIterator(iterator);
-            c2.setCurrentMode(mode);
+            context.setCurrentIterator(iterator);
+            context.setCurrentMode(mode);
             boolean lookahead = (iterator.getProperties() & SequenceIterator.LOOKAHEAD) != 0;
+            Template previousTemplate = null;
             while(true) {
 
                 // process any tail calls returned from previous nodes. We need to do this before changing
@@ -305,18 +326,23 @@ public class ApplyTemplates extends Instruction {
 
                 // find the template rule for this node
 
-                Rule rule = controller.getRuleManager().getTemplateRule(node, mode, c2);
+                Rule rule = controller.getRuleManager().getTemplateRule(node, mode, context);
 
                 if (rule==null) {             // Use the default action for the node
                                             // No need to open a new stack frame!
-                    defaultAction(node, parameters, tunnelParameters, c2, backwardsCompatible, locationId);
+                    defaultAction(node, parameters, tunnelParameters, context, backwardsCompatible, locationId);
 
                 } else {
                     Template template = (Template)rule.getAction();
-                    c2.openStackFrame(template.getStackFrameMap());
-                    c2.setLocalParameters(parameters);
-                    c2.setTunnelParameters(tunnelParameters);
-                    tc = template.applyLeavingTail(c2, rule);
+                    if (template != previousTemplate) {
+                        // Reuse the previous stackframe unless it's a different template rule
+                        previousTemplate = template;
+                        context.openStackFrame(template.getStackFrameMap());
+                        context.setLocalParameters(parameters);
+                        context.setTunnelParameters(tunnelParameters);
+                    }
+                    //noinspection ConstantConditions
+                    tc = template.applyLeavingTail(context, rule);
                 }
             }
         }
@@ -330,6 +356,7 @@ public class ApplyTemplates extends Instruction {
      * @param node the node to be processed
      * @param parameters the parameters supplied to apply-templates
      * @param tunnelParams the tunnel parameters to be passed through
+     * @param context the dynamic evaluation context
      * @param backwardsCompatible true if in 1.0 mode (currently makes no difference)
      * @param locationId location of the instruction (apply-templates, apply-imports etc) that caused
      * the built-in template to be invoked
@@ -347,7 +374,7 @@ public class ApplyTemplates extends Instruction {
             case Type.ELEMENT:
                 SequenceIterator iter = node.iterateAxis(Axis.CHILD);
                 XPathContextMajor c2 = context.newContext();
-                c2.setOrigin(builtInDetails);
+                c2.setOriginatingConstructType(Location.BUILT_IN_TEMPLATE);
 	            TailCall tc = applyTemplates(
                         iter, context.getCurrentMode(), parameters, tunnelParams, c2, backwardsCompatible, locationId);
                 while (tc != null) {
@@ -364,17 +391,7 @@ public class ApplyTemplates extends Instruction {
 	        case Type.PROCESSING_INSTRUCTION:
 	        case Type.NAMESPACE:
 	            // no action
-	            return;
         }
-    }
-
-    /**
-     * Instruction details for the built-in template
-     */
-
-    private static InstructionDetails builtInDetails = new InstructionDetails();
-    static {
-        builtInDetails.setConstructType(Location.BUILT_IN_TEMPLATE);
     }
 
     /**
@@ -389,6 +406,18 @@ public class ApplyTemplates extends Instruction {
         WithParam.getXPathExpressions(actualParams, list);
         WithParam.getXPathExpressions(tunnelParams, list);
         return list.iterator();
+    }
+
+    /**
+     * Given an expression that is an immediate child of this expression, test whether
+     * the evaluation of the parent expression causes the child expression to be
+     * evaluated repeatedly
+     * @param child the immediate subexpression
+     * @return true if the child expression is evaluated repeatedly
+     */
+
+    public boolean hasLoopingSubexpression(Expression child) {
+        return child instanceof WithParam;
     }
 
     /**
@@ -416,6 +445,7 @@ public class ApplyTemplates extends Instruction {
 
     /**
      * Get the select expression
+     * @return the select expression
      */
 
     public Expression getSelectExpression() {
@@ -435,22 +465,31 @@ public class ApplyTemplates extends Instruction {
     }
 
     /**
-     * Diagnostic print of expression structure. The expression is written to the System.err
-     * output stream
-     *
-     * @param level indentation level for this expression
-     @param out
-     @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     * @param out output destination
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        String modeName = "";
-        if (!mode.isDefaultMode()) {
-            modeName = " mode=" + config.getNamePool().getDisplayName(mode.getModeNameCode());
-        }
-        out.println(ExpressionTool.indent(level) + "apply-templates" + modeName + " select=");
+    public void explain(ExpressionPresenter out) {
 
-        select.display(level+1, out, config);
+        out.startElement("applyTemplates");
+        if (mode != null && !mode.isDefaultMode()) {
+            out.emitAttribute("mode", mode.getModeName().getDisplayName());
+        }
+        out.startSubsidiaryElement("select");
+        select.explain(out);
+        out.endSubsidiaryElement();
+        if (actualParams != null && actualParams.length > 0) {
+            out.startSubsidiaryElement("withParams");
+            WithParam.displayExpressions(actualParams, out);
+            out.endSubsidiaryElement();
+        }
+        if (tunnelParams != null && tunnelParams.length > 0) {
+            out.startSubsidiaryElement("tunnelParams");
+            WithParam.displayExpressions(tunnelParams, out);
+            out.endSubsidiaryElement();
+        }
+        out.endElement();
     }
 
     /**
@@ -480,15 +519,14 @@ public class ApplyTemplates extends Instruction {
             this.mode = mode;
             this.params = params;
             this.tunnelParams = tunnelParams;
-            this.evaluationContext = context;
+            evaluationContext = context;
             this.locationId = locationId;
         }
 
         public TailCall processLeavingTail() throws XPathException {
-            TailCall tc = applyTemplates(
+            return applyTemplates(
                     Value.getIterator(selectedNodes),
                     mode, params, tunnelParams, evaluationContext, false, locationId);
-            return tc;
         }
     }
 

@@ -1,6 +1,8 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.om.ValueRepresentation;
+import org.orbeon.saxon.om.StructuredQName;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.value.SequenceType;
 
 /**
 * Binding is a interface used to represent the run-time properties and methods
@@ -11,7 +13,16 @@ import org.orbeon.saxon.trans.XPathException;
 public interface Binding  {
 
     /**
-    * Evaluate the variable
+     * Get the declared type of the variable
+     * @return the declared type
+     */
+
+    public SequenceType getRequiredType();
+
+    /**
+     * Evaluate the variable
+     * @param context the XPath dynamic evaluation context
+     * @return the result of evaluating the variable
     */
 
     public ValueRepresentation evaluateVariable(XPathContext context) throws XPathException;
@@ -19,14 +30,16 @@ public interface Binding  {
     /**
      * Indicate whether the binding is local or global. A global binding is one that has a fixed
      * value for the life of a query or transformation; any other binding is local.
+     * @return true if the binding is global
      */
 
     public boolean isGlobal();
 
     /**
-    * Test whether it is permitted to assign to the variable using the saxon:assign
-    * extension element. This will only be for an XSLT global variable where the extra
-    * attribute saxon:assignable="yes" is present.
+     * Test whether it is permitted to assign to the variable using the saxon:assign
+     * extension element. This will only be for an XSLT global variable where the extra
+     * attribute saxon:assignable="yes" is present.
+     * @return true if the binding is assignable
     */
 
     public boolean isAssignable();
@@ -34,9 +47,17 @@ public interface Binding  {
     /**
      * If this is a local variable held on the local stack frame, return the corresponding slot number.
      * In other cases, return -1.
+     * @return the slot number on the local stack frame
      */
 
     public int getLocalSlotNumber();
+
+    /**
+     * Get the name of the variable
+     * @return the name of the variable, as a structured QName
+     */
+
+    public StructuredQName getVariableQName();
 
 }
 

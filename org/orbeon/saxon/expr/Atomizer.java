@@ -1,9 +1,10 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.instruct.Executable;
+import org.orbeon.saxon.event.ReceiverOptions;
+import org.orbeon.saxon.instruct.ValueOf;
 import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.EmptySequenceTest;
 import org.orbeon.saxon.pattern.NodeTest;
-import org.orbeon.saxon.pattern.NoNodeTest;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.AtomicValue;
@@ -18,6 +19,8 @@ import org.orbeon.saxon.value.Value;
 public final class Atomizer extends UnaryExpression {
 
     private boolean untyped;    //set to true if it is known that the nodes being atomized will be untyped
+    private boolean singleValued;   // set to true if all atomized nodes will atomize to a single atomic value
+    private Configuration config;
 
     /**
     * Constructor
@@ -28,26 +31,29 @@ public final class Atomizer extends UnaryExpression {
 
     public Atomizer(Expression sequence, Configuration config) {
         super(sequence);
-        if (config == null) {
-            untyped = false;
-        } else {
-            untyped = config.areAllNodesUntyped();
+        this.config = config;
+        if (config != null) {
+            untyped = (config.areAllNodesUntyped());
+            computeSingleValued(config.getTypeHierarchy());
         }
-        if (sequence instanceof ComputedExpression) {
-            ((ComputedExpression)sequence).setStringValueIsUsed();
-        }
+        sequence.setFlattened(true);
     }
 
     /**
     * Simplify an expression
-    */
+     * @param visitor an expression visitor
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
-        operand = operand.simplify(env);
-        if (operand instanceof AtomicValue) {
-            return operand;
-        } else if (operand instanceof Value) {
-            SequenceIterator iter = operand.iterate(env.makeEarlyEvaluationContext());
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        config = visitor.getConfiguration();
+        untyped = config.areAllNodesUntyped();
+        operand = visitor.simplify(operand);
+        if (operand instanceof Literal) {
+            Value val = ((Literal)operand).getValue();
+            if (val instanceof AtomicValue) {
+                return operand;
+            }
+            SequenceIterator iter = val.iterate();
             while (true) {
                 // if all items in the sequence are atomic (they generally will be, since this is
                 // done at compile time), then return the sequence
@@ -59,6 +65,9 @@ public final class Atomizer extends UnaryExpression {
                     return this;
                 }
             }
+        } else if (operand instanceof ValueOf && (((ValueOf)operand).getOptions()& ReceiverOptions.DISABLE_ESCAPING) == 0) {
+            // XSLT users tend to use ValueOf unnecessarily
+            return ((ValueOf)operand).convertToStringJoin(visitor.getStaticContext());
         }
         return this;
     }
@@ -67,17 +76,64 @@ public final class Atomizer extends UnaryExpression {
     * Type-check the expression
     */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        operand = operand.typeCheck(env, contextItemType);
-        resetStaticProperties();
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
-        if (th.isSubType(operand.getItemType(th), Type.ANY_ATOMIC_TYPE)) {
-            ComputedExpression.setParentExpression(operand, getParentExpression());
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.typeCheck(operand, contextItemType);
+        // If the configuration allows typed data, check whether the content type of these particular nodes is untyped
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
+        computeSingleValued(th);
+        visitor.resetStaticProperties();
+        if (th.isSubType(operand.getItemType(th), BuiltInAtomicType.ANY_ATOMIC)) {
             return operand;
         }
+        operand.setFlattened(true);
         return this;
     }
 
+    private void computeSingleValued(TypeHierarchy th) {
+        singleValued = untyped;
+        if (!singleValued) {
+            ItemType nodeType = operand.getItemType(th);
+            if (nodeType instanceof NodeTest) {
+                SchemaType st = ((NodeTest)nodeType).getContentType();
+                if (st == AnyType.getInstance() || st.isAtomicType()) {
+                    singleValued = true;
+                }
+            }
+        }
+    }
+
+
+    /**
+     * Perform optimisation of an expression and its subexpressions.
+     * <p/>
+     * <p>This method is called after all references to functions and variables have been resolved
+     * to the declaration of the function or variable, and after all type checking has been done.</p>
+     *
+     * @param visitor         an expression visitor
+     * @param contextItemType the static type of "." at the point where this expression is invoked.
+     *                        The parameter is set to null if it is known statically that the context item will be undefined.
+     *                        If the type of the context item is not known statically, the argument is set to
+     *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
+     * @return the original expression, rewritten if appropriate to optimize execution
+     * @throws org.orbeon.saxon.trans.XPathException
+     *          if an error is discovered during this phase
+     *          (typically a type error)
+     */
+
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression exp = super.optimize(visitor, contextItemType);
+        if (exp == this) {
+            final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
+            if (th.isSubType(operand.getItemType(th), BuiltInAtomicType.ANY_ATOMIC)) {
+                return operand;
+            }
+            if (operand instanceof ValueOf && (((ValueOf)operand).getOptions()& ReceiverOptions.DISABLE_ESCAPING) == 0) {
+                // XSLT users tend to use ValueOf unnecessarily
+                return ((ValueOf)operand).convertToStringJoin(visitor.getStaticContext());
+            }
+        }
+        return exp;
+    }
 
     /**
      * Determine the special properties of this expression
@@ -90,15 +146,22 @@ public final class Atomizer extends UnaryExpression {
     }
 
     /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new Atomizer(getBaseExpression().copy(), config);
+    }
+
+    /**
     * Iterate over the sequence of values
     */
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
         SequenceIterator base = operand.iterate(context);
-        if ((base.getProperties() & SequenceIterator.ATOMIZABLE) != 0) {
-            ((AtomizableIterator)base).setIsAtomizing(true);
-        }
-        return AtomizingFunction.getAtomizingIterator(base);
+        return getAtomizingIterator(base);
     }
 
     /**
@@ -124,7 +187,7 @@ public final class Atomizer extends UnaryExpression {
     * Determine the data type of the items returned by the expression, if possible
     * @return a value such as Type.STRING, Type.BOOLEAN, Type.NUMBER. For this class, the
      * result is always an atomic type, but it might be more specific.
-     * @param th
+     * @param th the type hierarchy cache
      */
 
 	public ItemType getItemType(TypeHierarchy th) {
@@ -135,17 +198,18 @@ public final class Atomizer extends UnaryExpression {
      * Compute the type that will result from atomizing the result of a given expression
      * @param operand the given expression
      * @param alwaysUntyped true if it is known that nodes will always be untyped
+     * @param th the type hierarchy cache
      * @return the item type of the result of evaluating the operand expression, after atomization
      */
 
-    public static final ItemType getAtomizedItemType(Expression operand, boolean alwaysUntyped, TypeHierarchy th) {
+    public static ItemType getAtomizedItemType(Expression operand, boolean alwaysUntyped, TypeHierarchy th) {
         ItemType in = operand.getItemType(th);
         if (in.isAtomicType()) {
             return in;
         }
         if (in instanceof NodeTest) {
 
-            if (in instanceof NoNodeTest) {
+            if (in instanceof EmptySequenceTest) {
                 return in;
             }
             int kinds = ((NodeTest)in).getNodeKindMask();
@@ -153,38 +217,23 @@ public final class Atomizer extends UnaryExpression {
                 // Some node-kinds always have a typed value that's a string
 
                 if ((kinds | STRING_KINDS) == STRING_KINDS) {
-                    return Type.STRING_TYPE;
+                    return BuiltInAtomicType.STRING;
                 }
                 // Some node-kinds are always untyped atomic; some are untypedAtomic provided that the configuration
                 // is untyped
 
                 if ((kinds | UNTYPED_IF_UNTYPED_KINDS) == UNTYPED_IF_UNTYPED_KINDS) {
-                    return Type.UNTYPED_ATOMIC_TYPE;
+                    return BuiltInAtomicType.UNTYPED_ATOMIC;
                 }
             } else {
                 if ((kinds | UNTYPED_KINDS) == UNTYPED_KINDS) {
-                    return Type.UNTYPED_ATOMIC_TYPE;
+                    return BuiltInAtomicType.UNTYPED_ATOMIC;
                 }
             }
 
             return in.getAtomizedItemType();
-
-//            SchemaType schemaType = ((NodeTest)in).getContentType();
-//            if (schemaType instanceof SimpleType) {
-//                return ((SimpleType)schemaType).getCommonAtomicType();
-//            } else if (((ComplexType)schemaType).isSimpleContent()) {
-//                return ((ComplexType)schemaType).getSimpleContentType().getCommonAtomicType();
-//            } else if (schemaType instanceof AnyType) {
-//                // AnyType includes AnySimpleType as a subtype, so the atomized value can be any atomic type
-//                // including untypedAtomic
-//                return Type.ANY_ATOMIC_TYPE;
-//            } else {
-//                // if a complex type with complex content (other than AnyType) can be atomized at all,
-//                // then it will return untypedAtomic values
-//                return Type.UNTYPED_ATOMIC_TYPE;
-//            }
         }
-	    return Type.ANY_ATOMIC_TYPE;
+	    return BuiltInAtomicType.ANY_ATOMIC;
 	}
 
     /**
@@ -212,17 +261,16 @@ public final class Atomizer extends UnaryExpression {
 	*/
 
 	public int computeCardinality() {
-        if (untyped) {
+        if (untyped || singleValued) {
             return operand.getCardinality();
         } else {
             if (Cardinality.allowsMany(operand.getCardinality())) {
                 return StaticProperty.ALLOWS_ZERO_OR_MORE;
             }
-            final Executable exec = getExecutable();
-            if (exec == null) {
+            if (config == null) {
                 return StaticProperty.ALLOWS_ZERO_OR_MORE;
             }
-            ItemType in = operand.getItemType(exec.getConfiguration().getTypeHierarchy());
+            ItemType in = operand.getItemType(config.getTypeHierarchy());
             if (in.isAtomicType()) {
                 return operand.getCardinality();
             }
@@ -237,13 +285,56 @@ public final class Atomizer extends UnaryExpression {
         }
 	}
 
+
     /**
-     * Give a string representation of the operator for use in diagnostics
-     * @return the operator, as a string
-     * @param config
+     * Add a representation of this expression to a PathMap. The PathMap captures a map of the nodes visited
+     * by an expression in a source tree.
+     * <p/>
+     * <p>The default implementation of this method assumes that an expression does no navigation other than
+     * the navigation done by evaluating its subexpressions, and that the subexpressions are evaluated in the
+     * same context as the containing expression. The method must be overridden for any expression
+     * where these assumptions do not hold. For example, implementations exist for AxisExpression, ParentExpression,
+     * and RootExpression (because they perform navigation), and for the doc(), document(), and collection()
+     * functions because they create a new navigation root. Implementations also exist for PathExpression and
+     * FilterExpression because they have subexpressions that are evaluated in a different context from the
+     * calling expression.</p>
+     *
+     * @param pathMap        the PathMap to which the expression should be added
+     * @param pathMapNodeSet the PathMapNodeSet to which the paths embodied in this expression should be added
+     * @return the pathMapNodeSet representing the points in the source document that are both reachable by this
+     *         expression, and that represent possible results of this expression. For an expression that does
+     *         navigation, it represents the end of the arc in the path map that describes the navigation route. For other
+     *         expressions, it is the same as the input pathMapNode.
      */
 
-    protected String displayOperator(Configuration config) {
+    public PathMap.PathMapNodeSet addToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodeSet) {
+        PathMap.PathMapNodeSet result = operand.addToPathMap(pathMap, pathMapNodeSet);
+        if (result != null) {
+            result.setAtomized();
+        }
+        return null;
+    }
+
+    /**
+     * Get an iterator that returns the result of atomizing the sequence delivered by the supplied
+     * iterator
+     * @param base the supplied iterator, the input to atomization
+     * @return an iterator that returns atomic values, the result of the atomization
+     */
+
+    public static SequenceIterator getAtomizingIterator(SequenceIterator base) {
+        if (base instanceof AxisIterator) {
+            return new AxisAtomizingIterator((AxisIterator)base);
+        }
+        return new MappingIterator(base, AtomizingFunction.getInstance());
+    }
+
+    /**
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     */
+
+    public String displayExpressionName() {
         return "atomize";
     }
 
@@ -257,7 +348,7 @@ public final class Atomizer extends UnaryExpression {
          * Private constructor, ensuring that everyone uses the singleton instance
          */
 
-        private AtomizingFunction(){};
+        private AtomizingFunction(){}
 
         private static final AtomizingFunction theInstance = new AtomizingFunction();
 
@@ -270,15 +361,11 @@ public final class Atomizer extends UnaryExpression {
             return theInstance;
         }
 
-        public static SequenceIterator getAtomizingIterator(SequenceIterator base) {
-            return new MappingIterator(base, theInstance);
-        }
-
-        public Object map(Item item) throws XPathException {
+        public SequenceIterator map(Item item) throws XPathException {
             if (item instanceof NodeInfo) {
                 return item.getTypedValue();
             } else {
-                return item;
+                return SingletonIterator.makeIterator(item);
             }
         }
     }

@@ -1,6 +1,7 @@
 package org.orbeon.saxon.expr;
 import org.orbeon.saxon.functions.SystemFunction;
 import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.pattern.CombinedNodeTest;
 import org.orbeon.saxon.sort.DocumentOrderIterator;
 import org.orbeon.saxon.sort.GlobalOrderComparer;
@@ -8,8 +9,11 @@ import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
-import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.SequenceType;
+import org.orbeon.saxon.instruct.Block;
+
+import java.util.Set;
+import java.util.HashSet;
 
 
 /**
@@ -33,7 +37,7 @@ public class VennExpression extends BinaryExpression {
     /**
     * Determine the data type of the items returned by this expression
     * @return the data type
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public final ItemType getItemType(TypeHierarchy th) {
@@ -51,18 +55,18 @@ public class VennExpression extends BinaryExpression {
         final int c2 = operand1.getCardinality();
         switch (operator) {
             case Token.UNION:
-                if (operand0 instanceof EmptySequence) return c2;
-                if (operand1 instanceof EmptySequence) return c1;
+                if (Literal.isEmptySequence(operand0)) return c2;
+                if (Literal.isEmptySequence(operand1)) return c1;
                 return c1 | c2 | StaticProperty.ALLOWS_ONE | StaticProperty.ALLOWS_MANY;
                     // allows ZERO only if one operand allows ZERO
             case Token.INTERSECT:
-                if (operand0 instanceof EmptySequence) return StaticProperty.EMPTY;
-                if (operand1 instanceof EmptySequence) return StaticProperty.EMPTY;
+                if (Literal.isEmptySequence(operand0)) return StaticProperty.EMPTY;
+                if (Literal.isEmptySequence(operand1)) return StaticProperty.EMPTY;
                 return (c1 & c2) | StaticProperty.ALLOWS_ZERO | StaticProperty.ALLOWS_ONE;
                     // allows MANY only if both operands allow MANY
             case Token.EXCEPT:
-                if (operand0 instanceof EmptySequence) return StaticProperty.EMPTY;
-                if (operand1 instanceof EmptySequence) return c1;
+                if (Literal.isEmptySequence(operand0)) return StaticProperty.EMPTY;
+                if (Literal.isEmptySequence(operand1)) return c1;
                 return c1 | StaticProperty.ALLOWS_ZERO | StaticProperty.ALLOWS_ONE;
                     // allows MANY only if first operand allows MANY
         }
@@ -94,6 +98,9 @@ public class VennExpression extends BinaryExpression {
     /**
      * Determine whether all the nodes in the node-set are guaranteed to
      * come from the same document as the context node. Used for optimization.
+     * @param prop0 contains the Context Document Nodeset property of the first operand
+     * @param prop1 contains the Context Document Nodeset property of the second operand
+     * @return true if all the nodes come from the context document
      */
 
     private boolean testContextDocumentNodeSet(final int prop0, final int prop1) {
@@ -109,8 +116,32 @@ public class VennExpression extends BinaryExpression {
     }
 
     /**
+     * Gather the component operands of a union or intersect expression
+     * @param operator union or intersect
+     * @param set the set into which the components are to be gathered. If the operator
+     * is union, this follows the tree gathering all operands of union expressions. Ditto,
+     * mutatis mutandis, for intersect expressions.
+     */
+
+    public void gatherComponents(int operator, Set set) {
+        if (operand0 instanceof VennExpression && ((VennExpression)operand0).operator == operator) {
+            ((VennExpression)operand0).gatherComponents(operator, set);
+        } else {
+            set.add(operand0);
+        }
+        if (operand1 instanceof VennExpression && ((VennExpression)operand1).operator == operator) {
+            ((VennExpression)operand1).gatherComponents(operator, set);
+        } else {
+            set.add(operand1);
+        }
+    }
+
+    /**
      * Determine whether all the nodes in the node-set are guaranteed to
      * come from a subtree rooted at the context node. Used for optimization.
+     * @param prop0 contains the SubTree property of the first operand
+     * @param prop1 contains the SubTree property of the second operand
+     * @return true if all the nodes come from the tree rooted at the context node
      */
 
     private boolean testSubTree(final int prop0, final int prop1) {
@@ -127,21 +158,25 @@ public class VennExpression extends BinaryExpression {
 
     /**
      * Determine whether the expression can create new nodes
+     * @param prop0 contains the noncreative property of the first operand
+     * @param prop1 contains the noncreative property of the second operand
+     * @return true if the expression can create new nodes
      */
 
     private boolean testCreative(final int prop0, final int prop1) {
-        return !(((prop0 & StaticProperty.NON_CREATIVE) == 1) &&
-                ((prop1 & StaticProperty.NON_CREATIVE) == 1));
+        return !(((prop0 & StaticProperty.NON_CREATIVE) != 0) &&
+                ((prop1 & StaticProperty.NON_CREATIVE) != 0));
     }
 
 
     /**
     * Simplify the expression
-    */
+     * @param visitor an expression visitor
+     */
 
-     public Expression simplify(final StaticContext env) throws XPathException {
-        operand0 = operand0.simplify(env);
-        operand1 = operand1.simplify(env);
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        operand0 = visitor.simplify(operand0);
+        operand1 = visitor.simplify(operand1);
 
         // If either operand is an empty sequence, simplify the expression. This can happen
         // after reduction with constructs of the form //a[condition] | //b[not(condition)],
@@ -149,18 +184,18 @@ public class VennExpression extends BinaryExpression {
 
         switch (operator) {
             case Token.UNION:
-                if (operand0 instanceof EmptySequence &&
+                if (Literal.isEmptySequence(operand0) &&
                         (operand1.getSpecialProperties() & StaticProperty.ORDERED_NODESET) != 0) return operand1;
-                if (operand1 instanceof EmptySequence &&
+                if (Literal.isEmptySequence(operand1) &&
                         (operand0.getSpecialProperties() & StaticProperty.ORDERED_NODESET) != 0) return operand0;
                 break;
             case Token.INTERSECT:
-                if (operand0 instanceof EmptySequence) return operand0;
-                if (operand1 instanceof EmptySequence) return operand1;
+                if (Literal.isEmptySequence(operand0)) return operand0;
+                if (Literal.isEmptySequence(operand1)) return operand1;
                 break;
             case Token.EXCEPT:
-                if (operand0 instanceof EmptySequence) return operand0;
-                if (operand1 instanceof EmptySequence &&
+                if (Literal.isEmptySequence(operand0)) return operand0;
+                if (Literal.isEmptySequence(operand1) &&
                         (operand0.getSpecialProperties() & StaticProperty.ORDERED_NODESET) != 0) return operand0;
                 break;
         }
@@ -178,8 +213,7 @@ public class VennExpression extends BinaryExpression {
                              new CombinedNodeTest(a1.getNodeTest(),
                                                   operator,
                                                   a2.getNodeTest()));
-                ax.setLocationId(getLocationId());
-                ax.setParentExpression(getParentExpression());
+                ExpressionTool.copyLocationInfo(this, ax);
                 return ax;
             }
         }
@@ -204,11 +238,10 @@ public class VennExpression extends BinaryExpression {
                                             path1.getRemainingSteps(),
                                             operator,
                                             path2.getRemainingSteps());
-                venn.setLocationId(getLocationId());
+                ExpressionTool.copyLocationInfo(this, venn);
                 final PathExpression path = new PathExpression(path1.getFirstStep(), venn);
                 ExpressionTool.copyLocationInfo(this, path);
-                path.setParentExpression(getParentExpression());
-                return path.simplify(env);
+                return visitor.simplify(path);
             }
         }
 
@@ -219,7 +252,7 @@ public class VennExpression extends BinaryExpression {
             final FilterExpression exp0 = (FilterExpression)operand0;
             final FilterExpression exp1 = (FilterExpression)operand1;
 
-            final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
+            final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
             if (!exp0.isPositional(th) &&
                     !exp1.isPositional(th) &&
                     exp0.getBaseExpression().equals(exp1.getBaseExpression())) {
@@ -236,10 +269,8 @@ public class VennExpression extends BinaryExpression {
                                                 exp1.getFilter());
                         break;
                     case Token.EXCEPT:
-                        final FunctionCall negate2 = SystemFunction.makeSystemFunction("not", 1, env.getNamePool());
-                        final Expression[] args = new Expression[1];
-                        args[0] = exp1.getFilter();
-                        negate2.setArguments(args);
+                        final FunctionCall negate2 = SystemFunction.makeSystemFunction(
+                                "not", new Expression[]{exp1.getFilter()});
                         filter = new BooleanExpression(exp0.getFilter(),
                                                 Token.AND,
                                                 negate2);
@@ -247,11 +278,10 @@ public class VennExpression extends BinaryExpression {
                     default:
                         throw new AssertionError("Unknown operator " + operator);
                 }
-                final FilterExpression f = new FilterExpression(exp0.getBaseExpression(), filter);
                 ExpressionTool.copyLocationInfo(this, filter);
+                FilterExpression f = new FilterExpression(exp0.getBaseExpression(), filter);
                 ExpressionTool.copyLocationInfo(this, f);
-                f.setParentExpression(getParentExpression());
-                return f.simplify(env);
+                return visitor.simplify(f);
             }
         }
         return this;
@@ -261,44 +291,96 @@ public class VennExpression extends BinaryExpression {
     * Type-check the expression
     */
 
-    public Expression typeCheck(final StaticContext env, final ItemType contextItemType) throws XPathException {
+    public Expression typeCheck(ExpressionVisitor visitor, final ItemType contextItemType) throws XPathException {
 
-        operand0 = operand0.typeCheck(env, contextItemType);
-        operand1 = operand1.typeCheck(env, contextItemType);
+        operand0 = visitor.typeCheck(operand0, contextItemType);
+        operand1 = visitor.typeCheck(operand1, contextItemType);
 
-        final RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0, null);
-        role0.setSourceLocator(this);
-        operand0 = TypeChecker.staticTypeCheck(operand0, SequenceType.NODE_SEQUENCE, false, role0, env);
+        final RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0);
+        //role0.setSourceLocator(this);
+        operand0 = TypeChecker.staticTypeCheck(operand0, SequenceType.NODE_SEQUENCE, false, role0, visitor);
 
-        final RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1, null);
-        role1.setSourceLocator(this);
-        operand1 = TypeChecker.staticTypeCheck(operand1, SequenceType.NODE_SEQUENCE, false, role1, env);
+        final RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1);
+        //role1.setSourceLocator(this);
+        operand1 = TypeChecker.staticTypeCheck(operand1, SequenceType.NODE_SEQUENCE, false, role1, visitor);
         return this;
     }
 
 
     /**
+     * Perform optimisation of an expression and its subexpressions.
+     * <p/>
+     * <p>This method is called after all references to functions and variables have been resolved
+     * to the declaration of the function or variable, and after all type checking has been done.</p>
+     *
+     * @param visitor         an expression visitor
+     * @param contextItemType the static type of "." at the point where this expression is invoked.
+     *                        The parameter is set to null if it is known statically that the context item will be undefined.
+     *                        If the type of the context item is not known statically, the argument is set to
+     *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
+     * @return the original expression, rewritten if appropriate to optimize execution
+     * @throws org.orbeon.saxon.trans.XPathException
+     *          if an error is discovered during this phase
+     *          (typically a type error)
+     */
+
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression e = super.optimize(visitor, contextItemType);
+        if (e != this) {
+            return e;
+        }
+        // Convert @*|node() into @*,node() to eliminate the sorted merge operation
+        if (operator == Token.UNION && operand0 instanceof AxisExpression && operand1 instanceof AxisExpression) {
+            AxisExpression a0 = (AxisExpression)operand0;
+            AxisExpression a1 = (AxisExpression)operand1;
+            if (a0.getAxis() == Axis.ATTRIBUTE && a1.getAxis() == Axis.CHILD) {
+                Block b = new Block();
+                b.setChildren(new Expression[]{operand0, operand1});
+                return b;
+            } else if (a1.getAxis() == Axis.ATTRIBUTE && a0.getAxis() == Axis.CHILD) {
+                Block b = new Block();
+                b.setChildren(new Expression[]{operand1, operand0});
+                return b;
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new VennExpression(operand0.copy(), operator, operand1.copy());
+    }
+
+    /**
     * Is this expression the same as another expression?
     */
 
-//    public boolean equals(Object other) {
-//        if (other instanceof VennExpression) {
-//            VennExpression b = (VennExpression)other;
-//            if (operator != b.operator) {
-//                return false;
-//            }
-//            if (operand0.equals(b.operand0) && operand1.equals(b.operand1)) {
-//               return true;
-//            }
-//            if (operator == Token.UNION || operator == Token.INTERSECT) {
-//                // commutative operators: A|B == B|A
-//                if (operand0.equals(b.operand1) && operand1.equals(b.operand0)) {
-//                    return true;
-//                }
-//            }
-//        }
-//        return false;
-//    }
+    public boolean equals(Object other) {
+        // NOTE: it's possible that the method in the superclass is already adequate for this
+        if (other instanceof VennExpression) {
+            VennExpression b = (VennExpression)other;
+            if (operator != b.operator) {
+                return false;
+            }
+            if (operand0.equals(b.operand0) && operand1.equals(b.operand1)) {
+               return true;
+            }
+            if (operator == Token.UNION || operator == Token.INTERSECT) {
+                // These are commutative and associative, so for example (A|B)|C equals B|(A|C)
+                Set s0 = new HashSet(10);
+                gatherComponents(operator, s0);
+                Set s1 = new HashSet(10);
+                ((VennExpression)other).gatherComponents(operator, s1);
+                return s0.equals(s1);
+            }
+        }
+        return false;
+    }
 
     public int hashCode() {
         return operand0.hashCode() ^ operand1.hashCode();
@@ -315,13 +397,13 @@ public class VennExpression extends BinaryExpression {
         SequenceIterator i1 = operand0.iterate(c);
         //return Type.isNodeType(getItemType()) && isSingleton();
         // this is a sufficient condition, but other expressions override this method
-        if (!((operand0.getSpecialProperties() & StaticProperty.ORDERED_NODESET) != 0)) {
+        if ((operand0.getSpecialProperties() & StaticProperty.ORDERED_NODESET) == 0) {
             i1 = new DocumentOrderIterator(i1, GlobalOrderComparer.getInstance());
         }
         SequenceIterator i2 = operand1.iterate(c);
         //return Type.isNodeType(getItemType()) && isSingleton();
         // this is a sufficient condition, but other expressions override this method
-        if (!((operand1.getSpecialProperties() & StaticProperty.ORDERED_NODESET) != 0)) {
+        if ((operand1.getSpecialProperties() & StaticProperty.ORDERED_NODESET) == 0) {
             i2 = new DocumentOrderIterator(i2, GlobalOrderComparer.getInstance());
         }
         switch (operator) {

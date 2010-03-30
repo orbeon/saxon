@@ -3,9 +3,8 @@ import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.functions.Concat;
 import org.orbeon.saxon.functions.SystemFunction;
 import org.orbeon.saxon.instruct.SimpleContentConstructor;
-import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.Cardinality;
 import org.orbeon.saxon.value.StringValue;
@@ -38,6 +37,7 @@ public abstract class AttributeValueTemplate {
         int i0, i1, i8, i9;
         int len = avt.length();
         int last = 0;
+        ExpressionVisitor visitor = ExpressionVisitor.make(env);
         while (last < len) {
 
             i0 = avt.indexOf("{", last);
@@ -50,9 +50,9 @@ public abstract class AttributeValueTemplate {
                 break;
             } else if (i8 >= 0 && (i0 < 0 || i8 < i0)) {             // found a "}"
                 if (i8 != i9) {                        // a "}" that isn't a "}}"
-                    StaticError err = new StaticError(
-                            "Closing curly brace in attribute value template \"" + avt.substring(0,len) + "\" must be doubled");
+                    XPathException err = new XPathException("Closing curly brace in attribute value template \"" + avt.substring(0, len) + "\" must be doubled");
                     err.setErrorCode("XTSE0370");
+                    err.setIsStaticError(true);
                     throw err;
                 }
                 addStringComponent(components, avt, last, i8 + 1);
@@ -67,13 +67,14 @@ public abstract class AttributeValueTemplate {
                 Expression exp;
                 ExpressionParser parser = new ExpressionParser();
                 exp = parser.parse(avt, i0 + 1, Token.RCURLY, lineNumber, env);
-                exp = exp.simplify(env);
+                exp = visitor.simplify(exp);
                 last = parser.getTokenizer().currentTokenStartOffset + 1;
 
                 if (env.isInBackwardsCompatibleMode()) {
                     components.add(makeFirstItem(exp, env));
                 } else {
-                    components.add(new SimpleContentConstructor(exp, StringValue.SINGLE_SPACE).simplify(env));
+                    components.add(visitor.simplify(
+                            new SimpleContentConstructor(exp, new StringLiteral(StringValue.SINGLE_SPACE))));
                 }
 
             } else {
@@ -84,29 +85,28 @@ public abstract class AttributeValueTemplate {
         // is it empty?
 
         if (components.size() == 0) {
-            return StringValue.EMPTY_STRING;
+            return new StringLiteral(StringValue.EMPTY_STRING);
         }
 
         // is it a single component?
 
         if (components.size() == 1) {
-            return ((Expression) components.get(0)).simplify(env);
+            return visitor.simplify((Expression) components.get(0));
         }
 
         // otherwise, return an expression that concatenates the components
-
-        Concat fn = (Concat) SystemFunction.makeSystemFunction("concat", components.size(), env.getNamePool());
+        
         Expression[] args = new Expression[components.size()];
         components.toArray(args);
-        fn.setArguments(args);
+        Concat fn = (Concat) SystemFunction.makeSystemFunction("concat", args);
         fn.setLocationId(env.getLocationMap().allocateLocationId(env.getSystemId(), lineNumber));
-        return fn.simplify(env);
+        return visitor.simplify(fn);
 
     }
 
     private static void addStringComponent(List components, String avt, int start, int end) {
         if (start < end) {
-            components.add(StringValue.makeStringValue(avt.substring(start, end)));
+            components.add(new StringLiteral(avt.substring(start, end)));
         }
     }
 
@@ -122,8 +122,8 @@ public abstract class AttributeValueTemplate {
         if (Cardinality.allowsMany(exp.getCardinality())) {
             exp = new FirstItemExpression(exp);
         }
-        if (!th.isSubType(exp.getItemType(th), Type.STRING_TYPE)) {
-            exp = new AtomicSequenceConverter(exp, Type.STRING_TYPE);
+        if (!th.isSubType(exp.getItemType(th), BuiltInAtomicType.STRING)) {
+            exp = new AtomicSequenceConverter(exp, BuiltInAtomicType.STRING);
         }
         return exp;
     }

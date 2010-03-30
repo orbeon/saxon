@@ -1,7 +1,7 @@
 package org.orbeon.saxon.event;
-import org.orbeon.saxon.trans.DynamicError;
-import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.tinytree.CompressedWhitespace;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.value.Whitespace;
 
 import javax.xml.transform.OutputKeys;
 
@@ -22,15 +22,17 @@ public class HTMLEmitter extends XMLEmitter {
 	private static final int REP_HEX = 3;
 
 	private int nonASCIIRepresentation = REP_NATIVE;
-	private int excludedRepresentation = REP_DECIMAL;
-	//private String mediaType = "text/html";
+	private int excludedRepresentation = REP_ENTITY;
+
 	private int inScript;
 	private boolean started = false;
 	private String elementName;
     private short uriCode;
 
 	/**
-	* Decode preferred representation
+	 * Decode preferred representation
+     * @param rep string containing preferred representation (native, entity, decimal, or hex)
+     * @return integer code for the preferred representation
 	*/
 
 	private static int representationCode(String rep) {
@@ -113,9 +115,9 @@ public class HTMLEmitter extends XMLEmitter {
     }
 
     private static boolean isBooleanAttribute(String element, String attribute, String value) {
-        if (!attribute.equalsIgnoreCase(value)) return false;
-        if (!booleanAttributes.contains(attribute)) return false;
-        return booleanCombinations.contains(element + '+' + attribute);
+        return attribute.equalsIgnoreCase(value) &&
+                booleanAttributes.contains(attribute) &&
+                booleanCombinations.contains(element + '+' + attribute);
     }
 
     /**
@@ -143,7 +145,7 @@ public class HTMLEmitter extends XMLEmitter {
 
         String version = outputProperties.getProperty(OutputKeys.VERSION);
         if (version != null && !(version.equals("4.0") || version.equals("4.01"))) {
-            DynamicError err = new DynamicError("Unsupported HTML version: " + version);
+            XPathException err = new XPathException("Unsupported HTML version: " + version);
             err.setErrorCode("SESU0013");
             throw err;
         }
@@ -169,22 +171,24 @@ public class HTMLEmitter extends XMLEmitter {
         empty = false;
         inScript = -1000000;
 
+        // Handle saxon:character-representation
+
         String representation = outputProperties.getProperty(
                                     SaxonOutputKeys.CHARACTER_REPRESENTATION);
-        if (representation!=null) {
+        if (representation != null) {
 	        String nonASCIIrep;
 	        String excludedRep;
 	        int semi = representation.indexOf(';');
 	        if (semi < 0) {
-	        	nonASCIIrep = representation;
-	        	excludedRep = representation;
+	        	nonASCIIrep = Whitespace.trim(representation);
+	        	excludedRep = nonASCIIrep;
 	        } else {
-	        	nonASCIIrep = representation.substring(0, semi).trim();
-	        	excludedRep = representation.substring(semi+1).trim();
+	        	nonASCIIrep = Whitespace.trim(representation.substring(0, semi));
+	        	excludedRep = Whitespace.trim(representation.substring(semi+1));
 	        }
 	        nonASCIIRepresentation = representationCode(nonASCIIrep);
 	        excludedRepresentation = representationCode(excludedRep);
-	        if (excludedRepresentation==REP_NATIVE) {
+	        if (excludedRepresentation == REP_NATIVE) {
 	        	excludedRepresentation = REP_ENTITY;
 	        }
 	    }
@@ -229,7 +233,7 @@ public class HTMLEmitter extends XMLEmitter {
             }
             super.writeAttribute(elCode, attname, value, properties);
         } catch (java.io.IOException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 
@@ -255,16 +259,22 @@ public class HTMLEmitter extends XMLEmitter {
 
             // find a maximal sequence of "ordinary" characters
 
-            while (i < chars.length() &&
-                     (chars.charAt(i)<127 ?
-                         !specialChars[chars.charAt(i)] :
-                         (characterSet.inCharset(chars.charAt(i)) ?
-     						nonASCIIRepresentation == REP_NATIVE && chars.charAt(i)>160 :
-     						false)
+            if (nonASCIIRepresentation == REP_NATIVE) {
+                char c;
+                while (i < chars.length() &&
+                        ((c = chars.charAt(i)) < 127 ? !specialChars[c] : (characterSet.inCharset(c) && c > 160)
      				 )
      			  ) {
-                i++;
+                    i++;
+                }
+            } else {
+                char c;
+                while (i < chars.length() && (c = chars.charAt(i)) < 127 && !specialChars[c]) {
+                    i++;
+                }
             }
+
+
 
             // if this was the whole string, output the string and quit
 
@@ -308,6 +318,10 @@ public class HTMLEmitter extends XMLEmitter {
                         writer.write("&#34;");
                     } else if (c=='\n') {
                         writer.write("&#xA;");
+                    } else if (c=='\t') {
+                        writer.write("&#x9;");
+                    } else if (c=='\r') {
+                        writer.write("&#xD;");
                     }
                 } else {
                     if (c=='<') {
@@ -316,6 +330,8 @@ public class HTMLEmitter extends XMLEmitter {
                         writer.write("&gt;");  // changed to allow for "]]>"
                     } else if (c=='&') {
                         writer.write("&amp;");
+                    } else if (c=='\r') {
+                        writer.write("&#xD;");
                     }
                 }
 
@@ -325,7 +341,7 @@ public class HTMLEmitter extends XMLEmitter {
 
             } else if (c>=127 && c<160) {
                 // these control characters are illegal in HTML
-                DynamicError err = new DynamicError("Illegal HTML character: decimal " + (int)c);
+                XPathException err = new XPathException("Illegal HTML character: decimal " + (int)c);
                 err.setErrorCode("SERE0014");
                 throw err;
 
@@ -371,9 +387,32 @@ public class HTMLEmitter extends XMLEmitter {
 			        	break;
 			    }
 
-            } else {                                    // output numeric character reference
-				preferHex = (excludedRepresentation==REP_HEX);
-                outputCharacterReference((int)c);
+            } else {
+                // Character not present in encoding
+                switch(excludedRepresentation) {
+            		case REP_ENTITY:
+            			if (c>160 && c<=255) {
+
+			                // if chararacter in iso-8859-1, use an entity reference
+
+			                writer.write('&');
+			                writer.write(latin1Entities[(int)c-160]);
+			                writer.write(';');
+			                break;
+			            }
+			            // else fall through
+                    case REP_NATIVE:
+                    case REP_DECIMAL:
+			        	preferHex = false;
+			        	outputCharacterReference(c);
+			        	break;
+			        case REP_HEX:
+			        	preferHex = true;
+			        	// fall through
+			        default:
+			        	outputCharacterReference(c);
+			        	break;
+			    }
             }
 
             segstart = ++i;
@@ -426,7 +465,7 @@ public class HTMLEmitter extends XMLEmitter {
         }
         for (int i=0; i<data.length(); i++) {
             if (data.charAt(i) == '>') {
-                DynamicError err = new DynamicError("A processing instruction in HTML must not contain a > character");
+                XPathException err = new XPathException("A processing instruction in HTML must not contain a > character");
                 err.setErrorCode("SERE0015");
                 throw err;
             }
@@ -438,7 +477,7 @@ public class HTMLEmitter extends XMLEmitter {
             writeCharSequence(data);
             writer.write('>');
         } catch (java.io.IOException err) {
-            throw new DynamicError(err);
+            throw new XPathException(err);
         }
     }
 

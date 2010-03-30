@@ -1,5 +1,7 @@
 package org.orbeon.saxon.sort;
 
+import org.orbeon.saxon.om.FastStringBuffer;
+
 import java.io.Serializable;
 
 /**
@@ -11,7 +13,7 @@ import java.io.Serializable;
  * @author Dominique Devienne
  * @author Michael Kay: retrofitted to JDK 1.4, added iterator()
  */
-public class IntHashSet implements Serializable {
+public class IntHashSet implements IntSet, Serializable {
 
     private static final int NBIT = 30; // MAX_SIZE = 2^NBIT
 
@@ -28,20 +30,18 @@ public class IntHashSet implements Serializable {
     /**
      * Initializes a set with a capacity of 8 and a load factor of 0,25.
      *
-     * @see #IntHashSet(int,double,int)
      */
     public IntHashSet() {
-        this(8, 0.25, Integer.MIN_VALUE);
+        this(8, Integer.MIN_VALUE);
     }
 
     /**
      * Initializes a set with the given capacity and a load factor of 0,25.
      *
      * @param capacity the initial capacity.
-     * @see #IntHashSet(int,double,int)
      */
     public IntHashSet(int capacity) {
-        this(capacity, 0.25, Integer.MIN_VALUE);
+        this(capacity, Integer.MIN_VALUE);
     }
 
     /**
@@ -49,34 +49,14 @@ public class IntHashSet implements Serializable {
      *
      * @param capacity    the initial capacity.
      * @param noDataValue the value to use for non-values.
-     * @see #IntHashSet(int,double,int)
      */
     public IntHashSet(int capacity, int noDataValue) {
-        this(capacity, 0.25, noDataValue);
-    }
-
-    /**
-     * Constructs a new set with initial capacity, and load factor.
-     * <p/>
-     * The capacity is the number of keys that can be mapped without resizing
-     * the arrays in which keys and values are stored. For efficiency, only
-     * a fraction of the elements in those arrays are used. That fraction is
-     * the specified load factor. The initial length of the arrays equals the
-     * smallest power of two not less than the ratio capacity/factor. The
-     * capacity of the set is increased, as necessary. The maximum number
-     * of keys that can be mapped is 2^30.
-     *
-     * @param capacity    the initial capacity.
-     * @param factor      the load factor.
-     * @param noDataValue the value to use for non-values.
-     */
-    public IntHashSet(int capacity, double factor, int noDataValue) {
         ndv = noDataValue;
-        _factor = factor;
+        //_factor = 0.25;
         setCapacity(capacity);
     }
 
-    public void clear() {
+     public void clear() {
         _size = 0;
         for (int i = 0; i < _nmax; ++i) {
             _values[i] = ndv;
@@ -113,7 +93,7 @@ public class IntHashSet implements Serializable {
 
 
     public boolean contains(int value) {
-        return (_values[indexOf(value)] != ndv) ? true : false;
+        return (_values[indexOf(value)] != ndv);
     }
 
 
@@ -166,7 +146,7 @@ public class IntHashSet implements Serializable {
     ///////////////////////////////////////////////////////////////////////////
     // private
 
-    private double _factor; // 0.0 <= _factor <= 1.0
+    //private double _factor; // 0.0 <= _factor <= 1.0 - changed by MHK to assume factor = 0.25
     private int _nmax; // 0 <= _nmax = 2^nbit <= 2^NBIT = MAX_SIZE
     private int _size; // 0 <= _size <= _nmax <= MAX_SIZE
     private int _nlo; // _nmax*_factor (_size<=_nlo, if possible)
@@ -198,12 +178,13 @@ public class IntHashSet implements Serializable {
     }
 
     private void setCapacity(int capacity) {
+        // Changed MHK in 8.9 to use a constant factor of 0.25, thus avoiding floating point arithmetic
         if (capacity < _size) {
             capacity = _size;
         }
-        double factor = (_factor < 0.01) ? 0.01 : (_factor > 0.99) ? 0.99 : _factor;
+        //double factor = 0.25;
         int nbit, nmax;
-        for (nbit = 1, nmax = 2; nmax * factor < capacity && nmax < MAX_SIZE; ++nbit, nmax *= 2) {
+        for (nbit = 1, nmax = 2; nmax < capacity * 4 && nmax < MAX_SIZE; ++nbit, nmax *= 2) {
             ;
         }
         int nold = _nmax;
@@ -212,8 +193,8 @@ public class IntHashSet implements Serializable {
         }
 
         _nmax = nmax;
-        _nlo = (int)(nmax * factor);
-        _nhi = (int)(MAX_SIZE * factor);
+        _nlo = (int)(nmax / 4);
+        _nhi = (int)(MAX_SIZE / 4);
         _shift = 1 + NBIT - nbit;
         _mask = nmax - 1;
 
@@ -241,6 +222,19 @@ public class IntHashSet implements Serializable {
 
     public IntIterator iterator() {
         return new IntHashSetIterator();
+    }
+
+    /**
+     * Form a new set that is a copy of this set.
+     */
+
+    public IntHashSet copy() {
+        IntHashSet n = new IntHashSet((int)(size()));
+        IntIterator it = iterator();
+        while (it.hasNext()) {
+            n.add(it.next());
+        }
+        return n;
     }
 
     /**
@@ -296,7 +290,7 @@ public class IntHashSet implements Serializable {
      * Test if this set is a superset of another set
      */
 
-    public boolean containsAll(IntHashSet other) {
+    public boolean containsAll(IntSet other) {
         IntIterator it = other.iterator();
         while (it.hasNext()) {
             if (!contains(it.next())) {
@@ -325,7 +319,7 @@ public class IntHashSet implements Serializable {
      */
 
     public boolean equals(Object other) {
-        if (other instanceof IntHashSet) {
+        if (other instanceof IntSet) {
             IntHashSet s = (IntHashSet)other;
             return (size() == s.size() && containsAll(s));
         } else {
@@ -338,6 +332,7 @@ public class IntHashSet implements Serializable {
      */
 
     public int hashCode() {
+        // Note, hashcodes are the same as those used by IntArraySet
         int h = 936247625;
         IntIterator it = iterator();
         while (it.hasNext()) {
@@ -345,6 +340,48 @@ public class IntHashSet implements Serializable {
         }
         return h;
     }
+
+    /**
+     * Diagnostic output
+     */
+
+    public void diagnosticDump() {
+        System.err.println("Contents of IntHashSet");
+        FastStringBuffer sb = new FastStringBuffer(100);
+        for (int i = 0; i < _values.length; i++) {
+            if (i % 10 == 0) {
+                System.err.println(sb.toString());
+                sb.setLength(0);
+            }
+            if (_values[i] == ndv) {
+                sb.append("*, ");
+            } else {
+                sb.append(_values[i] + ", ");
+            }
+        }
+        System.err.println(sb.toString());
+        sb.setLength(0);
+        System.err.println("size: " + _size);
+        System.err.println("ndv: " + ndv);
+        System.err.println("nlo: " + _nlo);
+        System.err.println("nhi: " + _nhi);
+        System.err.println("nmax: " + _nmax);
+        System.err.println("shift: " + _shift);
+        System.err.println("mask: " + _mask);
+        System.err.println("Result of iterator:");
+        IntIterator iter = iterator();
+        int i = 0;
+        while (iter.hasNext()) {
+            if (i++ % 10 == 0) {
+                System.err.println(sb.toString());
+                sb.setLength(0);
+            }
+            sb.append(iter.next() + ", ");
+        }
+        System.err.println(sb.toString());
+        System.err.println("=====================");
+    }
+    
 
     /**
      * Iterator class

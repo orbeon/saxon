@@ -1,31 +1,70 @@
 package org.orbeon.saxon.expr;
 
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.type.ItemType;
 
 /**
  * A LazyExpression is an expression that forces lazy evaluation: it must not be evaluated eagerly,
  * because a failure must not be reported unless the value is actually referenced. This is used
  * for an expression that has been moved out of a loop. If the loop iterates zero times, the expression
  * will not be evaluated, and in particular, it will not cause a dynamic error.
+ *
+ * <p>Note that the LazyExpression class does not itself implement any kind of delayed evaluation:
+ * calling its evaluateItem() and iterate() methods produces an immediate result. Instead, the existence
+ * of a LazyExpression on the expression tree acts as a signal to other classes that evaluation should
+ * be delayed, typically by holding the result of the iterate() method in a Closure object.</p>
  */
 
 public class LazyExpression extends UnaryExpression {
 
-    private LazyExpression(Expression operand) {
+    /**
+     * Create a LazyExpression
+     * @param operand the expression to be evaluated lazily
+     */
+
+    public LazyExpression(Expression operand) {
         super(operand);
     }
 
+    /**
+     * Create a LazyExpression (factory method)
+     * @param operand the expression to be evaluated lazily
+     * @return the LazyExpression
+     */
+
     public static Expression makeLazyExpression(Expression operand) {
-        if (operand instanceof LazyExpression || operand instanceof Value) {
+        if (operand instanceof LazyExpression || operand instanceof Literal) {
             return operand;
         } else {
             return new LazyExpression(operand);
         }
     }
+
+    /**
+     * The typeCheck method suppresses compile-time evaluation
+     * @param visitor an expression visitor
+     * @param contextItemType the static type of the context item
+     * @return the expression after typechecking
+     * @throws XPathException
+     */
+
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.typeCheck(operand, contextItemType);
+        return this;
+    }
+
+    /**
+     * Perform optimisation of an expression and its subexpressions. This method
+     * suppresses compile-time evaluation
+     */
+
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.optimize(operand, contextItemType);
+        return this;
+    }
+
 
     /**
      * Evaluate an expression as a single item. This always returns either a single Item or
@@ -77,7 +116,17 @@ public class LazyExpression extends UnaryExpression {
         operand.process(context);
     }
 
-    protected String displayOperator(Configuration config) {
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new LazyExpression(getBaseExpression().copy());
+    }
+
+    protected String displayExpressionName() {
         return "lazy";
     }
 

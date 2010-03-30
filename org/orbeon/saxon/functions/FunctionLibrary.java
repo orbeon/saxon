@@ -1,7 +1,9 @@
 package org.orbeon.saxon.functions;
 
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.StaticContext;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.om.StructuredQName;
 
 import java.io.Serializable;
 
@@ -21,25 +23,19 @@ public interface FunctionLibrary extends Serializable {
      * the function-available() function in XSLT. This method may be called either at compile time
      * or at run time. If the function library is to be used only in an XQuery or free-standing XPath
      * environment, this method may throw an UnsupportedOperationException.
-     * @param fingerprint The namepool fingerprint of the function name. This must match the
-     * uri and localName; the information is provided redundantly to avoid repeated lookups in the name pool.
-     * @param uri  The URI of the function name
-     * @param local  The local part of the function name
+     * @param functionName the qualified name of the function being called
      * @param arity The number of arguments. This is set to -1 in the case of the single-argument
      * function-available() function; in this case the method should return true if there is some
-     * matching extension function, regardless of its arity.
+     * @return true if a function of this name and arity is available for calling.
      */
 
-    public boolean isAvailable(int fingerprint, String uri, String local, int arity);
+    public boolean isAvailable(StructuredQName functionName, int arity);
 
     /**
      * Bind an extension function, given the URI and local parts of the function name,
      * and the list of expressions supplied as arguments. This method is called at compile
      * time.
-     * @param nameCode The namepool nameCode of the function name. The uri and local name are also
-     * supplied (redundantly) to avoid fetching them from the name pool.
-     * @param uri  The URI of the function name
-     * @param local  The local part of the function name
+     * @param functionName the QName of the function being called
      * @param staticArgs  The expressions supplied statically in arguments to the function call.
      * The length of this array represents the arity of the function. The intention is
      * that the static type of the arguments (obtainable via getItemType() and getCardinality()) may
@@ -51,6 +47,7 @@ public interface FunctionLibrary extends Serializable {
      * example, the result of f(4) is expected to be the same as f(2+2). The actual expression is supplied
      * here to enable the binding mechanism to select the most efficient possible implementation (including
      * compile-time pre-evaluation where appropriate).
+     * @param env The static context of the function call
      * @return An object representing the function to be called, if one is found;
      * null if no function was found matching the required name and arity.
      * @throws org.orbeon.saxon.trans.XPathException if a function is found with the required name and arity, but
@@ -58,7 +55,7 @@ public interface FunctionLibrary extends Serializable {
      * while searching for the function.
      */
 
-    public Expression bind(int nameCode, String uri, String local, Expression[] staticArgs)
+    public Expression bind(StructuredQName functionName, Expression[] staticArgs, StaticContext env)
             throws XPathException;
 
     /**

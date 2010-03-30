@@ -1,20 +1,16 @@
 package org.orbeon.saxon.expr;
 
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.sort.GenericAtomicComparer;
-import org.orbeon.saxon.sort.CodepointCollator;
+import org.orbeon.saxon.functions.Minimax;
+import org.orbeon.saxon.functions.SystemFunction;
+import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.pattern.EmptySequenceTest;
 import org.orbeon.saxon.sort.AtomicComparer;
-import org.orbeon.saxon.trans.DynamicError;
-import org.orbeon.saxon.trans.StaticError;
+import org.orbeon.saxon.sort.CodepointCollator;
+import org.orbeon.saxon.sort.GenericAtomicComparer;
+import org.orbeon.saxon.sort.StringCollator;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.*;
-import org.orbeon.saxon.functions.Position;
-import org.orbeon.saxon.functions.SystemFunction;
-import org.orbeon.saxon.functions.Minimax;
-
-import java.util.Comparator;
 
 
 /**
@@ -26,7 +22,7 @@ import java.util.Comparator;
 public class GeneralComparison extends BinaryExpression implements ComparisonExpression {
 
     protected int singletonOperator;
-    protected transient AtomicComparer comparer;  // transient because not Serializable
+    protected AtomicComparer comparer;
 
     /**
      * Create a relational expression identifying the two operands and the operator
@@ -82,37 +78,37 @@ public class GeneralComparison extends BinaryExpression implements ComparisonExp
      * @return the checked expression
      */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
 
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
 
         Expression oldOp0 = operand0;
         Expression oldOp1 = operand1;
 
-        operand0 = operand0.typeCheck(env, contextItemType);
-        operand1 = operand1.typeCheck(env, contextItemType);
+        operand0 = visitor.typeCheck(operand0, contextItemType);
+        operand1 = visitor.typeCheck(operand1, contextItemType);
 
         // If either operand is statically empty, return false
 
-        if (operand0 == EmptySequence.getInstance() || operand1 == EmptySequence.getInstance()) {
-            return BooleanValue.FALSE;
+        if (Literal.isEmptySequence(operand0) || Literal.isEmptySequence(operand1)) {
+            return Literal.makeLiteral(BooleanValue.FALSE);
         }
 
         // Neither operand needs to be sorted
 
-        Optimizer opt = env.getConfiguration().getOptimizer();
+        Optimizer opt = visitor.getConfiguration().getOptimizer();
         operand0 = ExpressionTool.unsorted(opt, operand0, false);
         operand1 = ExpressionTool.unsorted(opt, operand1, false);
 
         SequenceType atomicType = SequenceType.ATOMIC_SEQUENCE;
 
-        RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0, null);
-        role0.setSourceLocator(this);
-        operand0 = TypeChecker.staticTypeCheck(operand0, atomicType, false, role0, env);
+        RoleLocator role0 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0);
+        //role0.setSourceLocator(this);
+        operand0 = TypeChecker.staticTypeCheck(operand0, atomicType, false, role0, visitor);
 
-        RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1, null);
-        role1.setSourceLocator(this);
-        operand1 = TypeChecker.staticTypeCheck(operand1, atomicType, false, role1, env);
+        RoleLocator role1 = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1);
+        //role1.setSourceLocator(this);
+        operand1 = TypeChecker.staticTypeCheck(operand1, atomicType, false, role1, visitor);
 
         if (operand0 != oldOp0) {
             adoptChildExpression(operand0);
@@ -122,27 +118,40 @@ public class GeneralComparison extends BinaryExpression implements ComparisonExp
             adoptChildExpression(operand1);
         }
 
-        ItemType t0 = operand0.getItemType(th);  // this is always an atomic type
-        ItemType t1 = operand1.getItemType(th);  // this is always an atomic type
+        ItemType t0 = operand0.getItemType(th);  // this is always an atomic type or empty-sequence()
+        ItemType t1 = operand1.getItemType(th);  // this is always an atomic type or empty-sequence()
 
-        int pt0 = t0.getPrimitiveType();
-        int pt1 = t1.getPrimitiveType();
+        if (t0 instanceof EmptySequenceTest || t1 instanceof EmptySequenceTest) {
+            return Literal.makeLiteral(BooleanValue.FALSE);
+        }
+
+        if (((AtomicType)t0).isExternalType() || ((AtomicType)t1).isExternalType()) {
+            XPathException err = new XPathException("Cannot perform comparisons involving external objects");
+            err.setIsTypeError(true);
+            err.setErrorCode("XPTY0004");
+            err.setLocator(this);
+            throw err;
+        }
+
+        BuiltInAtomicType pt0 = (BuiltInAtomicType)t0.getPrimitiveItemType();
+        BuiltInAtomicType pt1 = (BuiltInAtomicType)t1.getPrimitiveItemType();
 
         int c0 = operand0.getCardinality();
         int c1 = operand1.getCardinality();
 
         if (c0 == StaticProperty.EMPTY || c1 == StaticProperty.EMPTY) {
-            return BooleanValue.FALSE;
+            return Literal.makeLiteral(BooleanValue.FALSE);
         }
 
-        if (t0 == Type.ANY_ATOMIC_TYPE || t0 == Type.UNTYPED_ATOMIC_TYPE ||
-                t1 == Type.ANY_ATOMIC_TYPE || t1 == Type.UNTYPED_ATOMIC_TYPE) {
+        if (t0.equals(BuiltInAtomicType.ANY_ATOMIC) || t0.equals(BuiltInAtomicType.UNTYPED_ATOMIC) ||
+                t1.equals(BuiltInAtomicType.ANY_ATOMIC) || t1.equals(BuiltInAtomicType.UNTYPED_ATOMIC)) {
             // then no static type checking is possible
         } else {
 
             if (!Type.isComparable(pt0, pt1, Token.isOrderedOperator(singletonOperator))) {
-                StaticError err = new StaticError("Cannot compare " + t0.toString(env.getNamePool()) +
-                        " to " + t1.toString(env.getNamePool()));
+                final NamePool namePool = visitor.getConfiguration().getNamePool();
+                XPathException err = new XPathException("Cannot compare " +
+                        t0.toString(namePool) + " to " + t1.toString(namePool));
                 err.setErrorCode("XPTY0004");
                 err.setIsTypeError(true);
                 err.setLocator(this);
@@ -152,8 +161,8 @@ public class GeneralComparison extends BinaryExpression implements ComparisonExp
 
         if (c0 == StaticProperty.EXACTLY_ONE &&
                 c1 == StaticProperty.EXACTLY_ONE &&
-                t0 != Type.ANY_ATOMIC_TYPE &&
-                t1 != Type.ANY_ATOMIC_TYPE) {
+                !t0.equals(BuiltInAtomicType.ANY_ATOMIC) &&
+                !t1.equals(BuiltInAtomicType.ANY_ATOMIC)) {
 
             // Use a value comparison if both arguments are singletons, and if the comparison operator to
             // be used can be determined.
@@ -161,55 +170,59 @@ public class GeneralComparison extends BinaryExpression implements ComparisonExp
             Expression e0 = operand0;
             Expression e1 = operand1;
 
-            if (t0 == Type.UNTYPED_ATOMIC_TYPE) {
-                if (t1 == Type.UNTYPED_ATOMIC_TYPE) {
-                    e0 = new CastExpression(operand0, Type.STRING_TYPE, false);
+            if (t0.equals(BuiltInAtomicType.UNTYPED_ATOMIC)) {
+                if (t1.equals(BuiltInAtomicType.UNTYPED_ATOMIC)) {
+                    e0 = new CastExpression(operand0, BuiltInAtomicType.STRING, false);
                     adoptChildExpression(e0);
-                    e1 = new CastExpression(operand1, Type.STRING_TYPE, false);
+                    e1 = new CastExpression(operand1, BuiltInAtomicType.STRING, false);
                     adoptChildExpression(e1);
-                } else if (th.isSubType(t1, Type.NUMBER_TYPE)) {
-                    e0 = new CastExpression(operand0, Type.DOUBLE_TYPE, false);
+                } else if (th.isSubType(t1, BuiltInAtomicType.NUMERIC)) {
+                    e0 = new CastExpression(operand0, BuiltInAtomicType.DOUBLE, false);
                     adoptChildExpression(e0);
                 } else {
-                    e0 = new CastExpression(operand0, (AtomicType)t1, false);
+                    e0 = new CastExpression(operand0, (AtomicType) t1, false);
                     adoptChildExpression(e0);
                 }
-            } else if (t1 == Type.UNTYPED_ATOMIC_TYPE) {
-                if (th.isSubType(t0, Type.NUMBER_TYPE)) {
-                    e1 = new CastExpression(operand1, Type.DOUBLE_TYPE, false);
+            } else if (t1.equals(BuiltInAtomicType.UNTYPED_ATOMIC)) {
+                if (th.isSubType(t0, BuiltInAtomicType.NUMERIC)) {
+                    e1 = new CastExpression(operand1, BuiltInAtomicType.DOUBLE, false);
                     adoptChildExpression(e1);
                 } else {
-                    e1 = new CastExpression(operand1, (AtomicType)t0, false);
+                    e1 = new CastExpression(operand1, (AtomicType) t0, false);
                     adoptChildExpression(e1);
                 }
             }
 
             ValueComparison vc = new ValueComparison(e0, singletonOperator, e1);
+            vc.setAtomicComparer(comparer);
             ExpressionTool.copyLocationInfo(this, vc);
-            vc.setParentExpression(getParentExpression());
-            return vc.simplify(env).typeCheck(env, contextItemType);
+            return visitor.typeCheck(visitor.simplify(vc), contextItemType);
         }
 
-        Comparator collation = env.getCollation(env.getDefaultCollationName());
-        if (collation == null) {
-            collation = CodepointCollator.getInstance();
+        StaticContext env = visitor.getStaticContext();
+
+        if (comparer == null) {
+            final String defaultCollationName = env.getDefaultCollationName();
+            StringCollator collation = env.getCollation(defaultCollationName);
+            if (collation == null) {
+                collation = CodepointCollator.getInstance();
+            }
+            comparer = GenericAtomicComparer.makeAtomicComparer(
+                    pt0, pt1, collation, visitor.getConfiguration().getConversionContext());
         }
-        comparer = GenericAtomicComparer.makeAtomicComparer(pt0, pt1, collation, env.getConfiguration());
 
 
         // evaluate the expression now if both arguments are constant
 
-        if ((operand0 instanceof Value) && (operand1 instanceof Value)) {
-            return (AtomicValue)evaluateItem(env.makeEarlyEvaluationContext());
+        if ((operand0 instanceof Literal) && (operand1 instanceof Literal)) {
+            return Literal.makeLiteral((AtomicValue)evaluateItem(env.makeEarlyEvaluationContext()));
         }
 
         return this;
     }
 
-    private static Expression makeMinOrMax(Expression exp, StaticContext env, String function) {
-        FunctionCall fn = SystemFunction.makeSystemFunction(function, 1, env.getNamePool());
-        Expression[] args = {exp};
-        fn.setArguments(args);
+    private static Expression makeMinOrMax(Expression exp, String function) {
+        FunctionCall fn = SystemFunction.makeSystemFunction(function, new Expression[]{exp});
         ((Minimax)fn).setIgnoreNaN(true);
         return fn;
     }
@@ -220,17 +233,24 @@ public class GeneralComparison extends BinaryExpression implements ComparisonExp
      * @return the checked expression
      */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
 
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
+        final StaticContext env = visitor.getStaticContext();
+        final Optimizer opt = visitor.getConfiguration().getOptimizer();
 
-        operand0 = operand0.optimize(opt, env, contextItemType);
-        operand1 = operand1.optimize(opt, env, contextItemType);
+        operand0 = visitor.optimize(operand0, contextItemType);
+        operand1 = visitor.optimize(operand1, contextItemType);
+
+        Value value0 = null;
+        if (operand0 instanceof Literal) {
+            value0 = ((Literal)operand0).getValue();
+        }
 
         // If either operand is statically empty, return false
 
-        if (operand0 == EmptySequence.getInstance() || operand1 == EmptySequence.getInstance()) {
-            return BooleanValue.FALSE;
+        if (Literal.isEmptySequence(operand0) || Literal.isEmptySequence(operand1)) {
+            return Literal.makeLiteral(BooleanValue.FALSE);
         }
 
         // Neither operand needs to be sorted
@@ -252,28 +272,23 @@ public class GeneralComparison extends BinaryExpression implements ComparisonExp
 
             SingletonComparison sc = new SingletonComparison(operand0, singletonOperator, operand1);
             ExpressionTool.copyLocationInfo(this, sc);
-            sc.setParentExpression(getParentExpression());
-            sc.setComparator(comparer, env.makeEarlyEvaluationContext());
-            return sc.optimize(opt, env, contextItemType);
+            sc.setAtomicComparer(comparer);
+            return visitor.optimize(sc, contextItemType);
         }
 
-        // see if second argument is a singleton...
-
-        if (!Cardinality.allowsMany(c0)) {
-
-            // if first argument is a singleton, reverse the arguments
+        // if first argument is a singleton, reverse the arguments
+        if (Cardinality.expectsMany(operand1) && !Cardinality.expectsMany(operand0)) {
             GeneralComparison mc = getInverseComparison();
             ExpressionTool.copyLocationInfo(this, mc);
-            mc.setParentExpression(getParentExpression());
             mc.comparer = comparer;
-            return mc.optimize(opt, env, contextItemType);
+            return visitor.optimize(mc, contextItemType);
         }
 
-
+        // see if both arguments are singletons...
         if (c0 == StaticProperty.EXACTLY_ONE &&
                 c1 == StaticProperty.EXACTLY_ONE &&
-                t0 != Type.ANY_ATOMIC_TYPE &&
-                t1 != Type.ANY_ATOMIC_TYPE) {
+                !t0.equals(BuiltInAtomicType.ANY_ATOMIC) &&
+                !t1.equals(BuiltInAtomicType.ANY_ATOMIC)) {
 
             // Use a value comparison if both arguments are singletons, and if the comparison operator to
             // be used can be determined.
@@ -281,45 +296,142 @@ public class GeneralComparison extends BinaryExpression implements ComparisonExp
             Expression e0 = operand0;
             Expression e1 = operand1;
 
-            if (t0 == Type.UNTYPED_ATOMIC_TYPE) {
-                if (t1 == Type.UNTYPED_ATOMIC_TYPE) {
-                    e0 = new CastExpression(operand0, Type.STRING_TYPE, false);
+            if (t0.equals(BuiltInAtomicType.UNTYPED_ATOMIC)) {
+                if (t1.equals(BuiltInAtomicType.UNTYPED_ATOMIC)) {
+                    e0 = new CastExpression(operand0, BuiltInAtomicType.STRING, false);
                     adoptChildExpression(e0);
-                    e1 = new CastExpression(operand1, Type.STRING_TYPE, false);
+                    e1 = new CastExpression(operand1, BuiltInAtomicType.STRING, false);
                     adoptChildExpression(e1);
-                } else if (th.isSubType(t1, Type.NUMBER_TYPE)) {
-                    e0 = new CastExpression(operand0, Type.DOUBLE_TYPE, false);
+                } else if (th.isSubType(t1, BuiltInAtomicType.NUMERIC)) {
+                    e0 = new CastExpression(operand0, BuiltInAtomicType.DOUBLE, false);
                     adoptChildExpression(e0);
                 } else {
-                    e0 = new CastExpression(operand0, (AtomicType)t1, false);
+                    e0 = new CastExpression(operand0, (AtomicType) t1, false);
                     adoptChildExpression(e0);
                 }
-            } else if (t1 == Type.UNTYPED_ATOMIC_TYPE) {
-                if (th.isSubType(t0, Type.NUMBER_TYPE)) {
-                    e1 = new CastExpression(operand1, Type.DOUBLE_TYPE, false);
+            } else if (t1.equals(BuiltInAtomicType.UNTYPED_ATOMIC)) {
+                if (th.isSubType(t0, BuiltInAtomicType.NUMERIC)) {
+                    e1 = new CastExpression(operand1, BuiltInAtomicType.DOUBLE, false);
                     adoptChildExpression(e1);
                 } else {
-                    e1 = new CastExpression(operand1, (AtomicType)t0, false);
+                    e1 = new CastExpression(operand1, (AtomicType) t0, false);
                     adoptChildExpression(e1);
                 }
             }
 
             ValueComparison vc = new ValueComparison(e0, singletonOperator, e1);
+            vc.setAtomicComparer(comparer);
             ExpressionTool.copyLocationInfo(this, vc);
-            vc.setParentExpression(getParentExpression());
-            return vc.simplify(env).typeCheck(env, contextItemType).optimize(opt, env, contextItemType);
+            return visitor.optimize(visitor.typeCheck(visitor.simplify(vc), contextItemType), contextItemType);
         }
 
-        Comparator comp = env.getCollation(env.getDefaultCollationName());
+        final String defaultCollationName = env.getDefaultCollationName();
+        StringCollator comp = env.getCollation(defaultCollationName);
         if (comp == null) {
             comp = CodepointCollator.getInstance();
         }
-        int pt0 = t0.getPrimitiveType();
-        int pt1 = t1.getPrimitiveType();
-        comparer = GenericAtomicComparer.makeAtomicComparer(pt0, pt1, comp, env.getConfiguration());
+        BuiltInAtomicType pt0 = (BuiltInAtomicType)t0.getPrimitiveItemType();
+        BuiltInAtomicType pt1 = (BuiltInAtomicType)t1.getPrimitiveItemType();
+        comparer = GenericAtomicComparer.makeAtomicComparer(pt0, pt1, comp,
+                env.getConfiguration().getConversionContext());
 
-        // If the operator is gt, ge, lt, le then replace X < Y by min(X) < max(Y) or
-        // by (some $x in X satisfies $x lt Y)
+        // If one operand is numeric, then construct code
+        // to force the other operand to numeric
+
+        // TODO: shouldn't this happen during type checking?
+
+        Expression e0 = operand0;
+        Expression e1 = operand1;
+
+//        if (operator != Token.EQUALS && operator != Token.NE &&
+//                (th.isSubType(t0, BuiltInAtomicType.NUMERIC) || th.isSubType(t1, BuiltInAtomicType.NUMERIC))) {
+
+        boolean numeric0 = th.isSubType(t0, BuiltInAtomicType.NUMERIC);
+        boolean numeric1 = th.isSubType(t1, BuiltInAtomicType.NUMERIC);
+        if (numeric1 && !numeric0) {
+            RoleLocator role = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0);
+            //role.setSourceLocator(this);
+            e0 = TypeChecker.staticTypeCheck(e0, SequenceType.NUMERIC_SEQUENCE, false, role, visitor);
+        }
+
+        if (numeric0 && !numeric1) {
+            RoleLocator role = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1);
+            //role.setSourceLocator(this);
+            e1 = TypeChecker.staticTypeCheck(e1, SequenceType.NUMERIC_SEQUENCE, false, role, visitor);
+        }
+
+
+        // look for (N to M = I)
+        // First a variable range...
+
+        if (operand0 instanceof RangeExpression &&
+                th.isSubType(operand1.getItemType(th), BuiltInAtomicType.NUMERIC) &&
+                operator == Token.EQUALS &&
+                !Cardinality.allowsMany(operand1.getCardinality())) {
+            Expression min = ((RangeExpression)operand0).operand0;
+            Expression max = ((RangeExpression)operand0).operand1;
+//            if (operand1 instanceof Position) {
+//                PositionRange pr = new PositionRange(min, max, PositionRange.GE_MIN_LE_MAX);
+//                ExpressionTool.copyLocationInfo(this, pr);
+//                return pr;
+//            } else {
+                IntegerRangeTest ir = new IntegerRangeTest(operand1, min, max);
+                ExpressionTool.copyLocationInfo(this, ir);
+                return ir;
+//            }
+        }
+
+        // Now a fixed range...
+
+        if (value0 instanceof IntegerRange &&
+                th.isSubType(operand1.getItemType(th), BuiltInAtomicType.NUMERIC) &&
+                operator == Token.EQUALS &&
+                !Cardinality.allowsMany(operand1.getCardinality())) {
+            long min = ((IntegerRange)value0).getStart();
+            long max = ((IntegerRange)value0).getEnd();
+//            if (operand1 instanceof Position) {
+//                PositionRange pr = new PositionRange(
+//                        Literal.makeLiteral(Int64Value.makeIntegerValue(min)),
+//                        Literal.makeLiteral(Int64Value.makeIntegerValue(max)), PositionRange.GE_MIN_LE_MAX);
+//                ExpressionTool.copyLocationInfo(this, pr);
+//                return pr;
+//            } else {
+                IntegerRangeTest ir = new IntegerRangeTest(operand1,
+                        Literal.makeLiteral(Int64Value.makeIntegerValue(min)),
+                        Literal.makeLiteral(Int64Value.makeIntegerValue(max)));
+                ExpressionTool.copyLocationInfo(this, ir);
+                return ir;
+//            }
+        }
+
+
+        // If second operand is a singleton, rewrite as
+        //      some $x in E0 satisfies $x op E1
+
+        // TODO: this works, but it doesn't invariably produce benefits, eg. XMark Q11.
+        // Make it more selective.
+
+        if (!Cardinality.allowsMany(c1)) {
+
+            // System.err.println("** using quantified optimization R **");
+
+
+            QuantifiedExpression qe = new QuantifiedExpression();
+            qe.setOperator(Token.SOME);
+            qe.setVariableQName(new StructuredQName("qq", NamespaceConstant.SAXON, "qq" + qe.hashCode()));
+            SequenceType type = SequenceType.makeSequenceType(e0.getItemType(th), StaticProperty.EXACTLY_ONE);
+            qe.setRequiredType(type);
+            qe.setSequence(e0);
+            ExpressionTool.copyLocationInfo(this, qe);
+
+            LocalVariableReference var = new LocalVariableReference(qe);
+            SingletonComparison vc = new SingletonComparison(var, singletonOperator, e1);
+            vc.setAtomicComparer(comparer);
+            qe.setAction(vc);
+            return visitor.optimize(visitor.typeCheck(qe, contextItemType), contextItemType);
+        }
+
+        // If the operator is gt, ge, lt, le then replace X < Y by min(X) < max(Y)
 
         // This optimization is done only in the case where at least one of the
         // sequences is known to be purely numeric. It isn't safe if both sequences
@@ -327,126 +439,60 @@ public class GeneralComparison extends BinaryExpression implements ComparisonExp
         // comparison isn't known in advance. For example [(1, U1) < ("fred", U2)]
         // involves both string and numeric comparisons.
 
-
         if (operator != Token.EQUALS && operator != Token.NE &&
-                (th.isSubType(t0, Type.NUMBER_TYPE) || th.isSubType(t1, Type.NUMBER_TYPE))) {
+                (th.isSubType(t0, BuiltInAtomicType.NUMERIC) || th.isSubType(t1, BuiltInAtomicType.NUMERIC))) {
 
-            Expression e0 = operand0;
-            if (!th.isSubType(t0, Type.NUMBER_TYPE)) {
-                RoleLocator role = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 0, null);
-                role.setSourceLocator(this);
-                e0 = TypeChecker.staticTypeCheck(e0, SequenceType.NUMERIC_SEQUENCE, false, role, env);
+            // System.err.println("** using minimax optimization **");
+            ValueComparison vc;
+            switch(operator) {
+                case Token.LT:
+                case Token.LE:
+                    vc = new ValueComparison(makeMinOrMax(e0, "min"),
+                            singletonOperator,
+                            makeMinOrMax(e1, "max"));
+                    vc.setResultWhenEmpty(BooleanValue.FALSE);
+                    vc.setAtomicComparer(comparer);
+                    break;
+                case Token.GT:
+                case Token.GE:
+                    vc = new ValueComparison(makeMinOrMax(e0, "max"),
+                            singletonOperator,
+                            makeMinOrMax(e1, "min"));
+                    vc.setResultWhenEmpty(BooleanValue.FALSE);
+                    vc.setAtomicComparer(comparer);
+                    break;
+                default:
+                    throw new UnsupportedOperationException("Unknown operator " + operator);
             }
-            Expression e1 = operand1;
-            if (!th.isSubType(t1, Type.NUMBER_TYPE)) {
-                RoleLocator role = new RoleLocator(RoleLocator.BINARY_EXPR, Token.tokens[operator], 1, null);
-                role.setSourceLocator(this);
-                e1 = TypeChecker.staticTypeCheck(e1, SequenceType.NUMERIC_SEQUENCE, false, role, env);
-            }
 
-            if (c1 == StaticProperty.EXACTLY_ONE) {
-
-                // If second operand is a singleton, rewrite as
-                //      some $x in E0 satisfies $x op E1
-
-                // System.err.println("** using quantified optimization R **");
-                RangeVariableDeclaration decl = new RangeVariableDeclaration();
-                decl.setVariableName("qq:" + decl.hashCode());
-                SequenceType type = SequenceType.makeSequenceType(e0.getItemType(th), StaticProperty.EXACTLY_ONE);
-                decl.setRequiredType(type);
-
-                VariableReference var = new VariableReference(decl);
-                ValueComparison vc = new ValueComparison(var, singletonOperator, e1);
-                QuantifiedExpression qe = new QuantifiedExpression();
-                qe.setOperator(Token.SOME);
-                qe.setVariableDeclaration(decl);
-                qe.setSequence(e0);
-                qe.setAction(vc);
-                qe.setLocationId(getLocationId());
-                qe.setParentExpression(getParentExpression());
-                return qe.typeCheck(env, contextItemType);
-
-            } else {
-
-                // If neither operand is known to be a singleton, rewrite as (for example)
-                // min(E0) op max(E1)
-
-                // System.err.println("** using minimax optimization **");
-                ValueComparison vc;
-                switch(operator) {
-                    case Token.LT:
-                    case Token.LE:
-                        vc = new ValueComparison(makeMinOrMax(e0, env, "min"),
-                                singletonOperator,
-                                makeMinOrMax(e1, env, "max"));
-                        vc.setResultWhenEmpty(BooleanValue.FALSE);
-                        break;
-                    case Token.GT:
-                    case Token.GE:
-                        vc = new ValueComparison(makeMinOrMax(e0, env, "max"),
-                                singletonOperator,
-                                makeMinOrMax(e1, env, "min"));
-                        vc.setResultWhenEmpty(BooleanValue.FALSE);
-                        break;
-                    default:
-                        throw new UnsupportedOperationException("Unknown operator " + operator);
-                }
-
-                ExpressionTool.copyLocationInfo(this, vc);
-                vc.setParentExpression(getParentExpression());
-                return vc.typeCheck(env, contextItemType);
-            }
+            ExpressionTool.copyLocationInfo(this, vc);
+            return visitor.typeCheck(vc, contextItemType);
         }
 
 
-        // look for (N to M = I)
-
-
-        if (operand0 instanceof RangeExpression &&
-                th.isSubType(operand1.getItemType(th), Type.INTEGER_TYPE) &&
-                !Cardinality.allowsMany(operand1.getCardinality())) {
-            Expression min = ((RangeExpression)operand0).operand0;
-            Expression max = ((RangeExpression)operand0).operand1;
-            if (operand1 instanceof Position) {
-                PositionRange pr = new PositionRange(min, max);
-                ExpressionTool.copyLocationInfo(this, pr);
-                pr.setParentExpression(getParentExpression());
-                return pr;
-            } else {
-                IntegerRangeTest ir = new IntegerRangeTest(operand1, min, max);
-                ExpressionTool.copyLocationInfo(this, ir);
-                ir.setParentExpression(getParentExpression());
-                return ir;
-            }
-        }
-
-        if (operand0 instanceof IntegerRange &&
-                th.isSubType(operand1.getItemType(th), Type.INTEGER_TYPE) &&
-                !Cardinality.allowsMany(operand1.getCardinality())) {
-            long min = ((IntegerRange)operand0).getStart();
-            long max = ((IntegerRange)operand0).getEnd();
-            if (operand1 instanceof Position) {
-                PositionRange pr = new PositionRange(new IntegerValue(min), new IntegerValue(max));
-                ExpressionTool.copyLocationInfo(this, pr);
-                pr.setParentExpression(getParentExpression());
-                return pr;
-            } else {
-                IntegerRangeTest ir = new IntegerRangeTest(operand1, new IntegerValue(min), new IntegerValue(max));
-                ExpressionTool.copyLocationInfo(this, ir);
-                ir.setParentExpression(getParentExpression());
-                return ir;
-            }
-        }
 
         // evaluate the expression now if both arguments are constant
 
-        if ((operand0 instanceof Value) && (operand1 instanceof Value)) {
-            return (AtomicValue)evaluateItem(env.makeEarlyEvaluationContext());
+        if ((operand0 instanceof Literal) && (operand1 instanceof Literal)) {
+            return Literal.makeLiteral((AtomicValue)evaluateItem(env.makeEarlyEvaluationContext()));
         }
 
         return this;
     }
 
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        GeneralComparison gc = new GeneralComparison(operand0.copy(), operator, operand1.copy());
+        gc.comparer = comparer;
+        gc.singletonOperator = singletonOperator;
+        return gc;
+    }
 
     /**
      * Evaluate the expression in a given context
@@ -488,6 +534,7 @@ public class GeneralComparison extends BinaryExpression implements ComparisonExp
                         break;
                     }
                     if (compare(s1, singletonOperator, s2, comparer, context)) {
+                        iter1.close();
                         return true;
                     }
                 }
@@ -499,30 +546,23 @@ public class GeneralComparison extends BinaryExpression implements ComparisonExp
                 if (s1 == null) {
                     break;
                 }
-                SequenceIterator e2 = seq2.iterate(null);
+                SequenceIterator e2 = seq2.iterate();
                 while (true) {
                     AtomicValue s2 = (AtomicValue)e2.next();
                     if (s2 == null) {
                         break;
                     }
                     if (compare(s1, singletonOperator, s2, comparer, context)) {
+                        iter1.close();
+                        e2.close();
                         return true;
                     }
                 }
             }
 
             return false;
-        } catch (DynamicError e) {
-            // re-throw the exception with location information added
-            if (e.getXPathContext() == null) {
-                e.setXPathContext(context);
-            }
-            if (e.getLocator() == null) {
-                e.setLocator(this);
-            }
-            throw e;
         } catch (ValidationException e) {
-            DynamicError err = new DynamicError(e);
+            XPathException err = new XPathException(e);
             err.setXPathContext(context);
             if (e.getLineNumber() == -1) {
                 err.setLocator(this);
@@ -531,12 +571,23 @@ public class GeneralComparison extends BinaryExpression implements ComparisonExp
             }
             err.setErrorCode(e.getErrorCodeLocalPart());
             throw err;
+        } catch (XPathException e) {
+            // re-throw the exception with location information added
+            e.maybeSetLocation(this);
+            e.maybeSetContext(context);
+            throw e;
         }
 
     }
 
     /**
      * Compare two atomic values
+     * @param a1 the first value
+     * @param operator the operator, for example {@link Token#EQUALS}
+     * @param a2 the second value
+     * @param comparer the comparer to be used to perform the comparison
+     * @param context the XPath evaluation context
+     * @return true if the comparison succeeds
      */
 
     protected static boolean compare(AtomicValue a1,
@@ -549,41 +600,40 @@ public class GeneralComparison extends BinaryExpression implements ComparisonExp
         AtomicValue v2 = a2;
         if (a1 instanceof UntypedAtomicValue) {
             if (a2 instanceof NumericValue) {
-                v1 = a1.convert(Type.DOUBLE, context);
+                v1 = a1.convert(BuiltInAtomicType.DOUBLE, true, context).asAtomic();
             } else if (a2 instanceof UntypedAtomicValue) {
                 // the spec says convert it to a string, but this doesn't affect the outcome
             } else {
-                final TypeHierarchy th = context.getConfiguration().getTypeHierarchy();
-                v1 = a1.convert(a2.getItemType(th).getPrimitiveType(), context);
+                v1 = a1.convert(a2.getPrimitiveType(), true, context).asAtomic();
             }
         }
         if (a2 instanceof UntypedAtomicValue) {
             if (a1 instanceof NumericValue) {
-                v2 = a2.convert(Type.DOUBLE, context);
+                v2 = a2.convert(BuiltInAtomicType.DOUBLE, true, context).asAtomic();
             } else if (a1 instanceof UntypedAtomicValue) {
                 // the spec says convert it to a string, but this doesn't affect the outcome
             } else {
-                final TypeHierarchy th = context.getConfiguration().getTypeHierarchy();
-                v2 = a2.convert(a1.getItemType(th).getPrimitiveType(), context);
+                v2 = a2.convert(a1.getPrimitiveType(), true, context).asAtomic();
             }
         }
-        return ValueComparison.compare(v1, operator, v2, comparer);
+        return ValueComparison.compare(v1, operator, v2, comparer.provideContext(context));
 
     }
 
     /**
      * Determine the data type of the expression
-     *
-     * @return Type.BOOLEAN
-     * @param th
+     * @param th the type hierarchy cache
+     * @return the value BuiltInAtomicType.BOOLEAN
      */
 
     public ItemType getItemType(TypeHierarchy th) {
-        return Type.BOOLEAN_TYPE;
+        return BuiltInAtomicType.BOOLEAN;
     }
 
     /**
      * Return the singleton form of the comparison operator, e.g. FEQ for EQUALS, FGT for GT
+     * @param op the many-to-many form of the operator, for example {@link Token#LE}
+     * @return the corresponding singleton operator, for example {@link Token#FLE}
      */
 
     private static int getSingletonOperator(int op) {

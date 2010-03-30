@@ -7,7 +7,6 @@ import org.orbeon.saxon.event.TeeOutputter;
 import org.orbeon.saxon.expr.LastPositionFinder;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
 
 import java.util.List;
@@ -74,60 +73,67 @@ public class MemoClosure extends Closure {
      */
 
     public MemoClosure() {
+        //System.err.println("Creating MemoClosure");
     }
 
     /**
      * Evaluate the expression in a given context to return an iterator over a sequence
      *
-     * @param context the evaluation context. This is ignored; we use the context saved
-     *                as part of the Closure instead.
      */
 
-    public SequenceIterator iterate(XPathContext context) throws XPathException {
+    public SequenceIterator iterate() throws XPathException {
 
         switch (state) {
-            case UNREAD:
-                state = BUSY;
-                inputIterator = expression.iterate(savedXPathContext);
-                if (inputIterator instanceof EmptyIterator) {
-                    state = EMPTY;
-                    return inputIterator;
-                }
-                // TODO: following optimization looks OK, but it throws func20 into an infinite loop
+        case UNREAD:
+            state = BUSY;
+            inputIterator = expression.iterate(savedXPathContext);
+            if (inputIterator instanceof EmptyIterator) {
+                state = EMPTY;
+                return inputIterator;
+            }
+            // TODO: following optimization looks OK, but it throws func20 into an infinite loop
 //                if (inputIterator instanceof GroundedIterator) {
 //                    state = UNREAD;
 //                    return inputIterator.getAnother();
 //                }
-                reservoir = new Item[50];
-                used = 0;
-                state = MAYBE_MORE;
-                return new ProgressiveIterator();
+            reservoir = new Item[50];
+            used = 0;
+            state = MAYBE_MORE;
+            return new ProgressiveIterator();
 
-            case MAYBE_MORE:
-                return new ProgressiveIterator();
+        case MAYBE_MORE:
+            return new ProgressiveIterator();
 
-            case ALL_READ:
-                return new ArrayIterator(reservoir, 0, used);
-
-            case BUSY:
-                // recursive entry: can happen if there is a circularity involving variable and function definitions
-                // Can also happen if variable evaluation is attempted in a debugger, hence the cautious message
-                DynamicError de = new DynamicError("Attempt to access a variable while it is being evaluated");
-                de.setErrorCode("XTDE0640");
-                de.setXPathContext(context);
-                throw de;
-
-            case EMPTY:
+        case ALL_READ:
+            switch (used) {
+            case 0:
+                state = EMPTY;
                 return EmptyIterator.getInstance();
-
+            case 1:
+                return SingletonIterator.makeIterator(reservoir[0]);
             default:
-                throw new IllegalStateException("Unknown iterator state");
+                return new ArrayIterator(reservoir, 0, used);
+            }
+
+        case BUSY:
+            // recursive entry: can happen if there is a circularity involving variable and function definitions
+            // Can also happen if variable evaluation is attempted in a debugger, hence the cautious message
+            XPathException de = new XPathException("Attempt to access a variable while it is being evaluated");
+            de.setErrorCode("XTDE0640");
+            //de.setXPathContext(context);
+            throw de;
+
+        case EMPTY:
+            return EmptyIterator.getInstance();
+
+        default:
+            throw new IllegalStateException("Unknown iterator state");
 
         }
     }
 
     /**
-     * Process the instruction, without returning any tail calls
+     * Process the expression by writing the value to the current Receiver
      *
      * @param context The dynamic context, giving access to the current node,
      *                the current variables, etc.
@@ -141,13 +147,13 @@ public class MemoClosure extends Closure {
             return;     // we know there is nothing to do
         } else if (state == BUSY) {
             // recursive entry: can happen if there is a circularity involving variable and function definitions
-            DynamicError de = new DynamicError("Attempt to access a variable while it is being evaluated");
+            XPathException de = new XPathException("Attempt to access a variable while it is being evaluated");
             de.setErrorCode("XTDE0640");
             de.setXPathContext(context);
             throw de;
         }
         if (reservoir != null) {
-            SequenceIterator iter = iterate(context);
+            SequenceIterator iter = iterate();
             SequenceReceiver out = context.getReceiver();
             while (true) {
                 Item it = iter.next();
@@ -172,7 +178,7 @@ public class MemoClosure extends Closure {
 
             seq.close();
             List list = seq.getList();
-            if (list.size() == 0) {
+            if (list.isEmpty()) {
                 state = EMPTY;
             } else {
                 reservoir = new Item[list.size()];
@@ -218,6 +224,7 @@ public class MemoClosure extends Closure {
             append(i);
             state = MAYBE_MORE;
         }
+        //noinspection ConstantConditions
         return reservoir[n];
     }
 
@@ -237,6 +244,7 @@ public class MemoClosure extends Closure {
 
     /**
      * Append an item to the reservoir
+     * @param item the item to be added
      */
 
     private void append(Item item) {
@@ -266,6 +274,7 @@ public class MemoClosure extends Closure {
 
     /**
      * Determine whether the contents of the MemoClosure have been fully read
+     * @return true if the contents have been fully read
      */
 
     public boolean isFullyRead() {
@@ -285,7 +294,7 @@ public class MemoClosure extends Closure {
         } else if (state == EMPTY) {
             return EmptySequence.getInstance();
         }
-        return new SequenceExtent(iterate(null));
+        return new SequenceExtent(iterate());
     }
 
     /**
@@ -299,8 +308,11 @@ public class MemoClosure extends Closure {
         int position = -1;  // zero-based position in the reservoir of the
         // item most recently read
 
-        public ProgressiveIterator() {
+        /**
+         * Create a ProgressiveIterator
+         */
 
+        public ProgressiveIterator() {
         }
 
         public Item next() throws XPathException {
@@ -309,8 +321,9 @@ public class MemoClosure extends Closure {
             }
             if (++position < used) {
                 return reservoir[position];
-//            } else if (state == ALL_READ) {
-//                return null;
+            } else if (state == ALL_READ) { // indicates another client has filled the reservoir
+                position = -2;
+                return null;
             } else {
                 Item i = inputIterator.next();
                 if (i == null) {
@@ -336,6 +349,9 @@ public class MemoClosure extends Closure {
 
         public int position() {
             return position + 1;    // return one-based position
+        }
+
+        public void close() {
         }
 
         public SequenceIterator getAnother() {
@@ -375,13 +391,13 @@ public class MemoClosure extends Closure {
          * @return the corresponding value
          */
 
-        public Value materialize() throws XPathException {
+        public GroundedValue materialize() throws XPathException {
             if (state == ALL_READ) {
                 return new SequenceExtent(reservoir);
             } else if (state == EMPTY) {
                 return EmptySequence.getInstance();
             }
-            return new SequenceExtent(iterate(null));
+            return new SequenceExtent(iterate());
 
         }
 

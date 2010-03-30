@@ -1,18 +1,18 @@
 package org.orbeon.saxon.sort;
 
-import java.util.Comparator;
+
 
 /**
  * This interface is implemented by a collation that is capable of supporting
  * the XPath functions that require matching of a substring: namely contains(),
  * starts-with, ends-with, substring-before, and substring-after.
  */
-public interface SubstringMatcher extends Comparator {
+public interface SubstringMatcher extends StringCollator {
 
    /**
      * Test whether one string is equal to another, according to the rules
      * of the XPath compare() function. The result is true if and only if the
-     * compare() method returns zero: but the implementation may be more efficient
+     * compareStrings() method returns zero: but the implementation may be more efficient
      * than calling compare and testing the result for zero
      * @param s1 the first string
      * @param s2 the second string

@@ -7,11 +7,14 @@ import org.orbeon.saxon.trace.TraceListener;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.Controller;
+
+import java.io.PrintStream;
 
 /**
 * This class supports the XPath 2.0 function trace().
-* The value is traced to the System.err stream, unless a TraceListener is in use,
-* in which case the information is sent to the TraceListener
+ * The value is traced to the registered output stream (defaulting to System.err),
+ * unless a TraceListener is in use, in which case the information is sent to the TraceListener
 */
 
 
@@ -24,18 +27,20 @@ public class Trace extends SystemFunction {
     /**
      * Simplify the function call. This implementation saves the static namespace context, in case it is
      * needed by the TraceListener.
+     * @param visitor an expression visitor
      */
 
-    public Expression simplify(StaticContext env) throws XPathException {
-        resolver = env.getNamespaceResolver();
-        return super.simplify(env);
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        resolver = visitor.getStaticContext().getNamespaceResolver();
+        return super.simplify(visitor);
     }
 
     /**
     * preEvaluate: this method suppresses compile-time evaluation by doing nothing
-    */
+     * @param visitor an expression visitor
+     */
 
-    public Expression preEvaluate(StaticContext env) {
+    public Expression preEvaluate(ExpressionVisitor visitor) {
         return this;
     }
 
@@ -63,19 +68,24 @@ public class Trace extends SystemFunction {
 
     public Item evaluateItem(XPathContext context) throws XPathException {
         Item val = argument[0].evaluateItem(context);
-        String label = argument[1].evaluateAsString(context);
-        if (context.getController().isTracing()) {
+        String label = argument[1].evaluateAsString(context).toString();
+        Controller controller = context.getController();
+        if (controller.isTracing()) {
             notifyListener(label, Value.asValue(val), context);
         } else {
-            traceItem(val, label);
+            PrintStream out = controller.getTraceFunctionDestination();
+            if (out != null) {
+                traceItem(val, label, out);
+            }
         }
         return val;
     }
 
     private void notifyListener(String label, Value val, XPathContext context) {
-        InstructionDetails info = (InstructionDetails)getInstructionInfo();
+        InstructionDetails info = new InstructionDetails();
         info.setConstructType(Location.TRACE_CALL);
-        info.setNamespaceResolver(resolver);
+        info.setLineNumber(getLineNumber());
+        info.setSystemId(getSystemId());
         info.setProperty("label", label);
         info.setProperty("value", val);
         TraceListener listener = context.getController().getTraceListener();
@@ -83,15 +93,15 @@ public class Trace extends SystemFunction {
         listener.leave(info);
     }
 
-    private void traceItem(Item val, String label) {
+    private void traceItem(Item val, String label, PrintStream out) {
         if (val==null) {
-            System.err.println(label + ": empty sequence");
+            out.println(label + ": empty sequence");
         } else {
             if (val instanceof NodeInfo) {
-                System.err.println(label + ": " + Type.displayTypeName(val) + ": "
+                out.println(label + ": " + Type.displayTypeName(val) + ": "
                                     + Navigator.getPath((NodeInfo)val));
             } else {
-                System.err.println(label + ": " + Type.displayTypeName(val) + ": "
+                out.println(label + ": " + Type.displayTypeName(val) + ": "
                                     + val.getStringValue());
             }
         }
@@ -102,13 +112,21 @@ public class Trace extends SystemFunction {
     */
 
     public SequenceIterator iterate(XPathContext context) throws XPathException {
-        if (context.getController().isTracing()) {
-            String label = argument[1].evaluateAsString(context);
+        Controller controller = context.getController();
+        if (controller.isTracing()) {
+            String label = argument[1].evaluateAsString(context).toString();
             Value value = Value.asValue(ExpressionTool.eagerEvaluate(argument[0], context));
             notifyListener(label, value, context);
-            return value.iterate(context);
+            return value.iterate();
         } else {
-            return new TracingIterator(argument[0].iterate(context), argument[1].evaluateAsString(context));
+            PrintStream out = controller.getTraceFunctionDestination();
+            if (out == null) {
+                return argument[0].iterate(context);
+            } else {
+                return new TracingIterator(argument[0].iterate(context),
+                        argument[1].evaluateAsString(context).toString(),
+                        out);
+            }
         }
     }
 
@@ -117,26 +135,28 @@ public class Trace extends SystemFunction {
     * Tracing Iterator class
     */
 
-    public class TracingIterator implements SequenceIterator {
+    private class TracingIterator implements SequenceIterator {
 
         SequenceIterator base;
         String label;
+        PrintStream out;
         boolean empty = true;
 
 
-        public TracingIterator(SequenceIterator base, String label) {
+        public TracingIterator(SequenceIterator base, String label, PrintStream out) {
             this.base = base;
             this.label = label;
+            this.out = out;
         }
 
         public Item next() throws XPathException {
             Item n = base.next();
             if (n==null) {
                 if (empty) {
-                    traceItem(null, label);
+                    traceItem(null, label, out);
                 }
             } else {
-                traceItem(n, label + " [" + position() + ']');
+                traceItem(n, label + " [" + position() + ']', out);
                 empty = false;
             }
             return n;
@@ -150,8 +170,12 @@ public class Trace extends SystemFunction {
             return base.position();
         }
 
+        public void close() {
+            base.close();
+        }
+
         public SequenceIterator getAnother() throws XPathException {
-            return new TracingIterator(base.getAnother(), label);
+            return new TracingIterator(base.getAnother(), label, out);
         }
 
         /**

@@ -1,5 +1,4 @@
 package org.orbeon.saxon.expr;
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.instruct.UserFunction;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
@@ -21,8 +20,9 @@ public final class TailCallLoop extends UnaryExpression {
     UserFunction containingFunction;
 
     /**
-    * Constructor
-    */
+     * Constructor - create a TailCallLoop
+     * @param function the function in which this tail call loop appears
+     */
 
     public TailCallLoop(UserFunction function) {
         super(function.getBody());
@@ -30,20 +30,20 @@ public final class TailCallLoop extends UnaryExpression {
     }
 
     /**
-    * Simplify an expression
-    */
+     * Get the containing function
+     * @return the containing function
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
-        operand = operand.simplify(env);
-        return this;
+    public UserFunction getContainingFunction() {
+        return containingFunction;
     }
 
     /**
     * Type-check the expression
     */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        operand = operand.typeCheck(env, contextItemType);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.typeCheck(operand, contextItemType);
         return this;
     }
 
@@ -59,6 +59,16 @@ public final class TailCallLoop extends UnaryExpression {
 
 
     /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        throw new UnsupportedOperationException("copy");
+    }
+
+    /**
     * Iterate over the sequence of values
     */
 
@@ -69,10 +79,10 @@ public final class TailCallLoop extends UnaryExpression {
             ValueRepresentation extent = SequenceExtent.makeSequenceExtent(iter);
             UserFunction fn = cm.getTailCallFunction();
             if (fn == null) {
-               return Value.asIterator(extent, cm);
+                return Value.asIterator(extent);
             }
             if (fn != containingFunction) {
-                return Value.asIterator(tailCallDifferentFunction(fn, cm), cm);
+                return Value.asIterator(tailCallDifferentFunction(fn, cm));
             }
             // otherwise, loop round to execute the tail call
         }
@@ -109,7 +119,7 @@ public final class TailCallLoop extends UnaryExpression {
             operand.process(context);
             UserFunction fn = cm.getTailCallFunction();
             if (fn == null) {
-               return;
+                return;
             }
             if (fn != containingFunction) {
                 Value.asValue(tailCallDifferentFunction(fn, cm)).process(cm);
@@ -134,17 +144,16 @@ public final class TailCallLoop extends UnaryExpression {
         try {
             return ExpressionTool.evaluate(fn.getBody(), fn.getEvaluationMode(), cm, 1);
         } catch (XPathException err) {
-            if (err.getLocator() == null) {
-                err.setLocator(fn);
-            }
+            err.maybeSetLocation(this);
+            err.maybeSetContext(cm);
             throw err;
         }
     }
 
 
     /**
-    * Determine the data type of the items returned by the expression
-     * @param th
+     * Determine the data type of the items returned by the expression
+     * @param th The type hierarchy cache
      */
 
 	public ItemType getItemType(TypeHierarchy th) {
@@ -152,14 +161,14 @@ public final class TailCallLoop extends UnaryExpression {
 	}
 
     /**
-     * Give a string representation of the operator for use in diagnostics
-     * @return the operator, as a string
-     * @param config
+     * Give a string representation of the expression name for use in diagnostics
+     * @return the expression name, as a string
      */
 
-    protected String displayOperator(Configuration config) {
-        return "tail-recursive loop";
+    protected String displayExpressionName() {
+        return "tailCallLoop";
     }
+
 
 }
 

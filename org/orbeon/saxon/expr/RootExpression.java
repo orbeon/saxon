@@ -1,16 +1,13 @@
 package org.orbeon.saxon.expr;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.om.Axis;
 import org.orbeon.saxon.pattern.NodeKindTest;
-import org.orbeon.saxon.pattern.AnyNodeTest;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.TypeHierarchy;
-
-import java.io.PrintStream;
 
 
 /**
@@ -42,7 +39,7 @@ public class RootExpression extends SingleNodeExpression {
      * Determine the data type of the items returned by this expression
      *
      * @return Type.NODE
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
@@ -94,19 +91,61 @@ public class RootExpression extends SingleNodeExpression {
     }
 
     /**
-    * Diagnostic print of expression structure
-    */
+     * Copy an expression. This makes a deep copy.
+     * @return the copy of the original expression
+     */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + '/');
+    public Expression copy() {
+        return new RootExpression();
     }
 
-    public PathMap.PathMapNode addToPathMap(PathMap pathMap, PathMap.PathMapNode pathMapNode) {
-        AxisExpression root = new AxisExpression(Axis.ANCESTOR_OR_SELF, AnyNodeTest.getInstance());
-        root.setParentExpression(getParentExpression());
-        return root.addToPathMap(pathMap, pathMapNode);
+    /**
+     * Add a representation of this expression to a PathMap. The PathMap captures a map of the nodes visited
+     * by an expression in a source tree.
+     *
+     * @param pathMap     the PathMap to which the expression should be added
+     * @param pathMapNodeSet
+     * @return the pathMapNode representing the focus established by this expression, in the case where this
+     *         expression is the first operand of a path expression or filter expression
+     */
+
+    public PathMap.PathMapNodeSet addToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodeSet) {
+        if (pathMapNodeSet == null) {
+            ContextItemExpression cie = new ContextItemExpression();
+            cie.setContainer(getContainer());
+            pathMapNodeSet = new PathMap.PathMapNodeSet(pathMap.makeNewRoot(cie));
+        }
+        AxisExpression root = new AxisExpression(Axis.ANCESTOR_OR_SELF, NodeKindTest.DOCUMENT);
+        root.setContainer(getContainer());
+        return root.addToPathMap(pathMap, pathMapNodeSet);
+//        if (pathMapNodeSet == null) {
+//            return new PathMap.PathMapNodeSet(pathMap.makeNewRoot(this));
+//        } else {
+//            AxisExpression root = new AxisExpression(Axis.ANCESTOR_OR_SELF, NodeKindTest.DOCUMENT);
+//            root.setContainer(getContainer());
+//            return root.addToPathMap(pathMap, pathMapNodeSet);
+//        }
     }
 
+    /**
+     * The toString() method for an expression attempts to give a representation of the expression
+     * in an XPath-like form, but there is no guarantee that the syntax will actually be true XPath.
+     * In the case of XSLT instructions, the toString() method gives an abstracted view of the syntax
+     */
+
+    public String toString() {
+        return "(/)";
+    }
+
+    /**
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
+     */
+
+    public void explain(ExpressionPresenter destination) {
+        destination.startElement("root");
+        destination.endElement();
+    }
 }
 
 //

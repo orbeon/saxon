@@ -6,8 +6,7 @@ import org.orbeon.saxon.event.SaxonLocator;
 import org.orbeon.saxon.event.SourceLocationProvider;
 import org.orbeon.saxon.om.NameChecker;
 import org.orbeon.saxon.om.NamePool;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.w3c.dom.*;
 import org.xml.sax.helpers.AttributesImpl;
@@ -37,6 +36,7 @@ public class DOMSender implements SaxonLocator, SourceLocationProvider {
 
     /**
      * Set the pipeline configuration
+     * @param pipe the pipeline configuration
      */
 
     public void setPipelineConfiguration(PipelineConfiguration pipe) {
@@ -53,7 +53,8 @@ public class DOMSender implements SaxonLocator, SourceLocationProvider {
     }
 
     /**
-    * Set the DOM Document that will be walked
+     * Set the DOM Document that will be walked
+     * @param start the root node from which the tree walk will start
     */
 
     public void setStartNode(Node start) {
@@ -61,8 +62,9 @@ public class DOMSender implements SaxonLocator, SourceLocationProvider {
     }
 
     /**
-    * Set the systemId of the source document (which will also be
-    * used for the destination)
+     * Set the systemId of the source document (which will also be
+     * used for the destination)
+     * @param systemId the systemId of the source document
     */
 
     public void setSystemId(String systemId) {
@@ -76,10 +78,10 @@ public class DOMSender implements SaxonLocator, SourceLocationProvider {
 
     public void send() throws XPathException {
         if (root==null) {
-            throw new DynamicError("DOMSender: no start node defined");
+            throw new XPathException("DOMSender: no start node defined");
         }
         if (receiver==null) {
-            throw new DynamicError("DOMSender: no receiver defined");
+            throw new XPathException("DOMSender: no receiver defined");
         }
 
         receiver.setSystemId(systemId);
@@ -87,13 +89,30 @@ public class DOMSender implements SaxonLocator, SourceLocationProvider {
         receiver.setPipelineConfiguration(pipe);
 
         receiver.open();
-        if (root.getNodeType() == Node.ELEMENT_NODE) {
-            sendElement((Element)root);
-        } else {
-            // walk the root node
-            receiver.startDocument(0);
-            walkNode(root);
-            receiver.endDocument();
+        switch (root.getNodeType()) {
+            case Node.DOCUMENT_NODE:
+            case Node.DOCUMENT_FRAGMENT_NODE:
+                receiver.startDocument(0);
+                walkNode(root);
+                receiver.endDocument();
+                break;
+            case Node.ELEMENT_NODE:
+                sendElement((Element)root);
+                break;
+            case Node.TEXT_NODE:
+            case Node.CDATA_SECTION_NODE:
+                receiver.characters(((CharacterData)root).getData(), 0, 0);
+                break;
+            case Node.COMMENT_NODE:
+                receiver.comment(((Comment)root).getData(), 0, 0);
+                break;
+            case Node.PROCESSING_INSTRUCTION_NODE:
+                receiver.processingInstruction(
+                        ((ProcessingInstruction)root).getTarget(),
+                        ((ProcessingInstruction)root).getData(), 0, 0);
+                break;
+            default:
+                throw new XPathException("DOMSender: unsupported kind of start node (" + root.getNodeType() + ")");
         }
         receiver.close();
     }
@@ -102,6 +121,7 @@ public class DOMSender implements SaxonLocator, SourceLocationProvider {
      * Walk a document starting from a particular element node. This has to make
      * sure that all the namespace declarations in scope for the element are
      * treated as if they were namespace declarations on the element itself.
+     * @param startNode the start element node from which the walk will start
      */
 
     private void sendElement(Element startNode) throws XPathException {
@@ -129,7 +149,8 @@ public class DOMSender implements SaxonLocator, SourceLocationProvider {
     private void walkNode (Node node) throws XPathException {
         if (node.hasChildNodes()) {
             NodeList nit = node.getChildNodes();
-            for (int i=0; i<nit.getLength(); i++) {
+            final int len = nit.getLength();
+            for (int i=0; i<len; i++) {
                 Node child = nit.item(i);
                 switch (child.getNodeType()) {
                     case Node.DOCUMENT_NODE:
@@ -180,7 +201,7 @@ public class DOMSender implements SaxonLocator, SourceLocationProvider {
         final Configuration config = pipe.getConfiguration();
         String[] elparts2 = nsSupport.processName(element.getTagName(), elparts, false);
         if (elparts2==null) {
-              throw new DynamicError("Undeclared namespace in " + element.getTagName());
+              throw new XPathException("Undeclared namespace in " + element.getTagName());
         }
         String uri = elparts2[0];
         String local = elparts2[1];
@@ -189,7 +210,7 @@ public class DOMSender implements SaxonLocator, SourceLocationProvider {
         NamePool namePool = config.getNamePool();
         int nameCode = namePool.allocate(prefix, uri, local);
 
-        receiver.startElement(nameCode, StandardNames.XDT_UNTYPED, 0, 0);
+        receiver.startElement(nameCode, StandardNames.XS_UNTYPED, 0, 0);
         for (Iterator iter = nsDeclarations.keySet().iterator(); iter.hasNext();) {
             String nsprefix = (String)iter.next();
             String nsuri = (String)nsDeclarations.get(nsprefix);
@@ -197,7 +218,8 @@ public class DOMSender implements SaxonLocator, SourceLocationProvider {
         }
 
         if (atts != null) {
-            for (int a2=0; a2<atts.getLength(); a2++) {
+            final int len = atts.getLength();
+            for (int a2=0; a2<len; a2++) {
                 Attr att = (Attr)atts.item(a2);
                 String attname = att.getName();
                 if (attname.startsWith("xmlns") && (attname.equals("xmlns") || attname.startsWith("xmlns:"))) {
@@ -206,7 +228,7 @@ public class DOMSender implements SaxonLocator, SourceLocationProvider {
                     //System.err.println("Processing attribute " + attname);
                     String[] parts2 = nsSupport.processName(attname, parts, true);
                     if (parts2==null) {
-                          throw new DynamicError("Undeclared namespace in " + attname);
+                          throw new XPathException("Undeclared namespace in " + attname);
                     }
                     String atturi = parts2[0];
                     String attlocal = parts2[1];
@@ -214,7 +236,7 @@ public class DOMSender implements SaxonLocator, SourceLocationProvider {
 
                     int attCode = namePool.allocate(attprefix, atturi, attlocal);
 
-                    receiver.attribute(attCode, StandardNames.XDT_UNTYPED_ATOMIC, att.getValue(), 0, 0);
+                    receiver.attribute(attCode, StandardNames.XS_UNTYPED_ATOMIC, att.getValue(), 0, 0);
                 }
             }
         }
@@ -226,10 +248,16 @@ public class DOMSender implements SaxonLocator, SourceLocationProvider {
     }
 
     /**
-     * Collect all the namespace attributes in scope for a given element
-     * @param element
-     * @param cumulative
-     * @return
+     * Collect all the namespace attributes in scope for a given element. The namespace
+     * declaration attributes are added to the nsDeclarations map (which records namespaces
+     * declared for this element only), and are stacked on the stack maintated by the nsSupport
+     * object.
+     * @param element The element whose namespace declarations are required
+     * @param cumulative If true, the namespace declarations on this element are added to the
+     * current context, without creating a new context. If false, a new namespace context is
+     * created.
+     * @return The NamedNodeMap representing the set of all attributes (ordinary attributes plus
+     * namespace declarations) on this element.
      */
 
     private NamedNodeMap gatherNamespaces(Element element, boolean cumulative) {
@@ -240,8 +268,7 @@ public class DOMSender implements SaxonLocator, SourceLocationProvider {
         }
 
         // we can't rely on namespace declaration attributes being present -
-        // there may be undeclared namespace prefixes. (If the DOM is a Saxon
-        // tree, there will be no namespace declaration attributes.) So we
+        // there may be undeclared namespace prefixes. So we
         // declare all namespaces encountered, to be on the safe side.
 
         try {
@@ -264,13 +291,14 @@ public class DOMSender implements SaxonLocator, SourceLocationProvider {
         if (atts == null) {
             return null;
         }
-        for (int a1=0; a1<atts.getLength(); a1++) {
+        int alen = atts.getLength();
+        for (int a1=0; a1<alen; a1++) {
             Attr att = (Attr)atts.item(a1);
             String attname = att.getName();
             if (attname.equals("xmlns")) {
                 //System.err.println("Default namespace: " + att.getValue());
-                if (nsDeclarations.get("")==null) {
-                    String uri = att.getValue();
+                String uri = att.getValue();
+                if (nsDeclarations.get("")==null || !nsDeclarations.get("").equals(uri)) {
                     nsSupport.declarePrefix("", uri);
                     nsDeclarations.put("", uri);
                 }
@@ -289,7 +317,6 @@ public class DOMSender implements SaxonLocator, SourceLocationProvider {
                     //System.err.println("Implicit Namespace: " + prefix + "=" + uri);
                     if (nsDeclarations.get(prefix)==null) {
                         nsSupport.declarePrefix(prefix, uri);
-                        //contentHandler.startPrefixMapping(prefix, uri);
                         nsDeclarations.put(prefix, uri);
                     }
                 } catch (Throwable err) {
@@ -320,12 +347,16 @@ public class DOMSender implements SaxonLocator, SourceLocationProvider {
 		return systemId;
 	}
 
-    public String getSystemId(int locationId) {
+    public String getSystemId(long locationId) {
         return getSystemId();
     }
 
-    public int getLineNumber(int locationId) {
+    public int getLineNumber(long locationId) {
         return getLineNumber();
+    }
+
+    public int getColumnNumber(long locationId) {
+        return getColumnNumber();
     }
 
 //    public static void main(String[] args) throws Exception {

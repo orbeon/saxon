@@ -1,7 +1,7 @@
 package org.orbeon.saxon.xom;
 
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.event.Receiver;
 import org.orbeon.saxon.om.*;
@@ -68,7 +68,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 			throwIllegalNode(node); // moved out of fast path to enable better inlining
 			return; // keep compiler happy
 		}
-		this.nodeKind = kind;
+        nodeKind = kind;
 		this.node = node;
 		this.parent = parent;
 		this.index = index;
@@ -108,11 +108,11 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 
 		if (node == docWrapper.node) return docWrapper;
 		NodeWrapper wrapper = new NodeWrapper(node, parent, index);
-		wrapper.docWrapper = docWrapper;
+        wrapper.docWrapper = docWrapper;
 		return wrapper;
 	}
 
-	private static void throwIllegalNode(Node node) {
+    private static void throwIllegalNode(Node node) {
 		String str = node == null ?
 				"NULL" :
 				node.getClass() + " instance " + node.toString();
@@ -197,9 +197,9 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 
 	public int getTypeAnnotation() {
         if (getNodeKind() == Type.ATTRIBUTE) {
-            return StandardNames.XDT_UNTYPED_ATOMIC;
+            return StandardNames.XS_UNTYPED_ATOMIC;
         }
-        return StandardNames.XDT_UNTYPED;
+        return StandardNames.XS_UNTYPED;
 	}
 
 	/**
@@ -211,11 +211,9 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 	 */
 
 	public boolean isSameNodeInfo(NodeInfo other) {
-		if (other instanceof NodeWrapper) {
-			return node == ((NodeWrapper) other).node; // In XOM equality means identity
-		}
-		return false;
-	}
+        // In XOM equality means identity
+        return other instanceof NodeWrapper && node == ((NodeWrapper)other).node;
+    }
 
     /**
      * The equals() method compares nodes for identity. It is defined to give the same result
@@ -231,11 +229,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
      */
 
     public boolean equals(Object other) {
-        if (other instanceof NodeInfo) {
-            return isSameNodeInfo((NodeInfo)other);
-        } else {
-            return false;
-        }
+        return other instanceof NodeInfo && isSameNodeInfo((NodeInfo)other);
     }
 
      /**
@@ -287,7 +281,16 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 		return -1;
 	}
 
-	/**
+   /**
+     * Get column number
+     * @return the column number of the node in its original source document; or -1 if not available
+     */
+
+    public int getColumnNumber() {
+        return -1;
+    }        
+
+    /**
 	 * Determine the relative position of this node and another node, in
 	 * document order. The other node will always be in the same document.
 	 *
@@ -303,9 +306,6 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 	public int compareOrder(NodeInfo other) {
 		if (other instanceof NodeWrapper) {
 			return compareOrderFast(node,((NodeWrapper) other).node);
-//		}
-//		if (other instanceof SiblingCountingNode) {
-//			return Navigator.compareOrder(this, (SiblingCountingNode) other);
 		} else {
 			// it must be a namespace node
 			return -other.compareOrder(this);
@@ -553,7 +553,8 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 	 */
 
 	public int getSiblingPosition() {
-		if (index != -1) return index;
+        // This method is used only to support generate-id()
+        if (index != -1) return index;
 		switch (nodeKind) {
 			case Type.ATTRIBUTE: {
 				Attribute att = (Attribute) node;
@@ -658,7 +659,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 
 		case Axis.NAMESPACE:
 			if (nodeKind == Type.ELEMENT) {
-				return new NamespaceIterator(this, nodeTest);
+				return NamespaceIterator.makeIterator(this, nodeTest);
 			} else {
 				return EmptyIterator.getInstance();
 			}
@@ -790,21 +791,6 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 	}
 
     /**
-	 * Output all namespace nodes associated with this element. Does nothing if
-	 * the node is not an element.
-	 *
-	 * @param out
-	 *            The relevant outputter
-     * @param includeAncestors
-	 *            True if namespaces declared on ancestor elements must be
-     */
-
-	public void sendNamespaceDeclarations(Receiver out, boolean includeAncestors)
-	throws XPathException {
-		Navigator.sendNamespaceDeclarations(this, out, includeAncestors);
-	}
-
-    /**
      * Get all namespace undeclarations and undeclarations defined on this element.
      *
      * @param buffer If this is non-null, and the result array fits in this buffer, then the result
@@ -827,7 +813,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
             if (size == 0) {
                 return EMPTY_NAMESPACE_LIST;
             }
-            int[] result = (size <= buffer.length ? buffer : new int[size]);
+            int[] result = (buffer == null || size > buffer.length ? new int[size] : buffer);
             NamePool pool = getNamePool();
             for (int i=0; i < size; i++) {
                 String prefix = elem.getNamespacePrefix(i);
@@ -843,7 +829,204 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
         }
     }
 
-	///////////////////////////////////////////////////////////////////////////////
+    /**
+     * Determine whether this node has the is-id property
+     *
+     * @return true if the node is an ID
+     */
+
+    public boolean isId() {
+        return getNodeKind() == Type.ATTRIBUTE && ((Attribute)node).getType() == Attribute.Type.ID;
+    }
+
+    /**
+     * Determine whether this node has the is-idref property
+     *
+     * @return true if the node is an IDREF or IDREFS element or attribute
+     */
+
+    public boolean isIdref() {
+        return getNodeKind() == Type.ATTRIBUTE && (
+                ((Attribute)node).getType() == Attribute.Type.IDREF ||
+                ((Attribute)node).getType() == Attribute.Type.IDREFS);
+    }
+
+    /**
+     * Determine whether the node has the is-nilled property
+     *
+     * @return true if the node has the is-nilled property
+     */
+
+    public boolean isNilled() {
+        return false;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////
+    // Methods to support update access
+    ///////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * Delete this node (that is, detach it from its parent)
+     */
+
+    public void delete() throws XPathException {
+        if (parent != null) {
+            if (nodeKind == Type.ATTRIBUTE) {
+                ((Element)parent.node).removeAttribute((Attribute)node);
+            } else {
+                ((ParentNode)parent.node).removeChild(node);
+            }
+        }
+    }
+
+    /**
+     * Insert a sequence of nodes as the first children of the target node
+     * @param content  the nodes to be inserted.
+     */
+
+//    public void insertAsFirst(SequenceIterator content) throws XPathException {
+//        if (!(node instanceof ParentNode)) {
+//            throw new XPathException("Cannot insert children unless parent is an element or document node");
+//        }
+//        int i = 0;
+//        while (true) {
+//            NodeInfo next = (NodeInfo)content.next();
+//            if (next == null) {
+//                break;
+//            }
+//            if (next instanceof NodeWrapper) {
+//                Node nextNode = ((NodeWrapper)next).node;
+//                ParentNode existingParent = nextNode.getParent();
+//                if (existingParent != null) {
+//                    existingParent.removeChild(nextNode);
+//                }
+//                ((ParentNode)node).insertChild(nextNode, i++);
+//            } else {
+//                throw new XPathException("Cannot insert non-XOM node");
+//            }
+//        }
+//    }
+//
+//    /**
+//     * Insert a sequence of nodes as the last children of the target node
+//     * @param content  the nodes to be inserted.
+//     */
+//
+//    public void insertAsLast(SequenceIterator content) throws XPathException {
+//        if (!(node instanceof ParentNode)) {
+//            throw new XPathException("Cannot insert children unless parent is an element or document node");
+//        }
+//        while (true) {
+//            NodeInfo next = (NodeInfo)content.next();
+//            if (next == null) {
+//                break;
+//            }
+//            if (next instanceof NodeWrapper) {
+//                Node nextNode = ((NodeWrapper)next).node;
+//                ParentNode existingParent = nextNode.getParent();
+//                if (existingParent != null) {
+//                    existingParent.removeChild(nextNode);
+//                }
+//                ((ParentNode)node).appendChild(nextNode);
+//            } else {
+//                throw new XPathException("Cannot insert non-XOM node");
+//            }
+//        }
+//    }
+//
+//
+//    /**
+//     * Add attributes to this node
+//     *
+//     * @param content the attributes to be added
+//     */
+//
+//    public void insertAttributes(SequenceIterator content) throws XPathException {
+//        if (nodeKind == Type.ELEMENT) {
+//            while (true) {
+//            NodeInfo next = (NodeInfo)content.next();
+//            if (next == null) {
+//                break;
+//            }
+//            if (next.getNodeKind() != Type.ATTRIBUTE) {
+//                throw new XPathException("Node to be inserted is not an attribute");
+//            }
+//            if (next instanceof NodeWrapper) {
+//                Node node = ((NodeWrapper)next).node;
+//                if (node.getParent() != null) {
+//                    node = node.copy();
+//                }
+//                ((Element)node).addAttribute((Attribute)node);
+//            } else {
+//                throw new XPathException("Cannot insert non-XOM node");
+//            }
+//        }
+//        } else {
+//            throw new XPathException("Cannot insert attributes unless parent is an element node");
+//        }
+//    }
+//
+//    /**
+//     * Rename this node
+//     *
+//     * @param newName the new name
+//     */
+//
+//    public void rename(StructuredQName newName) throws XPathException {
+//        if (node instanceof Element) {
+//            ((Element)node).setNamespaceURI(newName.getNamespaceURI());
+//            ((Element)node).setLocalName(newName.getLocalName());
+//            ((Element)node).setNamespacePrefix(newName.getPrefix());
+//        } else if (node instanceof Attribute) {
+//            ((Attribute)node).setNamespace(newName.getPrefix(), newName.getNamespaceURI());
+//            ((Attribute)node).setLocalName(newName.getLocalName());
+//        }
+//    }
+
+    /**
+     * Replace this node with a given sequence of nodes
+     *
+     * @param replacement the replacement nodes
+     */
+
+//    public void replace(SequenceIterator replacement) throws XPathException {
+//        NodeWrapper parentNode = ((NodeWrapper))
+//        if (getPar) {
+//            throw new XPathException("Cannot replace node unless parent is an element or document node");
+//        }
+//        while (true) {
+//            NodeInfo next = (NodeInfo)content.next();
+//            if (next == null) {
+//                break;
+//            }
+//            if (next instanceof NodeWrapper) {
+//                Node nextNode = ((NodeWrapper)next).node;
+//                ParentNode existingParent = nextNode.getParent();
+//                if (existingParent != null) {
+//                    existingParent.removeChild(nextNode);
+//                }
+//                ((ParentNode)node).appendChild(nextNode);
+//            } else {
+//                throw new XPathException("Cannot insert non-XOM node");
+//            }
+//        }
+//    }
+
+    /**
+     * Replace the string-value of this node
+     *
+     * @param stringValue the new string value
+     */
+
+//    public void replaceStringValue(CharSequence stringValue) throws XPathException {
+//        switch (nodeKind) {
+//            case Type.ATTRIBUTE:
+//                ((Attribute)node).setValue(stringValue.toString());
+//            case Type.
+//        }
+//    }
+
+    ///////////////////////////////////////////////////////////////////////////////
 	// Axis enumeration classes
 	///////////////////////////////////////////////////////////////////////////////
 
@@ -864,11 +1047,24 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 			// use lazy instead of eager materialization (performance)
 			this.start = start;
 			if (test == AnyNodeTest.getInstance()) test = null;
-			this.nodeTest = test;
-			if (!includeSelf) this.current = start;
-			this.includeSelf = includeSelf;
-			this.position = 0;
+            nodeTest = test;
+			if (!includeSelf) {
+                current = start;
+            }
+            this.includeSelf = includeSelf;
+            position = 0;
 		}
+
+        /**
+         * Move to the next node, without returning it. Returns true if there is
+         * a next node, false if the end of the sequence has been reached. After
+         * calling this method, the current node may be retrieved using the
+         * current() function.
+         */
+
+        public boolean moveNext() {
+            return (next() != null);
+        }
 
 		public Item next() {
 			NodeInfo curr;
@@ -899,6 +1095,44 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 			return position;
 		}
 
+        public void close() {
+        }
+
+        /**
+         * Return an iterator over an axis, starting at the current node.
+         *
+         * @param axis the axis to iterate over, using a constant such as
+         *             {@link org.orbeon.saxon.om.Axis#CHILD}
+         * @param test a predicate to apply to the nodes before returning them.
+         * @throws NullPointerException if there is no current node
+         */
+
+        public AxisIterator iterateAxis(byte axis, NodeTest test) {
+            return current.iterateAxis(axis, test);
+        }
+
+        /**
+         * Return the atomized value of the current node.
+         *
+         * @return the atomized value.
+         * @throws NullPointerException if there is no current node
+         */
+
+        public Value atomize() throws XPathException {
+            return current.atomize();
+        }
+
+        /**
+         * Return the string value of the current node.
+         *
+         * @return the string value, as an instance of CharSequence.
+         * @throws NullPointerException if there is no current node
+         */
+
+        public CharSequence getStringValue() {
+            return current.getStringValue();
+        }
+
 		public SequenceIterator getAnother() {
 			return new AncestorAxisIterator(start, includeSelf, nodeTest);
 		}
@@ -926,10 +1160,22 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 			// use lazy instead of eager materialization (performance)
 			this.start = start;
 			if (test == AnyNodeTest.getInstance()) test = null;
-			this.nodeTest = test;
-			this.position = 0;
-			this.cursor = 0;
+            nodeTest = test;
+			position = 0;
+			cursor = 0;
 		}
+
+        /**
+         * Move to the next node, without returning it. Returns true if there is
+         * a next node, false if the end of the sequence has been reached. After
+         * calling this method, the current node may be retrieved using the
+         * current() function.
+         */
+
+        public boolean moveNext() {
+            return (next() != null);
+        }
+
 
 		public Item next() {
 			NodeInfo curr;
@@ -958,6 +1204,44 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 		public int position() {
 			return position;
 		}
+
+        public void close() {
+        }
+
+        /**
+          * Return an iterator over an axis, starting at the current node.
+          *
+          * @param axis the axis to iterate over, using a constant such as
+          *             {@link org.orbeon.saxon.om.Axis#CHILD}
+          * @param test a predicate to apply to the nodes before returning them.
+          * @throws NullPointerException if there is no current node
+          */
+
+         public AxisIterator iterateAxis(byte axis, NodeTest test) {
+             return current.iterateAxis(axis, test);
+         }
+
+         /**
+          * Return the atomized value of the current node.
+          *
+          * @return the atomized value.
+          * @throws NullPointerException if there is no current node
+          */
+
+         public Value atomize() throws XPathException {
+             return current.atomize();
+         }
+
+         /**
+          * Return the string value of the current node.
+          *
+          * @return the string value, as an instance of CharSequence.
+          * @throws NullPointerException if there is no current node
+          */
+
+         public CharSequence getStringValue() {
+             return current.getStringValue();
+         }
 
 		public SequenceIterator getAnother() {
 			return new AttributeAxisIterator(start, nodeTest);
@@ -997,15 +1281,12 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 			this.forwards = forwards;
 
 			if (test == AnyNodeTest.getInstance()) test = null;
-			this.nodeTest = test;
-			this.position = 0;
+			nodeTest = test;
+			position = 0;
 
-			if (downwards)
-				commonParent = start;
-			else
-				commonParent = (NodeWrapper) start.getParent();
+            commonParent = downwards ? start : (NodeWrapper)start.getParent();
 
-			par = (ParentNode) commonParent.node;
+            par = (ParentNode) commonParent.node;
 			if (downwards) {
 				ix = (forwards ? 0 : par.getChildCount());
 			} else {
@@ -1017,6 +1298,18 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 			cursor = ix;
 			if (!downwards && !forwards) ix--;
 		}
+
+        /**
+         * Move to the next node, without returning it. Returns true if there is
+         * a next node, false if the end of the sequence has been reached. After
+         * calling this method, the current node may be retrieved using the
+         * current() function.
+         */
+
+        public boolean moveNext() {
+            return (next() != null);
+        }
+
 
 		public Item next() {
 			NodeInfo curr;
@@ -1056,6 +1349,44 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 			return position;
 		}
 
+        public void close() {
+        }
+
+        /**
+          * Return an iterator over an axis, starting at the current node.
+          *
+          * @param axis the axis to iterate over, using a constant such as
+          *             {@link org.orbeon.saxon.om.Axis#CHILD}
+          * @param test a predicate to apply to the nodes before returning them.
+          * @throws NullPointerException if there is no current node
+          */
+
+         public AxisIterator iterateAxis(byte axis, NodeTest test) {
+             return current.iterateAxis(axis, test);
+         }
+
+         /**
+          * Return the atomized value of the current node.
+          *
+          * @return the atomized value.
+          * @throws NullPointerException if there is no current node
+          */
+
+         public Value atomize() throws XPathException {
+             return current.atomize();
+         }
+
+         /**
+          * Return the string value of the current node.
+          *
+          * @return the string value, as an instance of CharSequence.
+          * @throws NullPointerException if there is no current node
+          */
+
+         public CharSequence getStringValue() {
+             return current.getStringValue();
+         }
+
 		public SequenceIterator getAnother() {
 			return new ChildAxisIterator(start, downwards, forwards, nodeTest);
 		}
@@ -1092,7 +1423,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 			this.start = start;
 			this.includeSelf = includeSelf;
 			this.following = following;
-			this.moveToNextSibling = following;
+			moveToNextSibling = following;
 
 			if (!following) anchor = start.node;
 			if (!includeSelf) currNode = start.node;
@@ -1105,20 +1436,32 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 				if (nt.getPrimitiveType() == Type.ELEMENT) { // performance hack
 					// mark as element name test
 					NamePool pool = getNamePool();
-					this.testLocalName = pool.getLocalName(nt.getFingerprint());
-					this.testURI = pool.getURI(nt.getFingerprint());
+					testLocalName = pool.getLocalName(nt.getFingerprint());
+					testURI = pool.getURI(nt.getFingerprint());
 				}
 			}
 			else if (test instanceof NodeKindTest) {
 				if (test.getPrimitiveType() == Type.ELEMENT) { // performance hack
 					// mark as element type test
-					this.testLocalName = "";
-					this.testURI = null;
+					testLocalName = "";
+					testURI = null;
 				}
 			}
-			this.nodeTest = test;
-			this.position = 0;
+			nodeTest = test;
+			position = 0;
 		}
+
+        /**
+         * Move to the next node, without returning it. Returns true if there is
+         * a next node, false if the end of the sequence has been reached. After
+         * calling this method, the current node may be retrieved using the
+         * current() function.
+         */
+
+        public boolean moveNext() {
+            return (next() != null);
+        }
+
 
 		public Item next() {
 			NodeInfo curr;
@@ -1179,14 +1522,14 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 
 		// avoids NodeWrapper allocation when there's clearly a mismatch (common case)
 		private boolean conforms(Node node) {
-			if (this.testLocalName != null) { // element test?
+			if (testLocalName != null) { // element test?
 				if (!(node instanceof Element)) return false;
-				if (this.testURI == null) return true; // pure element type test
+				if (testURI == null) return true; // pure element type test
 
 				// element name test
 				Element elem = (Element) node;
-				return this.testLocalName.equals(elem.getLocalName()) &&
-					this.testURI.equals(elem.getNamespaceURI());
+				return testLocalName.equals(elem.getLocalName()) &&
+					testURI.equals(elem.getNamespaceURI());
 			}
 			else { // DocType is not an XPath node; can occur for /descendants::node()
 				return !(node instanceof DocType);
@@ -1200,6 +1543,44 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 		public int position() {
 			return position;
 		}
+
+        public void close() {
+        }
+
+        /**
+          * Return an iterator over an axis, starting at the current node.
+          *
+          * @param axis the axis to iterate over, using a constant such as
+          *             {@link org.orbeon.saxon.om.Axis#CHILD}
+          * @param test a predicate to apply to the nodes before returning them.
+          * @throws NullPointerException if there is no current node
+          */
+
+         public AxisIterator iterateAxis(byte axis, NodeTest test) {
+             return current.iterateAxis(axis, test);
+         }
+
+         /**
+          * Return the atomized value of the current node.
+          *
+          * @return the atomized value.
+          * @throws NullPointerException if there is no current node
+          */
+
+         public Value atomize() throws XPathException {
+             return current.atomize();
+         }
+
+         /**
+          * Return the string value of the current node.
+          *
+          * @return the string value, as an instance of CharSequence.
+          * @throws NullPointerException if there is no current node
+          */
+
+         public CharSequence getStringValue() {
+             return current.getStringValue();
+         }
 
 		public SequenceIterator getAnother() {
 			return new DescendantAxisIterator(start, includeSelf, following, nodeTest);
@@ -1233,13 +1614,10 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 		public PrecedingAxisIterator(NodeWrapper start, boolean includeAncestors, NodeTest test) {
 			this.start = start;
 			this.includeAncestors = includeAncestors;
-			this.currNode = start.node;
-			if (includeAncestors)
-				nextAncestor = null;
-			else
-				nextAncestor = start.node.getParent();
+			currNode = start.node;
+            nextAncestor = includeAncestors ? null : start.node.getParent();
 
-			if (test == AnyNodeTest.getInstance()) { // performance hack
+            if (test == AnyNodeTest.getInstance()) { // performance hack
 				test = null; // mark as AnyNodeTest
 			}
 			else if (test instanceof NameTest) {
@@ -1247,20 +1625,31 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 				if (nt.getPrimitiveType() == Type.ELEMENT) { // performance hack
 					// mark as element name test
 					NamePool pool = getNamePool();
-					this.testLocalName = pool.getLocalName(nt.getFingerprint());
-					this.testURI = pool.getURI(nt.getFingerprint());
+					testLocalName = pool.getLocalName(nt.getFingerprint());
+					testURI = pool.getURI(nt.getFingerprint());
 				}
 			}
 			else if (test instanceof NodeKindTest) {
 				if (test.getPrimitiveType() == Type.ELEMENT) { // performance hack
 					// mark as element type test
-					this.testLocalName = "";
-					this.testURI = null;
+					testLocalName = "";
+					testURI = null;
 				}
 			}
-			this.nodeTest = test;
-			this.position = 0;
+			nodeTest = test;
+			position = 0;
 		}
+
+        /**
+         * Move to the next node, without returning it. Returns true if there is
+         * a next node, false if the end of the sequence has been reached. After
+         * calling this method, the current node may be retrieved using the
+         * current() function.
+         */
+
+        public boolean moveNext() {
+            return (next() != null);
+        }
 
 		public Item next() {
 			NodeInfo curr;
@@ -1323,14 +1712,18 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 		// avoids NodeWrapper allocation when there's clearly a mismatch (common case)
 		// same as for DescendantAxisIterator
 		private boolean conforms(Node node) {
-			if (this.testLocalName != null) { // element test?
-				if (!(node instanceof Element)) return false;
-				if (this.testURI == null) return true; // pure element type test
+			if (testLocalName != null) { // element test?
+				if (!(node instanceof Element)) {
+                    return false;
+                }
+				if (testURI == null) {
+                    return true; // pure element type test
+                }
 
 				// element name test
 				Element elem = (Element) node;
-				return this.testLocalName.equals(elem.getLocalName()) &&
-					this.testURI.equals(elem.getNamespaceURI());
+				return testLocalName.equals(elem.getLocalName()) &&
+					testURI.equals(elem.getNamespaceURI());
 			}
 			else { // DocType is not an XPath node
 				return !(node instanceof DocType);
@@ -1344,6 +1737,44 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 		public int position() {
 			return position;
 		}
+
+        public void close() {
+        }
+
+        /**
+          * Return an iterator over an axis, starting at the current node.
+          *
+          * @param axis the axis to iterate over, using a constant such as
+          *             {@link org.orbeon.saxon.om.Axis#CHILD}
+          * @param test a predicate to apply to the nodes before returning them.
+          * @throws NullPointerException if there is no current node
+          */
+
+         public AxisIterator iterateAxis(byte axis, NodeTest test) {
+             return current.iterateAxis(axis, test);
+         }
+
+         /**
+          * Return the atomized value of the current node.
+          *
+          * @return the atomized value.
+          * @throws NullPointerException if there is no current node
+          */
+
+         public Value atomize() throws XPathException {
+             return current.atomize();
+         }
+
+         /**
+          * Return the string value of the current node.
+          *
+          * @return the string value, as an instance of CharSequence.
+          * @throws NullPointerException if there is no current node
+          */
+
+         public CharSequence getStringValue() {
+             return current.getStringValue();
+         }
 
 		public SequenceIterator getAnother() {
 			return new PrecedingAxisIterator(start, includeAncestors, nodeTest);

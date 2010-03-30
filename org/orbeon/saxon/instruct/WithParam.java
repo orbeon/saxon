@@ -1,9 +1,10 @@
 package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.expr.*;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.om.ValueRepresentation;
-import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 
 import java.util.List;
 
@@ -13,7 +14,30 @@ import java.util.List;
 
 public class WithParam extends GeneralVariable {
 
+    int parameterId;
+
     public WithParam() {}
+
+    /**
+     * Allocate a number which is essentially an alias for the parameter name,
+     * unique within a stylesheet
+     * @param id the parameter id
+     */
+
+    public void setParameterId(int id) {
+        parameterId = id;
+    }
+
+    /**
+     * Get the parameter id, which is essentially an alias for the parameter name,
+     * unique within a stylesheet
+     * @return the parameter id
+     */
+
+    public int getParameterId() {
+        return parameterId;
+    }
+    
 
     public int getInstructionNameCode() {
         return StandardNames.XSL_WITH_PARAM;
@@ -24,40 +48,33 @@ public class WithParam extends GeneralVariable {
         return null;
     }
 
-    public static void simplify(WithParam[] params, StaticContext env) throws XPathException {
+    public static void simplify(WithParam[] params, ExpressionVisitor visitor) throws XPathException {
          for (int i=0; i<params.length; i++) {
             Expression select = params[i].getSelectExpression();
             if (select != null) {
-                params[i].setSelectExpression(select.simplify(env));
+                params[i].setSelectExpression(visitor.simplify(select));
             }
         }
     }
 
-//    public static void analyze(WithParam[] params, StaticContext env, ItemType contextItemType) throws XPathException {
-//         for (int i=0; i<params.length; i++) {
+
+    public static void typeCheck(WithParam[] params, ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+         for (int i=0; i<params.length; i++) {
+            Expression select = params[i].getSelectExpression();
+            if (select != null) {
+                params[i].setSelectExpression(visitor.typeCheck(select, contextItemType));
+            }
+        }
+    }
+
+    public static void optimize(ExpressionVisitor visitor, WithParam[] params, ItemType contextItemType) throws XPathException {
+         for (int i=0; i<params.length; i++) {
+             visitor.optimize(params[i], contextItemType);
 //            Expression select = params[i].getSelectExpression();
 //            if (select != null) {
-//                params[i].setSelectExpression(select.analyze(env, contextItemType));
+//                params[i].setSelectExpression(select.optimize(opt, env, contextItemType));
 //            }
-//        }
-//    }
-
-    public static void typeCheck(WithParam[] params, StaticContext env, ItemType contextItemType) throws XPathException {
-         for (int i=0; i<params.length; i++) {
-            Expression select = params[i].getSelectExpression();
-            if (select != null) {
-                params[i].setSelectExpression(select.typeCheck(env, contextItemType));
-            }
-        }
-    }
-
-    public static void optimize(Optimizer opt, WithParam[] params, StaticContext env, ItemType contextItemType) throws XPathException {
-         for (int i=0; i<params.length; i++) {
-            Expression select = params[i].getSelectExpression();
-            if (select != null) {
-                params[i].setSelectExpression(select.optimize(opt, env, contextItemType));
-            }
-        }
+         }
     }
 
    /**
@@ -79,8 +96,25 @@ public class WithParam extends GeneralVariable {
      */
 
     public static void getXPathExpressions(WithParam[] params, List list) {
-        for (int i=0; i<params.length; i++) {
-            list.add(params[i]);
+        if (params != null) {
+            for (int i=0; i<params.length; i++) {
+                list.add(params[i]);
+            }
+        }
+    }
+
+    /**
+     * DIsplay the parameter expressions
+     */
+
+    public static void displayExpressions(WithParam[] params, ExpressionPresenter out) {
+        if (params != null) {
+            for (int i=0; i<params.length; i++) {
+                out.startElement("withParam");
+                out.emitAttribute("name", params[i].getVariableQName().getDisplayName());
+                params[i].getSelectExpression().explain(out);
+                out.endElement();
+            }
         }
     }
 

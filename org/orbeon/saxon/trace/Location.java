@@ -7,7 +7,7 @@ package org.orbeon.saxon.trace;
  * such on the context stack. Some of the locations represent points in the evaluation of a stylesheet
  * (or query or XPath expression) that are notified to the trace listener. Some fulfil both roles.
  *
- * <p>Any constant used in {@link org.orbeon.saxon.style.StandardNames} can be used as a Location. Such
+ * <p>Any constant used in {@link org.orbeon.saxon.om.StandardNames} can be used as a Location. Such
  * names are generally used to identify XSLT instructions. They are also used for equivalent constructs
  * in XQuery, for example XSL_ELEMENT is used for a computed element constructor in XQuery. The constants
  * in StandardNames are all in the range 0-1023, so constants defined in this class are outside this
@@ -42,6 +42,11 @@ public class Location {
      * Usage: QT
      */
     public static final int LITERAL_RESULT_ATTRIBUTE = 2007;
+
+   /**
+     * An XSLT user-written template rule or named template. Usage: TC
+     */
+    public static final int TEMPLATE = 2008;
 
     /**
      * An XPath function call to a user-defined function.
@@ -198,6 +203,12 @@ public class Location {
      */
 
     public static final int PATTERN = 2064;
+
+    /**
+     * A function declaration in XSLT or XQuery
+     */
+
+    public static final int FUNCTION = 2065;
 
     /**
      * XPath expression, otherwise unclassified. The "expression" property references the actual expression,

@@ -1,33 +1,35 @@
 package org.orbeon.saxon.expr;
-import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.AtomicValue;
 import org.orbeon.saxon.value.BooleanValue;
 import org.orbeon.saxon.value.NumericValue;
 
-import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.Iterator;
 
 /**
 * An IntegerRangeTest is an expression of the form
  * E = N to M
- * where E, N, and M are all expressions of type integer.
+ * where E is numeric, and N and M are both expressions of type integer.
 */
 
-public class IntegerRangeTest extends ComputedExpression {
+public class IntegerRangeTest extends Expression {
 
     Expression value;
     Expression min;
     Expression max;
 
     /**
-    * Construct a IntegerRangeTest
-    */
+     * Construct a IntegerRangeTest
+     * @param value the integer value to be tested to see if it is in the range min to max inclusive
+     * @param min the lowest permitted value
+     * @param max the highest permitted value
+     */
 
     public IntegerRangeTest(Expression value, Expression min, Expression max) {
         this.value = value;
@@ -35,7 +37,38 @@ public class IntegerRangeTest extends ComputedExpression {
         this.max = max;
     }
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
+    /**
+     * Get the value to be tested
+     * @return the expression that evaluates to the value being tested
+     */
+
+    public Expression getValueExpression() {
+        return value;
+    }
+
+    /**
+     * Get the expression denoting the start of the range
+     * @return the expression denoting the minumum value
+     */
+
+    public Expression getMinValueExpression() {
+        return min;
+    }
+
+    /**
+     * Get the expression denoting the end of the range
+     * @return the expression denoting the maximum value
+     */
+
+    public Expression getMaxValueExpression() {
+        return max;
+    }
+
+    /**
+     * Type-check the expression
+     */
+
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
         // Already done, we only get one of these expressions after the operands have been analyzed
         return this;
     }
@@ -46,29 +79,27 @@ public class IntegerRangeTest extends ComputedExpression {
      * <p>This method is called after all references to functions and variables have been resolved
      * to the declaration of the function or variable, and after all type checking has been done.</p>
      *
-     * @param opt             the optimizer in use. This provides access to supporting functions; it also allows
-     *                        different optimization strategies to be used in different circumstances.
-     * @param env             the static context of the expression
+     * @param visitor an expression visitor
      * @param contextItemType the static type of "." at the point where this expression is invoked.
      *                        The parameter is set to null if it is known statically that the context item will be undefined.
      *                        If the type of the context item is not known statically, the argument is set to
      *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
      * @return the original expression, rewritten if appropriate to optimize execution
-     * @throws org.orbeon.saxon.trans.StaticError if an error is discovered during this phase
+     * @throws XPathException if an error is discovered during this phase
      *                                        (typically a type error)
      */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
         return this;
     }
 
     /**
     * Get the data type of the items returned
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public ItemType getItemType(TypeHierarchy th) {
-        return Type.BOOLEAN_TYPE;
+        return BuiltInAtomicType.BOOLEAN;
     }
 
     /**
@@ -77,6 +108,16 @@ public class IntegerRangeTest extends ComputedExpression {
 
     public int computeCardinality() {
         return StaticProperty.EXACTLY_ONE;
+    }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new IntegerRangeTest(value.copy(), min.copy(), max.copy());
     }
 
     /**
@@ -116,6 +157,23 @@ public class IntegerRangeTest extends ComputedExpression {
                 return found;
     }
 
+    /**
+    * Promote this expression if possible
+    */
+
+    public Expression promote(PromotionOffer offer) throws XPathException {
+        Expression exp = offer.accept(this);
+        if (exp != null) {
+            return exp;
+        } else {
+            if (offer.action != PromotionOffer.UNORDERED) {
+                value = doPromotion(value, offer);
+                min = doPromotion(min, offer);
+                max = doPromotion(max, offer);
+            }
+            return this;
+        }
+    }    
 
     /**
      * Evaluate the expression
@@ -126,29 +184,36 @@ public class IntegerRangeTest extends ComputedExpression {
         if (av==null) {
             return BooleanValue.FALSE;
         }
-        NumericValue v = (NumericValue)av.getPrimitiveValue();
+        NumericValue v = (NumericValue)av;
+
+        if (!v.isWholeNumber()) {
+            return BooleanValue.FALSE;
+        }
 
         AtomicValue av2 = (AtomicValue)min.evaluateItem(c);
-        NumericValue v2 = (NumericValue)av2.getPrimitiveValue();
+        NumericValue v2 = (NumericValue)av2;
 
         if (v.compareTo(v2) < 0) {
             return BooleanValue.FALSE;
         }
+
         AtomicValue av3 = (AtomicValue)max.evaluateItem(c);
-        NumericValue v3 = (NumericValue)av3.getPrimitiveValue();
+        NumericValue v3 = (NumericValue)av3;
 
         return BooleanValue.get(v.compareTo(v3) <= 0);
     }
 
     /**
-     * Display this instruction as an expression, for diagnostics
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "rangeTest min<value<max");
-        min.display(level+1, out, config);
-        value.display(level+1, out, config);
-        max.display(level+1, out, config);
+    public void explain(ExpressionPresenter destination) {
+        destination.startElement("integerRangeTest");
+        value.explain(destination);
+        min.explain(destination);
+        max.explain(destination);
+        destination.endElement();
     }
 }
 

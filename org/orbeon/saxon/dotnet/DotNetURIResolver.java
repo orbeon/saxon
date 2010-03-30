@@ -6,8 +6,7 @@ import cli.System.Type;
 import cli.System.Uri;
 import cli.System.Xml.XmlResolver;
 import org.orbeon.saxon.RelativeURIResolver;
-import org.orbeon.saxon.AugmentedSource;
-import org.orbeon.saxon.trans.DynamicError;
+import org.orbeon.saxon.trans.XPathException;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.TransformerException;
@@ -23,9 +22,19 @@ public class DotNetURIResolver implements RelativeURIResolver {
     private XmlResolver resolver;
     private String mediaType;
 
+    /**
+     * Create a URIResolver that wraps a .NET XmlResolver
+     * @param resolver the XmlResolver to be wrapped
+     */
+
     public DotNetURIResolver(XmlResolver resolver) {
         this.resolver = resolver;
     }
+
+    /**
+     * Get the .NET XmlResolver underpinning this URIResolver
+     * @return  the wrapped .NET XmlResolver
+     */
 
     public XmlResolver getXmlResolver() {
         return resolver;
@@ -56,25 +65,31 @@ public class DotNetURIResolver implements RelativeURIResolver {
      */
 
     public String makeAbsolute(String href, String base) throws TransformerException {
-
-            if (base == null) {
-                try {
-                    return new Uri(href).ToString();
-                } catch (Exception e) {
-                    DynamicError de = new DynamicError("Invalid URI: " + e.getMessage());
-                    de.setErrorCode("FODC0005");
-                    throw de;
-                }
-            } else {
-                try {
-                    return resolver.ResolveUri(new Uri(base), href).ToString();
-                } catch (Exception e) {
-                    DynamicError de = new DynamicError("Failure making absolute URI: " + e.getMessage());
-                    de.setErrorCode("FODC0005");
-                    throw de;
-                }
+        if (base == null || base.length()==0) {
+            try {
+                return new Uri(href).ToString();
+            } catch (Exception e) {
+                XPathException de = new XPathException("Invalid URI: " + e.getMessage());
+                de.setErrorCode("FODC0005");
+                throw de;
             }
-
+        } else {
+            try {
+                //noinspection ConstantIfStatement
+                if (false) throw new cli.System.UriFormatException();
+                return resolver.ResolveUri(new Uri(base), href).ToString();
+            } catch (cli.System.UriFormatException e) {
+                XPathException de = new XPathException("Failure making absolute URI (base=" +
+                        base + ", relative=" + href + "): " + e.getMessage());
+                de.setErrorCode("FODC0005");
+                throw de;
+            } catch (Exception e) {
+                XPathException de = new XPathException("Failure making absolute URI (base=" +
+                        base + ", relative=" + href + "): " + e.getMessage());
+                de.setErrorCode("FODC0005");
+                throw de;
+            }
+        }
     }
 
     /**
@@ -90,29 +105,35 @@ public class DotNetURIResolver implements RelativeURIResolver {
      *          resolve the URI.
      */
     public Source resolve(String href, String base) throws TransformerException {
+        return dereference(makeAbsolute(href, base));
+    }
+
+    /**
+     * Called by the processor when it encounters
+     * an xsl:include, xsl:import, or document() function.
+     *
+     * @param uri The absolute URI to be dereferenced
+     * @return A Source object, or null if the href cannot be dereferenced,
+     *         and the processor should try to resolve the URI itself.
+     * @throws javax.xml.transform.TransformerException
+     *          if an error occurs when trying to
+     *          dereference the URI.
+     */
+   public Source dereference(String uri) throws TransformerException {
         //System.err.println("Resolving " + href + " against " + base);
         // TODO: handle fragment identifiers
         try {
-            Uri abs;
-            if (new java.net.URI(href).isAbsolute()) {
-                abs = new Uri(href);
-            } else {
-                abs = resolver.ResolveUri(new Uri(base), href);
-            }
+            Uri abs = new Uri(uri);
             Object obj = resolver.GetEntity(abs, mediaType, Type.GetType("System.IO.Stream"));
             // expect cli.System.IO.FileNotFoundException if this fails
             if (obj instanceof Stream) {
                 StreamSource source = new StreamSource(new DotNetInputStream((Stream)obj));
                 source.setSystemId(abs.toString());
-                AugmentedSource as = AugmentedSource.makeAugmentedSource(source);
-                as.setPleaseCloseAfterUse(true);
-                return as;
+                return source;
             } else if (obj instanceof TextReader) {
                 StreamSource source = new StreamSource(new DotNetReader((TextReader)obj));
                 source.setSystemId(abs.toString());
-                AugmentedSource as = AugmentedSource.makeAugmentedSource(source);
-                as.setPleaseCloseAfterUse(true);
-                return as;
+                return source;
             } else if (obj instanceof Source) {
                 return ((Source)obj);
             } else {
@@ -123,6 +144,7 @@ public class DotNetURIResolver implements RelativeURIResolver {
             throw new TransformerException(e.getMessage(), e);
         }
     }
+
 }
 
 //

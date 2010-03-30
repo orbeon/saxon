@@ -255,6 +255,10 @@ public abstract class Token {
      * Keyword "case"
      */
     public static final int CASE = 59;
+    /**
+     * Keyword "modify"
+     */
+    public static final int MODIFY = 60;
 
      /**
      * Node kind, e.g. "node()" or "comment()"
@@ -264,6 +268,11 @@ public abstract class Token {
      * "*:" token
      */
     public static final int SUFFIX = 62;    // e.g. *:suffix - the suffix is actually a separate token
+    /**
+     * "as" (in XQuery Update rename expression)
+     */
+    public static final int AS = 63;
+
 
     // The following tokens are used only in the query prolog. They are categorized
     // as operators on the basis that a following name is treated as a name rather than
@@ -307,7 +316,7 @@ public abstract class Token {
      */
     public static final int DECLARE_VARIABLE = 78;
     /**
-     * "define function"
+     * "declare function"
      */
     public static final int DECLARE_FUNCTION = 79;
     /**
@@ -335,15 +344,75 @@ public abstract class Token {
      */
     public static final int DECLARE_OPTION = 86;
     /**
+     * "declare revalidation"
+     */
+    public static final int DECLARE_REVALIDATION = 87;
+    /**
+     * "insert node/nodes"
+     */
+    public static final int INSERT_NODE = 90;
+    /**
+     * "delete node/nodes"
+     */
+    public static final int DELETE_NODE = 91;
+    /**
+     * "replace node/nodes"
+     */
+    public static final int REPLACE_NODE = 92;
+    /**
+     * "replace value"
+     */
+    public static final int REPLACE_VALUE = 93;
+    /**
+     * "rename node"
+     */
+    public static final int RENAME_NODE = 94;
+    /**
+     * "as first"
+     */
+    //public static final int AS_FIRST = 95;
+    /**
+     * "as last"
+     */
+    //public static final int AS_LAST = 96;
+    /**
+     * "first into"
+     */
+    public static final int FIRST_INTO = 95;
+    /**
+     * "last into"
+     */
+    public static final int LAST_INTO = 96;
+    /**
+     * "after"
+     */
+    public static final int AFTER = 97;
+    /**
+     * "before"
+     */
+    public static final int BEFORE = 98;
+   /**
+     * "into"
+     */
+    public static final int INTO = 99;
+   /**
+     * "with"
+     */
+    public static final int WITH = 100;
+    /**
+     * "declare updating [function]"
+     */
+    public static final int DECLARE_UPDATING = 101;
+    /**
      * semicolon separator
      */
-    public static final int SEMICOLON = 90;
+    public static final int SEMICOLON = 149;
 
 
     /**
      * Constant identifying the token number of the last token to be classified as an operator
      */
-    static int LAST_OPERATOR = 100;
+    static int LAST_OPERATOR = 150;
 
     // Tokens that set "operator" context, so an immediately following "div" is recognized
     // as an operator, not as an element name
@@ -351,77 +420,80 @@ public abstract class Token {
     /**
      * Name token (a QName, in general)
      */
-    public static final int NAME = 101;
+    public static final int NAME = 201;
     /**
      * String literal
      */
-    public static final int STRING_LITERAL = 102;
+    public static final int STRING_LITERAL = 202;
     /**
      * Right square bracket
      */
-    public static final int RSQB = 103;
+    public static final int RSQB = 203;
     /**
      * Right parenthesis
      */
-    public static final int RPAR = 104;
+    public static final int RPAR = 204;
     /**
      * "." symbol
      */
-    public static final int DOT = 105;
+    public static final int DOT = 205;
     /**
      * ".." symbol
      */
-    public static final int DOTDOT = 106;
+    public static final int DOTDOT = 206;
     /**
      * "*" symbol when used as a wildcard
      */
-    public static final int STAR = 107;
+    public static final int STAR = 207;
     /**
      * "prefix:*" token
      */
-    public static final int PREFIX = 108;    // e.g. prefix:*
+    public static final int PREFIX = 208;    // e.g. prefix:*
     /**
      * Numeric literal
      */
-    public static final int NUMBER = 109;
+    public static final int NUMBER = 209;
 
     /**
      * "for" keyword
      */
-    public static final int FOR = 111;
+    public static final int FOR = 211;
 
     /**
      * Keyword "default"
      */
-    public static final int DEFAULT = 112;
+    public static final int DEFAULT = 212;
     /**
      * Question mark symbol. That is, "?"
      */
-    public static final int QMARK = 113;
+    public static final int QMARK = 213;
     /**
      * "}" symbol (XQuery only)
      */
-    public static final int RCURLY = 115;
+    public static final int RCURLY = 215;
     /**
      * "let" keyword (XQuery only)
      */
-    public static final int LET = 116;
+    public static final int LET = 216;
     /**
      * "<" at the start of a tag (XQuery only). The pseudo-XML syntax that
      * follows is read character-by-character by the XQuery parser
      */
-    public static final int TAG = 117;
+    public static final int TAG = 217;
     /**
      * A token representing an XQuery pragma.
      * This construct "(# .... #)" is regarded as a single token, for the QueryParser to sort out.
      */
-    public static final int PRAGMA = 118;
-
+    public static final int PRAGMA = 218;
+    /**
+     * "copy" keyword
+     */
+    public static final int COPY = 219;
 
     /**
      * Unary minus sign
      */
-    public static final int NEGATE = 199;    // unary minus: not actually a token, but we
+    public static final int NEGATE = 299;    // unary minus: not actually a token, but we
                                              // use token numbers to identify operators.
 
 
@@ -429,7 +501,7 @@ public abstract class Token {
      * The following strings are used to represent tokens in error messages
      */
 
-    public static String[] tokens = new String[200];
+    public static String[] tokens = new String[300];
     static {
         tokens [ EOF ] = "<eof>";
         tokens [ UNION ] = "|";
@@ -487,6 +559,14 @@ public abstract class Token {
         tokens [ TYPESWITCH ] = "typeswitch";
         tokens [ CASE ] = "case";
         tokens [ DEFAULT ] = "default";
+        //tokens [ AS_FIRST ] = "as first";
+        //tokens [ AS_LAST ] = "as last";
+        tokens [ AFTER ] = "after";
+        tokens [ BEFORE ] = "before";
+        tokens [ INTO ] = "into";
+        tokens [ WITH ] = "with";
+        tokens [ MODIFY ] = "modify";
+        tokens [ AS ] = "as";
 
 
         tokens [ NAME ] = "<name>";
@@ -510,6 +590,7 @@ public abstract class Token {
         tokens [ TAG ] = "<element>";
         tokens [ PRAGMA ] = "(# ... #)";
         tokens [ SEMICOLON ] = ";";
+        tokens [ COPY ] = "copy";
         tokens [ NEGATE ] = "-";
     }
 
@@ -539,13 +620,27 @@ public abstract class Token {
         mapDouble("declare ordering", DECLARE_ORDERING);
         mapDouble("declare copy-namespaces", DECLARE_COPY_NAMESPACES);
         mapDouble("declare option", DECLARE_OPTION);
+        mapDouble("declare revalidation", DECLARE_REVALIDATION);
         mapDouble("import schema", IMPORT_SCHEMA);
         mapDouble("import module", IMPORT_MODULE);
         mapDouble("declare variable", DECLARE_VARIABLE);
         mapDouble("declare function", DECLARE_FUNCTION);
+        mapDouble("declare updating", DECLARE_UPDATING);
         mapDouble("module namespace", MODULE_NAMESPACE);
         mapDouble("validate strict", VALIDATE_STRICT);
         mapDouble("validate lax", VALIDATE_LAX);
+        mapDouble("insert node", INSERT_NODE);
+        mapDouble("insert nodes", INSERT_NODE);
+        mapDouble("delete node", DELETE_NODE);
+        mapDouble("delete nodes", DELETE_NODE);
+        mapDouble("replace node", REPLACE_NODE);
+        mapDouble("replace value", REPLACE_VALUE);
+        mapDouble("rename node", RENAME_NODE);
+        mapDouble("rename nodes", RENAME_NODE);
+        mapDouble("first into", FIRST_INTO);
+        mapDouble("last into", LAST_INTO);
+        //mapDouble("as first", AS_FIRST);
+        //mapDouble("as last", AS_LAST);
 
     }
 
@@ -559,7 +654,7 @@ public abstract class Token {
 	* rewritten as "b inverse(op) a"
 	*/
 
-    public static final int inverse(int operator) {
+    public static int inverse(int operator) {
         switch(operator) {
             case LT:
                 return GT;
@@ -587,7 +682,7 @@ public abstract class Token {
 	* rewritten as not(b op' a)
 	*/
 
-    public static final int negate(int operator) {
+    public static int negate(int operator) {
         switch(operator) {
             case FEQ:
                 return FNE;

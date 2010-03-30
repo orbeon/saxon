@@ -1,15 +1,17 @@
 package org.orbeon.saxon.expr;
+import org.orbeon.saxon.trans.Err;
 import org.orbeon.saxon.event.SequenceReceiver;
 import org.orbeon.saxon.event.TypeCheckingFilter;
-import org.orbeon.saxon.om.*;
+import org.orbeon.saxon.om.FastStringBuffer;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.pattern.DocumentNodeTest;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.TypeHierarchy;
 import org.orbeon.saxon.value.Cardinality;
-import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.Err;
 
 /**
 * A CardinalityChecker implements the cardinality checking of "treat as": that is,
@@ -22,12 +24,15 @@ public final class CardinalityChecker extends UnaryExpression {
     private RoleLocator role;
 
     /**
-    * Private Constructor: use factory method
+     * Private Constructor: use factory method
+     * @param sequence the base sequence whose cardinality is to be checked
+     * @param cardinality the required cardinality
+     * @param role information to be used in error reporting
     */
 
     private CardinalityChecker(Expression sequence, int cardinality, RoleLocator role) {
         super(sequence);
-        this.requiredCardinality = cardinality;
+        requiredCardinality = cardinality;
         this.role = role;
         computeStaticProperties();
         adoptChildExpression(sequence);
@@ -36,24 +41,27 @@ public final class CardinalityChecker extends UnaryExpression {
     /**
      * Factory method to construct a CardinalityChecker. The method may create an expression that combines
      * the cardinality checking with the functionality of the underlying expression class
-     * @param sequence
-     * @param cardinality
-     * @param role
+     * @param sequence the base sequence whose cardinality is to be checked
+     * @param cardinality the required cardinality
+     * @param role information to be used in error reporting
      * @return a new Expression that does the CardinalityChecking (not necessarily a CardinalityChecker)
      */
 
-    public static ComputedExpression makeCardinalityChecker(Expression sequence, int cardinality, RoleLocator role) {
+    public static Expression makeCardinalityChecker(Expression sequence, int cardinality, RoleLocator role) {
+        Expression result;
         if (sequence instanceof Atomizer && !Cardinality.allowsMany(cardinality)) {
             Expression base = ((Atomizer)sequence).getBaseExpression();
-            ComputedExpression.setParentExpression(base, sequence.getParentExpression());
-            return new SingletonAtomizer(base, role, Cardinality.allowsZero(cardinality));
+            result = new SingletonAtomizer(base, role, Cardinality.allowsZero(cardinality));
         } else {
-            return new CardinalityChecker(sequence, cardinality, role);
+            result = new CardinalityChecker(sequence, cardinality, role);
         }
+        ExpressionTool.copyLocationInfo(sequence, result);
+        return result;
     }
 
     /**
      * Get the required cardinality
+     * @return the cardinality required by this checker
      */
 
     public int getRequiredCardinality() {
@@ -64,11 +72,10 @@ public final class CardinalityChecker extends UnaryExpression {
     * Type-check the expression
     */
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        operand = operand.typeCheck(env, contextItemType);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.typeCheck(operand, contextItemType);
         if (requiredCardinality == StaticProperty.ALLOWS_ZERO_OR_MORE ||
                     Cardinality.subsumes(requiredCardinality, operand.getCardinality())) {
-            ComputedExpression.setParentExpression(operand, getParentExpression());
             return operand;
         }
         return this;
@@ -80,23 +87,20 @@ public final class CardinalityChecker extends UnaryExpression {
      * <p>This method is called after all references to functions and variables have been resolved
      * to the declaration of the function or variable, and after all type checking has been done.</p>
      *
-     * @param opt             the optimizer in use. This provides access to supporting functions; it also allows
-     *                        different optimization strategies to be used in different circumstances.
-     * @param env             the static context of the expression
+     * @param visitor an expression visitor
      * @param contextItemType the static type of "." at the point where this expression is invoked.
      *                        The parameter is set to null if it is known statically that the context item will be undefined.
      *                        If the type of the context item is not known statically, the argument is set to
      *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
      * @return the original expression, rewritten if appropriate to optimize execution
-     * @throws org.orbeon.saxon.trans.StaticError if an error is discovered during this phase
+     * @throws XPathException if an error is discovered during this phase
      *                                        (typically a type error)
      */
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        operand = operand.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        operand = visitor.optimize(operand, contextItemType);
         if (requiredCardinality == StaticProperty.ALLOWS_ZERO_OR_MORE ||
                 Cardinality.subsumes(requiredCardinality, operand.getCardinality())) {
-            ComputedExpression.setParentExpression(operand, getParentExpression());
             return operand;
         }
         return this;
@@ -106,10 +110,20 @@ public final class CardinalityChecker extends UnaryExpression {
     /**
      * Set the error code to be returned (this is used when evaluating the functions such
      * as exactly-one() which have their own error codes)
+     * @param code the error code to be used
      */
 
     public void setErrorCode(String code) {
         role.setErrorCode(code);
+    }
+
+    /**
+     * Get the RoleLocator, which contains diagnostic information for use if the cardinality check fails
+     * @return the diagnostic information
+     */
+
+    public RoleLocator getRoleLocator() {
+        return role;
     }
 
     /**
@@ -154,36 +168,18 @@ public final class CardinalityChecker extends UnaryExpression {
 
         // Otherwise return an iterator that does the checking on the fly
 
-        if (!Cardinality.allowsZero(requiredCardinality)) {
-            // To check for an empty sequence, we using a ClosingIterator which causes a close()
-            // method to be called after the last item has been read
-            final XPathContext callingContext = context;
-            ClosingAction onClose = new ClosingAction() {
-                public void close(SequenceIterator base, int count) throws XPathException {
-                    if (count == 0) {
-                        typeError("An empty sequence is not allowed as the " +
-                             role.getMessage(), role.getErrorCode(), callingContext);
-                    }
-                }
-            };
-            base = new ClosingIterator(base, onClose);
-        }
-        if (requiredCardinality == StaticProperty.EMPTY) {
-            return new ItemMappingIterator(base, new EmptyCheckingFunction(context));
-        }
-        if (!Cardinality.allowsMany(requiredCardinality)) {
-            CardinalityCheckingFunction map = new CardinalityCheckingFunction(context);
-            map.iterator = base;
-            base = new ItemMappingIterator(base, map);
-        }
-        return base;
+        return new CardinalityCheckingIterator(base, requiredCardinality, role, this);
+
     }
 
     /**
      * Show the first couple of items in a sequence in an error message
+     * @param seq iterator over the sequence
+     * @param max maximum number of items to be shown
+     * @return a message display of the contents of the sequence
      */
 
-    public String depictSequenceStart(SequenceIterator seq, int max) {
+    public static String depictSequenceStart(SequenceIterator seq, int max) {
         try {
             FastStringBuffer sb = new FastStringBuffer(100);
             int count = 0;
@@ -213,46 +209,46 @@ public final class CardinalityChecker extends UnaryExpression {
     * Mapping function used to check for sequences of length > 1 when this is not permitted
     */
 
-    private class CardinalityCheckingFunction implements ItemMappingFunction {
-
-        public SequenceIterator iterator;
-        public XPathContext context;
-
-        public CardinalityCheckingFunction(XPathContext context) {
-            this.context = context;
-        }
-
-        public Item map(Item item) throws XPathException {
-            if (iterator.position()==2) {
-                typeError(
-                        "A sequence of more than one item is not allowed as the " +
-                        role.getMessage() + depictSequenceStart(iterator.getAnother(), 2),
-                        role.getErrorCode(), context);
-                return null;
-            }
-            return item;
-        }
-    }
+//    private class CardinalityCheckingFunction implements ItemMappingFunction {
+//
+//        public SequenceIterator iterator;
+//        public XPathContext context;
+//
+//        public CardinalityCheckingFunction(XPathContext context) {
+//            this.context = context;
+//        }
+//
+//        public Item map(Item item) throws XPathException {
+//            if (iterator.position()==2) {
+//                typeError(
+//                        "A sequence of more than one item is not allowed as the " +
+//                        role.getMessage() + depictSequenceStart(iterator.getAnother(), 2),
+//                        role.getErrorCode(), context);
+//                return null;
+//            }
+//            return item;
+//        }
+//    }
 
     /**
      * Mapping function used to check that a sequence is empty
      */
 
-    private class EmptyCheckingFunction implements ItemMappingFunction {
-
-        public SequenceIterator iterator;
-        public XPathContext context;
-
-        public EmptyCheckingFunction(XPathContext context) {
-            this.context = context;
-        }
-
-        public Item map(Item item) throws XPathException {
-            typeError("An empty sequence is required as the " +
-                    role.getMessage(), role.getErrorCode(), context);
-            return null;
-        }
-    }
+//    private class EmptyCheckingFunction implements ItemMappingFunction {
+//
+//        public SequenceIterator iterator;
+//        public XPathContext context;
+//
+//        public EmptyCheckingFunction(XPathContext context) {
+//            this.context = context;
+//        }
+//
+//        public Item map(Item item) throws XPathException {
+//            typeError("An empty sequence is required as the " +
+//                    role.getMessage(), role.getErrorCode(), context);
+//            return null;
+//        }
+//    }
 
 
     /**
@@ -318,7 +314,7 @@ public final class CardinalityChecker extends UnaryExpression {
     * Determine the data type of the items returned by the expression, if possible
     * @return a value such as Type.STRING, Type.BOOLEAN, Type.NUMBER, Type.NODE,
     * or Type.ITEM (meaning not known in advance)
-     * @param th
+     * @param th the type hierarchy cache
      */
 
 	public ItemType getItemType(TypeHierarchy th) {
@@ -344,21 +340,34 @@ public final class CardinalityChecker extends UnaryExpression {
     }
 
     /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new CardinalityChecker(getBaseExpression().copy(), requiredCardinality, role);
+    }
+
+    /**
     * Is this expression the same as another expression?
     */
 
     public boolean equals(Object other) {
         return super.equals(other) &&
-                this.requiredCardinality == ((CardinalityChecker)other).requiredCardinality;
+                requiredCardinality == ((CardinalityChecker)other).requiredCardinality;
     }
 
     /**
-    * Diagnostic print of expression structure
-     * @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    public String displayOperator(Configuration config) {
-        return "checkCardinality (" + Cardinality.toString(requiredCardinality) + ')';
+    public void explain(ExpressionPresenter out) {
+        out.startElement("checkCardinality");
+        out.emitAttribute("occurs", Cardinality.toString(requiredCardinality));
+        operand.explain(out);
+        out.endElement();
     }
 
 }

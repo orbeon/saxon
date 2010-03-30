@@ -3,10 +3,10 @@ import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.Orphan;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.Mode;
-import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.trans.Rule;
+import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ComplexType;
 import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.type.Type;
@@ -66,6 +66,14 @@ public class Stripper extends ProxyReceiver {
     }
 
     /**
+     * Set the XPath context
+     */
+
+    public void setXPathContext(XPathContext context) {
+        this.context = context;
+    }
+
+    /**
      * Get a clean copy of this stripper
      */
 
@@ -97,16 +105,18 @@ public class Stripper extends ProxyReceiver {
     }
 
     public void setPipelineConfiguration(PipelineConfiguration pipe) {
-        super.setPipelineConfiguration(pipe);
-        if (context == null) {
-            Controller controller = pipe.getController();
-            if (controller != null) {
-                context = controller.newXPathContext();
+        if (pipe != null) {
+            super.setPipelineConfiguration(pipe);
+            if (context == null) {
+                Controller controller = pipe.getController();
+                if (controller != null) {
+                    context = controller.newXPathContext();
+                }
             }
-        }
-        if (element == null) {
-            element = new Orphan(pipe.getConfiguration());
-            element.setNodeKind(Type.ELEMENT);
+            if (element == null) {
+                element = new Orphan(pipe.getConfiguration());
+                element.setNodeKind(Type.ELEMENT);
+            }
         }
     }
 
@@ -125,7 +135,7 @@ public class Stripper extends ProxyReceiver {
     	//try {
 	    	if (preserveAll) return ALWAYS_PRESERVE;
 	    	if (stripAll) return STRIP_DEFAULT;
-	    	element.setNameCode(nameCode);
+            element.setNameCode(nameCode);
 	    	Rule rule = stripperMode.getRule(element, context);
 	    	if (rule==null) return ALWAYS_PRESERVE;
 	    	return (((Boolean)rule.getAction()).booleanValue() ? ALWAYS_PRESERVE : STRIP_DEFAULT);
@@ -189,7 +199,7 @@ public class Stripper extends ProxyReceiver {
         } else if (elementStrip == ALWAYS_STRIP) {
             preserve |= ALWAYS_STRIP;
         }
-        if (preserve == 0 && typeCode != -1 && typeCode != StandardNames.XDT_UNTYPED) {
+        if (preserve == 0 && typeCode != -1 && typeCode != StandardNames.XS_UNTYPED) {
             // if the element has simple content, whitespace stripping is disabled
             SchemaType type = getConfiguration().getSchemaType(typeCode);
             if (type.isSimpleType() || ((ComplexType)type).isSimpleContent()) {
@@ -241,12 +251,11 @@ public class Stripper extends ProxyReceiver {
     {
         // assume adjacent chunks of text are already concatenated
 
-        if (chars.length() > 0) {
-            if ((((stripStack[top] & (ALWAYS_PRESERVE | PRESERVE_PARENT | CANNOT_STRIP)) != 0) &&
-                  (stripStack[top] & ALWAYS_STRIP) == 0)
-                    || !Whitespace.isWhite(chars)) {
-                nextReceiver.characters(chars, locationId, properties);
-            }
+        if (((((stripStack[top] & (ALWAYS_PRESERVE | PRESERVE_PARENT | CANNOT_STRIP)) != 0) &&
+                (stripStack[top] & ALWAYS_STRIP) == 0)
+                || !Whitespace.isWhite(chars))
+                && chars.length() > 0) {
+            nextReceiver.characters(chars, locationId, properties);
         }
     }
 

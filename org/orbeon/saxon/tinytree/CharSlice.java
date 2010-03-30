@@ -22,16 +22,28 @@ public final class CharSlice implements CharSequence, Serializable {
     private int offset;
     private int count;
 
+    /**
+     * Create a CharSlice that maps to the whole of a char[] array
+     * @param array the char[] array
+     */
+
     public CharSlice(char[] array) {
         this.array = array;
-        this.offset = 0;
-        this.count = array.length;
+        offset = 0;
+        count = array.length;
     }
+
+    /**
+     * Create a CharSlice that maps to a section of a char[] array
+     * @param array the char[] array
+     * @param start position of the first character to be included
+     * @param length number of characters to be included
+     */
 
     public CharSlice(char[] array, int start, int length) {
         this.array = array;
-        this.offset = start;
-        this.count = length;
+        offset = start;
+        count = length;
         if (start + length > array.length) {
             throw new IndexOutOfBoundsException("start(" + start +
                     ") + length(" + length + ") > size(" + array.length + ')');
@@ -51,6 +63,8 @@ public final class CharSlice implements CharSequence, Serializable {
     /**
      * Set the length of this character sequence, without changing the array and start offset
      * to which it is bound
+     * @param length the new length of the CharSlice (which must be less than the existing length,
+     * though this is not enforced)
      */
     public void setLength(int length) {
         count = length;
@@ -63,9 +77,7 @@ public final class CharSlice implements CharSequence, Serializable {
      * indexing. </p>
      *
      * @param   index   the index of the character to be returned
-     *
      * @return  the specified character
-     *
      * @throws  java.lang.IndexOutOfBoundsException
      *          if the <tt>index</tt> argument is negative or not less than
      *          <tt>length()</tt>
@@ -137,7 +149,7 @@ public final class CharSlice implements CharSequence, Serializable {
         for (int i = offset; i < end; i++) {
             if (array[i] == c) {
                 return i-offset;
-            };
+            }
         }
         return -1;
     }
@@ -145,6 +157,11 @@ public final class CharSlice implements CharSequence, Serializable {
     /**
      * Returns a new character sequence that is a subsequence of this sequence.
      * Unlike subSequence, this is guaranteed to return a String.
+     * @param start position of the first character to be included (relative to the
+     * start of the CharSlice, not the underlying array)
+     * @param end position of the first character <b>not</b> to be included (relative
+     * to the start of the CharSlice)
+     * @return the substring, as a String object
      */
 
     public String substring(int start, int end) {
@@ -164,6 +181,7 @@ public final class CharSlice implements CharSequence, Serializable {
 
     /**
      * Write the value to a writer
+     * @param writer the writer to be written to
      */
 
     public void write(Writer writer) throws java.io.IOException {

@@ -1,20 +1,21 @@
 package org.orbeon.saxon.xqj;
 
-import org.orbeon.saxon.event.ContentHandlerProxy;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.event.PipelineConfiguration;
-import org.orbeon.saxon.event.TreeReceiver;
-import org.orbeon.saxon.javax.xml.xquery.*;
+import org.orbeon.saxon.evpull.*;
+import org.orbeon.saxon.functions.Insert;
 import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.pull.PullFromIterator;
-import org.orbeon.saxon.pull.PullToStax;
+import org.orbeon.saxon.om.SingletonIterator;
 import org.orbeon.saxon.query.QueryResult;
 import org.orbeon.saxon.trans.XPathException;
 import org.w3c.dom.Node;
 import org.xml.sax.ContentHandler;
 
 import javax.xml.stream.XMLStreamReader;
+import javax.xml.transform.Result;
+import javax.xml.transform.sax.SAXResult;
+import javax.xml.xquery.*;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -26,108 +27,106 @@ import java.util.Properties;
  * The class is a Saxon implementation of the XQJ interface XQResultSequence. This
  * implementation is used to represent a sequence that can only be read in a forwards direction.
  */
-public class SaxonXQForwardSequence implements XQResultSequence {
+public class SaxonXQForwardSequence extends Closable implements XQResultSequence {
 
     private SequenceIterator iterator;
-    private SaxonXQConnection connection;
+    SaxonXQPreparedExpression expression;
     int position = 0;   // set to -count when positioned after the end
-    boolean closed = false;
+    int lastReadPosition = Integer.MIN_VALUE;   // used to prevent reading the same item twice, which XQJ doesn't allow
 
-    protected SaxonXQForwardSequence(SequenceIterator iterator, SaxonXQConnection connection) {
+    protected SaxonXQForwardSequence(SequenceIterator iterator, SaxonXQPreparedExpression expression) {
         this.iterator = iterator;
-        this.connection = connection;
+        this.expression = expression;
+        setClosableContainer(expression);
     }
 
     SequenceIterator getCleanIterator() throws XPathException {
         return iterator.getAnother();
     }
 
-    public void clearWarnings() {
-
+    Configuration getConfiguration() {
+        return expression.getConnection().getConfiguration();
     }
 
-    public XQConnection getConnection() {
-        return connection;
-    }
-
-    public XQWarning getWarnings() {
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+    public XQConnection getConnection()  throws XQException {
+        checkNotClosed();
+        return expression.getConnection();
     }
 
     public String getAtomicValue() throws XQException {
-        return getCurrentXQItem().getAtomicValue();
+        return getCurrentXQItem(true).getAtomicValue();
     }
 
     public boolean getBoolean() throws XQException {
-        return getCurrentXQItem().getBoolean();
+        return getCurrentXQItem(true).getBoolean();
     }
 
     public byte getByte() throws XQException {
-        return getCurrentXQItem().getByte();
+        return getCurrentXQItem(true).getByte();
     }
 
     public double getDouble() throws XQException {
-        return getCurrentXQItem().getDouble();
+        return getCurrentXQItem(true).getDouble();
     }
 
     public float getFloat() throws XQException {
-        return getCurrentXQItem().getFloat();
+        return getCurrentXQItem(true).getFloat();
     }
 
     public int getInt() throws XQException {
-        return getCurrentXQItem().getInt();
+        return getCurrentXQItem(true).getInt();
     }
 
     public XMLStreamReader getItemAsStream() throws XQException {
-        return getCurrentXQItem().getItemAsStream();
+        return getCurrentXQItem(true).getItemAsStream();
     }
 
-    public String getItemAsString() throws XQException {
-        return getCurrentXQItem().getItemAsString();
+    public String getItemAsString(Properties props) throws XQException {
+        return getCurrentXQItem(true).getItemAsString(props);
     }
 
     public XQItemType getItemType() throws XQException {
-        return getCurrentXQItem().getItemType();
+        return getCurrentXQItem(false).getItemType();
     }
 
     public long getLong() throws XQException {
-       return getCurrentXQItem().getLong();
+       return getCurrentXQItem(true).getLong();
     }
 
     public Node getNode() throws XQException {
-        return getCurrentXQItem().getNode();
+        return getCurrentXQItem(true).getNode();
     }
 
     public URI getNodeUri() throws XQException {
-        return getCurrentXQItem().getNodeUri();
+        return getCurrentXQItem(false).getNodeUri();
     }
 
     public Object getObject() throws XQException {
-        return getCurrentXQItem().getObject();
-    }
-
-    public Object getObject(XQCommonHandler handler) throws XQException {
-        return getCurrentXQItem().getObject(handler);
+        return getCurrentXQItem(true).getObject();
     }
 
     public short getShort() throws XQException {
-        return getCurrentXQItem().getShort();
+        return getCurrentXQItem(true).getShort();
     }
 
     public boolean instanceOf(XQItemType type) throws XQException {
-        return getCurrentXQItem().instanceOf(type);
+        return getCurrentXQItem(false).instanceOf(type);
     }
 
     public void writeItem(OutputStream os, Properties props) throws XQException {
-        getCurrentXQItem().writeItem(os, props);
+        getCurrentXQItem(true).writeItem(os, props);
     }
 
     public void writeItem(Writer ow, Properties props) throws XQException {
-        getCurrentXQItem().writeItem(ow, props);
+        getCurrentXQItem(true).writeItem(ow, props);
+    }
+
+    public void writeItemToResult(Result result) throws XQException {
+        getCurrentXQItem(true).writeItemToResult(result);
     }
 
     public void writeItemToSAX(ContentHandler saxHandler) throws XQException {
-        getCurrentXQItem().writeItemToSAX(saxHandler);
+        getCurrentXQItem(true).writeItemToSAX(saxHandler);
     }
 
     public boolean absolute(int itempos) throws XQException {
@@ -135,26 +134,11 @@ public class SaxonXQForwardSequence implements XQResultSequence {
     }
 
     public void afterLast() throws XQException {
-        checkNotClosed();
-        position = -1;
+        throw new XQException("Sequence is forwards-only");
     }
 
     public void beforeFirst() throws XQException {
-        checkNotClosed();
-        // This should probably be an error for a forwards-only sequence. But the spec doesn't actually
-        // say so, and as it happens, we can implement the functionality by getting a new iterator.
-        try {
-            iterator = iterator.getAnother();
-            position = 0;
-        } catch (XPathException e) {
-            throw new XQException(e.getMessage(), e, null, null);
-        }
-    }
-
-    public void close() throws XQException {
-        closed = true;
-        iterator = null;
-        connection = null;
+        throw new XQException("Sequence is forwards-only");
     }
 
     public int count() throws XQException {
@@ -166,7 +150,7 @@ public class SaxonXQForwardSequence implements XQResultSequence {
     }
 
     public XQItem getItem() throws XQException {
-        return new SaxonXQItem(iterator.current(), connection.getConfiguration());
+        return getCurrentXQItem(true);
     }
 
     public int getPosition() throws XQException {
@@ -174,12 +158,19 @@ public class SaxonXQForwardSequence implements XQResultSequence {
     }
 
     public XMLStreamReader getSequenceAsStream() throws XQException {
-        PullFromIterator provider = new PullFromIterator(iterator);
-        provider.setPipelineConfiguration(connection.getConfiguration().makePipelineConfiguration());
-        return new PullToStax(provider);
+        checkNotClosed();
+        checkOnlyReadOnce();
+        EventIterator ei = new EventIteratorOverSequence(iterator);
+        ei = new BracketedDocumentIterator(ei);
+        Configuration config = getConfiguration();
+        PipelineConfiguration pipe = config.makePipelineConfiguration();
+        pipe.setHostLanguage(Configuration.XQUERY);
+        ei = new Decomposer(ei, pipe);
+        return new EventToStaxBridge(ei, config.getNamePool());
     }
 
     public String getSequenceAsString(Properties props) throws XQException {
+        checkNotClosed();
         StringWriter sw = new StringWriter();
         writeSequence(sw, props);
         return sw.toString();
@@ -191,10 +182,6 @@ public class SaxonXQForwardSequence implements XQResultSequence {
 
     public boolean isBeforeFirst() throws XQException {
         throw new XQException("Sequence is forwards-only");
-    }
-
-    public boolean isClosed() {
-        return closed;
     }
 
     public boolean isFirst() throws XQException {
@@ -234,7 +221,7 @@ public class SaxonXQForwardSequence implements XQResultSequence {
                 return true;
             }
         } catch (XPathException e) {
-            throw new XQException(e.getMessage(), e, null, null);
+            throw newXQException(e);
         }
     }
 
@@ -243,75 +230,121 @@ public class SaxonXQForwardSequence implements XQResultSequence {
     }
 
     public boolean relative(int itempos) throws XQException {
-        throw new XQException("Sequence is forwards-only");
+        checkNotClosed();
+//        if (itempos < 0) {
+            throw new XQException("Sequence is forwards-only, cannot move backwards");
+//        } else {
+//            for (int i=0; i<itempos; i++) {
+//                if (!next()) {
+//                    return false;
+//                }
+//            }
+//            return true;
+//        }
     }
 
     public void writeSequence(OutputStream os, Properties props) throws XQException {
         checkNotClosed();
+        checkOnlyReadOnce();
+        if (props == null) {
+            props = new Properties();
+        }
+        props = SaxonXQSequence.setDefaultProperties(props);
+        SequenceIterator iter = iterator;
+        if (isOnItem()) {
+            iter = new Insert.InsertIterator(
+                    SingletonIterator.makeIterator(iter.current()),
+                    iter, 0);
+        }
         try {
-            QueryResult.serializeSequence(iterator, connection.getConfiguration(), os, props);
-            // TODO: if we're positioned on an item, this will serialize starting at the next item
+            QueryResult.serializeSequence(iter, getConfiguration(), os, props);
         } catch (XPathException e) {
-            throw new XQException(e.getMessage(), e, null, null);
+            throw newXQException(e);
         }
     }
 
     public void writeSequence(Writer ow, Properties props) throws XQException {
         checkNotClosed();
+        checkNotNull(ow);
+        checkOnlyReadOnce();
+        if (props == null) {
+            props = new Properties();
+        }
+        props = SaxonXQSequence.setDefaultProperties(props);
         PrintWriter pw;
         if (ow instanceof PrintWriter) {
             pw = (PrintWriter)ow;
         } else {
             pw = new PrintWriter(ow);
         }
+        SequenceIterator iter = iterator;
+        if (isOnItem()) {
+            iter = new Insert.InsertIterator(
+                    SingletonIterator.makeIterator(iter.current()),
+                    iter, 0);
+        }
         try {
-            QueryResult.serializeSequence(iterator, connection.getConfiguration(), pw, props);
-            // TODO: if we're positioned on an item, this will serialize starting at the next item
+            QueryResult.serializeSequence(iter, getConfiguration(), pw, props);
         } catch (XPathException e) {
-            throw new XQException(e.getMessage(), e, null, null);
+            throw newXQException(e);
+        }
+    }
+
+    public void writeSequenceToResult(Result result) throws XQException {
+        checkNotClosed();
+        checkNotNull(result);
+        checkOnlyReadOnce();
+        Properties props = SaxonXQSequence.setDefaultProperties(null);
+        try {
+            QueryResult.serializeSequence(iterator, getConfiguration(), result, props);
+        } catch (XPathException e) {
+            throw newXQException(e);
         }
     }
 
     public void writeSequenceToSAX(ContentHandler saxHandler) throws XQException {
         checkNotClosed();
-        if (position < 0) {
-            return; // nothing to do
-        }
-        try {
-            PipelineConfiguration pipe = connection.getConfiguration().makePipelineConfiguration();
-            ContentHandlerProxy chp = new ContentHandlerProxy();
-            chp.setUnderlyingContentHandler(saxHandler);
-            chp.setPipelineConfiguration(pipe);
-            TreeReceiver tr = new TreeReceiver(chp);
-            tr.open();
-            Item item = iterator.current();
-            while (true) {
-                tr.append(item, 0, NodeInfo.ALL_NAMESPACES);
-                item = iterator.next();
-                if (item == null) {
-                    break;
-                }
-            }
-            tr.close();
-        } catch (XPathException e) {
-            throw new XQException(e.getMessage(), e, null, null);
-        }
+        checkNotNull(saxHandler);
+        writeSequenceToResult(new SAXResult(saxHandler));
     }
 
-    private XQItemAccessor getCurrentXQItem() throws XQException {
+    private XQItem getCurrentXQItem(boolean onceOnly) throws XQException {
         checkNotClosed();
         if (position == 0) {
             throw new XQException("The XQSequence is positioned before the first item");
         } else if (position < 0) {
             throw new XQException("The XQSequence is positioned after the last item");
         }
-        return new SaxonXQItem(iterator.current(), connection.getConfiguration());
+        if (onceOnly) {
+            checkOnlyReadOnce();
+        }
+        SaxonXQItem item = new SaxonXQItem(iterator.current(), expression.getConnection());
+        item.setClosableContainer(this);
+        return item;
     }
 
-    private void checkNotClosed() throws XQException {
-        if (closed) {
-            throw new XQException("The XQSequence has been closed");
+    Item getSaxonItem() {
+        return iterator.current();
+    }
+
+
+    private void checkNotNull(Object arg) throws XQException {
+        if (arg == null) {
+            throw new XQException("Argument is null");
         }
+    }
+
+    private void checkOnlyReadOnce() throws XQException {
+        if (position == lastReadPosition) {
+            throw new XQException("XQJ does not allow the same item to be read more than once");
+        }
+        lastReadPosition = position;
+    }
+
+    private XQException newXQException(Exception err) {
+        XQException xqe = new XQException(err.getMessage());
+        xqe.initCause(err);
+        return xqe;
     }
 }
 //

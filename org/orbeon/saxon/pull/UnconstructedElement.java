@@ -1,7 +1,7 @@
 package org.orbeon.saxon.pull;
 
-import org.orbeon.saxon.instruct.ElementCreator;
 import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.instruct.ElementCreator;
 import org.orbeon.saxon.type.Type;
 
 /**
@@ -12,9 +12,20 @@ public class UnconstructedElement extends UnconstructedParent {
 
     private int nameCode;
 
+    /**
+     * Create an unconstructed (pending) element node
+     * @param instruction the instruction responsible for creating the node
+     * @param context the XPath dynamic context
+     */
+
     public UnconstructedElement(ElementCreator instruction, XPathContext context) {
         super(instruction, context);
     }
+
+    /**
+     * Set the name of the element node
+     * @param nameCode the namepool code for the element name
+     */
 
     public void setNameCode(int nameCode) {
         this.nameCode = nameCode;
@@ -39,6 +50,21 @@ public class UnconstructedElement extends UnconstructedParent {
 
     public int getNodeKind() {
         return Type.ELEMENT;
+    }
+
+    /**
+     * Get the Base URI for the node, that is, the URI used for resolving a relative URI contained
+     * in the node. This will be the same as the System ID unless xml:base has been used.
+     *
+     * @return the base URI of the node
+     */
+
+    public String getBaseURI() {
+        if (node == null) {
+            // we need to construct the element because it might have an xml:base attribute
+            tryToConstruct();
+        }
+        return node.getBaseURI();
     }
 }
 

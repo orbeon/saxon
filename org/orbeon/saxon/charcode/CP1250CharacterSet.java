@@ -3,9 +3,10 @@ package org.orbeon.saxon.charcode;
 import java.util.Arrays;
 
 /**
-* This class defines properties of the cp1250 Central Europe character set,
+ * This class defines properties of the cp1250 Central Europe character set,
  * as defined at <a ref="http://www.microsoft.com/globaldev/reference/sbcs/1250.htm">http://www.microsoft.com/globaldev/reference/sbcs/1250.htm</a>.
-*/
+ * @author Michael Kay, with advice from Jirka Kocek
+ */
 
 public class CP1250CharacterSet implements CharacterSet{
 
@@ -142,23 +143,6 @@ public class CP1250CharacterSet implements CharacterSet{
         c[729] = true;
         c[731] = true;
         c[733] = true;
-        //c[8211] = true;
-        //c[8212] = true;
-        //c[8216] = true;
-        //c[8217] = true;
-        //c[8218] = true;
-        //c[8220] = true;
-        //c[8221] = true;
-        //c[8222] = true;
-        //c[8224] = true;
-        //c[8225] = true;
-        //c[8226] = true;
-        //c[8230] = true;
-        //c[8240] = true;
-        //c[8249] = true;
-        //c[8250] = true;
-        //c[8364] = true;
-        //c[8482] = true;
     }
 
     public final boolean inCharset(int ch) {
@@ -195,7 +179,7 @@ public class CP1250CharacterSet implements CharacterSet{
 //
 // The Original Code is: all this file.
 //
-// The Initial Developer of the Original Code is Michael H. Kay using data supplied by Jirka Kosek [jirka@kosek.cz] and Unicode.org
+// The Initial Developer of the Original Code is Michael H. Kay
 //
 // Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
 //

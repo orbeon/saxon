@@ -1,8 +1,9 @@
 package org.orbeon.saxon;
-import org.orbeon.saxon.event.PipelineConfiguration;
-import org.orbeon.saxon.event.ReceivingContentHandler;
-import org.orbeon.saxon.event.SerializerFactory;
+
+import org.orbeon.saxon.event.*;
+import org.orbeon.saxon.om.AllElementStripper;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.value.Whitespace;
 import org.xml.sax.SAXException;
 
 import javax.xml.transform.Result;
@@ -26,9 +27,10 @@ public class IdentityTransformerHandler extends ReceivingContentHandler implemen
     private Controller controller;
 
     /**
-    * Create a IdentityTransformerHandler and initialise variables. The constructor is protected, because
-    * the Filter should be created using newTransformerHandler() in the SAXTransformerFactory
-    * class
+     * Create a IdentityTransformerHandler and initialise variables. The constructor is protected, because
+     * the Filter should be created using newTransformerHandler() in the SAXTransformerFactory
+     * class
+     * @param controller the Controller for this transformation
     */
 
     protected IdentityTransformerHandler(Controller controller) {
@@ -58,9 +60,7 @@ public class IdentityTransformerHandler extends ReceivingContentHandler implemen
     */
 
     public String getSystemId() {
-        // ORBEON: This is our patch. MK probably has a better plan to fix this.
-        String parentSystemId = super.getSystemId();
-        return (parentSystemId != null) ? parentSystemId : this.systemId;
+        return systemId;
     }
 
     /**
@@ -75,7 +75,8 @@ public class IdentityTransformerHandler extends ReceivingContentHandler implemen
     }
 
     /**
-    * Get the output destination of the transformation
+     * Get the output destination of the transformation
+     * @return the output destination
     */
 
     public Result getResult() {
@@ -93,14 +94,77 @@ public class IdentityTransformerHandler extends ReceivingContentHandler implemen
         try {
             Properties props = controller.getOutputProperties();
             PipelineConfiguration pipe = controller.makePipelineConfiguration();
-            SerializerFactory sf = getConfiguration().getSerializerFactory();
-            setReceiver(sf.getReceiver(result, pipe, props));
+            Configuration config = getConfiguration();
+            SerializerFactory sf = config.getSerializerFactory();
+            Receiver out = sf.getReceiver(result, pipe, props);
             setPipelineConfiguration(pipe);
+            int stripSpace = config.getStripsWhiteSpace();
+            if (stripSpace == Whitespace.ALL) {
+                Stripper s = new AllElementStripper();
+                s.setStripAll();
+                s.setPipelineConfiguration(pipe);
+                s.setUnderlyingReceiver(out);
+                out = s;
+            }
+            setReceiver(out);
         } catch (XPathException err) {
             throw new SAXException(err);
         }
         super.startDocument();
     }
+
+//    public static void main(String[] args) throws Exception {
+//		String in = "<rows>" + "   " +
+//		"<r>\t<c>1</c>\n<c>2000</c><c>inq1</c> \t\r\t\n <c>inquiry1</c></r> " +
+//		"</rows>";
+//		String expected = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
+//				"<rows>" +
+//		"<r><c>1</c><c>2000</c><c>inq1</c><c>inquiry1</c></r>" +
+//		"</rows>" ;
+//		//System.setProperty(TRANSFORMERFACTORY_PROPERTY,TRANSFORMERFACTORY_IMPL);
+//		TransformerFactory transFactory = new TransformerFactoryImpl();
+//		transFactory.setAttribute(
+//				org.orbeon.saxon.FeatureKeys.STRIP_WHITESPACE, "all");
+//		if (transFactory.getFeature(SAXTransformerFactory.FEATURE)) {
+//			// We can use an intermediate SAXResult and feed it to a
+//			// TransformerHandler
+//			SAXTransformerFactory saxTransFactory = (SAXTransformerFactory) transFactory;
+//			TransformerHandler identityTransformerHandler = saxTransFactory
+//					.newTransformerHandler();
+//
+//			SAXParserFactory factory = SAXParserFactory.newInstance();
+//	        factory.setNamespaceAware(true) ;
+//	        SAXParser saxParser = factory.newSAXParser();
+//	        XMLReader reader = saxParser.getXMLReader();
+//			DOMResult result = new DOMResult() ;
+//			identityTransformerHandler.setResult(result);
+//	        reader.setContentHandler(identityTransformerHandler);
+//	        reader.parse(new InputSource(new StringReader(in)));
+//
+//	        //When we further transform the result in a String using a transformer, the
+//	        //whitespace nodes are not there
+//	        Transformer transf = transFactory.newTransformer();
+//	        DOMSource inDOM = new DOMSource(result.getNode());
+//	        StringWriter resWriter = new StringWriter() ;
+//	        StreamResult resStream = new StreamResult(resWriter) ;
+//	        transf.transform(inDOM, resStream);
+//	        String res = resWriter.toString();
+//	        System.err.println(expected);
+//            System.err.println(res);
+//	        // But the whitespace nodes are available in the DOM represenatation
+//	        Node docNode = result.getNode(); // The document node
+//			Node rowsNode = docNode.getFirstChild();
+//			String name = rowsNode.getNodeName() ;
+//			System.err.println(name);
+//			Node rNode = rowsNode.getFirstChild();
+//			System.err.println(Node.ELEMENT_NODE == rNode.getNodeType());
+//		}
+//		else {
+//			throw new UnsupportedOperationException() ;
+//		}
+//
+//
+//    }
 
 }
 

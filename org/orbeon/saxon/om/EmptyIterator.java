@@ -1,9 +1,10 @@
 package org.orbeon.saxon.om;
 
 import org.orbeon.saxon.expr.LastPositionFinder;
-import org.orbeon.saxon.expr.ReversibleIterator;
 import org.orbeon.saxon.value.EmptySequence;
 import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.pattern.NodeTest;
+import org.orbeon.saxon.trans.XPathException;
 
 /**
  * EmptyIterator: an iterator over an empty sequence. Since such an iterator has no state,
@@ -12,7 +13,7 @@ import org.orbeon.saxon.value.Value;
  */
 
 public class EmptyIterator implements AxisIterator,
-        ReversibleIterator, LastPositionFinder, GroundedIterator, LookaheadIterator {
+        org.orbeon.saxon.expr.ReversibleIterator, LastPositionFinder, GroundedIterator, LookaheadIterator {
 
     private static EmptyIterator theInstance = new EmptyIterator();
 
@@ -26,7 +27,25 @@ public class EmptyIterator implements AxisIterator,
     }
 
     /**
-     * Get the next item. This method should not be called unless hasNext() returns true.
+     * private constructor
+     */
+
+    private EmptyIterator() {}
+
+    /**
+     * Move to the next node, without returning it. Returns true if there is
+     * a next node, false if the end of the sequence has been reached. After
+     * calling this method, the current node may be retrieved using the
+     * current() function.
+     */
+
+    public boolean moveNext() {
+        return false;
+    }
+
+
+    /**
+     * Get the next item.
      * @return the next item. For the EmptyIterator this is always null.
      */
     public Item next() {
@@ -57,6 +76,44 @@ public class EmptyIterator implements AxisIterator,
      */
     public int getLastPosition() {
         return 0;
+    }
+
+    public void close() {
+    }
+
+    /**
+     * Return an iterator over an axis, starting at the current node.
+     *
+     * @param axis the axis to iterate over, using a constant such as
+     *             {@link Axis#CHILD}
+     * @param test a predicate to apply to the nodes before returning them.
+     * @throws NullPointerException if there is no current node
+     */
+
+    public AxisIterator iterateAxis(byte axis, NodeTest test) {
+        throw new NullPointerException();
+    }
+
+    /**
+     * Return the atomized value of the current node.
+     *
+     * @return the atomized value.
+     * @throws NullPointerException if there is no current node
+     */
+
+    public Value atomize() throws XPathException {
+        throw new NullPointerException();
+    }
+
+    /**
+     * Return the string value of the current node.
+     *
+     * @return the string value, as an instance of CharSequence.
+     * @throws NullPointerException if there is no current node
+     */
+
+    public CharSequence getStringValue() {
+        throw new NullPointerException();
     }
 
     /**
@@ -110,7 +167,7 @@ public class EmptyIterator implements AxisIterator,
      * @return the corresponding Value
      */
 
-    public Value materialize() {
+    public GroundedValue materialize() {
         return EmptySequence.getInstance();
     }
 

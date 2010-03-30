@@ -1,17 +1,15 @@
 package org.orbeon.saxon.functions;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Platform;
+import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.ExpressionVisitor;
 import org.orbeon.saxon.expr.XPathContext;
-import org.orbeon.saxon.expr.Container;
 import org.orbeon.saxon.om.EmptyIterator;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.regex.RegularExpression;
-import org.orbeon.saxon.trans.DynamicError;
-import org.orbeon.saxon.trans.StaticError;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
-import org.orbeon.saxon.value.Value;
 
 import java.util.regex.Pattern;
 
@@ -29,30 +27,71 @@ public class Tokenize extends SystemFunction  {
     /**
     * Simplify and validate.
     * This is a pure function so it can be simplified in advance if the arguments are known
-    */
+     * @param visitor an expression visitor
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
-        Expression e = simplifyArguments(env);
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        Expression e = simplifyArguments(visitor);
+        if (e == this) {
+            maybePrecompile(visitor);
+        }
+        return e;
+    }
 
+    private void maybePrecompile(ExpressionVisitor visitor) throws XPathException {
         // compile the regular expression once if possible
-        if (regexp == null && !(e instanceof Value)) {
+        if (regexp == null) {
             try {
-                regexp = Matches.tryToCompile(argument, 1, 2, env);
-            } catch (StaticError err) {
+                regexp = Matches.tryToCompile(argument, 1, 2, visitor.getStaticContext());
+            } catch (XPathException err) {
                 err.setLocator(this);
                 throw err;
             }
             // check that it's not a pattern that matches ""
             if (regexp != null && regexp.matches("")) {
-                StaticError err = new StaticError(
-                        "The regular expression in tokenize() must not be one that matches a zero-length string");
+                XPathException err = new XPathException("The regular expression in tokenize() must not be one that matches a zero-length string");
                 err.setErrorCode("FORX0003");
                 err.setLocator(this);
                 throw err;
             }
         }
+    }
 
+
+    /**
+     * Perform optimisation of an expression and its subexpressions.
+     * <p/>
+     * <p>This method is called after all references to functions and variables have been resolved
+     * to the declaration of the function or variable, and after all type checking has been done.</p>
+     *
+     * @param visitor         an expression visitor
+     * @param contextItemType the static type of "." at the point where this expression is invoked.
+     *                        The parameter is set to null if it is known statically that the context item will be undefined.
+     *                        If the type of the context item is not known statically, the argument is set to
+     *                        {@link org.orbeon.saxon.type.Type#ITEM_TYPE}
+     * @return the original expression, rewritten if appropriate to optimize execution
+     * @throws org.orbeon.saxon.trans.XPathException
+     *          if an error is discovered during this phase
+     *          (typically a type error)
+     */
+
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        Expression e = super.optimize(visitor, contextItemType);
+        // try once again to compile the regular expression once if possible
+        // (used when the regex has been identified as a constant as a result of earlier rewrites)
+        if (e == this) {
+            maybePrecompile(visitor);
+        }
         return e;
+    }
+
+    /**
+     * Get the compiled regular expression if available, otherwise return null
+     * @return the compiled regular expression, or null
+     */
+
+    public RegularExpression getCompiledRegularExpression() {
+        return regexp;
     }
 
     /**
@@ -63,7 +102,7 @@ public class Tokenize extends SystemFunction  {
         AtomicValue sv = (AtomicValue)argument[0].evaluateItem(c);
         if (sv==null) {
             return EmptyIterator.getInstance();
-        };
+        }
         CharSequence input = sv.getStringValueCS();
         if (input.length() == 0) {
             return EmptyIterator.getInstance();
@@ -84,10 +123,12 @@ public class Tokenize extends SystemFunction  {
             }
 
             try {
-                final Platform platform = c.getConfiguration().getPlatform();
-                re = platform.compileRegularExpression(pattern, true, flags);
+                final Platform platform = Configuration.getPlatform();
+                final int xmlVersion = c.getConfiguration().getXMLVersion();
+                re = platform.compileRegularExpression(
+                        pattern, xmlVersion, RegularExpression.XPATH_SYNTAX, flags);
             } catch (XPathException err) {
-                DynamicError de = new DynamicError(err);
+                XPathException de = new XPathException(err);
                 de.setErrorCode("FORX0002");
                 de.setXPathContext(c);
                 de.setLocator(this);
@@ -95,8 +136,7 @@ public class Tokenize extends SystemFunction  {
             }
             // check that it's not a pattern that matches ""
             if (re.matches("")) {
-                StaticError err = new StaticError(
-                        "The regular expression in tokenize() must not be one that matches a zero-length string");
+                XPathException err = new XPathException("The regular expression in tokenize() must not be one that matches a zero-length string");
                 err.setErrorCode("FORX0003");
                 err.setLocator(this);
                 throw err;

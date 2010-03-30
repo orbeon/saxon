@@ -11,12 +11,18 @@ public class DotNetReader extends java.io.Reader {
 
     private TextReader reader;
 
+    /**
+     * Create a Java Reader that wraps a .NET Reader
+     * @param reader the .NET Reader
+     */
+
     public DotNetReader(TextReader reader) {
         this.reader = reader;
     }
 
     /**
      * Get the underlying TextReader object
+     * @return the underlying TextReader object
      */
 
     public TextReader getUnderlyingTextReader() {

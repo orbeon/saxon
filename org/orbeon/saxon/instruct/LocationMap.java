@@ -15,10 +15,17 @@ public class LocationMap implements LocationProvider, Serializable {
     private String[] modules = new String[10];
     private int numberOfModules = 0;
 
+    /**
+     * Create a location map
+     */
+
     public LocationMap() {}
 
     /**
      * Allocate a location identifier to an expression
+     * @param module the URI (system identifier) of the module
+     * @param lineNumber the line number of the expression within the module
+     * @return the corresponding location identifier
      */
 
     public int allocateLocationId(String module, int lineNumber) {
@@ -54,10 +61,12 @@ public class LocationMap implements LocationProvider, Serializable {
 
     /**
      * Get the system identifier corresponding to a locationId
+     * @param locationId the location identifier
+     * @return the corresponding system identifier
      */
 
-    public String getSystemId(int locationId) {
-        int m = locationId>>20;
+    public String getSystemId(long locationId) {
+        int m = ((int)locationId)>>20;
         if (m < 0 || m >= numberOfModules) {
             return null;
         }
@@ -66,10 +75,16 @@ public class LocationMap implements LocationProvider, Serializable {
 
     /**
      * Get the line number corresponding to a locationId
+     * @param locationId the location identifier
+     * @return the corresponding line number
      */
 
-    public int getLineNumber(int locationId) {
-        return locationId & 0xfffff;
+    public int getLineNumber(long locationId) {
+        return ((int)locationId) & 0xfffff;
+    }
+
+    public int getColumnNumber(long locationId) {
+        return -1;
     }
 
 }

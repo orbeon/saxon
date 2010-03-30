@@ -1,6 +1,8 @@
 package org.orbeon.saxon.codenorm;
 
-import org.orbeon.saxon.om.XMLChar;
+import org.orbeon.saxon.charcode.UTF16;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.value.Whitespace;
 
 /**
  * Implements Unicode Normalization Forms C, D, KC, KD.
@@ -20,12 +22,41 @@ public class Normalizer {
 
     /**
      * Create a normalizer for a given form.
+     * @param form the normalization form required: for example {@link Normalizer#C}, {@link Normalizer#D}
      */
     public Normalizer(byte form) {
         this.form = form;
         if (data == null) {
             data = UnicodeDataParser.build(); // load 1st time
         }
+    }
+    
+    /**
+     * Create a normalizer for a given form, expressed as a character string
+     * @param formCS the normalization form required: for example "NFC" or "NFD"
+     */ 
+    
+    public Normalizer(CharSequence formCS) throws XPathException {
+        String formString = Whitespace.trim(formCS);
+        byte fb;
+        if (formString.length() == 0) {
+            fb = NO_ACTION;
+        } else if (formString.equalsIgnoreCase("NFC")) {
+            fb = Normalizer.C;
+        } else if (formString.equalsIgnoreCase("NFD")) {
+            fb = Normalizer.D;
+        } else if (formString.equalsIgnoreCase("NFKC")) {
+            fb = Normalizer.KC;
+        } else if (formString.equalsIgnoreCase("NFKD")) {
+            fb = Normalizer.KD;
+        } else {
+            String msg = "Normalization form " + formString + " is not supported";
+            throw new XPathException(msg, "FOCH0003");
+        }
+        form = fb;
+        if (data == null) {
+            data = UnicodeDataParser.build(); // load 1st time
+        }        
     }
 
     /**
@@ -42,24 +73,28 @@ public class Normalizer {
         D = 0 ,
         C = COMPOSITION_MASK,
         KD = COMPATIBILITY_MASK,
-        KC = (byte)(COMPATIBILITY_MASK + COMPOSITION_MASK);
+        KC = (byte)(COMPATIBILITY_MASK + COMPOSITION_MASK),
+        NO_ACTION = 8;
 
     /**
-    * Normalizes text according to the chosen form,
-    * replacing contents of the target buffer.
-    * @param   source      the original text, unnormalized
-    * @param   target      the resulting normalized text
+     * Normalizes text according to the chosen form,
+     * replacing contents of the target buffer.
+     * @param   source      the original text, unnormalized
+     * @param   target      the resulting normalized text
+     * @return the modified target StringBuffer
     */
-    public StringBuffer normalize(CharSequence source, StringBuffer target) {
+    private StringBuffer normalize(CharSequence source, StringBuffer target) {
+
+        if (form == NO_ACTION || source.length() == 0) {
+            return new StringBuffer(source.toString());
+        }
 
         // First decompose the source into target,
         // then compose if the form requires.
 
-        if (source.length() != 0) {
-            internalDecompose(source, target);
-            if ((form & COMPOSITION_MASK) != 0) {
-                internalCompose(target);
-            }
+        internalDecompose(source, target);
+        if ((form & COMPOSITION_MASK) != 0) {
+            internalCompose(target);
         }
         return target;
     }
@@ -101,9 +136,9 @@ public class Normalizer {
             buffer.setLength(0);
             //ch32 = UTF16.charAt(source, i);
             ch32 = source.charAt(i++);
-            if (XMLChar.isHighSurrogate(ch32)) {
+            if (UTF16.isHighSurrogate(ch32)) {
                 char low = source.charAt(i++);
-                ch32 = XMLChar.supplemental((char)ch32, low);
+                ch32 = UTF16.combinePair((char)ch32, low);
             }
             data.getRecursiveDecomposition(canonical, ch32, buffer);
 
@@ -116,9 +151,9 @@ public class Normalizer {
             for (int j = 0; j < buffer.length();) {
                 //ch = UTF16.charAt(buffer, j);
                 ch = buffer.charAt(j++);
-                if (XMLChar.isHighSurrogate(ch32)) {
+                if (UTF16.isHighSurrogate(ch)) {
                     char low = buffer.charAt(j++);
-                    ch = XMLChar.supplemental((char)ch, low);
+                    ch = UTF16.combinePair((char)ch, low);
                 }
                 int chClass = data.getCanonicalClass(ch);
                 int k = target.length(); // insertion point
@@ -128,14 +163,15 @@ public class Normalizer {
 
                     int ch2;
                     while (k > 0) {
+                        int step = 1;
                         ch2 = target.charAt(k-1);
-                        if (XMLChar.isSurrogate(ch2)) {
-                            k--;
-                            char high = buffer.charAt(k-1);
-                            ch2 = XMLChar.supplemental(high, (char)ch2);
+                        if (UTF16.isSurrogate(ch2)) {
+                            step = 2;
+                            char high = target.charAt(k-2);
+                            ch2 = UTF16.combinePair(high, (char)ch2);
                         }
                         if (data.getCanonicalClass(ch2) <= chClass) break;
-                        k--;
+                        k -= step;
                     }
 //                    for (; k > 0; k -= (ch2<65536 ? 1 : 2)) {
 //                        ch2 = UTF16.charAt(target, k-1);
@@ -145,8 +181,8 @@ public class Normalizer {
                 if (ch < 65536) {
                     target.insert(k, (char)ch);
                 } else {
-                    String s = "" + XMLChar.highSurrogate(ch) + XMLChar.lowSurrogate(ch);
-                    target.insert(k, s);
+                    char[] chars = new char[]{UTF16.highSurrogate(ch), UTF16.lowSurrogate(ch)};
+                    target.insert(k, chars);
                 }
                 //target.insert(k, UTF16.valueOf(ch));
             }
@@ -166,8 +202,8 @@ public class Normalizer {
         //int compPos = (starterCh<65536 ? 1 : 2); // length of last composition
         int starterCh = target.charAt(0);
         int compPos = 1;
-        if (XMLChar.isHighSurrogate(starterCh)) {
-            starterCh = XMLChar.supplemental((char)starterCh, target.charAt(1));
+        if (UTF16.isHighSurrogate(starterCh)) {
+            starterCh = UTF16.combinePair((char)starterCh, target.charAt(1));
             compPos++;
         }
         int lastClass = data.getCanonicalClass(starterCh);
@@ -180,8 +216,8 @@ public class Normalizer {
         //for (int decompPos = compPos; decompPos < target.length(); decompPos += (ch<65536 ? 1 : 2)) {
         for (int decompPos = compPos; decompPos < target.length();) {
             ch = target.charAt(decompPos++);
-            if (XMLChar.isHighSurrogate(ch)) {
-                ch = XMLChar.supplemental((char)ch, target.charAt(decompPos++));
+            if (UTF16.isHighSurrogate(ch)) {
+                ch = UTF16.combinePair((char)ch, target.charAt(decompPos++));
             }
             //ch = UTF16.charAt(target, decompPos);
             int chClass = data.getCanonicalClass(ch);
@@ -212,35 +248,39 @@ public class Normalizer {
      * Set the 32-bit character at a particular 16-bit offset in a string buffer,
      * replacing the previous character at that position, and taking account of the
      * fact that either, both, or neither of the characters might be a surrogate pair.
+     * @param target the StringBuffer in which the data is to be inserted
+     * @param offset the position at which the data is to be inserted
+     * @param ch32 the character to be inserted, as a 32-bit Unicode codepoint
      */
 
     private static void setCharAt(StringBuffer target, int offset, int ch32) {
         if (ch32 < 65536) {
-            if (XMLChar.isHighSurrogate(target.charAt(offset))) {
+            if (UTF16.isHighSurrogate(target.charAt(offset))) {
                 target.setCharAt(offset, (char)ch32);
                 target.deleteCharAt(offset+1);
             } else {
                 target.setCharAt(offset, (char)ch32);
             }
         } else {
-            if (XMLChar.isHighSurrogate(target.charAt(offset))) {
-                target.setCharAt(offset, XMLChar.highSurrogate(ch32));
-                target.setCharAt(offset+1, XMLChar.lowSurrogate(ch32));
+            if (UTF16.isHighSurrogate(target.charAt(offset))) {
+                target.setCharAt(offset, UTF16.highSurrogate(ch32));
+                target.setCharAt(offset+1, UTF16.lowSurrogate(ch32));
             } else {
-                target.setCharAt(offset, XMLChar.highSurrogate(ch32));
-                target.insert(offset+1, XMLChar.lowSurrogate(ch32));
+                target.setCharAt(offset, UTF16.highSurrogate(ch32));
+                target.insert(offset+1, UTF16.lowSurrogate(ch32));
             }
         }
     }
 
     /**
     * Contains normalization data from the Unicode Character Database.
-    * use false for the minimal set, true for the real set.
     */
     private static NormalizerData data = null;
 
     /**
     * Just accessible for testing.
+     * @param ch a character
+     * @return true if the character is an excluded character
     */
     boolean getExcluded (char ch) {
         return data.getExcluded(ch);
@@ -248,6 +288,8 @@ public class Normalizer {
 
     /**
     * Just accessible for testing.
+     * @param ch a character
+     * @return the raw decomposition mapping of the character
     */
     String getRawDecompositionMapping (char ch) {
         return data.getRawDecompositionMapping(ch);

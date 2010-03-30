@@ -1,5 +1,4 @@
 package org.orbeon.saxon.expr;
-import org.orbeon.saxon.om.AtomizableIterator;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.trans.XPathException;
@@ -17,19 +16,19 @@ import org.orbeon.saxon.trans.XPathException;
 * used in the implementation of the document(), key(), and id() functions.
 */
 
-public final class MappingIterator implements SequenceIterator, AtomizableIterator {
+public final class MappingIterator implements SequenceIterator {
 
     private SequenceIterator base;
     private MappingFunction action;
     private SequenceIterator results = null;
-    private boolean atomizing = false;
+    //private boolean atomizing = false;
     private Item current = null;
     private int position = 0;
 
     /**
-    * Construct a MappingIterator that will apply a specified MappingFunction to
-    * each Item returned by the base iterator.
-    * @param base the base iterator
+     * Construct a MappingIterator that will apply a specified MappingFunction to
+     * each Item returned by the base iterator.
+     * @param base the base iterator
      * @param action the mapping function to be applied
      */
 
@@ -52,21 +51,13 @@ public final class MappingIterator implements SequenceIterator, AtomizableIterat
             Item nextSource = base.next();
             if (nextSource != null) {
                 // Call the supplied mapping function
-                Object obj = action.map(nextSource);
+                SequenceIterator obj = action.map(nextSource);
 
-                // The result may be null (representing an empty sequence), an item
-                // (representing a singleton sequence), or a SequenceIterator (any sequence)
+                // The result may be null (representing an empty sequence),
+                //  or a SequenceIterator (any sequence)
 
                 if (obj != null) {
-                    if (obj instanceof Item) {
-                        nextItem = (Item)obj;
-                        results = null;
-                        break;
-                    }
-                    results = (SequenceIterator)obj;
-                    if (atomizing && results instanceof AtomizableIterator) {
-                        ((AtomizableIterator)results).setIsAtomizing(atomizing);
-                    }
+                    results = obj;
                     nextItem = results.next();
                     if (nextItem == null) {
                         results = null;
@@ -96,13 +87,19 @@ public final class MappingIterator implements SequenceIterator, AtomizableIterat
         return position;
     }
 
+    public void close() {
+        if (results != null) {
+            results.close();
+        }
+        base.close();
+    }
 
     public SequenceIterator getAnother() throws XPathException {
-        // System.err.println(this + " getAnother() ");
         SequenceIterator newBase = base.getAnother();
-        MappingIterator m = new MappingIterator(newBase, action);
-        m.setIsAtomizing(atomizing);
-        return m;
+        MappingFunction newAction = action instanceof StatefulMappingFunction ?
+                ((StatefulMappingFunction)action).getAnother() :
+                action;
+        return new MappingIterator(newBase, newAction);
     }
 
     /**
@@ -116,21 +113,7 @@ public final class MappingIterator implements SequenceIterator, AtomizableIterat
      */
 
     public int getProperties() {
-        return ATOMIZABLE;
-    }
-
-    /**
-     * Indicate that any nodes returned in the sequence will be atomized. This
-     * means that if it wishes to do so, the implementation can return the typed
-     * values of the nodes rather than the nodes themselves. The implementation
-     * is free to ignore this hint.
-     * @param atomizing true if the caller of this iterator will atomize any
-     * nodes that are returned, and is therefore willing to accept the typed
-     * value of the nodes instead of the nodes themselves.
-     */
-
-    public void setIsAtomizing(boolean atomizing) {
-        this.atomizing = atomizing;
+        return 0;
     }
 
 }

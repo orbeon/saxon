@@ -2,6 +2,7 @@ package org.orbeon.saxon.instruct;
 
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.om.NamespaceResolver;
+import org.orbeon.saxon.om.StructuredQName;
 import org.orbeon.saxon.trace.InstructionInfo;
 
 import java.util.HashMap;
@@ -18,7 +19,8 @@ public class TraceExpression extends TraceWrapper implements InstructionInfo {
     private int lineNumber = -1;
     private int columnNumber = -1;
     private String systemId = null;
-    private int objectNameCode = -1;
+    //private int objectNameCode = -1;
+    private StructuredQName objectName;
     private int constructType;
     private NamespaceResolver namespaceResolver = null;
     private HashMap properties = new HashMap(10);
@@ -117,8 +119,8 @@ public class TraceExpression extends TraceWrapper implements InstructionInfo {
      * variable name, key name, element name, etc. This is used only where the name is known statically.
      */
 
-    public void setObjectNameCode(int nameCode) {
-        objectNameCode = nameCode;
+    public void setObjectName(StructuredQName qName) {
+        objectName = qName;
     }
 
     /**
@@ -126,8 +128,8 @@ public class TraceExpression extends TraceWrapper implements InstructionInfo {
      * variable name, key name, element name, etc. This is used only where the name is known statically.
      */
 
-    public int getObjectNameCode() {
-        return objectNameCode;
+    public StructuredQName getObjectName() {
+        return objectName;
     }
 
     /**
@@ -184,7 +186,7 @@ public class TraceExpression extends TraceWrapper implements InstructionInfo {
      * @param locationId not used
      * @return the URI of the module containing the expression
      */
-    public String getSystemId(int locationId) {
+    public String getSystemId(long locationId) {
         return getSystemId();
     }
      /**
@@ -195,9 +197,13 @@ public class TraceExpression extends TraceWrapper implements InstructionInfo {
      * @return the line number of the expression within its module
      */
 
-    public int getLineNumber(int locationId) {
+    public int getLineNumber(long locationId) {
         return getLineNumber();
     }
+
+    public int getColumnNumber(long locationId) {
+        return getColumnNumber();
+    }     
 }
 
 //

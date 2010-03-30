@@ -1,7 +1,8 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.Atomizer;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.StaticContext;
+import org.orbeon.saxon.expr.ExpressionVisitor;
+import org.orbeon.saxon.expr.ExpressionTool;
 import org.orbeon.saxon.trans.XPathException;
 
 /**
@@ -12,13 +13,13 @@ public class Data extends CompileTimeFunction {
 
     /**
     * Simplify and validate.
-    */
+     * @param visitor an expression visitor
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
-        Atomizer a = new Atomizer(argument[0], env.getConfiguration());
-        a.setLocationId(getLocationId());
-        a.setParentExpression(getParentExpression());
-        return a.simplify(env);
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        Atomizer a = new Atomizer(argument[0], visitor.getConfiguration());
+        ExpressionTool.copyLocationInfo(this, a);
+        return visitor.simplify(a);
     }
 
 }

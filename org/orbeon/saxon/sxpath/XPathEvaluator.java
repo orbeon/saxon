@@ -1,39 +1,44 @@
 package org.orbeon.saxon.sxpath;
+import org.orbeon.saxon.AugmentedSource;
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.event.Builder;
-import org.orbeon.saxon.event.Stripper;
+import org.orbeon.saxon.pattern.Pattern;
+import org.orbeon.saxon.pattern.PatternSponsor;
 import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.ExpressionVisitor;
+import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.SlotManager;
-import org.orbeon.saxon.om.AllElementStripper;
-import org.orbeon.saxon.om.NamePool;
+import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.NamespaceResolver;
 import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.trans.IndependentContext;
+import org.orbeon.saxon.om.SequenceIterator;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.value.Whitespace;
 
 import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
 import java.io.File;
-import java.util.List;
 
 /**
- * This is a cut-down version of the XPathEvaluator in the org.orbeon.saxon.xpath package. It provides
- * much of the same functionality, but without any dependencies on the JAXP 1.3 interfaces, which
- * are not available in JDK 1.4. The main restrictions are that it does not support mechanisms for
- * defining variables or functions.
-  *
-  * @author Michael H. Kay
-  */
+ * This class provide a native Saxon API for free-standing evaluation of XPath expressions. Unlike the
+ * JAXP API offered by {@link org.orbeon.saxon.xpath.XPathEvaluator} it exposes Saxon classes and interfaces
+ * and thus provides a more strongly-typed interface with greater control over the detailed behaviour.
+ *
+ * @author Michael H. Kay
+ * @since 8.4
+ */
 
 public class XPathEvaluator {
 
-    private IndependentContext staticContext;
+    private XPathStaticContext staticContext;
     private boolean stripSpace = false;
 
     /**
-    * Default constructor. Creates an XPathEvaluator with a default configuration and name pool.
+     * Default constructor. Creates an XPathEvaluator with a default configuration and name pool.
+     * Note that any source documents used by an XPath expression under this XPathEvaluator must
+     * be built using the {@link Configuration} that is implicitly created by this constructor,
+     * which is accessible using the {@link #getConfiguration} method.
     */
 
     public XPathEvaluator() {
@@ -42,14 +47,17 @@ public class XPathEvaluator {
 
     /**
      * Construct an XPathEvaluator with a specified configuration.
-     * @param config the configuration to be used
+     * @param config the configuration to be used. If the XPathEvaluator is
+     * to be used to run schema-aware XPath expressions this must be an instance
+     * of {@link com.saxonica.validate.SchemaAwareConfiguration}
      */
     public XPathEvaluator(Configuration config) {
         staticContext = new IndependentContext(config);
     }
 
     /**
-     * Get the Configuration in use
+     * Get the Configuration in use.
+     * @return the Saxon configuration
      */
 
     public Configuration getConfiguration() {
@@ -57,10 +65,13 @@ public class XPathEvaluator {
     }
 
     /**
-    * Indicate whether all whitespace text nodes in the source document are to be
-    * removed.
+    * Indicate whether all whitespace text nodes in source documents are to be
+    * removed. This affects the action of the {@link #build} method, and of all
+     * other methods that take a Source as input.
     * @param strip True if all whitespace text nodes are to be stripped from the source document,
     * false otherwise. The default if the method is not called is false.
+     * @deprecated since 8.9. The preferred way to build a source document is to use
+     * {@link Configuration#buildDocument}
     */
 
     public void setStripSpace(boolean strip) {
@@ -69,83 +80,145 @@ public class XPathEvaluator {
 
     /**
     * Build a source document.
+     * <p><i>This method is retained for backwards compability. The preferred way to build a document
+     * tree is to call the method {@link Configuration#buildDocument}</i></p>
      * @param source a JAXP Source object. This may be any implementation of Source that Saxon recognizes:
      * not only the standard kinds of source such as StreamSource, SAXSource, and DOMSource, but also for
-     * example a JDOM or XOM DocumentWrapper.
+     * example a JDOM or XOM DocumentWrapper. For the way in which the source document is built, see
+     *      {@link org.orbeon.saxon.Configuration#buildDocument}
      * @return the NodeInfo representing the root of the constructed tree.
      * @throws XPathException if, for example, XML parsing fails.
+     * @deprecated since 8.9. The preferred way to build a source document is to use
+     * {@link Configuration#buildDocument}
     */
 
     public NodeInfo build(Source source) throws XPathException {
-        NamePool pool;
-        if (source instanceof NodeInfo) {
-            pool = ((NodeInfo)source).getNamePool();
-        } else {
-            pool = NamePool.getDefaultNamePool();
-        }
-        Stripper stripper = null;
         if (stripSpace) {
-            stripper = AllElementStripper.getInstance();
+            AugmentedSource as = AugmentedSource.makeAugmentedSource(source);
+            as.setStripSpace(Whitespace.ALL);
+            source = as;
+        } else if (source instanceof NodeInfo) {
+            return (NodeInfo)source;
         }
-        Configuration config = new Configuration();
-        config.setNamePool(pool);
-        return Builder.build(source, stripper, config);
+        return getConfiguration().buildDocument(source);
     }
 
     /**
-    * Set the static context for compiling XPath expressions. This provides control over the
+     * Declare a variable, making it available for use within a subsequently-compiled XPath expression.
+     * The variable may subsequently be assigned a value using the method
+     * {@link XPathDynamicContext#setVariable(XPathVariable, org.orbeon.saxon.om.ValueRepresentation)}.
+     * Any external variable used in an XPath expression must be declared before the XPath expression
+     * is compiled.
+     * @param uri The namespace URI of the variable name. Use "" for the null namespace.
+     * @param localName The local part of the variable name.
+     * @return an object representing the variable
+     */
+
+    public XPathVariable declareVariable(String uri, String localName) {
+        return staticContext.declareVariable(uri, localName);
+    }
+
+    /**
+    * Set the static context for compiling XPath expressions. This provides more detailed control over the
     * environment in which the expression is compiled, for example it allows namespace prefixes to
     * be declared, variables to be bound and functions to be defined. For most purposes, the static
-    * context can be defined by providing and tailoring an instance of the IndependentContext class.
+    * context can be defined by providing and tailoring an instance of the {@link IndependentContext} class.
     * Until this method is called, a default static context is used, in which no namespaces are defined
     * other than the standard ones (xml, xslt, and saxon), and no variables or functions (other than the
     * core XPath functions) are available.
+     * @param context the XPath static context
+     * <p>Setting a new static context clears any variables and namespaces that have previously been declared.</p>
     */
 
-    public void setStaticContext(IndependentContext context) {
+    public void setStaticContext(XPathStaticContext context) {
         staticContext = context;
     }
 
     /**
-    * Get the current static context. This will always return a value; if no static context has been
-     * supplied by the user, the system creates its own.
+     * Get the current static context. This will always return a value; if no static context has been
+     * supplied by the user, the system will have created its own. A system-created static context
+     * will always be an instance of {@link IndependentContext}
+     * @return the static context object
     */
 
-    public IndependentContext getStaticContext() {
+    public XPathStaticContext getStaticContext() {
         return staticContext;
     }
 
     /**
-    * Prepare an XPath expression for subsequent evaluation.
-    * @param expression The XPath expression to be evaluated, supplied as a string.
+     * Get the executable
+     * @return the executable. This holds details of function bindings and collations.
+     */
+
+    public Executable getExecutable() {
+        return staticContext.getExecutable();
+    }
+   
+
+    /**
+    * Prepare (compile) an XPath expression for subsequent evaluation.
+    * @param expression The XPath expression to be compiled, supplied as a string.
     * @return an XPathExpression object representing the prepared expression
     * @throws XPathException if the syntax of the expression is wrong, or if it references namespaces,
     * variables, or functions that have not been declared.
     */
 
     public XPathExpression createExpression(String expression) throws XPathException {
-        Expression exp = ExpressionTool.make(expression, staticContext,0,-1,1);
-        exp = exp.typeCheck(staticContext, Type.ITEM_TYPE);
-        SlotManager map = staticContext.getConfiguration().makeSlotManager();
-        ExpressionTool.allocateSlots(exp, 0, map);
+        Expression exp = ExpressionTool.make(expression, staticContext, 0, -1, 1, false);
+        exp.setContainer(staticContext);
+        ExpressionVisitor visitor = ExpressionVisitor.make(staticContext);
+        visitor.setExecutable(getExecutable());
+        exp = visitor.typeCheck(exp, Type.ITEM_TYPE);
+        exp = visitor.optimize(exp, Type.ITEM_TYPE);
+        SlotManager map = staticContext.getStackFrameMap();
+        int numberOfExternalVariables = map.getNumberOfVariables();
+        ExpressionTool.allocateSlots(exp, numberOfExternalVariables, map);
         XPathExpression xpe = new XPathExpression(this, exp);
-        xpe.setStackFrameMap(map);
+        xpe.setStackFrameMap(map, numberOfExternalVariables);
         return xpe;
     }
 
     /**
-     * Set the external namespace resolver to be used. This overrides any namespaces declared directly
-     * using declareNamespace on the staticContext object
-     * @param namespaceContext The namespace context
+     * Prepare (compile) an XSLT pattern for subsequent evaluation. The result is an XPathExpression
+     * object representing a (pseudo-) expression that when evaluated returns a boolean result: true
+     * if the context node matches the pattern, false if it does not.
+     * @param pattern the XSLT pattern to be compiled, supplied as a string
+     * @return an XPathExpression object representing the pattern, wrapped as an expression
+     * @throws XPathException if the syntax of the expression is wrong, or if it references namespaces,
+     * variables, or functions that have not been declared.
+     * @since 9.1
      */
 
-    public void setNamespaceResolver(NamespaceResolver namespaceContext) {
-        staticContext.setNamespaceResolver(namespaceContext);
+    public XPathExpression createPattern(String pattern) throws XPathException {
+        Pattern pat = Pattern.make(pattern, staticContext, staticContext.getExecutable());
+        ExpressionVisitor visitor = ExpressionVisitor.make(staticContext);
+        pat.analyze(visitor, Type.NODE_TYPE);
+        SlotManager map = staticContext.getStackFrameMap();
+        int slots = map.getNumberOfVariables();
+        slots = pat.allocateSlots(staticContext, map, slots);
+        PatternSponsor sponsor = new PatternSponsor(pat);
+        XPathExpression xpe = new XPathExpression(this, sponsor);
+        xpe.setStackFrameMap(map, slots);
+        return xpe;
+    }
+
+    /**
+     * Set the external namespace resolver to be used. The NamespaceResolver is stored
+     * as part of the static context. It overrides any namespaces declared directly
+     * using declareNamespace on the staticContext object
+     * @param namespaceResolver The namespace resolver, which maintains a mapping of prefixes to URIs.
+     * Any namespace prefix used in the XPath expression is resolved using this namespaceResolver.
+     */
+
+    public void setNamespaceResolver(NamespaceResolver namespaceResolver) {
+        staticContext.setNamespaceResolver(namespaceResolver);
     }
 
     /**
      * Get the external namespace resolver, if one has been set using {@link #setNamespaceResolver}
-     * @return the namespace context if set, or null otherwise
+     * @return the namespace resolver supplied by the user if set, or a system-defined namespace resolver
+     * otherwise. By default, the {@link IndependentContext} object used as the {@link XPathStaticContext}
+     * also acts as the {@link NamespaceResolver}.
      */
 
     public NamespaceResolver getNamespaceResolver() {
@@ -163,23 +236,34 @@ public class XPathEvaluator {
     }
 
     /**
-     * A simple command-line interface for the XPathEvaluator (not documented).
-     * First parameter is the filename containing the source document, second
-     * parameter is the XPath expression.
+     * For testing only
      */
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 2) {
-            System.err.println("format: java XPathEvaluator source.xml \"expression\"");
-            return;
-        }
         XPathEvaluator xpe = new XPathEvaluator();
-        XPathExpression exp = xpe.createExpression(args[1]);
-        List results = exp.evaluate(new StreamSource(new File(args[0])));
-        for (int i = 0; i < results.size(); i++) {
-            Object o = results.get(i);
-            System.err.println(o);
+//        XPathVariable in = xpe.declareVariable("", "in");
+        XPathExpression exp = xpe.createExpression(
+                "for $v in distinct-values(tokenize($in, '/')) return concat(' +', $v)");
+        NodeInfo doc = xpe.getConfiguration().buildDocument(new StreamSource(new File(args[0])));
+        XPathDynamicContext context = exp.createDynamicContext(doc);
+        //context.setVariable(in, new StringValue(args[1]));
+        SequenceIterator results = exp.iterate(context);
+        while (true) {
+            Item item = results.next();
+            if (item == null) break;
+            System.err.println(item);
         }
+//        if (args.length != 2) {
+//            System.err.println("format: java XPathEvaluator source.xml \"expression\"");
+//            return;
+//        }
+//        XPathEvaluator xpe = new XPathEvaluator();
+//        XPathExpression exp = xpe.createExpression(args[1]);
+//        List results = exp.evaluate(new StreamSource(new File(args[0])));
+//        for (int i = 0; i < results.size(); i++) {
+//            Object o = results.get(i);
+//            System.err.println(o);
+//        }
     }
 
 }

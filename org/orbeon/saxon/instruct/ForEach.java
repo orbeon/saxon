@@ -1,18 +1,16 @@
 package org.orbeon.saxon.instruct;
-import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Controller;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.om.SequenceIterator;
-import org.orbeon.saxon.style.StandardNames;
+import org.orbeon.saxon.om.StandardNames;
+import org.orbeon.saxon.trace.ExpressionPresenter;
 import org.orbeon.saxon.trace.TraceListener;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.type.SchemaType;
 import org.orbeon.saxon.type.TypeHierarchy;
-import org.orbeon.saxon.value.EmptySequence;
 
-import java.io.PrintStream;
 import java.util.Iterator;
 
 
@@ -24,16 +22,25 @@ public class ForEach extends Instruction implements ContextMappingFunction {
 
     private Expression select;
     private Expression action;
+    private boolean containsTailCall;
 
-    public ForEach(Expression select, Expression action) {
+    /**
+     * Create an xsl:for-each instruction
+     * @param select the select expression
+     * @param action the body of the xsl:for-each loop
+     */
+
+    public ForEach(Expression select, Expression action, boolean containsTailCall) {
         this.select = select;
         this.action = action;
+        this.containsTailCall = containsTailCall && action instanceof TailCallReturner;
         adoptChildExpression(select);
         adoptChildExpression(action);
     }
 
     /**
-    * Get the name of this instruction for diagnostic and tracing purposes
+     * Get the name of this instruction for diagnostic and tracing purposes
+     * @return the code for name xsl:for-each
     */
 
     public int getInstructionNameCode() {
@@ -42,6 +49,7 @@ public class ForEach extends Instruction implements ContextMappingFunction {
 
     /**
      * Get the action expression (the content of the for-each)
+     * @return the body of the for-each loop
      */
 
     public Expression getActionExpression() {
@@ -49,9 +57,9 @@ public class ForEach extends Instruction implements ContextMappingFunction {
     }
 
     /**
-    * Determine the data type of the items returned by this expression
-    * @return the data type
-     * @param th
+     * Determine the data type of the items returned by this expression
+     * @return the data type
+     * @param th the type hierarchy cache
      */
 
     public final ItemType getItemType(TypeHierarchy th) {
@@ -76,46 +84,47 @@ public class ForEach extends Instruction implements ContextMappingFunction {
      * @exception XPathException if an error is discovered during expression
      *     rewriting
      * @return the simplified expression
+     * @param visitor the expression visitor
      */
 
-    public Expression simplify(StaticContext env) throws XPathException {
-        select = select.simplify(env);
-        action = action.simplify(env);
+    public Expression simplify(ExpressionVisitor visitor) throws XPathException {
+        select = visitor.simplify(select);
+        action = visitor.simplify(action);
         return this;
     }
 
-    public Expression typeCheck(StaticContext env, ItemType contextItemType) throws XPathException {
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
-        select = select.typeCheck(env, contextItemType);
+    public Expression typeCheck(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
+        select = visitor.typeCheck(select, contextItemType);
         adoptChildExpression(select);
-        action = action.typeCheck(env, select.getItemType(th));
+        action = visitor.typeCheck(action, select.getItemType(th));
         adoptChildExpression(action);
-        if (select instanceof EmptySequence) {
-            return EmptySequence.getInstance();
+        if (Literal.isEmptySequence(select)) {
+            return select;
         }
-        if (action instanceof EmptySequence) {
-            return EmptySequence.getInstance();
+        if (Literal.isEmptySequence(action)) {
+            return action;
         }
         return this;
     }
 
-    public Expression optimize(Optimizer opt, StaticContext env, ItemType contextItemType) throws XPathException {
-        final TypeHierarchy th = env.getConfiguration().getTypeHierarchy();
-        select = select.optimize(opt, env, contextItemType);
+    public Expression optimize(ExpressionVisitor visitor, ItemType contextItemType) throws XPathException {
+        final TypeHierarchy th = visitor.getConfiguration().getTypeHierarchy();
+        select = visitor.optimize(select, contextItemType);
         adoptChildExpression(select);
-        action = action.optimize(opt, env, select.getItemType(th));
+        action = action.optimize(visitor, select.getItemType(th));
         adoptChildExpression(action);
-        if (select instanceof EmptySequence) {
-            return EmptySequence.getInstance();
+        if (Literal.isEmptySequence(select)) {
+            return select;
         }
-        if (action instanceof EmptySequence) {
-            return EmptySequence.getInstance();
+        if (Literal.isEmptySequence(action)) {
+            return action;
         }
 
         // If any subexpressions within the body of the for-each are not dependent on the focus,
         // promote them: this causes them to be evaluated once, outside the for-each loop
 
-        PromotionOffer offer = new PromotionOffer(opt);
+        PromotionOffer offer = new PromotionOffer(visitor.getConfiguration().getOptimizer());
         offer.action = PromotionOffer.FOCUS_INDEPENDENT;
         offer.promoteDocumentDependent = (select.getSpecialProperties() & StaticProperty.CONTEXT_DOCUMENT_NODESET) != 0;
         offer.promoteXSLTFunctions = false;
@@ -124,11 +133,47 @@ public class ForEach extends Instruction implements ContextMappingFunction {
 
         if (offer.containingExpression instanceof LetExpression) {
             offer.containingExpression =
-                    offer.containingExpression.optimize(opt, env, contextItemType);
+                    visitor.optimize(offer.containingExpression, contextItemType);
         }
         return offer.containingExpression;
     }
 
+
+    /**
+     * Add a representation of this expression to a PathMap. The PathMap captures a map of the nodes visited
+     * by an expression in a source tree.
+     * <p/>
+     * <p>The default implementation of this method assumes that an expression does no navigation other than
+     * the navigation done by evaluating its subexpressions, and that the subexpressions are evaluated in the
+     * same context as the containing expression. The method must be overridden for any expression
+     * where these assumptions do not hold. For example, implementations exist for AxisExpression, ParentExpression,
+     * and RootExpression (because they perform navigation), and for the doc(), document(), and collection()
+     * functions because they create a new navigation root. Implementations also exist for PathExpression and
+     * FilterExpression because they have subexpressions that are evaluated in a different context from the
+     * calling expression.</p>
+     *
+     * @param pathMap     the PathMap to which the expression should be added
+     * @param pathMapNodeSet the set of nodes in the path map that are affected
+     * @return the pathMapNode representing the focus established by this expression, in the case where this
+     *         expression is the first operand of a path expression or filter expression. For an expression that does
+     *         navigation, it represents the end of the arc in the path map that describes the navigation route. For other
+     *         expressions, it is the same as the input pathMapNode.
+     */
+
+    public PathMap.PathMapNodeSet addToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodeSet) {
+        PathMap.PathMapNodeSet target = select.addToPathMap(pathMap, pathMapNodeSet);
+        return action.addToPathMap(pathMap, target);
+    }
+
+    /**
+     * Copy an expression. This makes a deep copy.
+     *
+     * @return the copy of the original expression
+     */
+
+    public Expression copy() {
+        return new ForEach(select.copy(), action.copy(), containsTailCall);
+    }
 
     /**
      * Compute the dependencies of an expression, as the union of the
@@ -171,6 +216,19 @@ public class ForEach extends Instruction implements ContextMappingFunction {
         return new PairIterator(select, action);
     }
 
+
+    /**
+     * Given an expression that is an immediate child of this expression, test whether
+     * the evaluation of the parent expression causes the child expression to be
+     * evaluated repeatedly
+     * @param child the immediate subexpression
+     * @return true if the child expression is evaluated repeatedly
+     */
+
+    public boolean hasLoopingSubexpression(Expression child) {
+        return child == action;
+    }
+
     /**
      * Replace one subexpression by a replacement subexpression
      * @param original the original subexpression
@@ -188,7 +246,7 @@ public class ForEach extends Instruction implements ContextMappingFunction {
             action = replacement;
             found = true;
         }
-                return found;
+        return found;
     }
 
 
@@ -224,24 +282,44 @@ public class ForEach extends Instruction implements ContextMappingFunction {
         c2.setCurrentIterator(iter);
         c2.setCurrentTemplateRule(null);
 
-        if (controller.isTracing()) {
-            TraceListener listener = controller.getTraceListener();
-            while(true) {
+        if (containsTailCall) {
+            if (controller.isTracing()) {
+                TraceListener listener = controller.getTraceListener();
                 Item item = iter.next();
                 if (item == null) {
-                    break;
+                    return null;
                 }
                 listener.startCurrentItem(item);
-                action.process(c2);
+                TailCall tc = ((TailCallReturner)action).processLeavingTail(c2);
                 listener.endCurrentItem(item);
-            }
-        } else {
-            while(true) {
+                return tc;
+            } else {
                 Item item = iter.next();
                 if (item == null) {
-                    break;
+                    return null;
                 }
-                action.process(c2);
+                return ((TailCallReturner)action).processLeavingTail(c2);
+            }
+        } else {
+            if (controller.isTracing()) {
+                TraceListener listener = controller.getTraceListener();
+                while(true) {
+                    Item item = iter.next();
+                    if (item == null) {
+                        break;
+                    }
+                    listener.startCurrentItem(item);
+                    action.process(c2);
+                    listener.endCurrentItem(item);
+                }
+            } else {
+                while(true) {
+                    Item item = iter.next();
+                    if (item == null) {
+                        break;
+                    }
+                    action.process(c2);
+                }
             }
         }
         return null;
@@ -281,19 +359,17 @@ public class ForEach extends Instruction implements ContextMappingFunction {
     }
 
     /**
-     * Diagnostic print of expression structure. The expression is written to the System.err
-     * output stream
-     *
-     * @param level indentation level for this expression
-     @param out
-     @param config
+     * Diagnostic print of expression structure. The abstract expression tree
+     * is written to the supplied output destination.
      */
 
-    public void display(int level, PrintStream out, Configuration config) {
-        out.println(ExpressionTool.indent(level) + "for-each");
-        select.display(level+1, out, config);
-        out.println(ExpressionTool.indent(level) + "return");
-        action.display(level+1, out, config);
+    public void explain(ExpressionPresenter out) {
+        out.startElement("forEach");
+        select.explain(out);
+        out.startSubsidiaryElement("return");
+        action.explain(out);
+        out.endSubsidiaryElement();
+        out.endElement();
     }
 
 }

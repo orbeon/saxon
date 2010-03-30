@@ -1,15 +1,17 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.Literal;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.ForEach;
 import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.sort.SortExpression;
 import org.orbeon.saxon.sort.SortKeyDefinition;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.trans.SaxonErrorCode;
 import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.value.EmptySequence;
+import org.orbeon.saxon.value.Cardinality;
 
 
 /**
@@ -19,6 +21,7 @@ import org.orbeon.saxon.value.EmptySequence;
 public class XSLForEach extends StyleElement {
 
     Expression select = null;
+    boolean containsTailCall = false;
 
     /**
     * Determine whether this node is an instruction.
@@ -47,6 +50,16 @@ public class XSLForEach extends StyleElement {
         return getCommonChildItemType();
     }
 
+    protected boolean markTailCalls() {
+        if (Cardinality.allowsMany(select.getCardinality())) {
+            return false;
+        } else {
+            StyleElement last = getLastChildInstruction();
+            containsTailCall = last != null && last.markTailCalls();
+            return containsTailCall;
+        }
+    }
+
     /**
     * Determine whether this type of element is allowed to contain a template-body
     * @return true: yes, it may contain a template-body
@@ -65,7 +78,7 @@ public class XSLForEach extends StyleElement {
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-			if (f==StandardNames.SELECT) {
+			if (f.equals(StandardNames.SELECT)) {
         		selectAtt = atts.getValue(a);
         	} else {
         		checkUnknownAttribute(nc);
@@ -81,9 +94,11 @@ public class XSLForEach extends StyleElement {
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
         checkSortComesFirst(false);
         select = typeCheck("select", select);
+        if (!hasChildNodes()) {
+            compileWarning("An empty xsl:for-each instruction has no effect", SaxonErrorCode.SXWN9009);
+        }
     }
 
     public Expression compile(Executable exec) throws XPathException {
@@ -91,18 +106,15 @@ public class XSLForEach extends StyleElement {
         Expression sortedSequence = select;
         if (sortKeys != null) {
             sortedSequence = new SortExpression(select, sortKeys);
-            ExpressionTool.makeParentReferences(sortedSequence);
         }
 
         Expression block = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
         if (block == null) {
             // body of for-each is empty: it's a no-op.
-            return EmptySequence.getInstance();
+            return Literal.makeEmptySequence();
         }
         try {
-            ForEach inst = new ForEach(sortedSequence, block.simplify(getStaticContext()));
-            ExpressionTool.makeParentReferences(inst);
-            return inst;
+            return new ForEach(sortedSequence, makeExpressionVisitor().simplify(block), containsTailCall);
         } catch (XPathException err) {
             compileError(err);
             return null;

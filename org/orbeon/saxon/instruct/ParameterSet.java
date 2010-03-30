@@ -1,16 +1,15 @@
 package org.orbeon.saxon.instruct;
 import org.orbeon.saxon.om.ValueRepresentation;
-import org.orbeon.saxon.value.Closure;
 import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.value.Closure;
 
 /**
  * A ParameterSet is a set of parameters supplied when calling a template.
- * It is a collection of name-value pairs, the names being represented by numeric references
- * to the NamePool
+ * It is a collection of id-value pairs, the ids being numeric aliases for the parameter name,
+ * unique within a stylesheet
  */
 
-public class ParameterSet
-{
+public class ParameterSet {
 	private int[] keys;
     private ValueRepresentation[] values;
     private int used = 0;
@@ -48,14 +47,14 @@ public class ParameterSet
     /**
      * Add a parameter to the ParameterSet
      *
-     * @param fingerprint The fingerprint of the parameter name.
+     * @param id The parameter id, representing its name.
      * @param value The value of the parameter
      */
 
-    public void put (int fingerprint, ValueRepresentation value) {
+    public void put (int id, ValueRepresentation value) {
         for (int i=0; i<used; i++) {
-            if (keys[i]==fingerprint) {
-                values[i]=value;
+            if (keys[i] == id) {
+                values[i] = value;
                 return;
             }
         }
@@ -68,20 +67,20 @@ public class ParameterSet
             values = newvalues;
             keys = newkeys;
         }
-        keys[used] = fingerprint;
+        keys[used] = id;
         values[used++] = value;
     }
 
     /**
      * Get a parameter
      *
-     * @param fingerprint The fingerprint of the name.
+     * @param id The numeric parameter id, representing its name.
      * @return The value of the parameter, or null if not defined
      */
 
-    public ValueRepresentation get (int fingerprint) {
+    public ValueRepresentation get (int id) {
         for (int i=0; i<used; i++) {
-            if (keys[i]==fingerprint) {
+            if (keys[i] == id) {
                 return values[i];
             }
         }

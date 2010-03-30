@@ -1,15 +1,12 @@
 package org.orbeon.saxon.type;
 
 import org.orbeon.saxon.expr.*;
-import org.orbeon.saxon.functions.NormalizeSpace;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.style.StandardNames;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.value.StringValue;
-import org.orbeon.saxon.value.Whitespace;
-import org.orbeon.saxon.value.Value;
 import org.orbeon.saxon.value.SequenceExtent;
+import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.Value;
+import org.orbeon.saxon.value.Whitespace;
 
 import java.io.Serializable;
 
@@ -24,6 +21,11 @@ public class BuiltInListType implements ListType, Serializable {
 
     private int fingerprint;
 
+    public static BuiltInListType ENTITIES = makeListType(NamespaceConstant.SCHEMA, "ENTITIES");
+    public static BuiltInListType IDREFS = makeListType(NamespaceConstant.SCHEMA, "IDREFS");
+    public static BuiltInListType NMTOKENS = makeListType(NamespaceConstant.SCHEMA, "NMTOKENS");
+    public static BuiltInListType ANY_URIS = makeListType(NamespaceConstant.SCHEMA_INSTANCE, "anonymous_schemaLocationType");
+
     /**
      * Return true if this is an external object type, that is, a Saxon-defined type for external
      * Java or .NET objects
@@ -33,13 +35,29 @@ public class BuiltInListType implements ListType, Serializable {
         return false;
     }
 
+    /**
+     * Determine whether this is a built-in type or a user-defined type
+     */
 
+    public boolean isBuiltInType() {
+        return true;
+    }
+
+    /**
+     * Get the URI of the schema document containing the definition of this type
+     * @return null for a built-in type
+     */
+
+    public String getSystemId() {
+        return null;
+    }
+    
     /**
      * Determine how values of this simple type are whitespace-normalized.
      *
      * @return one of {@link org.orbeon.saxon.value.Whitespace#PRESERVE}, {@link org.orbeon.saxon.value.Whitespace#COLLAPSE},
      *         {@link org.orbeon.saxon.value.Whitespace#REPLACE}.
-     * @param th
+     * @param th the type hierarchy cache
      */
 
     public int getWhitespaceAction(TypeHierarchy th) {
@@ -64,22 +82,23 @@ public class BuiltInListType implements ListType, Serializable {
 
     /**
      * Create a new ListType.
+     * @param fingerprint identifies the name of the type
      */
 
     public BuiltInListType(int fingerprint) {
         this.fingerprint = fingerprint;
         switch (fingerprint) {
             case StandardNames.XS_ENTITIES:
-                itemType = (BuiltInAtomicType)BuiltInSchemaFactory.getSchemaType(StandardNames.XS_ENTITY);
+                itemType = BuiltInAtomicType.ENTITY;
                 break;
             case StandardNames.XS_IDREFS:
-                itemType = (BuiltInAtomicType)BuiltInSchemaFactory.getSchemaType(StandardNames.XS_IDREF);
+                itemType = BuiltInAtomicType.IDREF;
                 break;
             case StandardNames.XS_NMTOKENS:
-                itemType = (BuiltInAtomicType)BuiltInSchemaFactory.getSchemaType(StandardNames.XS_NMTOKEN);
+                itemType = BuiltInAtomicType.NMTOKEN;
                 break;
             case StandardNames.XSI_SCHEMA_LOCATION_TYPE:
-                itemType = (BuiltInAtomicType)BuiltInSchemaFactory.getSchemaType(StandardNames.XS_ANY_URI);
+                itemType = BuiltInAtomicType.ANY_URI;
                 break;
         }
     }
@@ -142,6 +161,28 @@ public class BuiltInListType implements ListType, Serializable {
     }
 
     /**
+     * Get the local name of this type
+     *
+     * @return the local name of this type definition, if it has one. Return null in the case of an
+     *         anonymous type.
+     */
+
+    public String getName() {
+        return StandardNames.getLocalName(fingerprint);
+    }
+
+    /**
+     * Get the target namespace of this type
+     *
+     * @return the target namespace of this type definition, if it has one. Return null in the case
+     *         of an anonymous type, and in the case of a global type defined in a no-namespace schema.
+     */
+
+    public String getTargetNamespace() {
+        return NamespaceConstant.SCHEMA;
+    }
+
+    /**
      * Get the fingerprint of the name of this type
      * @return the fingerprint. Returns an invented fingerprint for an anonymous type.
      */
@@ -196,7 +237,7 @@ public class BuiltInListType implements ListType, Serializable {
      */
 
     public int getBlock() {
-        return 0;  //To change body of implemented methods use File | Settings | File Templates.
+        return 0;
     }
 
     /**
@@ -250,7 +291,7 @@ public class BuiltInListType implements ListType, Serializable {
                     new InscopeNamespaceResolver(node),
                     node.getConfiguration().getNameChecker());
         } catch (ValidationException err) {
-            throw new DynamicError("Internal error: value doesn't match its type annotation. " + err.getMessage());
+            throw new XPathException("Internal error: value doesn't match its type annotation. " + err.getMessage());
         }
     }
 
@@ -275,7 +316,7 @@ public class BuiltInListType implements ListType, Serializable {
      */
 
     public boolean isSameType(SchemaType other) {
-        return other.getFingerprint() == this.getFingerprint();
+        return other.getFingerprint() == getFingerprint();
     }
 
     public String getDescription() {
@@ -291,8 +332,8 @@ public class BuiltInListType implements ListType, Serializable {
      *          if the derivation is not allowed
      */
 
-    public void checkTypeDerivationIsOK(SchemaType type, int block) throws SchemaException, ValidationException {
-        //To change body of implemented methods use File | Settings | File Templates.
+    public void checkTypeDerivationIsOK(SchemaType type, int block) throws SchemaException {
+        //
     }
 
     /**
@@ -320,7 +361,7 @@ public class BuiltInListType implements ListType, Serializable {
      */
 
     public String applyWhitespaceNormalization(String value) {
-        return NormalizeSpace.normalize(value).toString();
+        return Whitespace.collapseWhitespace(value).toString();
     }
 
     /**
@@ -330,7 +371,7 @@ public class BuiltInListType implements ListType, Serializable {
      * @param expression the expression that delivers the content
      * @param kind       the node kind whose content is being delivered: {@link Type#ELEMENT},
      *                   {@link Type#ATTRIBUTE}, or {@link Type#DOCUMENT}
-     * @param env
+     * @param env  the XPath static context
      * @throws org.orbeon.saxon.trans.XPathException
      *          if the expression will never deliver a value of the correct type
      */
@@ -345,33 +386,33 @@ public class BuiltInListType implements ListType, Serializable {
      * @param nsResolver a namespace resolver used to resolve namespace prefixes if the type
      * is namespace sensitive. The value supplied may be null; in this case any namespace-sensitive
      * content will throw an UnsupportedOperationException.
-     * @param nameChecker
+     * @param nameChecker XML 1.0 or 1.1 name checker, for types such as xs:NCName
      * @throws UnsupportedOperationException if the type is namespace-sensitive and no namespace
      * resolver is supplied
      */
 
-    public ValidationException validateContent(CharSequence value, NamespaceResolver nsResolver, NameChecker nameChecker) {
+    public ValidationFailure validateContent(CharSequence value, NamespaceResolver nsResolver, NameChecker nameChecker) {
         SimpleType base = getItemType();
-        SequenceIterator iter = new StringTokenIterator(value.toString());
-        ValidationException result = null;
+        StringTokenIterator iter = new StringTokenIterator(value.toString());
+        ValidationFailure result = null;
         int count = 0;
-        try {
+        //try {
             while (true) {
                 StringValue val = (StringValue)iter.next();
                 if (val == null) break;
                 count++;
-                ValidationException v = base.validateContent(val.getStringValue(), nsResolver, nameChecker);
+                ValidationFailure v = base.validateContent(val.getStringValue(), nsResolver, nameChecker);
                 if (v != null) {
                     return v;
                 }
             }
-        } catch (ValidationException err) {
-            result = err;
-        } catch (XPathException err) {
-            result = new ValidationException(err);
-        }
+//        } catch (ValidationException err) {
+//            result = err;
+//        } catch (XPathException err) {
+//            result = new ValidationException(err);
+//        }
         if (count == 0) {
-            result = new ValidationException("The built-in list type " +
+            result = new ValidationFailure("The built-in list type " +
                     StandardNames.getDisplayName(fingerprint) +
                     " does not allow a zero-length list");
         }
@@ -382,17 +423,23 @@ public class BuiltInListType implements ListType, Serializable {
      * Get the typed value of a given input string. This method assumes that the input value
      * is valid according to this SimpleType
      * @param value the string whose typed value is required
-     * @param resolver
-     * @param nameChecker
+     * @param resolver namespace resolver for namespace-sensitive content
+     * @param nameChecker name checker for XML-version sensitive content
      */
 
     public SequenceIterator getTypedValue(CharSequence value, NamespaceResolver resolver, NameChecker nameChecker) throws ValidationException {
-        SequenceIterator iter = new StringTokenIterator(value.toString());
+        UnfailingIterator iter = new StringTokenIterator(value.toString());
         ListTypeMappingFunction map = new ListTypeMappingFunction();
         map.resolver = resolver;
         map.atomicType = (AtomicType)getItemType();
         map.nameChecker = nameChecker;
         return new MappingIterator(iter, map);
+    }
+
+    private static BuiltInListType makeListType(String namespace, String lname) {
+        BuiltInListType t = new BuiltInListType(StandardNames.getFingerprint(namespace, lname));
+        BuiltInType.register(t.getFingerprint(), t);
+        return t;
     }
 
     private static class ListTypeMappingFunction implements MappingFunction {
@@ -408,11 +455,11 @@ public class BuiltInListType implements ListType, Serializable {
          * For details see {@link org.orbeon.saxon.expr.MappingFunction}
         */
 
-        public Object map(Item item) throws XPathException {
+        public SequenceIterator map(Item item) throws XPathException {
             try {
                 return atomicType.getTypedValue(item.getStringValue(), resolver, nameChecker);
             } catch (ValidationException err) {
-                return new DynamicError(err);
+                throw new XPathException(err);
             }
         }
     }

@@ -36,6 +36,7 @@ public class SaxonDuration extends Duration {
 
     /**
      * Get the underlying DurationValue
+     * @return the underlying DurationValue
      */
 
     public DurationValue getDurationValue() {
@@ -51,9 +52,9 @@ public class SaxonDuration extends Duration {
      */
 
     public QName getXMLSchemaType() {
-        if (duration instanceof SecondsDurationValue) {
+        if (duration instanceof DayTimeDurationValue) {
             return new QName(NamespaceConstant.SCHEMA, "dayTimeDuration");
-        } else if (duration instanceof MonthDurationValue) {
+        } else if (duration instanceof YearMonthDurationValue) {
             return new QName(NamespaceConstant.SCHEMA, "yearMonthDuration");
         } else {
             return new QName(NamespaceConstant.SCHEMA, "duration");
@@ -79,8 +80,13 @@ public class SaxonDuration extends Duration {
      * In case of YEARS, MONTHS, DAYS, HOURS, and MINUTES, the returned
      * number will be a non-negative integer. In case of seconds,
      * the returned number may be a non-negative decimal value.
+     * <p/>
+     * The Saxon implementation of duration uses normalized values. This means
+     * that the YEARS and DAYS fields may be arbitrarily large, but other
+     * components will be limited in size: for example MINUTES will never
+     * exceed 60 and MONTHS will never exceed 12.
      *
-     * @param field one of the six Field constants (YEARS,MONTHS,DAYS,HOURS,
+     * @param field one of the six Field constants (YEARS, MONTHS, DAYS, HOURS,
      *              MINUTES, or SECONDS.)
      * @return If the specified field is present, this method returns
      *         a non-null non-negative {@link Number} object that
@@ -93,17 +99,17 @@ public class SaxonDuration extends Duration {
     public Number getField(DatatypeConstants.Field field) {
         try {
             if (field == DatatypeConstants.YEARS) {
-                return BigInteger.valueOf(((IntegerValue)duration.getComponent(Component.YEAR)).longValue());
+                return BigInteger.valueOf(((Int64Value)duration.getComponent(Component.YEAR)).longValue());
             } else if (field == DatatypeConstants.MONTHS) {
-                return BigInteger.valueOf(((IntegerValue)duration.getComponent(Component.MONTH)).longValue());
+                return BigInteger.valueOf(((Int64Value)duration.getComponent(Component.MONTH)).longValue());
             } else if (field == DatatypeConstants.DAYS) {
-                return BigInteger.valueOf(((IntegerValue)duration.getComponent(Component.DAY)).longValue());
+                return BigInteger.valueOf(((Int64Value)duration.getComponent(Component.DAY)).longValue());
             } else if (field == DatatypeConstants.HOURS) {
-                return BigInteger.valueOf(((IntegerValue)duration.getComponent(Component.HOURS)).longValue());
+                return BigInteger.valueOf(((Int64Value)duration.getComponent(Component.HOURS)).longValue());
             } else if (field == DatatypeConstants.MINUTES) {
-                return BigInteger.valueOf(((IntegerValue)duration.getComponent(Component.MINUTES)).longValue());
+                return BigInteger.valueOf(((Int64Value)duration.getComponent(Component.MINUTES)).longValue());
             } else if (field == DatatypeConstants.SECONDS) {
-                return (((DecimalValue)duration.getComponent(Component.SECONDS)).getValue());
+                return (((DecimalValue)duration.getComponent(Component.SECONDS)).getDecimalValue());
             } else {
                 throw new IllegalArgumentException("Invalid field");
             }
@@ -114,7 +120,7 @@ public class SaxonDuration extends Duration {
 
     /**
      * Checks if a field is set. In this implementation, all fields are always set.
-     * @param field one of the six Field constants (YEARS,MONTHS,DAYS,HOURS,
+     * @param field one of the six Field constants (YEARS, MONTHS, DAYS, HOURS,
      *              MINUTES, or SECONDS.)
      * @return This implementation always returns true.
      */
@@ -208,8 +214,10 @@ public class SaxonDuration extends Duration {
             calendar.add(getDays()*sign, Calendar.DAY_OF_MONTH);
             calendar.add(getHours()*sign, Calendar.HOUR_OF_DAY);
             calendar.add(getMinutes()*sign, Calendar.MINUTE);
-            calendar.add((int)((IntegerValue)duration.getComponent(Component.WHOLE_SECONDS)).longValue()*sign, Calendar.SECOND);
-            calendar.add((int)((IntegerValue)duration.getComponent(Component.MICROSECONDS)).longValue()*sign/1000, Calendar.MILLISECOND);
+            calendar.add((int)((Int64Value)duration.getComponent(Component.WHOLE_SECONDS)).longValue()*sign,
+                    Calendar.SECOND);
+            calendar.add((int)((Int64Value)duration.getComponent(Component.MICROSECONDS)).longValue()*sign/1000,
+                    Calendar.MILLISECOND);
         } catch (XPathException e) {
             throw new IllegalStateException(e.getMessage());
         }
@@ -263,7 +271,7 @@ public class SaxonDuration extends Duration {
      * @throws UnsupportedOperationException Always thrown by this implementation.
      */
     public Duration normalizeWith(Calendar startTimeInstant) {
-        throw new UnsupportedOperationException();  // TODO: implement this
+        throw new UnsupportedOperationException(); 
     }
 
     /**
@@ -273,15 +281,21 @@ public class SaxonDuration extends Duration {
      * <p/>
      * <p>Return:</p>
      * <ul>
-     * <li>{@link javax.xml.datatype.DatatypeConstants#LESSER} if this <code>Duration</code> is shorter than <code>duration</code> parameter</li>
-     * <li>{@link javax.xml.datatype.DatatypeConstants#EQUAL} if this <code>Duration</code> is equal to <code>duration</code> parameter</li>
-     * <li>{@link javax.xml.datatype.DatatypeConstants#GREATER} if this <code>Duration</code> is longer than <code>duration</code> parameter</li>
-     * <li>{@link javax.xml.datatype.DatatypeConstants#INDETERMINATE} if a conclusive partial order relation cannot be determined</li>
+     * <li>{@link javax.xml.datatype.DatatypeConstants#LESSER}
+     * if this <code>Duration</code> is shorter than <code>duration</code> parameter</li>
+     * <li>{@link javax.xml.datatype.DatatypeConstants#EQUAL}
+     * if this <code>Duration</code> is equal to <code>duration</code> parameter</li>
+     * <li>{@link javax.xml.datatype.DatatypeConstants#GREATER}
+     * if this <code>Duration</code> is longer than <code>duration</code> parameter</li>
+     * <li>{@link javax.xml.datatype.DatatypeConstants#INDETERMINATE}
+     * if a conclusive partial order relation cannot be determined</li>
      * </ul>
      *
      * @param rhs duration to compare
      * @return the relationship between <code>this</code> <code>Duration</code>and <code>duration</code> parameter as
-     *         {@link javax.xml.datatype.DatatypeConstants#LESSER}, {@link javax.xml.datatype.DatatypeConstants#EQUAL}, {@link javax.xml.datatype.DatatypeConstants#GREATER}
+     *         {@link javax.xml.datatype.DatatypeConstants#LESSER},
+     *         {@link javax.xml.datatype.DatatypeConstants#EQUAL},
+     *          {@link javax.xml.datatype.DatatypeConstants#GREATER}
      *         or {@link javax.xml.datatype.DatatypeConstants#INDETERMINATE}.
      * @throws UnsupportedOperationException If the underlying implementation
      *                                       cannot reasonably process the request, e.g. W3C XML Schema allows for
@@ -293,14 +307,12 @@ public class SaxonDuration extends Duration {
      * @see #isLongerThan(javax.xml.datatype.Duration)
      */
     public int compare(Duration rhs) {
-        // TODO: Saxon is implementing the XPath semantics, not the schema semantics
-        if (duration instanceof MonthDurationValue) {
-            return ((MonthDurationValue)duration).compareTo((MonthDurationValue)((SaxonDuration)rhs).duration);
-        } else if (duration instanceof SecondsDurationValue) {
-            return ((SecondsDurationValue)duration).compareTo((SecondsDurationValue)((SaxonDuration)rhs).duration);
-        } else {
-            throw new IllegalArgumentException("Non-comparable durations");
+        if (!(rhs instanceof SaxonDuration)) {
+            throw new IllegalArgumentException("Supplied duration is not a SaxonDuration");
         }
+        Comparable c0 = duration.getSchemaComparable();
+        Comparable c1 = ((SaxonDuration)rhs).duration.getSchemaComparable();
+        return c0.compareTo(c1);
     }
 
     /**

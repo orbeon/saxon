@@ -2,7 +2,9 @@ package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.type.Type;
+import org.orbeon.saxon.type.BuiltInAtomicType;
+import org.orbeon.saxon.type.ConversionResult;
+import org.orbeon.saxon.type.ValidationFailure;
 import org.orbeon.saxon.value.*;
 
 /**
@@ -15,14 +17,34 @@ public class NumberFn extends SystemFunction implements ItemMappingFunction {
     /**
     * Simplify and validate.
     * This is a pure function so it can be simplified in advance if the arguments are known
-    */
+     * @param visitor an expression visitor
+     */
 
-     public Expression simplify(StaticContext env) throws XPathException {
+     public Expression simplify(ExpressionVisitor visitor) throws XPathException {
         useContextItemAsDefault();
-        if (argument[0] instanceof ComputedExpression) {
-            ((ComputedExpression)argument[0]).setStringValueIsUsed();
+        argument[0].setFlattened(true);
+        return simplifyArguments(visitor);
+    }
+
+
+    /**
+     * Add a representation of a doc() call or similar function to a PathMap.
+     * This is a convenience method called by the addToPathMap() methods for doc(), document(), collection()
+     * and similar functions. These all create a new root expression in the path map.
+     *
+     * @param pathMap      the PathMap to which the expression should be added
+     * @param pathMapNodes the node in the PathMap representing the focus at the point where this expression
+     *                     is called. Set to null if this expression appears at the top level.
+     * @return the pathMapNode representing the focus established by this expression, in the case where this
+     *         expression is the first operand of a path expression or filter expression
+     */
+
+    public PathMap.PathMapNodeSet addDocToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodes) {
+        PathMap.PathMapNodeSet result = argument[0].addToPathMap(pathMap, pathMapNodes);
+        if (result != null) {
+            result.setAtomized();
         }
-        return simplifyArguments(env);
+        return null;
     }
 
     /**
@@ -35,7 +57,12 @@ public class NumberFn extends SystemFunction implements ItemMappingFunction {
             return DoubleValue.NaN;
         }
         if (arg0 instanceof BooleanValue || arg0 instanceof NumericValue) {
-            return ((AtomicValue)arg0).convert(Type.DOUBLE, context);
+            ConversionResult result = ((AtomicValue)arg0).convert(BuiltInAtomicType.DOUBLE, true, context);
+            if (result instanceof ValidationFailure) {
+                return DoubleValue.NaN;
+            } else {
+                return (AtomicValue)result;
+            }
         }
         if (arg0 instanceof StringValue && !(arg0 instanceof AnyURIValue)) {
             CharSequence s = arg0.getStringValueCS();
@@ -51,6 +78,8 @@ public class NumberFn extends SystemFunction implements ItemMappingFunction {
     /**
      * Static method to perform the same conversion as the number() function. This is different from the
      * convert(Type.DOUBLE) in that it produces NaN rather than an error for non-numeric operands.
+     * @param value the value to be converted
+     * @return the result of the conversion
      */
 
     public static DoubleValue convert(AtomicValue value) {
@@ -59,13 +88,19 @@ public class NumberFn extends SystemFunction implements ItemMappingFunction {
                 return DoubleValue.NaN;
             }
             if (value instanceof BooleanValue || value instanceof NumericValue) {
-                return (DoubleValue)value.convert(Type.DOUBLE, null);
+                ConversionResult result = value.convert(BuiltInAtomicType.DOUBLE, true, null);
+                if (result instanceof ValidationFailure) {
+                    return DoubleValue.NaN;
+                } else {
+                    return (DoubleValue)result;
+                }
             }
-            CharSequence s = value.getStringValueCS();
-            return new DoubleValue(Value.stringToNumber(s));
-        } catch (NumberFormatException e) {
+            if (value instanceof StringValue && !(value instanceof AnyURIValue)) {
+                CharSequence s = value.getStringValueCS();
+                return new DoubleValue(Value.stringToNumber(s));
+            }
             return DoubleValue.NaN;
-        } catch (XPathException e) {
+        } catch (NumberFormatException e) {
             return DoubleValue.NaN;
         }
     }

@@ -1,17 +1,14 @@
 package org.orbeon.saxon.style;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.Platform;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.instruct.AnalyzeString;
 import org.orbeon.saxon.instruct.Executable;
-import org.orbeon.saxon.om.AttributeCollection;
-import org.orbeon.saxon.om.Axis;
-import org.orbeon.saxon.om.AxisIterator;
-import org.orbeon.saxon.om.NodeInfo;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.regex.RegularExpression;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.SequenceType;
-import org.orbeon.saxon.value.StringValue;
 
 /**
 * An xsl:analyze-string elements in the stylesheet. New at XSLT 2.0<BR>
@@ -64,12 +61,12 @@ public class XSLAnalyzeString extends StyleElement {
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-			if (f==StandardNames.REGEX) {
+			if (f.equals(StandardNames.REGEX)) {
         		regexAtt = atts.getValue(a);
-			} else if (f==StandardNames.SELECT) {
+			} else if (f.equals(StandardNames.SELECT)) {
         		selectAtt = atts.getValue(a);
-			} else if (f==StandardNames.FLAGS) {
-        		flagsAtt = atts.getValue(a).trim();
+			} else if (f.equals(StandardNames.FLAGS)) {
+        		flagsAtt = atts.getValue(a); // not trimmed, see bugzilla 4315
         	} else {
         		checkUnknownAttribute(nc);
         	}
@@ -92,12 +89,14 @@ public class XSLAnalyzeString extends StyleElement {
         }
         flags = makeAttributeValueTemplate(flagsAtt);
 
-        if (regex instanceof StringValue && flags instanceof StringValue) {
+        if (regex instanceof StringLiteral && flags instanceof StringLiteral) {
             try {
-                final Platform platform = getConfiguration().getPlatform();
-                final CharSequence regex = ((StringValue)this.regex).getStringValueCS();
-                final CharSequence flagstr = ((StringValue)flags).getStringValueCS();
-                pattern = platform.compileRegularExpression(regex, true, flagstr);
+                final Platform platform = Configuration.getPlatform();
+                final CharSequence regex = ((StringLiteral)this.regex).getStringValue();
+                final CharSequence flagstr = ((StringLiteral)flags).getStringValue();
+                final int xmlVersion = getConfiguration().getXMLVersion();
+                pattern = platform.compileRegularExpression(
+                        regex, xmlVersion, RegularExpression.XPATH_SYNTAX, flagstr);
 
                 if (pattern.matches("")) {
                     invalidRegex("The regular expression must not be one that matches a zero-length string", "XTDE1150");
@@ -119,7 +118,7 @@ public class XSLAnalyzeString extends StyleElement {
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
+        //checkWithinTemplate();
 
         AxisIterator kids = iterateAxis(Axis.CHILD);
         while(true) {
@@ -157,21 +156,24 @@ public class XSLAnalyzeString extends StyleElement {
         flags = typeCheck("flags", flags);
 
         try {
+            ExpressionVisitor visitor = makeExpressionVisitor();
+
             RoleLocator role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:analyze-string/select", 0, null);
+                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:analyze-string/select", 0);
             ExpressionLocation locator = new ExpressionLocation(this);
-            role.setSourceLocator(locator);
-            select = TypeChecker.staticTypeCheck(select, SequenceType.SINGLE_STRING, false, role, getStaticContext());
+            //role.setSourceLocator(locator);
+            select = TypeChecker.staticTypeCheck(select, SequenceType.SINGLE_STRING, false, role, 
+                    visitor);
 
             role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:analyze-string/regex", 0, null);
-            role.setSourceLocator(locator);
-            regex = TypeChecker.staticTypeCheck(regex, SequenceType.SINGLE_STRING, false, role, getStaticContext());
+                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:analyze-string/regex", 0);
+            //role.setSourceLocator(locator);
+            regex = TypeChecker.staticTypeCheck(regex, SequenceType.SINGLE_STRING, false, role, visitor);
 
             role =
-                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:analyze-string/flags", 0, null);
-            role.setSourceLocator(locator);
-            flags = TypeChecker.staticTypeCheck(flags, SequenceType.SINGLE_STRING, false, role, getStaticContext());
+                new RoleLocator(RoleLocator.INSTRUCTION, "xsl:analyze-string/flags", 0);
+            //role.setSourceLocator(locator);
+            flags = TypeChecker.staticTypeCheck(flags, SequenceType.SINGLE_STRING, false, role, visitor);
         } catch (XPathException err) {
             compileError(err);
         }
@@ -190,15 +192,13 @@ public class XSLAnalyzeString extends StyleElement {
         }
 
         try {
-            AnalyzeString anal = new AnalyzeString(
-                                     select,
+            ExpressionVisitor visitor = makeExpressionVisitor();
+            return new AnalyzeString(select,
                                      regex,
                                      flags,
-                                     (matchingBlock==null ? null : matchingBlock.simplify(matching.getStaticContext())),
-                                     (nonMatchingBlock==null ? null : nonMatchingBlock.simplify(nonMatching.getStaticContext())),
+                                     (matchingBlock==null ? null : matchingBlock.simplify(visitor)),
+                                     (nonMatchingBlock==null ? null : nonMatchingBlock.simplify(visitor)),
                                      pattern );
-            ExpressionTool.makeParentReferences(anal);
-            return anal;
         } catch (XPathException e) {
             compileError(e);
             return null;
@@ -225,5 +225,4 @@ public class XSLAnalyzeString extends StyleElement {
 // Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
 //
 // Contributor(s):
-// Portions marked "e.g." are from Edwin Glaser (edwin@pannenleiter.de)
 //

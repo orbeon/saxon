@@ -1,5 +1,7 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.PreparedStylesheet;
+import org.orbeon.saxon.value.Whitespace;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.trans.SaxonErrorCode;
 import org.orbeon.saxon.event.PipelineConfiguration;
@@ -26,10 +28,10 @@ public class XSLImportSchema extends StyleElement {
 		for (int a=0; a<atts.getLength(); a++) {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
-            if (f==StandardNames.SCHEMA_LOCATION) {
+            if (f.equals(StandardNames.SCHEMA_LOCATION)) {
         		//
-            } else if (f==StandardNames.NAMESPACE) {
-                namespace = atts.getValue(a).trim();
+            } else if (f.equals(StandardNames.NAMESPACE)) {
+                namespace = Whitespace.trim(atts.getValue(a));
         	} else {
         		checkUnknownAttribute(nc);
         	}
@@ -47,17 +49,15 @@ public class XSLImportSchema extends StyleElement {
 
     public void readSchema() throws SchemaException, XPathException {
         try {
-            String schemaLoc = getAttributeValue(StandardNames.SCHEMA_LOCATION);
-            if (schemaLoc != null) {
-                schemaLoc = schemaLoc.trim();
-            }
-            String namespace = getAttributeValue(StandardNames.NAMESPACE);
+            String schemaLoc = Whitespace.trim(getAttributeValue(StandardNames.SCHEMA_LOCATION));
+            String namespace = Whitespace.trim(getAttributeValue(StandardNames.NAMESPACE));
             if (namespace==null) {
                 namespace = "";
             } else {
                 namespace = namespace.trim();
             }
-            Configuration config = getPreparedStylesheet().getConfiguration();
+            PreparedStylesheet preparedStylesheet = getPreparedStylesheet();
+            Configuration config = preparedStylesheet.getConfiguration();
             if (!config.isSchemaAware(Configuration.XSLT)) {
                 compileError("To use xsl:import-schema, you need the schema-aware " +
                         "version of Saxon from http://www.saxonica.com/", "XTSE1650");
@@ -81,7 +81,7 @@ public class XSLImportSchema extends StyleElement {
                     compileError("The schema-location attribute must be absent if an inline schema is present");
                 }
 
-                namespace = config.readInlineSchema(inlineSchema, namespace, null);
+                namespace = config.readInlineSchema(inlineSchema, namespace, preparedStylesheet.getErrorListener());
                 getPrincipalStylesheet().addImportedSchema(namespace);
             }
             if (inlineSchema != null) {

@@ -81,6 +81,25 @@ public class NodeTestPattern extends Pattern {
         return nodeTest.toString();
     }
 
+    /**
+     * Determine whether this pattern is the same as another pattern
+     * @param other the other object
+     */
+
+    public boolean equals(Object other) {
+        return (other instanceof NodeTestPattern) &&
+                ((NodeTestPattern)other).nodeTest.equals(nodeTest);
+    }
+
+    /**
+     * Hashcode supporting equals()
+     */
+
+    public int hashCode() {
+        return 0x7aeffea8 ^ nodeTest.hashCode();
+    }
+
+
 
 }
 

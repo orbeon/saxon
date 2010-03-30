@@ -10,7 +10,7 @@ package org.orbeon.saxon.number;
  *
  */
 
-public class Numberer_fr extends Numberer_en {
+public class Numberer_fr extends AbstractNumberer {
 
 	/**
 	 * Automatically generated serialVersionUID number
@@ -21,13 +21,13 @@ public class Numberer_fr extends Numberer_en {
 
 	private static String[] frenchTens = { "", "Dix", "Vingt", "Trente", "Quarante", "Cinquante", "Soixante", "Soixante", "Quatre-vingt", "Quatre-vingt" };
 
-	private static String[] frenchOrdinalUnits = { "", "Premier", "Deuxi\u00e8me", "Troisi\u00e8me", "Quatri\u00e8me", "Cinqui\u00e8me", "Sixi\u00e8me", "Septi\u00e8me", "Huiti\u00e8me", "Neuvi\u00e8me", "Dixi\u00e8me", "Onzi\u00e8me", "Douzi\u00e8me", "Treizi\u00e8me", "Quatorzi\u00e8me", "Quinzi\u00e8me", "Seizi\u00e8me", "Dix-septi\u00e8me", "Dix-huiti\u00e8me", "Dix-neuvi\u00e8me" };
+	private static String[] frenchOrdinalUnits = { "", "Premier", "Deuxi�me", "Troisi�me", "Quatri�me", "Cinqui�me", "Sixi�me", "Septi�me", "Huiti�me", "Neuvi�me", "Dixi�me", "Onzi�me", "Douzi�me", "Treizi�me", "Quatorzi�me", "Quinzi�me", "Seizi�me", "Dix-septi�me", "Dix-huiti�me", "Dix-neuvi�me" };
 
-	private static String[] frenchOrdinalTens = { "", "Dixi\u00e8me", "Vingti\u00e8me", "Trenti\u00e8me", "Quaranti\u00e8me", "Cinquanti\u00e8me", "Soixanti\u00e8me", "Soixante", "Quatre-vingti\u00e8me", "Quatre-vingt" };
+	private static String[] frenchOrdinalTens = { "", "Dixi�me", "Vingti�me", "Trenti�me", "Quaranti�me", "Cinquanti�me", "Soixanti�me", "Soixante", "Quatre-vingti�me", "Quatre-vingt" };
 
 	private static String[] frenchDays = { "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche" };
 
-	private static String[] frenchMonths = { "Janvier", "F\u00e9vrier", "Mars", "Avril", "Mai", "Juin", "Juillet", "Ao\u00fbt", "Septembre", "Octobre", "Novembre", "D\u00e9cembre" };
+	private static String[] frenchMonths = { "Janvier", "F�vrier", "Mars", "Avril", "Mai", "Juin", "Juillet", "Ao�t", "Septembre", "Octobre", "Novembre", "D�cembre" };
 
 	/*
 	 * (non-Javadoc)
@@ -70,7 +70,7 @@ public class Numberer_fr extends Numberer_en {
 
 	private String toWords(long number, boolean terminal) {
 		if (number == 0) {
-			return "Z\u00e9ro";
+			return "Z�ro";
 		} else if (number >= 1000000000000000000l) {
 			long rem = number % 1000000000000000000l;
 			long n = number / 1000000000000000000l;
@@ -141,7 +141,7 @@ public class Numberer_fr extends Numberer_en {
 		String ord;
 		if (number < 20) {
 			if (number == 0) {
-				ord = "Z\u00e9roi\u00e8me";
+				ord = "Z�roi�me";
 			} else {
 				ord = frenchOrdinalUnits[(int) number];
 			}
@@ -161,10 +161,10 @@ public class Numberer_fr extends Numberer_en {
 					prefix = prefix.substring(0, prefix.length() - 1);
 				}
 				String result = prefix + link;
-				ord = result + ((mod10 == 1) ? "uni\u00e8me" : toOrdinalWords("", mod10, LOWER_CASE));
+				ord = result + ((mod10 == 1) ? "uni�me" : toOrdinalWords("", mod10, LOWER_CASE));
 			}
 		} else {
-			String suffix = "i\u00e8me";
+			String suffix = "i�me";
 			long mod100 = number % 100;
 			long int100 = number / 100;
 			if (int100 == 70 || int100 == 90) {
@@ -184,7 +184,7 @@ public class Numberer_fr extends Numberer_en {
 				prefix = prefix.substring(0, prefix.length() - 1);
 			}
 
-			ord = prefix + ((mod100 == 0) ? suffix : " " + ((mod100 == 1) ? "uni\u00e8me" : toOrdinalWords("", mod100, LOWER_CASE)));
+			ord = prefix + ((mod100 == 0) ? suffix : " " + ((mod100 == 1) ? "uni�me" : toOrdinalWords("", mod100, LOWER_CASE)));
 		}
 		if (wordCase == UPPER_CASE) {
 			return ord.toUpperCase();
@@ -232,6 +232,7 @@ public class Numberer_fr extends Numberer_en {
 		}
 		return name;
 	}
+
 }
 
 //
@@ -254,5 +255,5 @@ public class Numberer_fr extends Numberer_en {
 // Rights Reserved.
 //
 // Contributor(s): 	Laurent Bourbeau, for the elaboration of JUnit tests
-//					and Jean-Gr\u00e9goire Dj\u00e9nandji, for acceptance testing.
+//					and Jean-Gr�goire Dj�nandji, for acceptance testing.
 //

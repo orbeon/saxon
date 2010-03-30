@@ -1,5 +1,6 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
+import org.orbeon.saxon.expr.Literal;
 import org.orbeon.saxon.instruct.Doctype;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.om.AttributeCollection;
@@ -42,13 +43,13 @@ public class SaxonDoctype extends StyleElement {
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
+        //checkWithinTemplate();
     }
 
     public Expression compile(Executable exec) throws XPathException {
         Expression content = compileSequenceConstructor(exec, iterateAxis(Axis.CHILD), true);
         if (content == null) {
-            content = EmptySequence.getInstance();
+            content = Literal.makeEmptySequence();
         }
         Doctype inst = new Doctype(content);
         return inst;

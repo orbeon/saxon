@@ -4,23 +4,27 @@ import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.event.LocationProvider;
 
 import javax.xml.transform.SourceLocator;
+import java.io.Serializable;
 
 /**
- * A Container is something that can act as the parent of an expression. It is either an
- * expression that can have subexpressions (which rules out Values), or an object such as a function,
- * a template, or an attribute set that is not itself an expression but that can contain expressions
+ * A Container is something other than an expression that can act as the container of an expression.
+ * It is typically an object such as a function, a global variable, or in XSLT a template, or an attribute set.
+ * When free-standing XPath expressions are compiled, the static context for the expression acts as its
+ * container.
  */
 
-public interface Container extends SourceLocator {
+public interface Container extends SourceLocator, Serializable {
 
     /**
      * Get the Executable (representing a complete stylesheet or query) of which this Container forms part
+     * @return the executable
      */
 
     public Executable getExecutable();
 
     /**
      * Get the LocationProvider allowing location identifiers to be resolved.
+     * @return the location provider
      */
 
     public LocationProvider getLocationProvider();

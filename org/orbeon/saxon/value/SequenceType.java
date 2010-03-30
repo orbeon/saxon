@@ -1,11 +1,14 @@
 package org.orbeon.saxon.value;
 import org.orbeon.saxon.expr.StaticProperty;
 import org.orbeon.saxon.pattern.AnyNodeTest;
-import org.orbeon.saxon.pattern.NoNodeTest;
+import org.orbeon.saxon.pattern.EmptySequenceTest;
 import org.orbeon.saxon.type.AnyItemType;
-import org.orbeon.saxon.type.ItemType;
-import org.orbeon.saxon.type.Type;
 import org.orbeon.saxon.type.BuiltInAtomicType;
+import org.orbeon.saxon.type.ItemType;
+import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.Item;
+import org.orbeon.saxon.trans.XPathException;
+import org.orbeon.saxon.Configuration;
 
 import java.io.Serializable;
 import java.util.Collections;
@@ -52,7 +55,7 @@ public final class SequenceType implements Serializable {
     */
 
    public static final SequenceType SINGLE_ATOMIC =
-            makeSequenceType(Type.ANY_ATOMIC_TYPE,
+            makeSequenceType(BuiltInAtomicType.ANY_ATOMIC,
                              StaticProperty.EXACTLY_ONE);
 
     /**
@@ -60,14 +63,14 @@ public final class SequenceType implements Serializable {
     */
 
    public static final SequenceType OPTIONAL_ATOMIC =
-            makeSequenceType(Type.ANY_ATOMIC_TYPE,
+            makeSequenceType(BuiltInAtomicType.ANY_ATOMIC,
                              StaticProperty.ALLOWS_ZERO_OR_ONE);
     /**
     * A type that allows zero or more atomic values
     */
 
    public static final SequenceType ATOMIC_SEQUENCE =
-            makeSequenceType(Type.ANY_ATOMIC_TYPE,
+            makeSequenceType(BuiltInAtomicType.ANY_ATOMIC,
                              StaticProperty.ALLOWS_ZERO_OR_MORE);
 
     /**
@@ -75,23 +78,150 @@ public final class SequenceType implements Serializable {
      */
 
     public static final SequenceType SINGLE_STRING =
-            makeSequenceType(Type.STRING_TYPE,
-                             StaticProperty.EXACTLY_ONE);
+            makeSequenceType(BuiltInAtomicType.STRING, StaticProperty.EXACTLY_ONE);
+
+    /**
+     * A type that allows a single optional string
+     */
+
+    public static final SequenceType OPTIONAL_STRING =
+            makeSequenceType(BuiltInAtomicType.STRING, StaticProperty.ALLOWS_ZERO_OR_ONE);
+
+    /**
+     * A type that allows a single boolean
+     */
+
+    public static final SequenceType SINGLE_BOOLEAN =
+            makeSequenceType(BuiltInAtomicType.BOOLEAN, StaticProperty.EXACTLY_ONE);
+
+    /**
+     * A type that allows a single optional integer
+     */
+
+    public static final SequenceType OPTIONAL_BOOLEAN =
+            makeSequenceType(BuiltInAtomicType.BOOLEAN, StaticProperty.ALLOWS_ZERO_OR_ONE);
 
     /**
      * A type that allows a single integer
      */
 
     public static final SequenceType SINGLE_INTEGER =
-            makeSequenceType(Type.INTEGER_TYPE,
-                             StaticProperty.EXACTLY_ONE);
+            makeSequenceType(BuiltInAtomicType.INTEGER, StaticProperty.EXACTLY_ONE);
 
     /**
-     * A type that allows a single integer
+     * A type that allows a single optional integer
      */
 
     public static final SequenceType OPTIONAL_INTEGER =
-            makeSequenceType(Type.INTEGER_TYPE,
+            makeSequenceType(BuiltInAtomicType.INTEGER, StaticProperty.ALLOWS_ZERO_OR_ONE);
+
+    /**
+     * A type that allows a single long
+     */
+
+    public static final SequenceType SINGLE_LONG =
+            makeSequenceType(BuiltInAtomicType.LONG, StaticProperty.EXACTLY_ONE);
+
+    /**
+     * A type that allows a single optional long
+     */
+
+    public static final SequenceType OPTIONAL_LONG =
+            makeSequenceType(BuiltInAtomicType.LONG, StaticProperty.ALLOWS_ZERO_OR_ONE);
+
+    /**
+     * A type that allows a single int
+     */
+
+    public static final SequenceType SINGLE_INT =
+            makeSequenceType(BuiltInAtomicType.INT, StaticProperty.EXACTLY_ONE);
+
+    /**
+     * A type that allows a single optional int
+     */
+
+    public static final SequenceType OPTIONAL_INT =
+            makeSequenceType(BuiltInAtomicType.INT, StaticProperty.ALLOWS_ZERO_OR_ONE);
+
+    /**
+     * A type that allows a single short
+     */
+
+    public static final SequenceType SINGLE_SHORT =
+            makeSequenceType(BuiltInAtomicType.SHORT, StaticProperty.EXACTLY_ONE);
+
+    /**
+     * A type that allows a single optional short
+     */
+
+    public static final SequenceType OPTIONAL_SHORT =
+            makeSequenceType(BuiltInAtomicType.SHORT, StaticProperty.ALLOWS_ZERO_OR_ONE);
+
+    /**
+     * A type that allows a single short
+     */
+
+    public static final SequenceType SINGLE_BYTE =
+            makeSequenceType(BuiltInAtomicType.BYTE, StaticProperty.EXACTLY_ONE);
+
+    /**
+     * A type that allows a single optional byte
+     */
+
+    public static final SequenceType OPTIONAL_BYTE =
+            makeSequenceType(BuiltInAtomicType.BYTE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+
+
+    /**
+     * A type that allows a single double
+     */
+
+    public static final SequenceType SINGLE_DOUBLE =
+            makeSequenceType(BuiltInAtomicType.DOUBLE, StaticProperty.EXACTLY_ONE);
+
+   /**
+     * A type that allows a single optional double
+     */
+
+    public static final SequenceType OPTIONAL_DOUBLE =
+            makeSequenceType(BuiltInAtomicType.DOUBLE, StaticProperty.ALLOWS_ZERO_OR_ONE);
+
+    /**
+     * A type that allows a single float
+     */
+
+    public static final SequenceType SINGLE_FLOAT =
+            makeSequenceType(BuiltInAtomicType.FLOAT, StaticProperty.EXACTLY_ONE);
+
+   /**
+     * A type that allows a single optional float
+     */
+
+    public static final SequenceType OPTIONAL_FLOAT =
+            makeSequenceType(BuiltInAtomicType.FLOAT, StaticProperty.ALLOWS_ZERO_OR_ONE);
+
+   /**
+     * A type that allows a single optional decimal
+     */
+
+    public static final SequenceType OPTIONAL_DECIMAL =
+            makeSequenceType(BuiltInAtomicType.DECIMAL, StaticProperty.ALLOWS_ZERO_OR_ONE);
+
+   /**
+     * A type that allows a single optional anyURI
+     */
+
+    public static final SequenceType OPTIONAL_ANY_URI =
+            makeSequenceType(BuiltInAtomicType.ANY_URI , StaticProperty.ALLOWS_ZERO_OR_ONE);
+
+
+
+    /**
+     * A type that allows an optional numeric value
+     */
+
+    public static final SequenceType OPTIONAL_NUMERIC =
+            makeSequenceType(BuiltInAtomicType.NUMERIC,
                              StaticProperty.ALLOWS_ZERO_OR_ONE);
 
     /**
@@ -124,14 +254,14 @@ public final class SequenceType implements Serializable {
      */
 
     public static final SequenceType NUMERIC_SEQUENCE =
-            makeSequenceType(Type.NUMBER_TYPE, StaticProperty.ALLOWS_ZERO_OR_MORE);
+            makeSequenceType(BuiltInAtomicType.NUMERIC, StaticProperty.ALLOWS_ZERO_OR_MORE);
 
     /**
      * A type that only permits the empty sequence
      */
 
     public static final SequenceType EMPTY_SEQUENCE =
-            makeSequenceType(NoNodeTest.getInstance(), StaticProperty.EMPTY);
+            makeSequenceType(EmptySequenceTest.getInstance(), StaticProperty.EMPTY);
 
     /**
      * Construct an instance of SequenceType. This is a private constructor: all external
@@ -142,7 +272,7 @@ public final class SequenceType implements Serializable {
      */
     private SequenceType(ItemType primaryType, int cardinality) {
         this.primaryType = primaryType;
-        if (primaryType instanceof NoNodeTest) {
+        if (primaryType instanceof EmptySequenceTest) {
             this.cardinality = StaticProperty.EMPTY;
         } else {
             this.cardinality = cardinality;
@@ -203,7 +333,27 @@ public final class SequenceType implements Serializable {
         return cardinality;
     }
 
+    /**
+     * Determine whether a given value is a valid instance of this SequenceType
+     * @param value the value to be tested
+     * @return true if the value is a valid instance of this type
+     */
 
+    public boolean matches(Value value, Configuration config) throws XPathException {
+        if (!Cardinality.subsumes(cardinality, value.getCardinality())) {
+            return false;
+        }
+        SequenceIterator iter = value.iterate();
+        while (true) {
+            Item item = iter.next();
+            if (item == null) {
+                return true;
+            }
+             if (!primaryType.matchesItem(item, false, config)) {
+                 return false;
+             }
+        }
+    }
 
     /**
      * Return a string representation of this SequenceType
@@ -233,11 +383,9 @@ public final class SequenceType implements Serializable {
      * Indicates whether some other object is "equal to" this one.
      */
     public boolean equals(Object obj) {
-        if (obj instanceof SequenceType) {
-            return this.primaryType.equals(((SequenceType)obj).primaryType) &&
-                    this.cardinality == ((SequenceType)obj).cardinality;
-        }
-        return false;
+        return obj instanceof SequenceType &&
+                this.primaryType.equals(((SequenceType)obj).primaryType) &&
+                this.cardinality == ((SequenceType)obj).cardinality;
     }
 
 

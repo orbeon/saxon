@@ -18,6 +18,8 @@ public final class Validation {
 
     public static final int DEFAULT = 0;
 
+    public static final int BY_TYPE = 8;
+
     public static final int VALIDATION_MODE_MASK = 0xff;
 
     public static final int VALIDATE_OUTPUT = 0x10000;
@@ -49,6 +51,7 @@ public final class Validation {
             case LAX: return "lax";
             case PRESERVE: return "preserve";
             case STRIP: return "skip";  // for XQuery
+            case BY_TYPE: return "by type";
             default: return "invalid";
         }
     }

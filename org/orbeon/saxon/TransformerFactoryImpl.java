@@ -3,8 +3,8 @@ package org.orbeon.saxon;
 import org.orbeon.saxon.event.PIGrabber;
 import org.orbeon.saxon.event.Sender;
 import org.orbeon.saxon.om.NamespaceConstant;
-import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.trans.CompilerInfo;
+import org.orbeon.saxon.trans.XPathException;
 import org.xml.sax.InputSource;
 import org.xml.sax.XMLFilter;
 
@@ -45,13 +45,16 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
 
     /**
      * Construct a TransformerFactory using an existing Configuration.
+     * @param config the Saxon configuration
      */
     public TransformerFactoryImpl(Configuration config) {
         this.config = config;
     }
 
     /**
-     * Set the configuration (en bloc)
+     * Set the configuration. This can also be done using the JAXP method
+     * setAttribute, with the attribute name {@link FeatureKeys#CONFIGURATION}
+     * @param config the Saxon configuration
      */
 
     public void setConfiguration(Configuration config) {
@@ -59,7 +62,9 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
     }
 
     /**
-     * Get the configuration (en bloc)
+     * Get the configuration. This can also be done using the JAXP method
+     * getAttribute, with the attribute name {@link FeatureKeys#CONFIGURATION}
+     * @return the Saxon configuration
      */
 
     public Configuration getConfiguration() {
@@ -84,8 +89,7 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
     public Transformer newTransformer(Source source)
         	throws TransformerConfigurationException {
         Templates templates = newTemplates(source);
-        Transformer trans = templates.newTransformer();
-        return trans;
+        return templates.newTransformer();
     }
 
     /**
@@ -130,7 +134,7 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
         CompilerInfo info = new CompilerInfo();
         info.setURIResolver(config.getURIResolver());
         info.setErrorListener(config.getErrorListener());
-
+        info.setCompileWithTracing(config.isCompileWithTracing());
         PreparedStylesheet pss = new PreparedStylesheet(config, info);
         pss.prepare(source);
         return pss;
@@ -145,6 +149,7 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
      * penalizing runtime transformation.
      *
      * @param source An object that holds a URL, input stream, etc.
+     * @param info compile-time options for this stylesheet compilation
      *
      * @return A Templates object capable of being used for transformation purposes,
      * never null.
@@ -226,7 +231,7 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
     * Process a series of stylesheet inputs, treating them in import or cascade
     * order.  This is mainly for support of the getAssociatedStylesheets
     * method, but may be useful for other purposes.
-    *
+    * @param baseURI the base URI to be used for the synthesized composite stylesheet
     * @param sources An array of Source objects representing individual stylesheets.
     * @return A Source object representing a composite stylesheet.
     */
@@ -247,7 +252,7 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
         sb.append("<xsl:stylesheet version='1.0' ");
         sb.append(" xmlns:xsl='" + NamespaceConstant.XSLT + "'>");
         for (int i=0; i<sources.length; i++) {
-            sb.append("<xsl:import href='" + sources[i].getSystemId() + "'/>");
+            sb.append("<xsl:import href='").append(sources[i].getSystemId()).append("'/>");
         }
         sb.append("</xsl:stylesheet>");
         InputSource composite = new InputSource();
@@ -312,6 +317,8 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
 
     /**
      * Test whether DOM processing is available
+     * @return true if DOM processing is available, that is, if the class org.orbeon.saxon.dom.DOMObjectModel
+     * can be loaded, which will be the case if saxon9-dom.jar is on the classpath
      */
 
     private boolean isDOMAvailable() {
@@ -337,21 +344,29 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
      * @see org.orbeon.saxon.FeatureKeys
      */
 
-    public void setAttribute(String name, Object value)
-        							throws IllegalArgumentException {
-        config.setConfigurationProperty(name, value);
+    public void setAttribute(String name, Object value) throws IllegalArgumentException {
+        if (name.equals(FeatureKeys.CONFIGURATION)) {
+            config = (Configuration)value;
+        } else {
+            config.setConfigurationProperty(name, value);
+        }
     }
 
     /**
      * Allows the user to retrieve specific attributes on the underlying
      * implementation.
-     * @param name The name of the attribute.
+     * @param name The name of the attribute. This must be one of the constants
+     * defined in class {@link org.orbeon.saxon.FeatureKeys}.
      * @return value The value of the attribute.
      * @throws IllegalArgumentException thrown if the underlying
      * implementation doesn't recognize the attribute.
      */
     public Object getAttribute(String name) throws IllegalArgumentException{
-        return config.getConfigurationProperty(name);
+        if (name.equals(FeatureKeys.CONFIGURATION)) {
+            return config;
+        } else {
+            return config.getConfigurationProperty(name);
+        }
     }
 
     /**
@@ -420,8 +435,7 @@ public class TransformerFactoryImpl extends SAXTransformerFactory {
             throw new TransformerConfigurationException("Templates object was not created by Saxon");
         }
         Controller controller = (Controller)templates.newTransformer();
-        TransformerHandlerImpl handler = new TransformerHandlerImpl(controller);
-        return handler;
+        return new TransformerHandlerImpl(controller);
     }
 
     /**

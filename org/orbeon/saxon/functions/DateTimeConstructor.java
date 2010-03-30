@@ -2,8 +2,10 @@ package org.orbeon.saxon.functions;
 import org.orbeon.saxon.expr.XPathContext;
 import org.orbeon.saxon.om.Item;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.trans.DynamicError;
-import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.value.AtomicValue;
+import org.orbeon.saxon.value.DateTimeValue;
+import org.orbeon.saxon.value.DateValue;
+import org.orbeon.saxon.value.TimeValue;
 
 
 /**
@@ -17,26 +19,18 @@ public class DateTimeConstructor extends SystemFunction {
     */
 
     public Item evaluateItem(XPathContext context) throws XPathException {
-        DateValue arg0 = (DateValue)((AtomicValue)argument[0].evaluateItem(context)).getPrimitiveValue();
-        TimeValue arg1 = (TimeValue)((AtomicValue)argument[1].evaluateItem(context)).getPrimitiveValue();
+        AtomicValue arg0 = (AtomicValue)argument[0].evaluateItem(context);
+        AtomicValue arg1 = (AtomicValue)argument[1].evaluateItem(context);
         try {
-            return new DateTimeValue(arg0, arg1);
-        } catch (DynamicError e) {
-            if (e.getLocator() == null) {
-                e.setLocator(this);
-            }
-            if (e.getXPathContext() == null) {
-                e.setXPathContext(context);
-            }
+            return DateTimeValue.makeDateTimeValue((DateValue)arg0, (TimeValue)arg1);
+        } catch (XPathException e) {
+            e.maybeSetLocation(this);
+            e.maybeSetContext(context);
             throw e;
         }
     }
 
 }
-
-
-
-
 
 //
 // The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");

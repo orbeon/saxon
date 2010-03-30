@@ -5,10 +5,8 @@ import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.event.*;
 import org.orbeon.saxon.expr.ExpressionLocation;
 import org.orbeon.saxon.om.*;
-import org.orbeon.saxon.style.StandardNames;
 import org.orbeon.saxon.tinytree.CharSlice;
 import org.orbeon.saxon.tinytree.CompressedWhitespace;
-import org.orbeon.saxon.trans.DynamicError;
 import org.orbeon.saxon.trans.SaxonErrorCode;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.AtomicValue;
@@ -22,13 +20,13 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.util.Properties;
-import java.util.List;
-import java.util.ArrayList;
-import java.lang.reflect.Method;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
 
 /**
  * This class implements the Saxon PullProvider API on top of a standard StAX parser
@@ -46,6 +44,10 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
     int depth = 0;
     boolean ignoreIgnorable = false;
 
+    /**
+     * Create a new instance of the class
+     */
+
     public StaxBridge() {
 
     }
@@ -61,17 +63,18 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
     public void setInputStream(String systemId, InputStream inputStream) throws XPathException {
         try {
             XMLInputFactory factory = XMLInputFactory.newInstance();
+            //XMLInputFactory factory = new WstxInputFactory();
             factory.setXMLReporter(new StaxErrorReporter());
-            XMLStreamReader reader = factory.createXMLStreamReader(systemId, inputStream);
-            this.reader = reader;
+            reader = factory.createXMLStreamReader(systemId, inputStream);
         } catch (XMLStreamException e) {
-            throw new DynamicError(e);
+            throw new XPathException(e);
         }
     }
 
     /**
      * Supply an XMLStreamReader: the events reported by this XMLStreamReader will be translated
      * into PullProvider events
+     * @param reader the supplier of XML events, typically an XML parser
      */
 
     public void setXMLStreamReader(XMLStreamReader reader) {
@@ -110,6 +113,7 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
 
     /**
      * Get the name pool
+     * @return the name pool
      */
 
     public NamePool getNamePool() {
@@ -151,10 +155,10 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
             if (message.startsWith("ParseError at")) {
                 int c = message.indexOf("\nMessage: ");
                 if (c > 0) {
-                    message = message.substring(c+10);
+                    message = message.substring(c + 10);
                 }
             }
-            DynamicError err = new DynamicError("Error reported by XML parser: " + message);
+            XPathException err = new XPathException("Error reported by XML parser: " + message);
             err.setErrorCode(SaxonErrorCode.SXXP0003);
             err.setLocator(translateLocation(e.getLocation()));
             throw err;
@@ -305,7 +309,7 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
                         }
                     }
                 } catch (XMLStreamException e) {
-                    throw new DynamicError(e);
+                    throw new XPathException(e);
                 }
                 throw new IllegalStateException(
                         "Element start has no matching element end");
@@ -445,7 +449,7 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
                         }
                     }
                 } catch (XMLStreamException e) {
-                    throw new DynamicError(e);
+                    throw new XPathException(e);
                 }
             default:
                 throw new IllegalStateException("getStringValue() called when current event is " + currentEvent);
@@ -471,6 +475,7 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
      * should identify the location in the lexical XML source. For a constructed document, it should
      * identify the location in the query or stylesheet that caused the node to be created.
      * A value of zero can be returned if no location information is available.
+     * @return the location ID
      */
 
     public int getLocationId() {
@@ -504,6 +509,8 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
 
     /**
      * Translate a StAX Location object to a Saxon Locator
+     * @param location the StAX Location object
+     * @return a Saxon/SAX SourceLocator object
      */
 
     private ExpressionLocation translateLocation(Location location) {
@@ -512,7 +519,7 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
             loc.setLineNumber(location.getLineNumber());
             loc.setColumnNumber(location.getColumnNumber());
             loc.setSystemId(location.getSystemId());
-            loc.setPublicId(location.getPublicId());
+            //loc.setPublicId(location.getPublicId());
         }
         return loc;
     }
@@ -526,6 +533,7 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
         /**
          * Set the location provider. This must be set if the methods getSystemId() and getLineNumber()
          * are to be used to get location information for an attribute.
+         * @param provider the location provider
          */
 
         public void setLocationProvider(LocationProvider provider) {
@@ -569,7 +577,7 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
          *
          * @param index The position of the attribute in the list.
          * @return The type annotation, as the fingerprint of the type name.
-         * The bit {@link org.orbeon.saxon.om.NodeInfo.IS_DTD_TYPE} represents a DTD-derived type.
+         * The bit {@link NodeInfo#IS_DTD_TYPE} represents a DTD-derived type.
          */
 
         public int getTypeAnnotation(int index) {
@@ -577,7 +585,7 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
             if ("ID".equals(type)) {
                 return StandardNames.XS_ID | NodeInfo.IS_DTD_TYPE;
             }
-            return StandardNames.XDT_UNTYPED_ATOMIC;
+            return StandardNames.XS_UNTYPED_ATOMIC;
         }
 
         /**
@@ -707,7 +715,7 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
 
         public int getIndex(String uri, String localname) {
             for (int i=0; i<getLength(); i++) {
-                if (getLocalName(i) == localname && getURI(i) == uri) {
+                if (getLocalName(i).equals(localname) && getURI(i).equals(uri)) {
                     return i;
                 }
             }
@@ -759,7 +767,7 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
          */
 
         public boolean isId(int index) {
-            return reader.getAttributeType(index).equals("ID");
+            return "ID".equals(reader.getAttributeType(index));
         }
 
         /**
@@ -768,7 +776,7 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
 
         public boolean isIdref(int index) {
             String attributeType = reader.getAttributeType(index);
-            return attributeType.equals("IDREF") || attributeType.equals("IDREFS");
+            return "IDREF".equals(attributeType) || "IDREFS".equals(attributeType);
         }
     }
 
@@ -883,7 +891,8 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
      * @see #getPublicId
      */
     public String getSystemId() {
-        return reader.getLocation().getSystemId();
+        Location location = reader.getLocation();
+        return (location==null ? null : location.getSystemId());
     }
 
     /**
@@ -911,7 +920,8 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
      * @see #getColumnNumber
      */
     public int getLineNumber() {
-        return reader.getLocation().getLineNumber();
+        Location location = reader.getLocation();
+        return (location==null ? -1 : location.getLineNumber());
     }
 
     /**
@@ -942,13 +952,17 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
         return reader.getLocation().getColumnNumber();
     }
 
-    public String getSystemId(int locationId) {
+    public String getSystemId(long locationId) {
         return getSystemId();
     }
 
-    public int getLineNumber(int locationId) {
+    public int getLineNumber(long locationId) {
         return getLineNumber();
     }
+
+    public int getColumnNumber(long locationId) {
+        return getColumnNumber();
+    }     
 
     /**
      * Get a list of unparsed entities.
@@ -998,10 +1012,12 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
                 }
             }
             if (name != null) {
-                try {
-                    systemId = new URI(baseURI).resolve(systemId).toString();
-                } catch (URISyntaxException err) {
-                    //
+                if (baseURI != null) {
+                    try {
+                        systemId = new URI(baseURI).resolve(systemId).toString();
+                    } catch (URISyntaxException err) {
+                        //
+                    }
                 }
                 UnparsedEntity ue = new UnparsedEntity();
                 ue.setName(name);
@@ -1024,7 +1040,7 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
                            Object relatedInformation, Location location)
                 throws XMLStreamException {
             ExpressionLocation loc = translateLocation(location);
-            DynamicError err = new DynamicError("Error reported by XML parser: " + message + " (" + errorType + ')');
+            XPathException err = new XPathException("Error reported by XML parser: " + message + " (" + errorType + ')');
             err.setLocator(loc);
             try {
                 pipe.getErrorListener().error(err);
@@ -1038,6 +1054,7 @@ public class StaxBridge implements PullProvider, SaxonLocator, SourceLocationPro
     /**
      * Simple test program
      * Usage: java StaxBridge in.xml [out.xml]
+     * @param args command line arguments
      */
 
     public static void main(String[] args) throws Exception {

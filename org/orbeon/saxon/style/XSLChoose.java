@@ -1,6 +1,6 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
+import org.orbeon.saxon.expr.Literal;
 import org.orbeon.saxon.instruct.Choose;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.TraceWrapper;
@@ -11,7 +11,6 @@ import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.ItemType;
 import org.orbeon.saxon.value.BooleanValue;
-import org.orbeon.saxon.value.EmptySequence;
 
 /**
 * An xsl:choose elements in the stylesheet. <br>
@@ -50,8 +49,6 @@ public class XSLChoose extends StyleElement {
     }
 
     public void validate() throws XPathException {
-        checkWithinTemplate();
-
         AxisIterator kids = iterateAxis(Axis.CHILD);
         while(true) {
             NodeInfo curr = (NodeInfo)kids.next();
@@ -60,17 +57,19 @@ public class XSLChoose extends StyleElement {
             }
             if (curr instanceof XSLWhen) {
                 if (otherwise!=null) {
-                    compileError("xsl:otherwise must come last", "XTSE0010");
+                    otherwise.compileError("xsl:otherwise must come last", "XTSE0010");
                 }
                 numberOfWhens++;
             } else if (curr instanceof XSLOtherwise) {
                 if (otherwise!=null) {
-                    compileError("Only one xsl:otherwise allowed in an xsl:choose", "XTSE0010");
+                    ((XSLOtherwise)curr).compileError("Only one xsl:otherwise is allowed in an xsl:choose", "XTSE0010");
                 } else {
                     otherwise = (StyleElement)curr;
                 }
+            } else if (curr instanceof StyleElement) {
+                ((StyleElement)curr).compileError("Only xsl:when and xsl:otherwise are allowed here", "XTSE0010");
             } else {
-                compileError("Only xsl:when and xsl:otherwise are allowed here", "XTSE0010");
+                compileError("Only xsl:when and xsl:otherwise are allowed within xsl:choose", "XTSE0010");
             }
         }
 
@@ -83,15 +82,16 @@ public class XSLChoose extends StyleElement {
     * Mark tail-recursive calls on templates and functions.
     */
 
-    public void markTailCalls() {
+    public boolean markTailCalls() {
+        boolean found = false;
         AxisIterator kids = iterateAxis(Axis.CHILD);
         while(true) {
             NodeInfo curr = (NodeInfo)kids.next();
             if (curr == null) {
-                return;
+                return found;
             }
             if (curr instanceof StyleElement) {
-                ((StyleElement)curr).markTailCalls();
+                found |= ((StyleElement)curr).markTailCalls();
             }
         }
     }
@@ -115,24 +115,23 @@ public class XSLChoose extends StyleElement {
                 Expression b = ((XSLWhen)curr).compileSequenceConstructor(
                         exec, curr.iterateAxis(Axis.CHILD), true);
                 if (b == null) {
-                    b = EmptySequence.getInstance();
+                    b = Literal.makeEmptySequence();
                 }
                 try {
-                    b = b.simplify(((XSLWhen)curr).getStaticContext());
+                    b = makeExpressionVisitor().simplify(b);
                     actions[w] = b;
                 } catch (XPathException e) {
                     compileError(e);
                 }
 
-                if (getConfiguration().isCompileWithTracing()) {
+                if (getPreparedStylesheet().isCompileWithTracing()) {
                     TraceWrapper trace = makeTraceInstruction((XSLWhen)curr, actions[w]);
-                    trace.setParentExpression((XSLWhen)curr);
                     actions[w] = trace;
                 }
 
                 // Optimize for constant conditions (true or false)
-                if (conditions[w] instanceof BooleanValue) {
-                    if (((BooleanValue)conditions[w]).getBooleanValue()) {
+                if (conditions[w] instanceof Literal && ((Literal)conditions[w]).getValue() instanceof BooleanValue) {
+                    if (((BooleanValue)((Literal)conditions[w]).getValue()).getBooleanValue()) {
                         // constant true: truncate the tests here
                         entries = w+1;
                         break;
@@ -144,21 +143,20 @@ public class XSLChoose extends StyleElement {
                 }
                 w++;
             } else if (curr instanceof XSLOtherwise) {
-                conditions[w] = BooleanValue.TRUE;
+                conditions[w] = Literal.makeLiteral(BooleanValue.TRUE);
                 Expression b = ((XSLOtherwise)curr).compileSequenceConstructor(
                         exec, curr.iterateAxis(Axis.CHILD), true);
                 if (b == null) {
-                    b = EmptySequence.getInstance();
+                    b = Literal.makeEmptySequence();
                 }
                 try {
-                    b = b.simplify(((XSLOtherwise)curr).getStaticContext());
+                    b = makeExpressionVisitor().simplify(b);
                     actions[w] = b;
                 } catch (XPathException e) {
                     compileError(e);
                 }
-                if (getConfiguration().isCompileWithTracing()) {
+                if (getPreparedStylesheet().isCompileWithTracing()) {
                     TraceWrapper trace = makeTraceInstruction((XSLOtherwise)curr, actions[w]);
-                    trace.setParentExpression((XSLOtherwise)curr);
                     actions[w] = trace;
                 }
                 w++;
@@ -172,8 +170,9 @@ public class XSLChoose extends StyleElement {
             if (entries==0) {
                 return null; // return a no-op
             }
-            if (entries==1 && (conditions[0] instanceof BooleanValue)) {
-                if (((BooleanValue)conditions[0]).getBooleanValue()) {
+            if (entries==1 && (conditions[0] instanceof Literal) &&
+                    ((Literal)conditions[0]).getValue() instanceof BooleanValue) {
+                if (((BooleanValue)((Literal)conditions[0]).getValue()).getBooleanValue()) {
                     // only one condition left, and it's known to be true: return the corresponding action
                     return actions[0];
                 } else {
@@ -189,9 +188,7 @@ public class XSLChoose extends StyleElement {
             actions = actions2;
         }
 
-        Choose ch = new Choose(conditions, actions);
-        ExpressionTool.makeParentReferences(ch);
-        return ch;
+        return new Choose(conditions, actions);
     }
 
 }
@@ -212,5 +209,4 @@ public class XSLChoose extends StyleElement {
 // Portions created by (your name) are Copyright (C) (your legal entity). All Rights Reserved.
 //
 // Contributor(s):
-// Portions marked "e.g." are from Edwin Glaser (edwin@pannenleiter.de)
 //

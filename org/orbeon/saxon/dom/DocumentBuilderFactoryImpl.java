@@ -1,5 +1,9 @@
 package org.orbeon.saxon.dom;
 
+import org.orbeon.saxon.Configuration;
+import org.orbeon.saxon.FeatureKeys;
+import org.orbeon.saxon.value.Whitespace;
+
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -12,7 +16,10 @@ import javax.xml.parsers.ParserConfigurationException;
 */
 
 public class DocumentBuilderFactoryImpl extends DocumentBuilderFactory {
-    
+
+    Configuration config = null;
+    boolean xIncludeAware = false;
+
     public DocumentBuilderFactoryImpl() {
         setCoalescing(true);
         setExpandEntityReferences(true);
@@ -22,14 +29,58 @@ public class DocumentBuilderFactoryImpl extends DocumentBuilderFactory {
         setValidating(false);
     }
 
+    /**
+     * Allows the user to set specific attributes on the underlying
+     * implementation.
+     * @param name The name of the attribute. For Saxon this must be one of the
+     * names defined in {@link FeatureKeys}
+     * @param value The value of the attribute.
+     * @exception IllegalArgumentException thrown if the underlying
+     * implementation doesn't recognize the attribute.
+     */
+
     public void setAttribute(String name, Object value) {
-        throw new IllegalArgumentException("Unrecognized attribute name: " + name);
+        if (name.equals(FeatureKeys.CONFIGURATION)) {
+            config = (Configuration)value;
+        } else {
+            if (config == null) {
+                config = new Configuration();
+            }
+            config.setConfigurationProperty(name, value);
+        }
     }
 
+    /**
+     * Allows the user to retrieve specific attributes on the underlying
+     * implementation.
+     * @param name The name of the attribute. For Saxon this must be one of the
+     * names defined in {@link FeatureKeys}
+     * @return value The value of the attribute.
+     * @exception IllegalArgumentException thrown if the underlying
+     * implementation doesn't recognize the attribute.
+     */
+
     public Object getAttribute(String name) {
-        throw new IllegalArgumentException("Unrecognized attribute name: " + name);
+        if (name.equals(FeatureKeys.CONFIGURATION)) {
+            return config;
+        } else {
+            if (config == null) {
+                config = new Configuration();
+            }
+            return config.getConfigurationProperty(name);
+        }
     }
-    
+
+    /**
+     * Creates a new instance of a {@link javax.xml.parsers.DocumentBuilder}
+     * using the currently configured parameters.
+     *
+     * @exception ParserConfigurationException if a DocumentBuilder
+     * cannot be created which satisfies the configuration requested.
+     * @return A new instance of a DocumentBuilder. For Saxon the returned DocumentBuilder
+     * will be an instance of {@link DocumentBuilderImpl}
+     */
+
     public DocumentBuilder newDocumentBuilder() throws ParserConfigurationException {
 
         // Check that configuration options are all available
@@ -50,12 +101,15 @@ public class DocumentBuilderFactoryImpl extends DocumentBuilderFactory {
             throw new ParserConfigurationException(
                 "Saxon parser is always namespace aware");
         } 
-        if (isValidating()) {
-            throw new ParserConfigurationException(
-                "Saxon parser is non-validating");
-        }
 
-        return new DocumentBuilderImpl();
+        DocumentBuilderImpl builder = new DocumentBuilderImpl();
+        builder.setValidating(isValidating());
+        builder.setXIncludeAware(xIncludeAware);
+        if (isIgnoringElementContentWhitespace()) {
+            builder.setStripSpace(Whitespace.IGNORABLE);
+        }
+        builder.setConfiguration(config);
+        return builder;
     }
 
     /**
@@ -94,8 +148,7 @@ public class DocumentBuilderFactoryImpl extends DocumentBuilderFactory {
      * @throws NullPointerException If the <code>name</code> parameter is null.
      */
     public void setFeature(String name, boolean value) throws ParserConfigurationException {
-//        if (name.equals(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING) && !value) {
-        if (true) {
+        if (name.equals(FEATURE_SECURE_PROCESSING) && !value) {
             // no action
         } else {
             throw new ParserConfigurationException("Unsupported feature or value: " + name);
@@ -120,15 +173,50 @@ public class DocumentBuilderFactoryImpl extends DocumentBuilderFactory {
      *          or the <code>DocumentBuilder</code>s it creates cannot support this feature.
      */
     public boolean getFeature(String name) throws ParserConfigurationException {
-//        if (name.equals(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING) && !value) {
-        if (true) {
+        if (name.equals(FEATURE_SECURE_PROCESSING)) {
             return false;
         } else {
             throw new ParserConfigurationException("Unsupported feature: " + name);
         }
     }
 
-}         
+    /**
+     * <p>Get state of XInclude processing.</p>
+     *
+     * @return current state of XInclude processing
+     * @throws UnsupportedOperationException For backward compatibility, when implementations for
+     *                                       earlier versions of JAXP is used, this exception will be
+     *                                       thrown.
+     * @since 1.5
+     */
+    public boolean isXIncludeAware() {
+        return xIncludeAware;
+    }
+
+    /**
+     * <p>Set state of XInclude processing.</p>
+     * <p/>
+     * <p>If XInclude markup is found in the document instance, should it be
+     * processed as specified in <a href="http://www.w3.org/TR/xinclude/">
+     * XML Inclusions (XInclude) Version 1.0</a>.</p>
+     * <p/>
+     * <p>XInclude processing defaults to <code>false</code>.</p>
+     *
+     * @param state Set XInclude processing to <code>true</code> or
+     *              <code>false</code>
+     * @throws UnsupportedOperationException For backward compatibility, when implementations for
+     *                                       earlier versions of JAXP is used, this exception will be
+     *                                       thrown.
+     * @since 1.5
+     */
+    public void setXIncludeAware(boolean state) {
+        xIncludeAware = state;
+    }
+
+    private static String FEATURE_SECURE_PROCESSING = "http://javax.xml.XMLConstants/feature/secure-processing";
+            // XMLConstants.FEATURE_SECURE_PROCESSING in JDK 1.5
+
+}
 
 
 //

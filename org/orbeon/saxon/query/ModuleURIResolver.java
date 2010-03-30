@@ -27,10 +27,11 @@ public interface ModuleURIResolver extends Serializable {
      * @return an array of StreamSource objects each identifying the contents of a query module to be
      * imported. Each StreamSource must contain a
      * non-null absolute System ID which will be used as the base URI of the imported module,
-     * and either an InputSource or a Reader representing the text of the module. The method
-     * may also return null, in which case the system attempts to resolve the URI using the
-     * standard module URI resolver.
-     * @throws org.orbeon.saxon.trans.XPathException if the module cannot be located, and if delegation to the default
+     * and either an {@link java.io.InputStream} or an {@link java.io.Reader} representing the text of the module.
+     * The method may also return null, in which case the system attempts to resolve the URI using the
+     * standard module URI resolver. The contained InputStream or Reader must be positioned at the start of the
+     * content to be read; it will be consumed by the system and will be closed after use.
+     * @throws XPathException if the module cannot be located, and if delegation to the default
      * module resolver is not required.
     */
 

@@ -1,14 +1,14 @@
 package org.orbeon.saxon.style;
 import org.orbeon.saxon.expr.Expression;
-import org.orbeon.saxon.expr.ExpressionTool;
-import org.orbeon.saxon.expr.ComputedExpression;
+import org.orbeon.saxon.expr.StringLiteral;
 import org.orbeon.saxon.instruct.Block;
 import org.orbeon.saxon.instruct.Executable;
 import org.orbeon.saxon.instruct.Message;
 import org.orbeon.saxon.om.AttributeCollection;
 import org.orbeon.saxon.om.Axis;
+import org.orbeon.saxon.om.StandardNames;
 import org.orbeon.saxon.trans.XPathException;
-import org.orbeon.saxon.value.StringValue;
+import org.orbeon.saxon.value.Whitespace;
 
 
 /**
@@ -48,7 +48,7 @@ public final class XSLMessage extends StyleElement {
 			int nc = atts.getNameCode(a);
 			String f = getNamePool().getClarkName(nc);
 			if (f == StandardNames.TERMINATE) {
-        		terminateAtt = atts.getValue(a).trim();
+        		terminateAtt = Whitespace.trim(atts.getValue(a));
             } else if (f == StandardNames.SELECT) {
                 selectAtt = atts.getValue(a);
 
@@ -66,8 +66,8 @@ public final class XSLMessage extends StyleElement {
         }
 
         terminate = makeAttributeValueTemplate(terminateAtt);
-        if (terminate instanceof StringValue) {
-            String t = ((StringValue)terminate).getStringValue();
+        if (terminate instanceof StringLiteral) {
+            String t = ((StringLiteral)terminate).getStringValue();
             if (!(t.equals("yes") || t.equals("no"))) {
                 compileError("terminate must be 'yes' or 'no'", "XTSE0020");
             }
@@ -75,9 +75,6 @@ public final class XSLMessage extends StyleElement {
     }
 
     public void validate() throws XPathException {
-        if (!(getParent() instanceof XSLFunction)) {
-            checkWithinTemplate();
-        }
         select = typeCheck("select", select);
         terminate = typeCheck("terminate", terminate);
     }
@@ -89,17 +86,14 @@ public final class XSLMessage extends StyleElement {
                 select = b;
             } else {
                 select = Block.makeBlock(select, b);
-                if (select instanceof ComputedExpression) {
-                    ((ComputedExpression)select).setLocationId(
+                select.setLocationId(
                             allocateLocationId(getSystemId(), getLineNumber()));
-                }
             }
         }
         if (select == null) {
-            select = new StringValue("xsl:message (no content)");
+            select = new StringLiteral("xsl:message (no content)");
         }
         Message inst = new Message(select, terminate);
-        ExpressionTool.makeParentReferences(inst);
         return inst;
     }
 

@@ -28,17 +28,19 @@ public class PullPushTee extends PullFilter {
     /**
      * Create a PullPushTee
      * @param base the PullProvider to which requests are to be passed
-     * @param branch the Receiver to which all events are to be copied, as "push" events
+     * @param branch the Receiver to which all events are to be copied, as "push" events.
+     * This Receiver must already be open before use
      */
 
     public PullPushTee(PullProvider base, Receiver branch) throws XPathException {
         super(base);
         this.branch = branch;
-        branch.open();
+        //branch.open();
     }
 
     /**
      * Get the Receiver to which events are being tee'd.
+     * @return the Receiver
      */
 
     public Receiver getReceiver() {
@@ -62,6 +64,7 @@ public class PullPushTee extends PullFilter {
 
     /**
      * Copy a pull event to a Receiver
+     * @param event the pull event to be copied
      */
 
     private void copyEvent(int event) throws XPathException {
@@ -124,7 +127,7 @@ public class PullPushTee extends PullFilter {
 
             case END_OF_INPUT:
                 in.close();
-                out.close();
+                //out.close();
                 break;
 
             case ATOMIC_VALUE:
@@ -151,7 +154,7 @@ public class PullPushTee extends PullFilter {
                 } else {
                     out.attribute(getNameCode(), getTypeAnnotation(), getStringValue(), 0, 0);
                     break;
-                    //throw new DynamicError("Cannot serialize a free-standing attribute node");
+                    //throw new XPathException("Cannot serialize a free-standing attribute node");
                 }
 
             case NAMESPACE:
@@ -166,7 +169,7 @@ public class PullPushTee extends PullFilter {
                      int nsCode = getNamePool().getNamespaceCode(getNameCode());
                      out.namespace(nsCode, 0);
                      break;
-                    //throw new DynamicError("Cannot serialize a free-standing namespace node");
+                    //throw new XPathException("Cannot serialize a free-standing namespace node");
                 }
 
             default:
