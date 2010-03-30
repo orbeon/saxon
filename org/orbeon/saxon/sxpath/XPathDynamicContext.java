@@ -24,7 +24,8 @@ public class XPathDynamicContext {
     private XPathContextMajor contextObject;
     private SlotManager stackFrameMap;
 
-    protected XPathDynamicContext(XPathContextMajor contextObject, SlotManager stackFrameMap) {
+    // ORBEON: made public
+    public XPathDynamicContext(XPathContextMajor contextObject, SlotManager stackFrameMap) {
         this.contextObject = contextObject;
         this.stackFrameMap = stackFrameMap;
     }

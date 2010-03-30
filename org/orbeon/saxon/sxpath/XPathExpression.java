@@ -4,9 +4,7 @@ import org.orbeon.saxon.expr.Expression;
 import org.orbeon.saxon.expr.XPathContextMajor;
 import org.orbeon.saxon.expr.PJConverter;
 import org.orbeon.saxon.instruct.SlotManager;
-import org.orbeon.saxon.om.Item;
-import org.orbeon.saxon.om.NodeInfo;
-import org.orbeon.saxon.om.SequenceIterator;
+import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.value.SequenceExtent;
 import org.orbeon.saxon.value.Value;
@@ -70,6 +68,62 @@ public class XPathExpression {
         XPathContextMajor context = new XPathContextMajor(contextItem, evaluator.getExecutable());
         context.openStackFrame(stackFrameMap);
         return new XPathDynamicContext(context, stackFrameMap);
+    }
+
+    // ORBEON
+    public XPathDynamicContext createDynamicContext(Item contextItem, int contextPosition) {
+        final XPathContextMajor context = new XPathContextMajor(null, evaluator.getExecutable());
+        return createDynamicContext(context, contextItem, contextPosition);
+    }
+
+    // ORBEON
+    public XPathDynamicContext createDynamicContext(XPathContextMajor context, Item contextItem, int contextPosition) {
+        // Set context item
+        final ContextItemSequenceIterator contextIterator = new ContextItemSequenceIterator(contextItem, contextPosition);
+        contextIterator.next();
+        context.setCurrentIterator(contextIterator);
+
+        context.openStackFrame(stackFrameMap);
+        return new XPathDynamicContext(context, stackFrameMap);
+    }
+
+    private static class ContextItemSequenceIterator implements SequenceIterator, Cloneable {
+
+        private Item contextItem;
+        private int currentPosition; // 1-based
+        private boolean started, done;
+
+        public ContextItemSequenceIterator(Item contextItem, int currentPosition) {
+            this.contextItem = contextItem;
+            this.currentPosition = currentPosition;
+        }
+
+        public Item current() {
+            return (done || !started) ? null : contextItem;
+        }
+
+        public SequenceIterator getAnother() {
+            return new ContextItemSequenceIterator(contextItem, currentPosition);
+        }
+
+        public Item next() {
+            if (!started) {
+                started = true;
+            } else if (started) {
+                done = true;
+            }
+            return current();
+        }
+
+        public int position() {
+            return (done || !started) ? -1 : currentPosition;
+        }
+
+        public void close() {}
+
+        public int getProperties() {
+            return 0; // "It is always acceptable to return the value zero, indicating that there are no known special properties."
+        }
     }
 
     /**

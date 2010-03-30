@@ -1,6 +1,7 @@
 package org.orbeon.saxon;
 
-/*DOTNETONLY*/  import org.orbeon.saxon.dotnet.DotNetPlatform;
+// ORBEON
+///*DOTNETONLY*/  import org.orbeon.saxon.dotnet.DotNetPlatform;
 
 import org.orbeon.saxon.event.*;
 import org.orbeon.saxon.evpull.PullEventSource;
@@ -249,7 +250,8 @@ public class Configuration implements Serializable, SourceResolver {
 
         /*DOTNETONLY*/ /*JAVAONLY*/ if (System.getProperty("java.vendor").equals("Jeroen Frijters")) {
             //System.err.println("Call to create .NET platform currently disabled in Configuration.java (needed for JDK1.4)");
-            /*DOTNETONLY*/ platform = DotNetPlatform.getInstance();
+// ORBEON
+//            /*DOTNETONLY*/ platform = DotNetPlatform.getInstance();
             /*DOTNETONLY*/ /*JAVAONLY*/ }
 //        System.err.println(System.getProperty("java.vendor"));
 //        System.err.println(platform.getClass().getName());
