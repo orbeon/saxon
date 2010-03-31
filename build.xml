@@ -25,10 +25,7 @@
     <property name="build.debug" value="on"/>
 
     <fileset id='war.libs' dir="${lib.dir}">
-        <include name="dom4j-1_6_1.jar"/>
-        <include name="jsr173_1.0_api.jar"/>
-        <include name="xml-apis-xerces_2_7_1.jar"/>
-        <include name="xqjapi.jar"/>
+        <include name="*.jar"/>
     </fileset>
 
     <target name="init">
@@ -56,7 +53,7 @@
         <javac destdir="${build.dir}/classes"
                classpathref="class.path"
                debug="${build.debug}" optimize="off" target="1.5" source="1.5"
-               fork="true" memoryInitialSize="128m" memoryMaximumSize="256m">
+               fork="true" memoryInitialSize="128m" memoryMaximumSize="256m" encoding="utf-8">
 
             <src path="${build.root}"/>
 
