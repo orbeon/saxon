@@ -66,6 +66,9 @@ public class LineNumberMap {
         int index = Arrays.binarySearch(sequenceNumbers, sequence);
         if (index < 0) {
             index = -index - 1;
+            if (index > lineNumbers.length - 1) {
+                index = lineNumbers.length - 1;
+            }
         }
         return lineNumbers[index];
     }
