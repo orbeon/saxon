@@ -87,7 +87,7 @@ public class XPathExpression {
         return new XPathDynamicContext(context, stackFrameMap);
     }
 
-    private static class ContextItemSequenceIterator implements SequenceIterator, Cloneable {
+    public static class ContextItemSequenceIterator implements SequenceIterator, Cloneable {
 
         private Item contextItem;
         private int currentPosition; // 1-based
