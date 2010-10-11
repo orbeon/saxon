@@ -472,6 +472,14 @@ public class SlashExpression extends Expression
         step.explain(destination);
         destination.endElement();
     }
+
+    @Override
+    public PathMap.PathMapNodeSet addToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodeSet) {
+        // In this type of expressions, the step expression is relative to the start expression. This is why we can't
+        // just use the default addToPathMap() implementation, which assumes both expressions are at the same level.
+        final PathMap.PathMapNodeSet target = start.addToPathMap(pathMap, pathMapNodeSet);
+        return step.addToPathMap(pathMap, target);
+    }
 }
 
 //
