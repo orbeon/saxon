@@ -29,6 +29,9 @@
   <component name="DependencyValidationManager">
     <option name="SKIP_IMPORT_STATEMENTS" value="false" />
   </component>
+  <component name="EntryPointsManager">
+    <entry_points version="2.0" />
+  </component>
   <component name="InspectionPassRegistrar">
     <option name="LOAD_NEW_PROBLEMS" value="true" />
   </component>
@@ -55,12 +58,16 @@
   <component name="ProjectKey">
     <option name="state" value="project://default" />
   </component>
+  <component name="ProjectResources">
+    <default-html-doctype>http://www.w3.org/1999/xhtml</default-html-doctype>
+  </component>
   <component name="ProjectRootManager" version="2" languageLevel="JDK_1_5" assert-keyword="true" jdk-15="true" project-jdk-name="1.6" project-jdk-type="JavaSDK">
     <output url="file://$PROJECT_DIR$/out" />
   </component>
   <component name="SvnBranchConfigurationManager">
     <option name="mySupportsUserInfoFilter" value="true" />
   </component>
+  <component name="WebServicesPlugin" addRequiredLibraries="true" />
   <component name="XPathView.XPathProjectComponent">
     <history />
     <find-history />
