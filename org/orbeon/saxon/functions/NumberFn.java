@@ -39,7 +39,7 @@ public class NumberFn extends SystemFunction implements ItemMappingFunction {
      *         expression is the first operand of a path expression or filter expression
      */
 
-    public PathMap.PathMapNodeSet addDocToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodes) {
+    public PathMap.PathMapNodeSet addToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodes) {
         PathMap.PathMapNodeSet result = argument[0].addToPathMap(pathMap, pathMapNodes);
         if (result != null) {
             result.setAtomized();

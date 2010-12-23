@@ -115,8 +115,24 @@ public class NormalizeSpace extends SystemFunction {
         }
         return !Whitespace.isWhite(cs);
     }
-}
 
+    @Override
+    public PathMap.PathMapNodeSet addToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodes) {
+
+        if (argument.length == 0 && pathMapNodes != null) {
+            // No argument: expression applies to context
+            // NOTE: Some other functions use useContextItemAsDefault() in simplify(), but this doesn't
+            pathMapNodes.setAtomized();
+        } else if (argument.length > 0) {
+            // There is an argument: evaluate child expression
+            final PathMap.PathMapNodeSet result = argument[0].addToPathMap(pathMap, pathMapNodes);
+            if (result != null)
+                result.setAtomized();
+        }
+           
+        return null;
+    }
+}
 
 
 
