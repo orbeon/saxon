@@ -1,9 +1,6 @@
 package org.orbeon.saxon.functions;
 import org.orbeon.saxon.event.SequenceReceiver;
-import org.orbeon.saxon.expr.ExpressionVisitor;
-import org.orbeon.saxon.expr.StaticContext;
-import org.orbeon.saxon.expr.StringLiteral;
-import org.orbeon.saxon.expr.XPathContext;
+import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.instruct.ResultDocument;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.style.ExpressionContext;
@@ -131,6 +128,25 @@ public class Serialize extends SystemFunction implements XSLTFunction {
             String val = Whitespace.trim(att.getStringValueCS());
             ResultDocument.setSerializationProperty(props, uri, local, val, resolver, false, nc);
         }
+    }
+
+    @Override
+    public PathMap.PathMapNodeSet addToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodeSet) {
+
+        // Mark the result as atomized to indicate that this expression depends on the string value of the result
+        final PathMap.PathMapNodeSet result0 = argument[0].addToPathMap(pathMap, pathMapNodeSet);
+        if (result0 != null)
+            result0.setAtomized();
+
+        // Don't forget the second argument
+        // Also atomize in case the 2nd argument is interpreted as a string
+        // NOTE: Could test if type is known statically and not Type.NODE, and atomize only in this case
+        final PathMap.PathMapNodeSet result1 = argument[1].addToPathMap(pathMap, pathMapNodeSet);
+        if (result1 != null)
+            result1.setAtomized();
+
+        // We are an atomic type
+        return null;
     }
 }
 
