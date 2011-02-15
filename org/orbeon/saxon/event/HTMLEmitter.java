@@ -16,13 +16,13 @@ public class HTMLEmitter extends XMLEmitter {
 	* Preferred character representations
 	*/
 
-    private static final int REP_NATIVE = 0;
-	private static final int REP_ENTITY = 1;
-	private static final int REP_DECIMAL = 2;
-	private static final int REP_HEX = 3;
+    protected static final int REP_NATIVE = 0;
+	protected static final int REP_ENTITY = 1;
+	protected static final int REP_DECIMAL = 2;
+	protected static final int REP_HEX = 3;
 
-	private int nonASCIIRepresentation = REP_NATIVE;
-	private int excludedRepresentation = REP_ENTITY;
+	protected int nonASCIIRepresentation = REP_NATIVE;
+	protected int excludedRepresentation = REP_ENTITY;
 
 	private int inScript;
 	private boolean started = false;
@@ -482,7 +482,7 @@ public class HTMLEmitter extends XMLEmitter {
     }
 
 
-    private static final String[] latin1Entities = {
+    protected static final String[] latin1Entities = {
 
         "nbsp",   // "&#160;" -- no-break space = non-breaking space,
                   //                        U+00A0 ISOnum -->
