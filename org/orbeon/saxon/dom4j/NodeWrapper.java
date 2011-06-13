@@ -730,7 +730,14 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
      */
 
     public int getDocumentNumber() {
-        return getParent().getDocumentNumber();
+        // NOTE: We used to call getParent().getDocumentNumber(), but all other implementations use
+        // docWrapper.getDocumentNumber() so we now harmonize with them.
+
+        // This also has another benefit: if a node gets detached from its parent, and getParent() has not yet been
+        // cached, getParent() can return null and getDocumentNumber() fails. By using docWrapper.getDocumentNumber()
+        // we avoid this issue, although arguably 1) a detached node should not point back to a DocumentWrapper and 2)
+        // one should not keep using a NodeInfo created to a node which is then detached.
+        return docWrapper.getDocumentNumber();
     }
 
     /**
