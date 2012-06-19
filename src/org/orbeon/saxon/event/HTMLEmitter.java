@@ -25,7 +25,8 @@ public class HTMLEmitter extends XMLEmitter {
 	protected int excludedRepresentation = REP_ENTITY;
 
 	private int inScript;
-	private boolean started = false;
+    private boolean started = false;
+    private int version = 4;
 	private String elementName;
     private short uriCode;
 
@@ -143,11 +144,17 @@ public class HTMLEmitter extends XMLEmitter {
             // This method is sometimes called twice, especially during an identity transform
             // This check stops two DOCTYPE declarations being output.
 
-        String version = outputProperties.getProperty(OutputKeys.VERSION);
-        if (version != null && !(version.equals("4.0") || version.equals("4.01"))) {
-            XPathException err = new XPathException("Unsupported HTML version: " + version);
-            err.setErrorCode("SESU0013");
-            throw err;
+        String versionProperty = outputProperties.getProperty(OutputKeys.VERSION);
+        if (versionProperty != null) {
+            if (versionProperty.equals("4.0") || versionProperty.equals("4.01")) {
+                version = 4;
+            } else if (versionProperty.equals("5.0")) {
+                version = 5;
+            } else {
+                XPathException err = new XPathException("Unsupported HTML version: " + versionProperty);
+                err.setErrorCode("SESU0013");
+                throw err;
+            }
         }
 
         String byteOrderMark = outputProperties.getProperty(SaxonOutputKeys.BYTE_ORDER_MARK);
@@ -164,7 +171,14 @@ public class HTMLEmitter extends XMLEmitter {
         String systemId = outputProperties.getProperty(OutputKeys.DOCTYPE_SYSTEM);
         String publicId = outputProperties.getProperty(OutputKeys.DOCTYPE_PUBLIC);
 
-        if (systemId!=null || publicId!=null) {
+        // Treat "" as equivalent to absent. This goes beyond what the spec strictly allows.
+        if ("".equals(systemId)) {
+            systemId = null;
+        }
+        if ("".equals(publicId)) {
+            publicId = null;
+        }
+        if (systemId!=null || publicId!=null || version==5) {
             writeDocType("html", systemId, publicId);
         }
 
@@ -193,6 +207,25 @@ public class HTMLEmitter extends XMLEmitter {
 	        }
 	    }
 
+    }
+
+    /**
+     * Output the document type declaration
+     * @param type     The element name
+     * @param systemId The DOCTYP system identifier
+     * @param publicId The DOCTYPE public identifier
+     */
+
+    protected void writeDocType(String type, String systemId, String publicId) throws XPathException {
+        if (version == 5) {
+            try {
+                writer.write("<!DOCTYPE HTML>\n");
+            } catch (java.io.IOException err) {
+                throw new XPathException(err);
+            }
+        } else {
+            super.writeDocType(type, systemId, publicId);
+        }
     }
 
     /**
