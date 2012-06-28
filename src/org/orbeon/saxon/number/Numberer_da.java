@@ -13,8 +13,8 @@ public class Numberer_da extends AbstractNumberer {
 	private static final long serialVersionUID = 1L;
 
 	private static String[] danishOrdinalUnits = {
-        "", "f�rste", "anden", "tredje", "fjerde", "femte", "sjette", "syvende", "ottende", "niende",
-        "tiende", "�lfte", "tolvte", "trettende" , "fjortende", "femtende", "sekstende",
+        "", "f\u00f8rste", "anden", "tredje", "fjerde", "femte", "sjette", "syvende", "ottende", "niende",
+        "tiende", "ellevte", "tolvte", "trettende" , "fjortende", "femtende", "sekstende",
         "syttende", "attende", "nittende"};
 
     private static String[] danishOrdinalTens = {
@@ -23,7 +23,7 @@ public class Numberer_da extends AbstractNumberer {
 
     private static String[] danishUnits = {
         "", "et", "to", "tre", "fire", "fem", "seks", "syv", "otte", "ni",
-        "ti", "elleve", "tolv", "tretten", "fjorten", "femten", "seksten",
+        "ti", "elleve" /*or elvte*/, "tolv", "tretten", "fjorten", "femten", "seksten",
         "sytten", "atten", "nitten"};
 
     private static String[] danishTens = {
@@ -166,7 +166,7 @@ public class Numberer_da extends AbstractNumberer {
             maxWidth = 2;
         }
         if (name.length() > maxWidth) {
-            name = swedishDayAbbreviations[day-1];
+            name = danishDayAbbreviations[day-1];
             if (name.length() > maxWidth) {
                 name = name.substring(0, maxWidth);
             }
@@ -182,11 +182,11 @@ public class Numberer_da extends AbstractNumberer {
     }
 
     private static String[] danishDays = {
-        "mandag", "tirsdag", "onsdag", "torsdag", "fredag", "l�rdag", "s�ndag"
+        "mandag", "tirsdag", "onsdag", "torsdag", "fredag", "l\u00f8rdag", "s\u00f8ndag"
     };
 
-    private static String[] swedishDayAbbreviations = {
-        "ma", "ti", "on", "to", "fr", "l�", "s�"
+    private static String[] danishDayAbbreviations = {
+        "ma", "ti", "on", "to", "fr", "l\u00f8", "s\u00f8"
     };
 
     private static int[] minUniqueDayLength = {

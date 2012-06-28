@@ -61,12 +61,12 @@ public class Numberer_de extends AbstractNumberer {
     }
 
     private static String[] germanUnits = {
-        "", "Eins", "Zwei", "Drei", "Vier", "F�nf", "Sechs", "Sieben", "Acht", "Neun",
-        "Zehn", "Elf", "Zw�lf", "Dreizehn", "Vierzehn", "F�nfzehn", "Sechszehn",
+        "", "Eins", "Zwei", "Drei", "Vier", "F\u00fcnf", "Sechs", "Sieben", "Acht", "Neun",
+        "Zehn", "Elf", "Zw\u00f6lf", "Dreizehn", "Vierzehn", "F\u00fcnfzehn", "Sechszehn",
         "Siebzehn", "Achtzehn", "Neunzehn"};
 
     private static String[] germanTens = {
-        "", "Zehn", "Zwanzig", "Drei�ig", "Vierzig", "F�nfzig",
+        "", "Zehn", "Zwanzig", "Drei\u00dfig", "Vierzig", "F\u00fcnfzig",
         "Sechzig", "Siebzig", "Achtzig", "Neunzig"};
 
     /**
@@ -107,8 +107,8 @@ public class Numberer_de extends AbstractNumberer {
     }
 
     private static String[] germanOrdinalUnits = {
-        "", "Erst", "Zweit", "Dritt", "Viert", "F�nft", "Sechst", "Siebt", "Acht", "Neunt",
-        "Zehnt", "Elft", "Zw�lft", "Dreizehnt", "Vierzehnt", "F�nfzehnt", "Sechszehnt",
+        "", "Erst", "Zweit", "Dritt", "Viert", "F\u00fcnft", "Sechst", "Siebt", "Acht", "Neunt",
+        "Zehnt", "Elft", "Zw\u00f6lft", "Dreizehnt", "Vierzehnt", "F\u00fcnfzehnt", "Sechszehnt",
         "Siebzehnt", "Achtzehnt", "Neunzehnt"};
 
     /**
@@ -133,7 +133,7 @@ public class Numberer_de extends AbstractNumberer {
     }
 
     private static String[] germanMonths = {
-        "Januar", "Februar", "M�rz", "April", "Mai", "Juni",
+        "Januar", "Februar", "M\u00e4rz", "April", "Mai", "Juni",
         "Juli", "August", "September", "Oktober", "November", "Dezember"
     };
 

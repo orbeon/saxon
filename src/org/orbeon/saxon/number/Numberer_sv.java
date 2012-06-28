@@ -14,22 +14,22 @@ public class Numberer_sv extends AbstractNumberer {
 	private static final long serialVersionUID = 1L;
 
 	private static String[] swedishOrdinalUnits = {
-        "", "f�rsta", "andra", "tredje", "fj�rde", "femte", "sj�tte", "sjunde", "�ttonde", "nionde",
+        "", "f\u00f6rsta", "andra", "tredje", "fj\u00e4rde", "femte", "sj\u00e4tte", "sjunde", "\u00e5ttonde", "nionde",
         "tionde", "elfte", "tolfte", "trettonde" , "fjortonde", "femtonde", "sextonde",
-        "sjuttonde", "artonde", "n�ttonde"};
+        "sjuttonde", "artonde", "n\u00edttonde"};
 
     private static String[] swedishOrdinalTens = {
         "", "tionde", "tjugonde", "trettionde", "fyrtionde", "femtionde",
-        "sextionde", "sjuttionde", "�ttionde", "n�ttionde"};
+        "sextionde", "sjuttionde", "\u00e5ttionde", "n\u00edttionde"};
 
     private static String[] swedishUnits = {
-        "", "ett", "tv�", "tre", "fyra", "fem", "sex", "sju", "�tta", "nio",
+        "", "ett", "tv\u00e5", "tre", "fyra", "fem", "sex", "sju", "\u00e5tta", "nio",
         "tio", "elva", "tolv", "tretton", "fjorton", "femton", "sexton",
         "sjutton", "arton", "nitton"};
 
     private static String[] swedishTens = {
         "", "tio", "tjugo", "trettio", "fyrtio", "femtio",
-        "sextio", "sjuttio", "�ttio", "nittio"};
+        "sextio", "sjuttio", "\u00e5ttio", "nittio"};
 
     /**
      * Show an ordinal number as swedish words in a requested case (for example, Twentyfirst)
@@ -191,11 +191,11 @@ public class Numberer_sv extends AbstractNumberer {
     }
 
     private static String[] swedishDays = {
-        "m�ndag", "tisdag", "onsdag", "torsdag", "fredag", "l�rdag", "s�ndag"
+        "m\u00e5ndag", "tisdag", "onsdag", "torsdag", "fredag", "l\u00f6rdag", "s\u00f6ndag"
     };
 
     private static String[] swedishDayAbbreviations = {
-        "m�", "ti", "on", "to", "fr", "l�", "s�"
+        "m\u00e5", "ti", "on", "to", "fr", "l\u00f6", "s\u00f6"
     };
 
     private static int[] minUniqueDayLength = {
