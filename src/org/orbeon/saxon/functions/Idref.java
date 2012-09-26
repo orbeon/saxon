@@ -89,17 +89,6 @@ public class Idref extends SystemFunction {
         return i2;
     }
 
-    /**
-     * Add a representation of a doc() call or similar function to a PathMap.
-     * This is a convenience method called by the addToPathMap() methods for doc(), document(), collection()
-     * and similar functions. These all create a new root expression in the path map.
-     *
-     * @param pathMap     the PathMap to which the expression should be added
-     * @param pathMapNodeSet
-     * @return the pathMapNode representing the focus established by this expression, in the case where this
-     *         expression is the first operand of a path expression or filter expression
-     */
-
     public PathMap.PathMapNodeSet addToPathMap(PathMap pathMap, PathMap.PathMapNodeSet pathMapNodeSet) {
         argument[0].addToPathMap(pathMap, pathMapNodeSet);
         PathMap.PathMapNodeSet target = argument[1].addToPathMap(pathMap, pathMapNodeSet);
