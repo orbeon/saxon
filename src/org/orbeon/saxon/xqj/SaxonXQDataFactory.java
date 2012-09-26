@@ -48,7 +48,7 @@ public abstract class SaxonXQDataFactory extends Closable implements XQDataFacto
 
     private ObjectConverter objectConverter;
 
-    abstract Configuration getConfiguration();
+    public abstract Configuration getConfiguration();
 
     // Two-way mapping between XQJ integer codes for built-in types and the Saxon equivalents
 
