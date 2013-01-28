@@ -1,7 +1,7 @@
 package org.orbeon.saxon.number;
 
 /**
- *
+ * Localization class for Italian
  * @author Karel Goossens
  *         BTR-Services Belgium.
  * Numberer class for the Italian language.
@@ -135,7 +135,7 @@ public class Numberer_it extends AbstractNumberer {
              case 0: return italianTens[(int)number / 10];
              case 1:
              case 8: return s.substring(0,s.length()-1)+italianUnits[rem];
-             case 3: return s+"tr�";
+             case 3: return s+"tr\u00e9";
              default: return s+italianUnits[rem];
              }
          }
@@ -223,33 +223,32 @@ public class Numberer_it extends AbstractNumberer {
     }
 
     private static String[] italianDays = {
-        "luned�", "marted� ", "mercoled�", "gioved�", "venerd�", "sabato", "domenica"
+        "luned\u00ec", "marted\u00ec ", "mercoled\u00ec", "gioved\u00ec", "venerd\u00ec", "sabato", "domenica"
     };
 
     private static String[] italianDayAbbreviations = {
         "lun", "mar", "mer", "gio", "ven", "sab", "dom"
     };
 
-    private static int[] minUniqueDayLength = {
+    /*@NotNull*/ private static int[] minUniqueDayLength = {
         1, 2, 2, 1, 1, 1, 1
     };
 
 }
-//
-//The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");
-//you may not use this file except in compliance with the License. You may obtain a copy of the
-//License at http://www.mozilla.org/MPL/
-//
-//Software distributed under the License is distributed on an "AS IS" basis,
-//WITHOUT WARRANTY OF ANY KIND, either express or implied.
-//See the License for the specific language governing rights and limitations under the License.
-//
-//The Original Code is: all this file.
-//
-//The Initial Developer of the Original Code is Michael H. Kay.
-//
-//Portions created by Karel Goossens are Copyright (C) BTR-services inc. All Rights Reserved.
-//
-//Contributor(s): Karel Goossens.
-//
 
+//
+// The contents of this file are subject to the Mozilla Public License Version 1.0 (the "License");
+// you may not use this file except in compliance with the License. You may obtain a copy of the
+// License at http://www.mozilla.org/MPL/
+//
+// Software distributed under the License is distributed on an "AS IS" basis,
+// WITHOUT WARRANTY OF ANY KIND, either express or implied.
+// See the License for the specific language governing rights and limitations under the License.
+//
+// The Original Code is: all this file
+//
+// The Initial Developer of the Original Code is Karel Goossens, BTR-Services, Belgium.
+// Portions created by ___ are Copyright (C) ___. All rights reserved.
+//
+// Contributor(s): Saxonica Limited
+//
