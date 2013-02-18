@@ -5,6 +5,7 @@ import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.type.Type;
 import org.dom4j.Document;
+import org.dom4j.Element;
 
 import java.util.Iterator;
 import java.util.Collections;
@@ -19,9 +20,16 @@ import java.util.Collections;
 
 public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
 
+    // An implementation of this interface can be set on DocumentWrapper to provide access to an index of elements by id.
+    public interface IdGetter {
+        public Element apply(String id);
+    }
+
     protected Configuration config;
     protected String baseURI;
     protected int documentNumber;
+
+    protected IdGetter idGetter;
 
     /**
      * Create a Saxon wrapper for a dom4j document
@@ -63,14 +71,23 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
         return documentNumber;
     }
 
+    public void setIdGetter(IdGetter idGetter) {
+        this.idGetter = idGetter;
+    }
+
     /**
     * Get the element with a given ID, if any
     * @param id the required ID value
-    * @return null: dom4j does not provide any information about attribute types.
+    * @return the element with the given ID, or null if there is no such ID
     */
 
     public NodeInfo selectID(String id) {
-        return null;
+        if (idGetter == null) {
+            return null;
+        } else {
+            final Element element = idGetter.apply(id);
+            return element != null ? wrap(element) : null;
+        }
     }
 
     /**
