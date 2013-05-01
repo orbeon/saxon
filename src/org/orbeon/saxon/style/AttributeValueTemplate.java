@@ -1,8 +1,8 @@
 package org.orbeon.saxon.style;
+import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.expr.*;
 import org.orbeon.saxon.functions.Concat;
 import org.orbeon.saxon.functions.SystemFunction;
-import org.orbeon.saxon.instruct.SimpleContentConstructor;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.BuiltInAtomicType;
 import org.orbeon.saxon.type.TypeHierarchy;
@@ -74,7 +74,9 @@ public abstract class AttributeValueTemplate {
                     components.add(makeFirstItem(exp, env));
                 } else {
                     components.add(visitor.simplify(
-                            new SimpleContentConstructor(exp, new StringLiteral(StringValue.SINGLE_SPACE))));
+                            makeSimpleContentConstructor(
+                                    exp,
+                                    new StringLiteral(StringValue.SINGLE_SPACE), env.getConfiguration())));
                 }
 
             } else {
@@ -102,6 +104,30 @@ public abstract class AttributeValueTemplate {
         fn.setLocationId(env.getLocationMap().allocateLocationId(env.getSystemId(), lineNumber));
         return visitor.simplify(fn);
 
+    }
+
+    /**
+     * ORBEON: Backport from 9.3.
+     *
+     * Construct an expression that implements the rules of "constructing simple content":
+     * given an expression to select the base sequence, and an expression to compute the separator,
+     * build an (unoptimized) expression to produce the value of the node as a string.
+     * @param select the expression that selects the base sequence
+     * @param separator the expression that computes the separator
+     * @param config the Saxon configuration
+     * @return an expression that returns a string containing the string value of the constructed node
+     */
+    public static Expression makeSimpleContentConstructor(Expression select, Expression separator, Configuration config) {
+        // Merge adjacent text nodes
+        //select = new AdjacentTextNodeMerger(select);
+        // Atomize the result
+        select = new Atomizer(select, config);
+        // Convert each atomic value to a string
+        select = new AtomicSequenceConverter(select, BuiltInAtomicType.STRING);
+        // Join the resulting strings with a separator
+        select = SystemFunction.makeSystemFunction("string-join", new Expression[]{select, separator});
+        // All that's left for the instruction to do is to construct the right kind of node
+        return select;
     }
 
     private static void addStringComponent(List components, String avt, int start, int end) {
