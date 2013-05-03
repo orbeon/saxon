@@ -181,14 +181,29 @@ public final class ValueComparison extends BinaryExpression implements Compariso
                 // certainly an error, but we need to let it through because it will work if
                 // one of the operands is an empty sequence.
 
-                String which = null;
-                if (opt0) which = "the first operand is";
-                if (opt1) which = "the second operand is";
-                if (opt0 && opt1) which = "one or both operands are";
+                // ORBEON: 2013-05-03: Don't issue warning if any of the operands is xs:untypedAtomic.
+                //
+                // - At compile time, we might not know the type. But at runtime, we might thanks to type annotations,
+                //   and the comparison indeed can (and does) succeed in such cases. So the warning is not only annoying
+                //   but incorrect (because the comparison can succeed even if the operands are not empty)!
+                // - Note that the `opt0 || opt1` test above could also fail when the cardinality does not allow an
+                //   empty sequence, and then we would incorrectly go to the error case at compile time. We don't seem
+                //   to hit this however. When could we have cardinality information at compile time but not the actual
+                //   type? Maybe with a function parameter like `element()?`?
+                // - I am wondering, in the case where Saxon uses a schema (which we don't have as we are using the
+                //   open source version), whether users wouldn't also get the incorrect warning, and even whether they
+                //   could not incorrectly hit the error case. This because even with a schema, types can still be
+                //   unknown at compile time.
+                if (! t0.equals(BuiltInAtomicType.UNTYPED_ATOMIC) && ! t1.equals(BuiltInAtomicType.UNTYPED_ATOMIC)) {
+                    String which = null;
+                    if (opt0) which = "the first operand is";
+                    if (opt1) which = "the second operand is";
+                    if (opt0 && opt1) which = "one or both operands are";
 
-                visitor.getStaticContext().issueWarning("Comparison of " + t0.toString(namePool) +
-                        (opt0 ? "?" : "") + " to " + t1.toString(namePool) +
-                        (opt1 ? "?" : "") + " will fail unless " + which + " empty", this);
+                    visitor.getStaticContext().issueWarning("Comparison of " + t0.toString(namePool) +
+                            (opt0 ? "?" : "") + " to " + t1.toString(namePool) +
+                            (opt1 ? "?" : "") + " will fail unless " + which + " empty", this);
+                }
                 needsRuntimeComparabilityCheck = true;
             } else {
                 XPathException err = new XPathException("Cannot compare " + t0.toString(namePool) +
