@@ -844,8 +844,8 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
 
     private final class NamespaceEnumeration extends Navigator.BaseEnumeration {
 
-        private HashMap nslist = new HashMap();
-        private Iterator prefixes;
+        private HashMap<String, Namespace> nslist = new HashMap<String, Namespace>();
+        private Iterator<String> prefixes;
         private int ix = 0;
         private NodeWrapper start;
 
@@ -856,37 +856,36 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
             // build the complete list of namespaces
 
             do {
-                Element elem = (Element)curr.node;
-                Namespace ns = elem.getNamespace();
-                String prefix = ns.getPrefix();
-                String uri = ns.getURI();
-                if (!(prefix.length() == 0 && uri.length() == 0)) {
-                    if (!nslist.containsKey(prefix)) {
-                        nslist.put(ns.getPrefix(), ns);
+                final Element elem = (Element)curr.node;
+                final Namespace ns = elem.getNamespace();
+                final String prefix = ns.getPrefix();
+                final String uri = ns.getURI();
+
+                if (! (prefix.length() == 0 && uri.length() == 0)) {
+                    if (! nslist.containsKey(prefix)) {
+                        nslist.put(prefix, ns);
                     }
                 }
-                List addl = elem.additionalNamespaces();
-                if (!addl.isEmpty()) {
-                    Iterator itr = addl.iterator();
-                    while (itr.hasNext()) {
-                        ns = (Namespace) itr.next();
-                        if (!nslist.containsKey(ns.getPrefix())) {
-                            nslist.put(ns.getPrefix(), ns);
+
+                final List<Namespace> additionalNamespaces = elem.additionalNamespaces();
+                if (! additionalNamespaces.isEmpty()) {
+                    for (final Namespace additionalNamespace : additionalNamespaces) {
+                        if (! nslist.containsKey(additionalNamespace.getPrefix())) {
+                            nslist.put(additionalNamespace.getPrefix(), additionalNamespace);
                         }
                     }
                 }
-                curr = (NodeWrapper)curr.getParent();
-            } while (curr != null && curr.getNodeKind()==Type.ELEMENT);// NOTE: support elements detached from document
+                curr = (NodeWrapper) curr.getParent();
+            } while (curr != null && curr.getNodeKind() == Type.ELEMENT);// NOTE: support elements detached from document
 
             nslist.put("xml", Namespace.XML_NAMESPACE);
             prefixes = nslist.keySet().iterator();
-            //advance();
         }
 
         public void advance() {
             if (prefixes.hasNext()) {
-                String prefix = (String)prefixes.next();
-                Namespace ns = (Namespace)nslist.get(prefix);
+                final String prefix = prefixes.next();
+                final Namespace ns = nslist.get(prefix);
                 current = makeWrapper(ns, docWrapper, start, ix++);
             } else {
                 current = null;
