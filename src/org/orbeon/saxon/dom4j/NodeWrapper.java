@@ -81,8 +81,12 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
      * @param index       The position of this node relative to its siblings
      * @return            The new wrapper for the supplied node
      */
-
     protected NodeWrapper makeWrapper(Object node, DocumentWrapper docWrapper,
+                                      NodeWrapper parent, int index) {
+        return makeWrapperImpl(node, docWrapper, parent, index);
+    }
+
+    protected static NodeWrapper makeWrapperImpl(Object node, DocumentWrapper docWrapper,
                                       NodeWrapper parent, int index) {
 
         NodeWrapper wrapper;
@@ -415,7 +419,7 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
         if (parent==null) {
             if (node instanceof Element) {
                 if (((Element)node).isRootElement()) {
-                    parent = makeWrapper(((Element)node).getDocument(), docWrapper);
+                    parent = makeWrapper(((Element) node).getDocument(), docWrapper);
                 } else {
                     final Node parentNode = ((Element)node).getParent();
                     // This checks the case of an element detached from a Document
@@ -423,15 +427,15 @@ public class NodeWrapper implements NodeInfo, VirtualNode, SiblingCountingNode {
                         parent = makeWrapper(parentNode, docWrapper);
                 }
             } else if (node instanceof Text) {
-                parent = makeWrapper(((Text)node).getParent(), docWrapper);
+                parent = makeWrapper(((Text) node).getParent(), docWrapper);
             } else if (node instanceof CDATA) {
-                parent = makeWrapper(((CDATA)node).getParent(), docWrapper);
+                parent = makeWrapper(((CDATA) node).getParent(), docWrapper);
             } else if (node instanceof Comment) {
-                parent = makeWrapper(((Comment)node).getParent(), docWrapper);
+                parent = makeWrapper(((Comment) node).getParent(), docWrapper);
             } else if (node instanceof ProcessingInstruction) {
-                parent = makeWrapper(((ProcessingInstruction)node).getParent(), docWrapper);
+                parent = makeWrapper(((ProcessingInstruction) node).getParent(), docWrapper);
             } else if (node instanceof Attribute) {
-                parent = makeWrapper(((Attribute)node).getParent(), docWrapper);
+                parent = makeWrapper(((Attribute) node).getParent(), docWrapper);
             } else if (node instanceof Document) {
                 parent = null;
             } else if (node instanceof Namespace) {

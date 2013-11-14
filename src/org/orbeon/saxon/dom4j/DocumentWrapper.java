@@ -1,11 +1,10 @@
 package org.orbeon.saxon.dom4j;
+import org.dom4j.*;
 import org.orbeon.saxon.Configuration;
 import org.orbeon.saxon.om.DocumentInfo;
 import org.orbeon.saxon.om.NamePool;
 import org.orbeon.saxon.om.NodeInfo;
 import org.orbeon.saxon.type.Type;
-import org.dom4j.Document;
-import org.dom4j.Element;
 
 import java.util.Iterator;
 import java.util.Collections;
@@ -61,6 +60,18 @@ public class DocumentWrapper extends NodeWrapper implements DocumentInfo {
             return this;
         }
         return makeWrapper(node, this);
+    }
+
+    /**
+     *  Wrap a node without a document. The node must not have a document.
+     */
+    public static NodeInfo makeWrapper(Object node) {
+
+        if (! (node instanceof Node))
+            throw new IllegalArgumentException("Bad node type in dom4j: " + node.getClass() + " instance " + node.toString());
+
+        assert(((Node) node).getDocument() == null);
+        return makeWrapperImpl(node, null, null, -1);
     }
 
     /**
