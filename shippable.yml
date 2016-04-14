@@ -1,0 +1,7 @@
+build_image: magwas/edemotest:xslt
+language: python
+python:
+  - 2.7
+- apt-get -y install ant
+script:
+- ant
