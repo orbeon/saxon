@@ -3,7 +3,7 @@ language: python
 python:
   - 2.7
 before_install:
- - apt-get -y install ant
+ - apt-get -y install ant openjdk-8-jdk
 script:
 - ant
 
