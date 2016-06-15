@@ -1093,7 +1093,7 @@ public class QueryParser extends ExpressionParser {
             String baseURI = ss.getSystemId();
             if (baseURI == null) {
                 if (m < hints.length) {
-                    baseURI = hints[m];  
+                    baseURI = hints[m];
                     ss.setSystemId(hints[m]);
                 } else {
                     grumble("No base URI available for imported module", "XQST0059");
@@ -1103,7 +1103,7 @@ public class QueryParser extends ExpressionParser {
             // a result of a reference from another imported module. Note, we are careful here to use URI.equals()
             // rather that String.equals() to compare URIs, as this gives a slightly more intelligent comparison,
             // for example the scheme name is case-independent, and file:///x/y/z matches file:/x/y/z.
-            // TODO: use similar logic when loading schema modules 
+            // TODO: use similar logic when loading schema modules
             existingModules = executable.getQueryLibraryModules(mImport.namespaceURI);
             boolean loaded = false;
             if (existingModules != null && m < hints.length) {
@@ -1793,126 +1793,6 @@ public class QueryParser extends ExpressionParser {
     }
 
     /**
-     * Parse a ForClause.
-     * <p/>
-     * [42] ForClause ::=  <"for" "$"> VarName TypeDeclaration? PositionalVar? "in" ExprSingle
-     * ("," "$" VarName TypeDeclaration? PositionalVar? "in" ExprSingle)*
-     * </p>
-     *
-     * @param clauseList - the components of the parsed ForClause are appended to the
-     *                   supplied list
-     * @throws XPathException
-     */
-    private void parseForClause(List clauseList) throws XPathException {
-        boolean first = true;
-        do {
-            ExpressionParser.ForClause clause = new ExpressionParser.ForClause();
-            if (first) {
-                clause.offset = t.currentTokenStartOffset;
-            }
-            clauseList.add(clause);
-            nextToken();
-            if (first) {
-                first = false;
-            } else {
-                clause.offset = t.currentTokenStartOffset;
-            }
-            expect(Token.DOLLAR);
-            nextToken();
-            expect(Token.NAME);
-            String var = t.currentTokenValue;
-
-            ForExpression v = new ForExpression();
-            StructuredQName varQName = makeStructuredQName(var, false);
-            v.setVariableQName(varQName);
-            v.setRequiredType(SequenceType.SINGLE_ITEM);
-            clause.rangeVariable = v;
-            nextToken();
-
-            if (t.currentToken == Token.AS /*isKeyword("as")*/) {
-                nextToken();
-                SequenceType type = parseSequenceType();
-                if (type.getCardinality() != StaticProperty.EXACTLY_ONE) {
-                    warning("Occurrence indicator on singleton range variable has no effect");
-                    type = SequenceType.makeSequenceType(type.getPrimaryType(), StaticProperty.EXACTLY_ONE);
-                }
-                v.setRequiredType(type);
-            }
-            clause.positionVariable = null;
-            if (isKeyword("at")) {
-                nextToken();
-                expect(Token.DOLLAR);
-                nextToken();
-                expect(Token.NAME);
-                PositionVariable pos = new PositionVariable();
-                StructuredQName posQName = makeStructuredQName(t.currentTokenValue, false);
-                if (!scanOnly && posQName.equals(varQName)) {
-                    grumble("The two variables declared in a single 'for' clause must have different names", "XQST0089");
-                }
-                pos.setVariableQName(posQName);
-                clause.positionVariable = pos;
-                nextToken();
-            }
-            expect(Token.IN);
-            nextToken();
-            clause.sequence = parseExprSingle();
-            declareRangeVariable(clause.rangeVariable);
-            if (clause.positionVariable != null) {
-                declareRangeVariable(clause.positionVariable);
-            }
-        } while (t.currentToken == Token.COMMA);
-    }
-
-    /**
-     * Parse a LetClause.
-     * <p/>
-     * [44] LetClause ::= <"let" "$"> VarName TypeDeclaration? ":=" ExprSingle
-     * ("," "$" VarName TypeDeclaration? ":=" ExprSingle)*
-     * </p>
-     *
-     * @param clauseList - the components of the parsed LetClause are appended to the
-     *                   supplied list
-     * @throws XPathException
-     */
-    private void parseLetClause(List clauseList) throws XPathException {
-        boolean first = true;
-        do {
-            LetClause clause = new LetClause();
-            if (first) {
-                clause.offset = t.currentTokenStartOffset;
-            }
-            clauseList.add(clause);
-            nextToken();
-            if (first) {
-                first = false;
-            } else {
-                clause.offset = t.currentTokenStartOffset;
-            }
-            expect(Token.DOLLAR);
-            nextToken();
-            expect(Token.NAME);
-            String var = t.currentTokenValue;
-
-            LetExpression v = new LetExpression();
-            StructuredQName varQName = makeStructuredQName(var, false);
-            v.setRequiredType(SequenceType.ANY_SEQUENCE);
-            v.setVariableQName(varQName);
-            clause.variable = v;
-            nextToken();
-
-            if (t.currentToken == Token.AS) {
-                nextToken();
-                v.setRequiredType(parseSequenceType());
-            }
-
-            expect(Token.ASSIGN);
-            nextToken();
-            v.setSequence(parseExprSingle());
-            declareRangeVariable(v);
-        } while (t.currentToken == Token.COMMA);
-    }
-
-    /**
      * Make a string-join expression that concatenates the string-values of items in
      * a sequence with intervening spaces. This may be simplified later as a result
      * of type-checking.
@@ -1935,11 +1815,6 @@ public class QueryParser extends ExpressionParser {
                 "string-join", new Expression[]{exp, new StringLiteral(StringValue.SINGLE_SPACE)});
         ExpressionTool.copyLocationInfo(exp, fn);
         return fn;
-    }
-
-    private static class LetClause {
-        public LetExpression variable;
-        public int offset;
     }
 
     /**

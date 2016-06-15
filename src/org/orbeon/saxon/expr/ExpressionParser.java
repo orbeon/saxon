@@ -1,22 +1,21 @@
 package org.orbeon.saxon.expr;
+
 import org.orbeon.saxon.Configuration;
-import org.orbeon.saxon.trans.Err;
 import org.orbeon.saxon.event.LocationProvider;
-import org.orbeon.saxon.functions.CurrentGroup;
-import org.orbeon.saxon.functions.RegexGroup;
-import org.orbeon.saxon.functions.SystemFunction;
+import org.orbeon.saxon.functions.*;
 import org.orbeon.saxon.instruct.*;
 import org.orbeon.saxon.om.*;
 import org.orbeon.saxon.pattern.*;
+import org.orbeon.saxon.query.QueryParser;
 import org.orbeon.saxon.trace.Location;
+import org.orbeon.saxon.trans.Err;
 import org.orbeon.saxon.trans.XPathException;
 import org.orbeon.saxon.type.*;
 import org.orbeon.saxon.value.*;
+import org.orbeon.saxon.value.StringValue;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Stack;
+import java.util.*;
 
 /**
  * Parser for XPath expressions and XSLT patterns.
@@ -64,7 +63,7 @@ public class ExpressionParser {
      * both to compile the code with trace hooks included, and to supply a TraceListener at run-time
      * @param trueOrFalse true if trace code is to be compiled in, false otherwise
      */
-    
+
     public void setCompileWithTracing(boolean trueOrFalse) {
         compileWithTracing = trueOrFalse;
     }
@@ -438,10 +437,185 @@ public class ExpressionParser {
      */
 
     protected Expression parseForExpression() throws XPathException {
-        if (t.currentToken==Token.LET) {
-            grumble("'let' is not supported in XPath");
+        int offset = t.currentTokenStartOffset;
+        List clauseList = new ArrayList(4);
+        while (true) {
+            if (t.currentToken == Token.FOR) {
+                parseForClause(clauseList);
+            } else if (t.currentToken == Token.LET) {
+                parseLetClause(clauseList);
+            } else {
+                break;
+            }
         }
-        return parseMappingExpression();
+
+        int returnOffset = t.currentTokenStartOffset;
+        expect(Token.RETURN);
+        t.setState(Tokenizer.DEFAULT_STATE);
+        nextToken();
+        Expression action = parseExprSingle();
+        action = makeTracer(returnOffset, action, Location.RETURN_EXPRESSION, null);
+
+        for (int i = clauseList.size() - 1; i >= 0; i--) {
+            Object clause = clauseList.get(i);
+            if (clause instanceof ExpressionParser.ForClause) {
+                ExpressionParser.ForClause fc = (ExpressionParser.ForClause)clause;
+                ForExpression exp = (ForExpression)fc.rangeVariable;
+                exp.setPositionVariable(fc.positionVariable);
+                exp.setLocationId(env.getLocationMap().allocateLocationId(env.getSystemId(), t.getLineNumber(fc.offset)));
+                exp.setSequence(fc.sequence);
+                exp.setAction(action);
+                action = makeTracer(fc.offset, exp, Location.FOR_EXPRESSION, fc.rangeVariable.getVariableQName());
+            } else {
+                QueryParser.LetClause lc = (QueryParser.LetClause)clause;
+                LetExpression exp = lc.variable;
+                exp.setLocationId(env.getLocationMap().allocateLocationId(env.getSystemId(), t.getLineNumber(lc.offset)));
+                //exp.setSequence(lc.value);
+                exp.setAction(action);
+                action = makeTracer(lc.offset, exp, Location.LET_EXPRESSION, lc.variable.getVariableQName());
+            }
+        }
+
+        // undeclare all the range variables
+
+        for (int i = clauseList.size() - 1; i >= 0; i--) {
+            Object clause = clauseList.get(i);
+            if ((clause instanceof ExpressionParser.ForClause) &&
+                    ((ExpressionParser.ForClause)clause).positionVariable != null) {
+                // undeclare the "at" variable if it was declared
+                undeclareRangeVariable();
+            }
+            // undeclare the primary variable
+            undeclareRangeVariable();
+        }
+
+        setLocation(action, offset);
+        return action;
+    }
+
+    /**
+     * Parse a ForClause.
+     * <p/>
+     * [42] ForClause ::=  <"for" "$"> VarName TypeDeclaration? PositionalVar? "in" ExprSingle
+     * ("," "$" VarName TypeDeclaration? PositionalVar? "in" ExprSingle)*
+     * </p>
+     *
+     * @param clauseList - the components of the parsed ForClause are appended to the
+     *                   supplied list
+     * @throws XPathException
+     */
+    protected void parseForClause(List clauseList) throws XPathException {
+        boolean first = true;
+        do {
+            ExpressionParser.ForClause clause = new ExpressionParser.ForClause();
+            if (first) {
+                clause.offset = t.currentTokenStartOffset;
+            }
+            clauseList.add(clause);
+            nextToken();
+            if (first) {
+                first = false;
+            } else {
+                clause.offset = t.currentTokenStartOffset;
+            }
+            expect(Token.DOLLAR);
+            nextToken();
+            expect(Token.NAME);
+            String var = t.currentTokenValue;
+
+            ForExpression v = new ForExpression();
+            StructuredQName varQName = makeStructuredQName(var, false);
+            v.setVariableQName(varQName);
+            v.setRequiredType(SequenceType.SINGLE_ITEM);
+            clause.rangeVariable = v;
+            nextToken();
+
+            if (t.currentToken == Token.AS /*isKeyword("as")*/) {
+                nextToken();
+                SequenceType type = parseSequenceType();
+                if (type.getCardinality() != StaticProperty.EXACTLY_ONE) {
+                    warning("Occurrence indicator on singleton range variable has no effect");
+                    type = SequenceType.makeSequenceType(type.getPrimaryType(), StaticProperty.EXACTLY_ONE);
+                }
+                v.setRequiredType(type);
+            }
+            clause.positionVariable = null;
+            if (isKeyword("at")) {
+                nextToken();
+                expect(Token.DOLLAR);
+                nextToken();
+                expect(Token.NAME);
+                PositionVariable pos = new PositionVariable();
+                StructuredQName posQName = makeStructuredQName(t.currentTokenValue, false);
+                if (!scanOnly && posQName.equals(varQName)) {
+                    grumble("The two variables declared in a single 'for' clause must have different names", "XQST0089");
+                }
+                pos.setVariableQName(posQName);
+                clause.positionVariable = pos;
+                nextToken();
+            }
+            expect(Token.IN);
+            nextToken();
+            clause.sequence = parseExprSingle();
+            declareRangeVariable(clause.rangeVariable);
+            if (clause.positionVariable != null) {
+                declareRangeVariable(clause.positionVariable);
+            }
+        } while (t.currentToken == Token.COMMA);
+    }
+
+    /**
+     * Parse a LetClause.
+     * <p/>
+     * [44] LetClause ::= <"let" "$"> VarName TypeDeclaration? ":=" ExprSingle
+     * ("," "$" VarName TypeDeclaration? ":=" ExprSingle)*
+     * </p>
+     *
+     * @param clauseList - the components of the parsed LetClause are appended to the
+     *                   supplied list
+     * @throws XPathException
+     */
+    protected void parseLetClause(List clauseList) throws XPathException {
+        boolean first = true;
+        do {
+            QueryParser.LetClause clause = new QueryParser.LetClause();
+            if (first) {
+                clause.offset = t.currentTokenStartOffset;
+            }
+            clauseList.add(clause);
+            nextToken();
+            if (first) {
+                first = false;
+            } else {
+                clause.offset = t.currentTokenStartOffset;
+            }
+            expect(Token.DOLLAR);
+            nextToken();
+            expect(Token.NAME);
+            String var = t.currentTokenValue;
+
+            LetExpression v = new LetExpression();
+            StructuredQName varQName = makeStructuredQName(var, false);
+            v.setRequiredType(SequenceType.ANY_SEQUENCE);
+            v.setVariableQName(varQName);
+            clause.variable = v;
+            nextToken();
+
+            if (t.currentToken == Token.AS) {
+                nextToken();
+                v.setRequiredType(parseSequenceType());
+            }
+
+            expect(Token.ASSIGN);
+            nextToken();
+            v.setSequence(parseExprSingle());
+            declareRangeVariable(v);
+        } while (t.currentToken == Token.COMMA);
+    }
+
+    protected static class LetClause {
+        public LetExpression variable;
+        public int offset;
     }
 
     /**
@@ -2458,7 +2632,7 @@ public class ExpressionParser {
     }
 
     /**
-     * Set that we are parsing in "scan only" 
+     * Set that we are parsing in "scan only"
      * @param scanOnly true if parsing is to proceed in scan-only mode. In this mode
      * namespace bindings are not yet known, so no attempt is made to look up namespace
      * prefixes.
