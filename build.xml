@@ -50,7 +50,7 @@
     <target name="classes" depends="classpath">
         <javac destdir="${build.dir}/classes"
                classpathref="class.path"
-               debug="${build.debug}" optimize="off" target="1.5" source="1.5"
+               debug="${build.debug}" optimize="off" target="1.6" source="1.6"
                fork="true" memoryInitialSize="128m" memoryMaximumSize="256m" encoding="utf-8">
 
             <src path="${build.root}/src"/>
