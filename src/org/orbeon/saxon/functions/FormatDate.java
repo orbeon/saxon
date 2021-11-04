@@ -11,7 +11,6 @@ import org.orbeon.saxon.value.*;
 
 import java.math.BigDecimal;
 import java.util.Locale;
-import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -64,15 +63,8 @@ public class FormatDate extends SystemFunction implements XSLTFunction {
             language = getDefaultLanguage(context);
         }
 
-        String place = countryVal == null ? null : countryVal.getStringValue();
-        if (place != null && place.contains("/") && value.hasTimezone() && !(value instanceof TimeValue)) {
-            TimeZone zone = NamedTimeZone.getNamedTimeZone(place);
-            if (zone != null) {
-                int offset = zone.getOffset(value.toDateTime().getCalendar().getTimeInMillis());
-                value = value.adjustTimezone(offset / 60000);
-            }
-        }
-        CharSequence result = formatDate(value, format, language, place, context);
+        String country = (countryVal == null ? null : countryVal.getStringValue());
+        CharSequence result = formatDate(value, format, language, country, context);
         if (calendarVal != null) {
             String cal = calendarVal.getStringValue();
             if (!cal.equals("AD") && !cal.equals("ISO")) {
