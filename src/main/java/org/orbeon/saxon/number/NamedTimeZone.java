@@ -13,19 +13,25 @@ import java.util.*;
  */
 public class NamedTimeZone {
 
-    static HashMap idForCountry = new HashMap(50);
+    static Set<String> knownTimeZones = new HashSet<String>(50);
+    static HashMap<String, List<String>> idForCountry = new HashMap<String, List<String>>(50);
+
+    static {
+        Collections.addAll(knownTimeZones, TimeZone.getAvailableIDs());
+    }
 
     /**
      * Register a timezone in use in a particular country. Note that some countries use multiple
      * time zones
+     *
      * @param country the two-character code for the country
-     * @param zoneId the Olsen timezone name for the timezone
+     * @param zoneId  the Olsen timezone name for the timezone
      */
 
     static void tz(String country, String zoneId) {
-        List list = (List)idForCountry.get(country);
+        List<String> list = idForCountry.get(country);
         if (list == null) {
-            list = new ArrayList(4);
+            list = new ArrayList<String>(4);
         }
         list.add(zoneId);
         idForCountry.put(country, list);
@@ -34,7 +40,7 @@ public class NamedTimeZone {
     static {
 
         // The table starts with countries that use multiple timezones, then proceeds in alphabetical order
-        
+
         tz("us", "America/New_York");
         tz("us", "America/Chicago");
         tz("us", "America/Denver");
@@ -118,7 +124,7 @@ public class NamedTimeZone {
         tz("fj", "Pacific/Fiji");
         tz("fk", "America/Stanley");
         tz("fr", "Europe/Paris");
-        
+
         tz("ga", "Africa/Libreville");
         tz("gb", "Europe/London");
         tz("gd", "America/Grenada");
@@ -128,7 +134,7 @@ public class NamedTimeZone {
         tz("gn", "Africa/Conakry");
         tz("gr", "Europe/Athens");
         tz("gy", "America/Guyana");
-        
+
         tz("hk", "Asia/Hong_Kong");
         tz("hn", "America/Tegucigalpa");
         tz("hr", "Europe/Zagreb");
@@ -222,7 +228,7 @@ public class NamedTimeZone {
         tz("sv", "America/El_Salvador");
         tz("sy", "Asia/Damascus");
         tz("sz", "Africa/Mbabane");
-       
+
         tz("td", "Africa/Ndjamena");
         tz("tg", "Africa/Lome");
         tz("th", "Asia/Bangkok");
@@ -255,41 +261,50 @@ public class NamedTimeZone {
      * and a given country. Note that this takes account of Java's calendar of daylight savings time
      * changes in different countries. The returned value is the convenional short timezone name, for example
      * PDT for Pacific Daylight Time
-     * @param date the dateTimeValue, including timezone
-     * @param country the two-letter ISO country code
+     *
+     * @param date  the dateTimeValue, including timezone
+     * @param place either a two-letter ISO country code or an Olson timezone name
      * @return the short timezone name if a timezone with the given time displacement is in use in the country
      * in question (on the appropriate date, if known). Otherwise, the formatted (numeric) timezone offset. If
      * the dateTimeValue supplied has no timezone, return a zero-length string.
      */
 
-    public static String getTimeZoneNameForDate(DateTimeValue date, String country) {
+    public static String getTimeZoneNameForDate(DateTimeValue date, /*@Nullable*/ String place) {
         if (!date.hasTimezone()) {
             return "";
         }
-        if (country == null) {
+        if (place == null) {
             return formatTimeZoneOffset(date);
         }
-        List possibleIds = (List)idForCountry.get(country.toLowerCase());
+        TimeZone zone;
+        List<String> possibleZones;
+        if (place.contains("/")) {
+            zone = getNamedTimeZone(place);
+            possibleZones = new ArrayList<String>(1);
+            possibleZones.add(place);
+        } else {
+            possibleZones = idForCountry.get(place.toLowerCase());
         String exampleId;
-        if (possibleIds == null) {
+            if (possibleZones == null) {
             return formatTimeZoneOffset(date);
         } else {
-            exampleId = (String)possibleIds.get(0);
+                exampleId = possibleZones.get(0);
         }
-        TimeZone exampleZone = TimeZone.getTimeZone(exampleId);
-        Date javaDate = null;
+            zone = TimeZone.getTimeZone(exampleId);
+        }
+        Date javaDate;
         try {
             javaDate = date.getCalendar().getTime();
         } catch (IllegalArgumentException e) {
             // this happens with timezones that are allowed in XPath but not in Java, especially on JDK 1.4
             return formatTimeZoneOffset(date);
         }
-        boolean inSummerTime = exampleZone.inDaylightTime(javaDate);
+        boolean inSummerTime = zone != null && zone.inDaylightTime(javaDate);
         int tzMinutes = date.getTimezoneInMinutes();
-        for (int i=0; i<possibleIds.size(); i++) {
-            TimeZone possibleTimeZone = TimeZone.getTimeZone((String)possibleIds.get(i));
+        for (String possibleZone : possibleZones) {
+            TimeZone possibleTimeZone = TimeZone.getTimeZone(possibleZone);
             int offset = possibleTimeZone.getOffset(javaDate.getTime());
-            if (offset == tzMinutes*60000) {
+            if (offset == tzMinutes * 60000) {
                 return possibleTimeZone.getDisplayName(inSummerTime, TimeZone.SHORT);
             }
         }
@@ -298,12 +313,13 @@ public class NamedTimeZone {
 
     /**
      * Format a timezone in numeric form for example +03:00 (or Z for +00:00)
+     *
      * @param timeValue the value whose timezone is to be formatted
      * @return the formatted timezone
      */
 
     public static String formatTimeZoneOffset(DateTimeValue timeValue) {
-        FastStringBuffer sb = new FastStringBuffer(10);
+        FastStringBuffer sb = new FastStringBuffer(16);
         DateTimeValue.appendTimezone(timeValue.getTimezoneInMinutes(), sb);
         return sb.toString();
     }
@@ -314,7 +330,8 @@ public class NamedTimeZone {
      * changes in different countries. The returned value is the Olsen time zone name, for example
      * "Pacific/Los_Angeles", followed by an asterisk (*) if the time is in daylight savings time in that
      * timezone.
-     * @param date the dateTimeValue, including timezone
+     *
+     * @param date    the dateTimeValue, including timezone
      * @param country the country, as a two-letter code
      * @return the Olsen timezone name if a timezone with the given time displacement is in use in the country
      * in question (on the appropriate date, if known). In this case an asterisk is appended to the result if the
@@ -326,22 +343,22 @@ public class NamedTimeZone {
         if (!date.hasTimezone()) {
             return "";
         }
-        List possibleIds = (List)idForCountry.get(country.toLowerCase());
+        List<String> possibleIds = idForCountry.get(country.toLowerCase());
         String exampleId;
         if (possibleIds == null) {
             return formatTimeZoneOffset(date);
         } else {
-            exampleId = (String)possibleIds.get(0);
+            exampleId = possibleIds.get(0);
         }
         TimeZone exampleZone = TimeZone.getTimeZone(exampleId);
         Date javaDate = date.getCalendar().getTime();
         boolean inSummerTime = exampleZone.inDaylightTime(javaDate);
         int tzMinutes = date.getTimezoneInMinutes();
-        for (int i=0; i<possibleIds.size(); i++) {
-            String olsen = (String)possibleIds.get(i);
+        for (int i = 0; i < possibleIds.size(); i++) {
+            String olsen = possibleIds.get(i);
             TimeZone possibleTimeZone = TimeZone.getTimeZone(olsen);
             int offset = possibleTimeZone.getOffset(javaDate.getTime());
-            if (offset == tzMinutes*60000) {
+            if (offset == tzMinutes * 60000) {
                 return inSummerTime ? olsen + "*" : olsen;
             }
         }
@@ -353,29 +370,63 @@ public class NamedTimeZone {
      * in a given region. This relies on the Java database of changes to daylight savings time.
      * Since summer time changes are set by civil authorities the information is not necessarily
      * reliable when applied to dates in the future.
-     * @param date the date/time in question
+     *
+     * @param date   the date/time in question
      * @param region either the two-letter ISO country code, or an Olsen timezone name such as
-     * "America/New_York" or "Europe/Lisbon". If the country code denotes a country spanning several
-     * timezones, such as the US, then one of them is chosen arbitrarily.
+     *               "America/New_York" or "Europe/Lisbon". If the country code denotes a country spanning several
+     *               timezones, such as the US, then one of them is chosen arbitrarily.
      * @return true if the date/time is known to be in summer time in the relevant country;
      * false if it is known not to be in summer time; null if there is no timezone or if no
-     * information is available for the specified region. 
+     * information is available for the specified region.
      */
 
     public static Boolean inSummerTime(DateTimeValue date, String region) {
         String olsenName;
         if (region.length() == 2) {
-            List possibleIds = (List)idForCountry.get(region.toLowerCase());
+            List<String> possibleIds = idForCountry.get(region.toLowerCase());
             if (possibleIds == null) {
                 return null;
             } else {
-                olsenName = (String)possibleIds.get(0);
+                olsenName = possibleIds.get(0);
             }
         } else {
             olsenName = region;
         }
         TimeZone zone = TimeZone.getTimeZone(olsenName);
         return Boolean.valueOf(zone.inDaylightTime(date.getCalendar().getTime()));
+    }
+
+    /**
+     * Get the civil time offset to be made to a given date/time in a given
+     * civil timezone. For example, if the timezone is America/New_York, the civil time
+     * offset will be -5 hours (= 5 x 3600000 ms) during the winter and -4 hours
+     * (=4 x 3600000 ms) during the summer
+     *
+     * @param date      the date/time in question. If this has no timezone, it is assumed
+     *                  to be in GMT.
+     * @param olsenName the Olsen name of the timezone, for example Europe/Lisbon
+     * @return the civil time offset, in milliseconds, to be applied to the given
+     * date/time
+     */
+
+    public static int civilTimeOffset(DateTimeValue date, String olsenName) {
+        TimeZone zone = TimeZone.getTimeZone(olsenName);
+        return zone.getOffset(date.getCalendar().getTime().getTime());
+    }
+
+    /**
+     * Get the TimeZone object for a given Olson timezone name
+     *
+     * @param olsonName an Olson timezone name, for example "Europe/London"
+     * @return the corresponding TimeZone object, or null if not available
+     */
+
+    public static TimeZone getNamedTimeZone(String olsonName) {
+        if (knownTimeZones.contains(olsonName)) {
+            return TimeZone.getTimeZone(olsonName);
+        } else {
+            return null;
+        }
     }
 
 
