@@ -1,4 +1,4 @@
-name := "saxon_orbeon"
+name := "saxon"
 version := "9.1.0.8.1"
 organization := "org.orbeon"
 
