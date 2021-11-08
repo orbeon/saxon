@@ -1,5 +1,5 @@
 name := "saxon"
-version := "9.1.0.8.1"
+version := "9.1.0.8.2"
 organization := "org.orbeon"
 
 Compile / compile / javacOptions ++= Seq("-source", "1.8", "-target", "1.8", "-g:lines")
