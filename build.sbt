@@ -1,5 +1,5 @@
 name := "saxon"
-version := "9.1.0.8.2"
+version := "9.1.0.8.3"
 organization := "org.orbeon"
 
 Compile / compile / javacOptions ++= Seq("-source", "1.8", "-target", "1.8", "-g:lines")
@@ -16,3 +16,7 @@ Compile / unmanagedSources / excludeFilter :=
   HiddenFileFilter || { file =>
     Set("jdom", "xom", "dotnet")(file.getParentFile.getName) //, "xpath"
   }
+
+// Orbeon Forms has its own `PathMap` implementation. We need to keep these in the source for
+// compilation, but we exclude them from the resulting JAR file.
+Compile / packageBin / mappings ~= (_.filterNot(_._1.getName.startsWith("PathMap")))
