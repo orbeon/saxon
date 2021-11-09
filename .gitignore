@@ -1,0 +1,13 @@
+build/
+tmp/
+target/
+metals.sbt
+node_modules/
+.idea/
+.idea.bak*
+.bloop
+.bsp
+.metals
+.vscode
+*~
+.DS_Store
