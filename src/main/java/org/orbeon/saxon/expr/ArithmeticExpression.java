@@ -20,6 +20,8 @@ public class ArithmeticExpression extends BinaryExpression {
 
     private Calculator calculator;
     private boolean simplified = false;
+    private ItemType cachedItemType = null;
+    private TypeHierarchy cachedTypeHierarchy = null;
 
     /**
      * Create an arithmetic expression
@@ -190,6 +192,7 @@ public class ArithmeticExpression extends BinaryExpression {
     public Expression copy() {
         ArithmeticExpression ae = new ArithmeticExpression(operand0.copy(), operator, operand1.copy());
         ae.calculator = calculator;
+        // Do not copy cached values as they may be invalidated in the new context
         return ae;
     }
 
@@ -245,8 +248,15 @@ public class ArithmeticExpression extends BinaryExpression {
      */
 
     public ItemType getItemType(TypeHierarchy th) {
+        // Return cached result if we've already computed it with this type hierarchy
+        if (cachedItemType != null && th == cachedTypeHierarchy)
+            return cachedItemType;
+
         if (calculator == null) {
-            return BuiltInAtomicType.ANY_ATOMIC;  // type is not known statically
+            // type is not known statically
+            cachedItemType = BuiltInAtomicType.ANY_ATOMIC;
+            cachedTypeHierarchy = th;
+            return cachedItemType;
         } else {
             ItemType t1 = operand0.getItemType(th);
             if (!(t1 instanceof AtomicType)) {
@@ -268,6 +278,11 @@ public class ArithmeticExpression extends BinaryExpression {
                     resultType = BuiltInAtomicType.NUMERIC;
                 }
             }
+
+            // Cache the result
+            cachedItemType = resultType;
+            cachedTypeHierarchy = th;
+
             return resultType;
         }
     }
