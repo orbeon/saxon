@@ -1,8 +1,11 @@
 name := "saxon"
-version := "9.1.0.8.3"
+version := "9.1.0.8.4"
 organization := "org.orbeon"
 
 Compile / compile / javacOptions ++= Seq("-source", "1.8", "-target", "1.8", "-g:lines")
+Compile / packageDoc / skip := true
+Compile / doc / skip := true
+publishArtifact in (Compile, packageDoc) := false
 
 crossPaths       := false // drop off Scala suffix from artifact names.
 autoScalaLibrary := false // exclude scala-library from dependencies
